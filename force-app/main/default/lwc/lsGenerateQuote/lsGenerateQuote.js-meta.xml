@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>66.0</apiVersion>
+    <isExposed>true</isExposed>
+    <masterLabel>Generate LS Quote</masterLabel>
+    <description>Opportunity, Trial, and Sample quote list, generation, and refresh.</description>
+    <targets>
+        <target>lightning__RecordPage</target>
+        <target>lightning__AppPage</target>
+        <target>lightning__HomePage</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightning__RecordPage">
+            <objects>
+                <object>Opportunity</object>
+                <object>Trial__c</object>
+                <object>Sample__c</object>
+            </objects>
+            <property
+                name="recordPageContext"
+                type="String"
+                label="Record Page Context"
+                description="Set to trial or sample on Trial and Sample record pages to scope quotes to that record."
+                default="" />
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

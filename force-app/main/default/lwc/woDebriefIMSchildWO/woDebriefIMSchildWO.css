@@ -1,0 +1,661 @@
+/* ── Host flex layout — keeps footer pinned at bottom regardless of content height */
+:host {
+    display: flex;
+    flex-direction: column;
+    min-height: 24rem;
+    height: 100%;
+    overflow: hidden;
+}
+
+.scrollable-content {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.site-visit-block {
+    margin: 0.75rem;
+    padding: 1rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    background: #eef4ff;
+    border: 1px solid #1b96ff;
+    border-radius: 0.25rem;
+    color: #032d60;
+}
+
+.site-visit-block_body {
+    flex: 1 1 auto;
+}
+
+.site-visit-block_message {
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.4;
+}
+
+.offline-banner {
+    background-color: #fff3cd;
+    color: #856404;
+    font-size: 0.8125rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 0.4rem 0.75rem;
+    border-bottom: 1px solid #ffc107;
+    gap: 0.4rem;
+}
+
+/* ── WO Header (static — does not shrink, never scrolled away) ─────── */
+.wo-header {
+    flex-shrink: 0;
+    background: #ffffff;
+    border-radius: 0.25rem;
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+    border: none;
+    margin: 0.5rem;
+}
+
+.header-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+}
+
+.header-field {
+    flex: 1 1 25%;
+    min-width: 7rem;
+    padding: 0.5rem 0.75rem;
+    border-right: 1px solid #f0f0f0;
+}
+
+.header-field:last-child {
+    border-right: none;
+}
+
+.header-field_instruments {
+    flex: 1.4 1 12rem;
+    min-width: 11rem;
+}
+
+.tray-planner-btn {
+    flex-shrink: 0;
+    margin: 0 0.5rem 0.5rem;
+}
+
+.tray-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    margin: 0 0.5rem 0.5rem;
+}
+
+.tray-actions lightning-button {
+    flex: 1 1 10rem;
+}
+
+.tray-picture-action {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1 1 10rem;
+}
+
+.mobile-picture-button {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2rem;
+    padding: 0 1rem;
+    border: 1px solid #747474;
+    border-radius: 0.25rem;
+    background: #fff;
+    color: #0176d3;
+    font-size: 0.8125rem;
+    line-height: 1.875rem;
+    cursor: pointer;
+}
+
+.mobile-picture-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
+}
+
+.picture-field-label {
+    font-size: 0.75rem;
+    color: #444;
+    margin-bottom: 0.25rem;
+}
+
+.picture-field-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.picture-count {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #444;
+}
+
+.picture-count-badge {
+    display: inline-block;
+    margin-top: 0.25rem;
+    margin-right: 0.35rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 0.25rem;
+    background: #eef4ff;
+    color: #0b5cab;
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+.picture-strip {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    margin: 0 0.5rem 0.75rem;
+    padding-bottom: 0.25rem;
+}
+
+.picture-strip_in-form {
+    margin: 0.5rem 0 0;
+}
+
+.picture-tile {
+    position: relative;
+    flex: 0 0 auto;
+}
+
+.picture-thumb-btn {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+}
+
+.picture-thumb {
+    width: 4.5rem;
+    height: 4.5rem;
+    object-fit: cover;
+    border-radius: 0.25rem;
+    border: 1px solid #d8dde6;
+    display: block;
+    background: #f3f3f3;
+}
+
+.picture-delete {
+    position: absolute;
+    top: 0.15rem;
+    right: 0.15rem;
+}
+
+.picture-review-modal {
+    z-index: 9102;
+}
+
+.picture-review-backdrop {
+    z-index: 9101;
+}
+
+.picture-review-content {
+    position: relative;
+    min-height: 16rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.picture-review-image {
+    display: block;
+    width: 100%;
+    max-height: 70vh;
+    object-fit: contain;
+    background: #f3f3f3;
+}
+
+.tray-planner-modal {
+    z-index: 9002;
+}
+
+.tray-planner-backdrop {
+    z-index: 9001;
+}
+
+.tray-planner-modal .slds-modal__container {
+    width: 95%;
+    max-width: 56rem;
+}
+
+.tray-planner-table-wrap {
+    overflow: auto;
+    max-height: 24rem;
+}
+
+.tray-planner-table-wrap table {
+    min-width: 40rem;
+}
+
+.service-code-label {
+    font-size: 0.75rem;
+    color: #444;
+    margin-bottom: 0.25rem;
+}
+
+.service-code-label::before {
+    content: '* ';
+    color: #c23934;
+}
+
+.service-code-list {
+    max-height: 12rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid #d8dde6;
+    border-radius: 0.25rem;
+    background: #fff;
+}
+
+.service-code-option {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 0.55rem 0.75rem;
+    border: 0;
+    border-bottom: 1px solid #f3f3f3;
+    background: #fff;
+    color: #181818;
+    font-size: 0.8125rem;
+    cursor: pointer;
+}
+
+.service-code-option:last-child {
+    border-bottom: 0;
+}
+
+.repair-center-title {
+    margin-top: 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #444;
+}
+
+.repair-center-pictures {
+    margin: 0.5rem 0 0;
+    padding-left: 1.1rem;
+    font-size: 0.8125rem;
+}
+
+.service-code-option_selected {
+    background: #eef4ff;
+    font-weight: 700;
+}
+
+.field-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #747474;
+    margin-bottom: 0.2rem;
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem 0.55rem;
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    background-color: #d4f0d4;
+    color: #2e7d32;
+    border: none;
+    letter-spacing: 0.02em;
+}
+
+.field-value {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #181818;
+}
+
+.field-value_strong {
+    font-weight: 700;
+}
+
+/* ── Custom Tab Bar (static — does not shrink) ──────────────────── */
+/* Horizontal scroll on narrow screens (5 tabs may not fit on small phones) */
+.tab-bar {
+    flex-shrink: 0;
+    display: flex;
+    border-bottom: 2px solid #e5e5e5;
+    background: #ffffff;
+    margin: 0 0.5rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+.tab-bar::-webkit-scrollbar { display: none; }
+
+.tab-btn {
+    flex: 1 0 auto;
+    min-width: 4.75rem;
+    position: relative;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.875rem 0.5rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    -webkit-tap-highlight-color: transparent;
+    min-height: 52px;
+}
+
+.tab-label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #5a5a5a;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+}
+
+.tab-indicator {
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: #0176d3;
+    border-radius: 2px 2px 0 0;
+}
+
+.tab-btn:has(.tab-indicator) .tab-label {
+    color: #0176d3;
+}
+
+.tab-panel {
+    min-height: 3rem;
+}
+
+.tab-search {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #ffffff;
+    padding-bottom: 0.25rem;
+}
+
+.no-search-results {
+    text-align: center;
+    color: #747474;
+    font-size: 0.875rem;
+    padding: 1.5rem 0.75rem;
+}
+
+/* ── WOLI Cards ─────────────────────────────────── */
+.woli-card {
+    display: flex;
+    align-items: center;
+    background: #ffffff;
+    border-radius: 0.375rem;
+    border: none;
+    border-left: 4px solid #0176d3;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    padding: 0.6rem 0.75rem;
+    gap: 0.5rem;
+}
+
+.woli-card_canceled {
+    background: #fdecec;
+    border-left-color: #ba0517;
+}
+
+.woli-card_incomplete {
+    background: #fff6d6;
+    border-left-color: #8c6b00;
+}
+
+.woli-card_completed {
+    background: #e8f6ec;
+    border-left-color: #2e844a;
+}
+
+.woli-card_billing {
+    background: #fff1e0;
+    border-left-color: #dd7a01;
+}
+
+.woli-card_new {
+    background: #e8f4fd;
+    border-left-color: #0176d3;
+}
+
+.woli-card_canceled .woli-description,
+.woli-card_incomplete .woli-description,
+.woli-card_completed .woli-description,
+.woli-card_billing .woli-description,
+.woli-card_new .woli-description {
+    color: #181818;
+}
+
+.woli-info {
+    flex: 1 1 auto;
+    min-width: 0;
+    cursor: pointer;
+    -webkit-tap-highlight-color: rgba(1, 118, 211, 0.08);
+    border-radius: 0.25rem;
+    padding: 0.1rem 0.25rem;
+    margin: -0.1rem -0.25rem;
+    transition: background-color 120ms ease;
+}
+.woli-info:hover {
+    background-color: #f4f8fc;
+}
+
+.woli-description {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: #181818;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 0.2rem;
+}
+
+.woli-meta {
+    font-size: 0.8rem;
+    color: #5a5a5a;
+    /* Travel meta carries a date range + hours; allow it to wrap on narrow
+       screens instead of getting clipped by ellipsis. */
+    white-space: normal;
+    line-height: 1.3;
+}
+
+/* Small chip shown next to meta line on the "Other" tab — surfaces the
+   actual LineType__c (or "No Type") since Other is a catch-all. */
+.line-type-chip {
+    display: inline-block;
+    padding: 0.05rem 0.4rem;
+    margin-right: 0.4rem;
+    border-radius: 0.5rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    background-color: #eef3f9;
+    color: #0070d2;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.woli-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-shrink: 0;
+}
+
+/* ── Edit / Add form ────────────────────────────── */
+.edit-form {
+    background-color: #f4f6f9;
+    border-radius: 0 0 0.375rem 0.375rem;
+    border: 1px solid #d8dde6;
+    border-top: none;
+    padding: 0.75rem;
+}
+
+/* Two-column grid for form fields. Cells default to half-width.
+   `.field-full` spans the whole row (used for descriptions / lookups
+   that need horizontal breathing room).
+   Collapses to a single column on narrow viewports so datetime pickers
+   (which themselves render Date + Time side-by-side internally) don't
+   get squeezed below usable width. */
+.field-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem 0.75rem;
+}
+
+.field-grid > .field-full {
+    grid-column: 1 / -1;
+}
+
+@media (max-width: 480px) {
+    .field-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+.add-form-wrapper {
+    background-color: #f4f6f9;
+    border: 1px solid #d8dde6;
+    border-radius: 0.375rem;
+    padding: 0.75rem;
+    margin: 0.5rem;
+}
+
+.add-btn-wrapper {
+    padding: 0.5rem 0.5rem 0;
+}
+
+.error-text {
+    font-size: 0.8125rem;
+    color: #c23934;
+    margin: 0.25rem 0 0.25rem;
+}
+
+/* Small descriptive text shown directly under a record-picker after selection.
+   Used by Repair Code to surface the Product Name (since the picker itself
+   only displays ProductCode in the input after selection). */
+.picker-helper {
+    font-size: 0.75rem;
+    color: #5a5a5a;
+    margin-top: 0.2rem;
+    padding-left: 0.15rem;
+    line-height: 1.3;
+}
+
+.product-item-scan-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.5rem;
+}
+
+.product-item-picker {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.product-item-scan {
+    flex: 0 0 auto;
+    padding-bottom: 0.15rem;
+}
+
+/* Read-only field display (used for the calculated Total Price on the Expense
+   form). Mirrors the visual weight of a lightning-input so the form doesn't
+   look lopsided. */
+.read-only-field {
+    padding: 0.25rem 0;
+}
+.read-only-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #5a5a5a;
+    margin-bottom: 0.15rem;
+}
+.read-only-value {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #181818;
+    padding: 0.4rem 0.65rem;
+    background-color: #ffffff;
+    border: 1px solid #d8dde6;
+    border-radius: 0.25rem;
+}
+
+/* ── State badges (New / Modified) ──────────────────────────────── */
+.new-badge,
+.dirty-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.1rem 0.45rem;
+    border-radius: 0.75rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    margin-top: 0.25rem;
+}
+
+.new-badge {
+    background-color: #d0e8ff;
+    color: #0055b3;
+}
+
+.dirty-badge {
+    background-color: #fff0cc;
+    color: #8a5b00;
+}
+
+/* ── Footer bar — pinned by flex layout on :host, not position:sticky */
+.footer-bar {
+    flex-shrink: 0;
+    background: #ffffff;
+    border-top: 1px solid #e5e5e5;
+    box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.08);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.6rem 1rem;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.field-help {
+    color: #706e6b;
+    font-size: 0.75rem;
+    margin-top: 0.25rem;
+}

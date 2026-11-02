@@ -1,0 +1,101 @@
+<template>
+    <section role="dialog" tabindex="-1" aria-modal="true" aria-labelledby="forecast-eligible-heading" class="qa-panel">
+        <div class="qa-panel__container">
+            <header class="qa-panel__header">
+                <h2 id="forecast-eligible-heading" class="slds-modal__title slds-hyphenate slds-text-align_center">
+                    Update Forecast Eligible Quotes
+                </h2>
+            </header>
+
+            <div class="qa-panel__body slds-p-around_large">
+
+                <template if:true={isLoading}>
+                    <div class="panel-loading">
+                        <lightning-spinner alternative-text="Loading quotes" size="medium"></lightning-spinner>
+                    </div>
+                </template>
+
+                <template if:false={isLoading}>
+                    <template if:true={hasQuotes}>
+                        <table class="slds-table slds-table_bordered slds-table_cell-buffer slds-table_fixed-layout quote-table">
+                            <colgroup>
+                                <col class="col-quote-number" />
+                                <col class="col-status" />
+                                <col class="col-approval-status" />
+                                <col class="col-last-modified" />
+                                <col class="col-total" />
+                                <col class="col-forecast-eligible" />
+                            </colgroup>
+                            <thead>
+                                <tr class="slds-line-height_reset">
+                                    <th scope="col">Quote Number</th>
+                                    <th scope="col">Status</th>
+                                    <th scope="col">Approval Status</th>
+                                    <th scope="col">Last Modified Date</th>
+                                    <th scope="col">Total w/o Freight</th>
+                                    <th scope="col" class="forecast-col">Forecast Eligible</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template for:each={quoteRows} for:item="quote">
+                                    <tr key={quote.id} class="slds-hint-parent">
+                                        <th scope="row" data-label="Quote Number">
+                                            <div class="truncate" title={quote.quoteNumber}>{quote.quoteNumber}</div>
+                                        </th>
+                                        <td data-label="Status">
+                                            <div class="truncate" title={quote.status}>{quote.status}</div>
+                                        </td>
+                                        <td data-label="Approval Status">
+                                            <div class="truncate" title={quote.approvalStatus}>{quote.approvalStatus}</div>
+                                        </td>
+                                        <td data-label="Last Modified Date">
+                                            <div class="truncate" title={quote.lastModifiedDate}>{quote.lastModifiedDate}</div>
+                                        </td>
+                                        <td data-label="Total w/o Freight">
+                                            <div class="truncate" title={quote.quoteTotalWithoutFreight}>
+                                                {quote.quoteTotalWithoutFreight}
+                                            </div>
+                                        </td>
+                                        <td data-label="Forecast Eligible" class="forecast-col">
+                                            <lightning-input
+                                                type="checkbox"
+                                                variant="label-hidden"
+                                                label="Forecast Eligible"
+                                                checked={quote.forecastEligible}
+                                                data-id={quote.id}
+                                                onchange={handleForecastEligibleChange}>
+                                            </lightning-input>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </template>
+
+                    <template if:false={hasQuotes}>
+                        <p class="slds-text-align_center slds-p-around_medium">
+                            No Open quotes are available for forecast eligible management on this Opportunity.
+                        </p>
+                    </template>
+                </template>
+
+                <template if:true={isSaving}>
+                    <div class="panel-saving">
+                        <lightning-spinner alternative-text="Saving forecast eligible quotes" size="medium"></lightning-spinner>
+                    </div>
+                </template>
+            </div>
+
+            <footer class="qa-panel__footer">
+                <lightning-button label="Cancel" onclick={handleCancel} disabled={isSaving}></lightning-button>
+                <lightning-button
+                    variant="brand"
+                    label={proceedButtonLabel}
+                    class="slds-m-left_small proceed-button"
+                    onclick={handleProceed}
+                    disabled={isProceedDisabled}>
+                </lightning-button>
+            </footer>
+        </div>
+    </section>
+</template>

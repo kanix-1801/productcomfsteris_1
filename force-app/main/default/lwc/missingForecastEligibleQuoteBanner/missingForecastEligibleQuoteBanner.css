@@ -1,0 +1,8 @@
+:host {
+    display: block;
+}
+
+.slds-scoped-notification {
+    border: 1px solid #dd7a01;
+    border-radius: 0.25rem;
+}

@@ -1,0 +1,211 @@
+.user-hover-container {
+    position: relative;
+    display: inline-block;
+}
+
+.user-tooltip {
+    position: absolute;
+    z-index: 9000;
+    min-width: 260px;
+    top: -90px;
+    left: 0;
+}
+
+.large-modal .slds-modal__container {
+    width: 90%;
+    max-width: 1200px;
+    min-width: 900px;
+}
+
+.modal-body {
+    min-height: 600px;
+    max-height: 75vh;
+    overflow-y: auto;
+}
+
+.custom-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9001;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.custom-modal-container {
+    position: relative;
+    width: 90vw;
+    max-width: 1200px;
+    height: 85vh;
+    background: #ffffff;
+    border-radius: 0.25rem;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.custom-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9000;
+    background: rgba(0, 0, 0, 0.45);
+}
+
+.custom-modal-header {
+    position: relative;
+    flex: 0 0 auto;
+    padding: 1rem 3rem 1rem 1.5rem;
+    border-bottom: 1px solid #dddbda;
+    background: #ffffff;
+    text-align: center;
+    z-index: 2;
+}
+
+.custom-modal-body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 1rem 1.5rem;
+    min-height: 0;
+}
+
+.custom-close-icon {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    z-index: 5;
+    background: #ffffff;
+    border: 1px solid #dddbda;
+    border-radius: 0.25rem;
+    
+    width: 2.5rem;
+    height: 2.5rem;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.summary-popup-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.25);
+    z-index: 9100;
+}
+
+.summary-popup {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9101;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.summary-popup-container {
+    width: 700px;
+    max-width: 90vw;
+    max-height: 70vh;
+    background: white;
+    border-radius: 6px;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+    overflow: hidden;
+}
+
+.summary-popup-header {
+    position: relative;
+    padding: 1rem;
+    border-bottom: 1px solid #dddbda;
+    background: white;
+}
+
+.summary-popup-header h2 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.summary-popup-close {
+    position: absolute;
+    top: 0.65rem;
+    right: 0.75rem;
+    border: none;
+    background: transparent;
+    font-size: 1.25rem;
+    cursor: pointer;
+}
+
+.summary-popup-body {
+    padding: 1rem;
+    max-height: 45vh;
+    overflow-y: auto;
+}
+
+.summary-popup-footer {
+    padding: 0.75rem 1rem;
+    border-top: 1px solid #dddbda;
+    text-align: right;
+}
+
+
+.section-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.pill-container {
+    max-height: 8rem;
+    overflow-y: auto;
+}
+
+.territory-search-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.territory-search-input {
+    width: 50%;
+}
+
+.account-search-row {
+    display: flex;
+    align-items: end;
+    gap: 1rem;
+}
+
+.account-search-field {
+    flex: 0 0 40%;
+}
+
+.account-type-field {
+    flex: 0 0 30%;
+}
+
+.account-search-button {
+    flex: 0 0 30%;
+    display: flex;
+    align-items: end;
+    justify-content: flex-start;
+    padding-top: 1.5rem; /* aligns with combobox/input */
+}
+
+.button-group {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+}

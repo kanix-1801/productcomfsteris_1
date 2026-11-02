@@ -1,0 +1,17 @@
+<template>
+    <!-- Renders CMDT Component rows only; Field rows are handled by metadataColumnLayout -->
+    <template lwc:if={isComponent}>
+        <template lwc:if={hasResolvedComponent}>
+            <!-- Dynamic child: standard:relatedList or custom registry LWC; props from PropsJson__c -->
+            <lwc:component
+                lwc:is={componentConstructor}
+                lwc:spread={componentProps}>
+            </lwc:component>
+        </template>
+        <template lwc:else>
+            <div class="slds-text-color_weak slds-p-around_x-small">
+                Component not registered: {unknownComponentName}
+            </div>
+        </template>
+    </template>
+</template>

@@ -1,0 +1,33 @@
+<template>
+    <template lwc:if={isVisible}>
+        <div class={bannerClass} role="alert">
+            <span class="slds-assistive-text">{assistiveText}</span>
+            <div class="banner-content">
+                <template lwc:if={showBannerIcon}>
+                    <lightning-icon
+                        icon-name="utility:warning"
+                        alternative-text="Warning"
+                        size="small"
+                        class="banner-icon"
+                    ></lightning-icon>
+                </template>
+                <div class="banner-text">
+                    <p class="banner-message">{bannerMessage}</p>
+                    <template lwc:if={hasProductLines}>
+                        <template for:each={productLines} for:item="product">
+                            <p key={product.key} class="banner-product-line">{product.name}</p>
+                        </template>
+                    </template>
+                </div>
+                <lightning-button
+                    label="Dismiss"
+                    title="Dismiss"
+                    variant="neutral"
+                    onclick={handleDismiss}
+                    disabled={dismissDisabled}
+                    class="banner-dismiss"
+                ></lightning-button>
+            </div>
+        </div>
+    </template>
+</template>

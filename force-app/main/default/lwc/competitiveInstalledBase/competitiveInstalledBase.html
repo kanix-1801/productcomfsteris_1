@@ -1,0 +1,111 @@
+<template>
+    <lightning-card title="Competitive Installed Base" icon-name="standard:asset_object">
+        <template lwc:if={isLoading}>
+            <lightning-spinner alternative-text="Loading competitive installed base"></lightning-spinner>
+        </template>
+
+        
+        <template lwc:elseif={hasError}>
+            <div class="slds-p-around_medium slds-text-color_error">
+                Unable to load Competitive Installed Base.
+            </div>
+        </template>
+
+        <!--Total Asset count and Summary by Competitor-->
+        <template lwc:else>
+            <div class="slds-p-horizontal_medium slds-p-bottom_small">
+                <div class="slds-grid slds-wrap slds-gutters_small">
+                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3">
+                        <p class="slds-text-title_caps">Total Assets</p>
+                        <p class="slds-text-heading_medium">{totalAssetCount}</p>
+                    </div>
+                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3">
+                        <p class="slds-text-title_caps">Total Value</p>
+                        <p class="slds-text-heading_medium">{formattedTotalValue}</p>
+                    </div>
+                </div>
+            </div>
+
+            <template lwc:if={hasSummary}>
+                <div class="slds-p-horizontal_medium slds-p-bottom_medium">
+                    <h3 class="slds-text-heading_small slds-p-bottom_x-small">Summary by Competitor</h3>
+                    <div class="summary-table-wrap">
+                        <table class="slds-table slds-table_cell-buffer slds-table_bordered summary-table">
+                            <thead>
+                                <tr class="slds-line-height_reset">
+                                    <th scope="col">
+                                        <div class="slds-cell-wrap">Competitor</div>
+                                    </th>
+                                    <th scope="col" class="summary-col-count">
+                                        <div class="slds-cell-wrap">Asset Count</div>
+                                    </th>
+                                    <th scope="col" class="summary-col-value">
+                                        <div class="slds-cell-wrap">Total Value</div>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template for:each={formattedCompetitorSummaries} for:item="summary">
+                                    <tr key={summary.competitorName} class="slds-hint-parent">
+                                        <td data-label="Competitor">
+                                            <div class="slds-cell-wrap">{summary.competitorName}</div>
+                                        </td>
+                                        <td data-label="Asset Count" class="summary-col-count">
+                                            {summary.assetCount}
+                                        </td>
+                                        <td data-label="Total Value" class="summary-col-value">
+                                            {summary.formattedTotalValue}
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </template>
+
+            <!--All the assets details-->
+            <template lwc:if={hasAssets}>
+                <div class="slds-p-horizontal_medium slds-p-bottom_medium">
+                    <h3 class="slds-text-heading_small slds-p-bottom_x-small">{assetDetailHeading}</h3>
+                    <div class="asset-table-scroll">
+                        <lightning-datatable
+                            key-field="id"
+                            data={paginatedAssets}
+                            columns={assetColumns}
+                            hide-checkbox-column
+                            wrap-text-max-lines="3">
+                        </lightning-datatable>
+                    </div>
+
+                    <div
+                        class="slds-m-top_small slds-grid slds-grid_vertical-align-center slds-grid_align-spread asset-pagination-row">
+                        <lightning-button label="Previous" onclick={handlePreviousAssetPage}
+                            disabled={disablePreviousAssetPage}>
+                        </lightning-button>
+
+                        <div class="slds-grid slds-grid_vertical-align-center pagination-center">
+                            <span class="slds-text-body_small slds-m-right_small">Page {assetPageNumber}
+                                of {assetTotalPages}</span>
+                            <lightning-combobox label="Records Per Page" variant="label-hidden"
+                                class="page-size-combobox" value={assetPageSizeValue}
+                                options={pageSizeOptions} onchange={handleAssetPageSizeChange}>
+                            </lightning-combobox>
+                        </div>
+
+                        <lightning-button label="Next" onclick={handleNextAssetPage}
+                            disabled={disableNextAssetPage}>
+                        </lightning-button>
+                    </div>
+                </div>
+            </template>
+
+            <!--No asset found-->
+            <template lwc:else>
+                <div class="slds-p-around_medium slds-text-color_weak">
+                    No competitive installed base assets found for this account context.
+                </div>
+            </template>
+        </template>
+    </lightning-card>
+</template>

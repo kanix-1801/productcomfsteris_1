@@ -1,0 +1,92 @@
+<template>
+    <template if:true={showActionLauncher}>
+        <div class="slds-scope action-launcher">
+            <lightning-card>
+                <div slot="title" class="slds-media slds-media_center">
+                    <div class="slds-media__figure">
+                        <span class="action-launcher__header-icon">
+                            <svg
+                                class="action-launcher__header-icon-svg"
+                                viewBox="0 0 27 27"
+                                aria-hidden="true"
+                                focusable="false"
+                            >
+                                <circle cx="13.5" cy="13.5" r="13.5" fill="currentColor"></circle>
+                                <path
+                                    fill="#ffffff"
+                                    d="M11 5.5H18L16 12.5H19L11.8 21.5L13.2 14H8Z"
+                                ></path>
+                            </svg>
+                            <span class="slds-assistive-text">Action Launcher</span>
+                        </span>
+                    </div>
+                    <div class="slds-media__body">
+                        <h2 class="slds-card__header-title">
+                            <span class="slds-text-heading_small">Action Launcher</span>
+                        </h2>
+                    </div>
+                </div>
+
+                <div class="slds-p-around_small">
+                    <lightning-input
+                        type="search"
+                        label="Search actions"
+                        variant="label-hidden"
+                        placeholder="Search actions..."
+                        value={searchTerm}
+                        onchange={handleSearchChange}
+                    ></lightning-input>
+
+                    <div class="action-launcher__pills slds-m-top_small" role="list">
+                        <template for:each={primaryActions} for:item="action">
+                            <button
+                                key={action.apiName}
+                                type="button"
+                                class="action-launcher__pill slds-button slds-button_brand"
+                                data-api-name={action.apiName}
+                                title={action.label}
+                                onclick={handleActionClick}
+                                role="listitem"
+                            >
+                                {action.label}
+                            </button>
+                        </template>
+
+                        <template if:true={hasOverflowActions}>
+                            <lightning-button-menu
+                                class="action-launcher__overflow"
+                                icon-name="utility:down"
+                                icon-size="x-small"
+                                variant="border-filled"
+                                menu-alignment="auto"
+                                alternative-text={overflowLabel}
+                                title={overflowLabel}
+                                onselect={handleOverflowSelect}
+                            >
+                                <template for:each={overflowActions} for:item="action">
+                                    <lightning-menu-item
+                                        key={action.apiName}
+                                        value={action.apiName}
+                                        label={action.label}
+                                    ></lightning-menu-item>
+                                </template>
+                            </lightning-button-menu>
+                        </template>
+                    </div>
+
+                    <template if:true={showNoResults}>
+                        <p class="slds-text-body_small slds-text-color_weak slds-m-top_small slds-text-align_center">
+                            {noResultsMessage}
+                        </p>
+                    </template>
+
+                    <template if:true={loadError}>
+                        <p class="slds-text-body_small slds-text-color_error slds-m-top_small slds-text-align_center">
+                            Unable to load actions. Contact your administrator.
+                        </p>
+                    </template>
+                </div>
+            </lightning-card>
+        </div>
+    </template>
+</template>

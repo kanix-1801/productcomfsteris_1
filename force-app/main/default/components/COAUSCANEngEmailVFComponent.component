@@ -1,0 +1,50 @@
+<Apex:component controller="COAEmailController"  access="global">
+    <Apex:attribute name="caseId1" description="" assignTo="{!caseId}" type="String" />  
+    
+	<apex:attribute name="accountName" type="String" description="Account Name"/>
+    <apex:attribute name="poNumber" type="String" description="Po Number"/>
+    <apex:attribute name="orderNumber" type="string" description="Order Number"/>
+    <apex:attribute name="taxAmount" type="Decimal" description="Tax Amount"/>
+    <apex:attribute name="orderCountry" type="string" description="Order Country"/>
+    <apex:attribute name="CurrencyIsoCode" type="string" description="Currency"/>
+    
+    
+    <apex:image URL="{!BannerUrlCOATurns}" alt="STERIS Banner" width="982" height="180"/>
+	
+ <p>Dear {!PurchasingContactPO},</p>
+        <p style="max-width:982px;">
+            Thank you for choosing STERIS. We have processed your purchase order # {!poNumber}. 
+            Your STERIS confirmation # is {!orderNumber}. If you have any questions, please contact your STERIS Coordinator {!RegionalSalesCoOrdinatorBlUser} or your Account Manager, {!AccountManagerCapLineSalesRep}.
+        </p>
+		       
+
+		<apex:outputPanel rendered="{!orderCountry = 'USA'}">
+            <apex:outputPanel rendered="{!IF(NOT(ISBLANK(taxAmount)) && taxAmount > 0, true, false)}">
+            <p style="max-width:982px;">
+                Please note the current tax status for this order is TAXABLE. If something has changed in your tax status,
+                or if you have any questions, you can contact your STERIS Coordinator.               
+            </p>
+                </apex:outputPanel>
+            <apex:outputPanel rendered="{!taxAmount=0}">
+            <p style="max-width:982px;">
+                Please note the current tax status for this order is TAX-EXEMPT. If something has changed in your tax status,
+                or if you have any questions, you can contact your STERIS Coordinator.               
+            </p>
+                </apex:outputPanel>
+        </apex:outputPanel>
+    
+       <apex:outputText value="Next steps:" style="font-size:16px; font-weight:bold; color:#0078D4;" />
+        <ul>
+            <apex:outputPanel rendered="{!orderCountry != 'Canada'}">
+                <li>Closer to shipment, we will be reaching out to {!DepartmentManager} to gather contacts and provide shipment details.</li>
+            </apex:outputPanel>
+            <li>We will be working with your Account Manager to coordinate installation details as we get closer to your scheduled ship date.</li>
+            <apex:outputPanel rendered="{!GiReprocessingOrders}">
+                <li>Please note shipping  handling charges will be added to your order prior to shipment.</li>
+            </apex:outputPanel>
+        </ul>
+
+        <p style="max-width:982px;">Thank you again for choosing STERIS. Our goal is to provide a superior Customer experience. Please reach out to us at any time
+    		if we can provide further assistance.</p>
+    
+</apex:component>

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>62.0</apiVersion>
+    <isExposed>true</isExposed>
+    <masterLabel>Config POC Launcher</masterLabel>
+    <targets>
+        <target>lightning__FlowScreen</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightning__FlowScreen">
+            <property name="lineId" type="String" label="Root Transaction Line Id" role="inputOnly"/>
+            <property name="currentLineId" type="String" label="Current Transaction Line Id (no longer used)" role="inputOnly"/>
+            <property name="buttonLabel" type="String" label="Button label" role="inputOnly"/>
+            <property name="targetProductCode" type="String" label="Show only for Product Code (optional)" role="inputOnly"/>
+            <property name="currentProductCode" type="String" label="Current Product Code (optional)" role="inputOnly"/>
+            <property name="displayAssetName" type="String" label="Asset Name (output)" role="outputOnly"/>
+            <property name="isTargetLine" type="Boolean" label="Is Target Line (output)" role="outputOnly"/>
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

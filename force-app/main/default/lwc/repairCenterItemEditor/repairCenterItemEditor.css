@@ -1,0 +1,47 @@
+.item-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.item-editor__quantity {
+    max-width: 7.5rem;
+}
+
+.item-editor__photos:empty {
+    display: none;
+}
+
+.item-editor__actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0 0.5rem;
+    border-bottom: 1px solid #e5e5e5;
+}
+
+.item-editor__actions-start,
+.item-editor__actions-end {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2rem;
+}
+
+.item-editor__actions-start:empty {
+    display: none;
+}
+
+.item-editor__actions-end {
+    margin-left: auto;
+}
+
+/* Keep Cancel / Take Photo / Save on one baseline and matching control height. */
+.item-editor__actions lightning-button {
+    display: inline-flex;
+    align-items: center;
+    --slds-c-button-line-height: 1.875rem;
+    --slds-c-button-spacing-block-start: 0.375rem;
+    --slds-c-button-spacing-block-end: 0.375rem;
+}

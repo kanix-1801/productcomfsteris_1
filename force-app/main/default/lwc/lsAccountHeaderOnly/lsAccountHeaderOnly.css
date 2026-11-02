@@ -1,0 +1,37 @@
+.identity-card {
+    height: 100%;
+}
+
+.identity-heading {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+
+.address {
+    white-space: pre-line;
+    color: var(--slds-g-color-neutral-base-30, #444);
+    margin-top: 0.25rem;
+}
+
+.field-list {
+    margin: 0;
+}
+
+.field {
+    padding: 0.5rem 0;
+    border-top: 1px solid var(--slds-g-color-border-base-1, #e5e5e5);
+}
+
+.field dt {
+    color: var(--slds-g-color-neutral-base-30, #444);
+    font-size: 0.75rem;
+    margin-bottom: 0.125rem;
+}
+
+.field dd {
+    margin: 0;
+    min-height: 1.25rem;
+    overflow-wrap: anywhere;
+}

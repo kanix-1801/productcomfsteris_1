@@ -1,0 +1,166 @@
+<template>
+    <template lwc:if={shouldDisplayComponent}>
+        <section class="related-list-container">
+
+            <div
+                class="slds-grid
+                       slds-grid_align-spread
+                       slds-grid_vertical-align-center
+                       related-list-header"
+            >
+                <div
+                    class="slds-grid
+                           slds-grid_vertical-align-center"
+                >
+                    <lightning-icon
+                        icon-name="standard:task"
+                        size="small"
+                        alternative-text="Enterprise Activities"
+                    >
+                    </lightning-icon>
+
+                    <h2
+                        class="slds-text-heading_small
+                               slds-m-left_small"
+                    >
+                        {title}
+                    </h2>
+                </div>
+
+                <lightning-button-icon
+                    icon-name="utility:refresh"
+                    alternative-text="Refresh"
+                    title="Refresh Enterprise Activities"
+                    onclick={handleRefresh}
+                    disabled={isLoading}
+                >
+                </lightning-button-icon>
+            </div>
+
+            <template lwc:if={isLoading}>
+                <div class="spinner-container">
+                    <lightning-spinner
+                        alternative-text="Loading Enterprise Activities"
+                        size="medium"
+                    >
+                    </lightning-spinner>
+                </div>
+            </template>
+
+            <template lwc:if={hasError}>
+                <div
+                    class="slds-p-around_medium
+                           slds-text-color_error"
+                    role="alert"
+                >
+                    {errorMessage}
+                </div>
+            </template>
+
+            <template lwc:if={hasSuccessfulResponse}>
+
+                <div
+                    class="slds-grid
+                           slds-wrap
+                           slds-gutters_small
+                           slds-p-horizontal_medium
+                           slds-p-bottom_small"
+                >
+                    <div
+                        class="slds-col
+                               slds-size_1-of-1
+                               slds-medium-size_1-of-3"
+                    >
+                        <div class="summary-item">
+                            <span class="slds-text-title_caps">
+                                Locations
+                            </span>
+
+                            <div class="slds-text-heading_small">
+                                {relatedAccountCount}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div
+                        class="slds-col
+                               slds-size_1-of-1
+                               slds-medium-size_1-of-3"
+                    >
+                        <div class="summary-item">
+                            <span class="slds-text-title_caps">
+                                Tasks
+                            </span>
+
+                            <div class="slds-text-heading_small">
+                                {taskCount}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div
+                        class="slds-col
+                               slds-size_1-of-1
+                               slds-medium-size_1-of-3"
+                    >
+                        <div class="summary-item">
+                            <span class="slds-text-title_caps">
+                                Events
+                            </span>
+
+                            <div class="slds-text-heading_small">
+                                {eventCount}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <template lwc:if={resultLimitReached}>
+                    <div
+                        class="slds-notify
+                               slds-notify_alert
+                               slds-alert_warning
+                               slds-m-around_small"
+                        role="alert"
+                    >
+                        <span class="slds-assistive-text">
+                            Warning
+                        </span>
+
+                        <h2>
+                            The Activity display limit was reached.
+                            Additional Tasks or Events may exist.
+                        </h2>
+                    </div>
+                </template>
+
+                <template lwc:if={hasActivities}>
+                    <div class="datatable-container">
+                        <lightning-datatable
+                            key-field="activityId"
+                            data={activities}
+                            columns={columns}
+                            hide-checkbox-column
+                            show-row-number-column
+                            sorted-by={sortedBy}
+                            sorted-direction={sortDirection}
+                            onsort={handleSort}
+                        >
+                        </lightning-datatable>
+                    </div>
+
+                    <div class="related-list-footer">
+                        {footerSummary}
+                    </div>
+                </template>
+
+                <template lwc:else>
+                    <div class="empty-state">
+                        No Activities Found
+                    </div>
+                </template>
+
+            </template>
+        </section>
+    </template>
+</template>

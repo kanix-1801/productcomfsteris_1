@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>66.0</apiVersion>
+    <isExposed>true</isExposed>
+    <masterLabel>TAE Assigned Records</masterLabel>
+    <description>GC-3333 - Standard related-list style assigned Accounts or Opportunities for a Temporary Access Exception record. GC-3373 - Honor FlexiPage previewPageSize and fullPageSize.</description>
+    <targets>
+        <target>lightning__RecordPage</target>
+        <target>lightning__UrlAddressable</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightning__RecordPage">
+            <objects>
+                <object>TemporaryAccessException__c</object>
+            </objects>
+            <property
+                name="recordTypeFilter"
+                type="String"
+                label="Record Type Filter"
+                description="Account shows assigned Account rows; Opportunity shows assigned Opportunity rows."
+                default="Account"
+                datasource="Account,Opportunity"
+            />
+            <property
+                name="previewPageSize"
+                type="Integer"
+                label="Preview Page Size"
+                description="Number of rows shown on the record page before View All."
+                default="10"
+            />
+            <property
+                name="fullPageSize"
+                type="Integer"
+                label="Full Page Size"
+                description="Number of rows shown per page on the View All screen."
+                default="25"
+            />
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

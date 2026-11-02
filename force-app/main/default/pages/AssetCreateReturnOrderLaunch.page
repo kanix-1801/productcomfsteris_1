@@ -1,0 +1,9 @@
+<apex:page standardController="Asset"
+    recordSetVar="assets"
+    extensions="AssetCreateReturnOrderLaunchCtrl"
+    action="{!redirect}"
+    showHeader="false"
+    sidebar="false"
+>
+    <apex:pageMessages />
+</apex:page>

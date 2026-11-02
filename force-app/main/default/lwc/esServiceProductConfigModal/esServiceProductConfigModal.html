@@ -1,0 +1,119 @@
+<template>
+    <lightning-modal-header label="Asset &amp; PM Visit Details">
+        <p class="tagline">{productName}</p>
+    </lightning-modal-header>
+
+    <lightning-modal-body>
+        <template lwc:if={loading}>
+            <div class="loading"><lightning-spinner alternative-text="Loading" size="small"></lightning-spinner></div>
+        </template>
+        <template lwc:elseif={loadError}>
+            <div class="slds-notify slds-notify_alert slds-alert_error" role="alert">{loadError}</div>
+        </template>
+        <template lwc:else>
+            <div class="cards">
+
+                <!-- Asset -->
+                <section class="card">
+                    <header class="card-header">
+                        <lightning-icon icon-name="standard:asset_object" size="small"></lightning-icon>
+                        <div class="card-title">
+                            <h2>Asset</h2>
+                            <p>Installed asset for this quote line</p>
+                        </div>
+                        <template lwc:if={assetUnsaved}>
+                            <span class="status status-unsaved"><span class="dot"></span>Unsaved changes</span>
+                        </template>
+                        <template lwc:elseif={assetJustSaved}>
+                            <span class="status status-saved"><lightning-icon icon-name="utility:check" size="xx-small" variant="success"></lightning-icon>Saved</span>
+                        </template>
+                    </header>
+
+                    <div class="card-body">
+                        <c-es-service-product-config-asset-lookup
+                            label="Asset"
+                            required
+                            account-id={accountId}
+                            selected-id={assetDraft.assetId}
+                            selected-name={assetDraft.assetName}
+                            onselect={handleAssetSelect}>
+                        </c-es-service-product-config-asset-lookup>
+
+                        <div class="readonly">
+                            <span class="readonly-label">PFCL<lightning-icon icon-name="utility:lock" size="xx-small" class="lock"></lightning-icon></span>
+                            <span class="readonly-value">{pfclDisplay}</span>
+                        </div>
+
+                        <template lwc:if={assetError}>
+                            <p class="error" role="alert">{assetError}</p>
+                        </template>
+                    </div>
+
+                    <footer class="card-footer">
+                        <lightning-button label="Cancel" onclick={handleAssetCancel} disabled={assetSaveDisabled}></lightning-button>
+                        <lightning-button variant="brand" label="Save Asset" onclick={handleAssetSave} disabled={assetSaveDisabled}></lightning-button>
+                    </footer>
+                </section>
+
+                <!-- Requested PM Visits -->
+                <section class="card">
+                    <header class="card-header">
+                        <lightning-icon icon-name="standard:maintenance_plan" size="small"></lightning-icon>
+                        <div class="card-title">
+                            <h2>Requested PM Visits</h2>
+                            <p>Preventive maintenance for this quote line</p>
+                        </div>
+                        <template lwc:if={visitsUnsaved}>
+                            <span class="status status-unsaved"><span class="dot"></span>Unsaved changes</span>
+                        </template>
+                        <template lwc:elseif={visitsJustSaved}>
+                            <span class="status status-saved"><lightning-icon icon-name="utility:check" size="xx-small" variant="success"></lightning-icon>Saved</span>
+                        </template>
+                    </header>
+
+                    <div class="card-body">
+                        <div class="stepper">
+                            <lightning-button-icon icon-name="utility:dash" alternative-text="Decrease" data-step="-1" onclick={handleVisitsStep} class="step"></lightning-button-icon>
+                            <lightning-input
+                                data-id="visits"
+                                type="number"
+                                label="Requested Number of PM Visits"
+                                min="0"
+                                step="1"
+                                message-when-step-mismatch="Enter a whole number."
+                                message-when-range-underflow="Enter 0 or more."
+                                value={visitsDraft}
+                                onchange={handleVisitsChange}>
+                            </lightning-input>
+                            <lightning-button-icon icon-name="utility:add" alternative-text="Increase" data-step="1" onclick={handleVisitsStep} class="step"></lightning-button-icon>
+                        </div>
+
+                        <div class="readonly-grid">
+                            <div class="readonly">
+                                <span class="readonly-label">PM Plan</span>
+                                <span class="readonly-value link-style">[PM Plan Name]</span>
+                            </div>
+                            <div class="readonly">
+                                <span class="readonly-label">PM Plan Number of Visits</span>
+                                <span class="readonly-value">[#]</span>
+                            </div>
+                        </div>
+
+                        <template lwc:if={visitsError}>
+                            <p class="error" role="alert">{visitsError}</p>
+                        </template>
+                    </div>
+
+                    <footer class="card-footer">
+                        <lightning-button label="Cancel" onclick={handleVisitsCancel} disabled={visitsSaveDisabled}></lightning-button>
+                        <lightning-button variant="brand" label="Save Visits" onclick={handleVisitsSave} disabled={visitsSaveDisabled}></lightning-button>
+                    </footer>
+                </section>
+            </div>
+        </template>
+    </lightning-modal-body>
+
+    <lightning-modal-footer>
+        <lightning-button label="Close" onclick={handleClose}></lightning-button>
+    </lightning-modal-footer>
+</template>

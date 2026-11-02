@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ApexPage xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>66.0</apiVersion>
+    <availableInTouch>true</availableInTouch>
+    <confirmationTokenRequired>false</confirmationTokenRequired>
+    <description>GC-3564. CSC Visit PDF for Chrome River, credentialing, and Sunshine / Open Payments.</description>
+    <label>CSC Visit PDF</label>
+</ApexPage>

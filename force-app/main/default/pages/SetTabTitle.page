@@ -1,0 +1,14 @@
+<apex:page standardController="Case" extensions="TaskCaseController,OrderCaseController">
+    
+    <apex:includeScript value="/support/console/66.0/integration.js"/>
+
+    <script>
+        function setCaseTitle() {
+            sforce.console.setTabTitle('{!JSENCODE(Case.Subject)}');
+        }
+
+        if (typeof sforce !== 'undefined' && sforce.console) {
+            setCaseTitle();
+        }
+    </script>
+</apex:page>

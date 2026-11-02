@@ -1,0 +1,154 @@
+<template>
+    <div class="slds-p-around_x-small slds-p-horizontal_small">
+        <div class="slds-grid slds-wrap slds-gutters_small slds-grid_vertical-stretch slds-m-bottom_medium">
+            <template for:each={displayKpiCards} for:item="card">
+                <div
+                    key={card.id}
+                    class="slds-col slds-size_1-of-1 slds-small-size_1-of-4 slds-medium-size_1-of-4 slds-large-size_1-of-4 slds-p-around_xx-small"
+                >
+                    <article
+                        class="slds-box slds-box_xx-small slds-theme_default slds-text-align_center slds-p-around_medium slds-grid slds-grid_vertical"
+                    >
+                        <div class="slds-m-bottom_small">
+                            <span class={card.iconThemeClass}>
+                                <lightning-icon
+                                    icon-name={card.icon}
+                                    size="x-small"
+                                    variant="inverse"
+                                ></lightning-icon>
+                            </span>
+                        </div>
+                        <p class="slds-text-title_caps slds-text-color_weak slds-m-bottom_xx-small">{card.label}</p>
+                        <p class="slds-text-heading_medium slds-text-title_bold slds-m-bottom_xx-small">{card.value}</p>
+                        <div class="slds-col_bump-top">
+                            <p class={card.footerLine1Class}>{card.footerLine1}</p>
+                            <p class={card.footerLine2Class}>
+                                <template if:true={card.showTrendIcon}>
+                                    <lightning-icon
+                                        icon-name="utility:arrowdown"
+                                        size="xx-small"
+                                        variant="error"
+                                        class="slds-m-right_xx-small"
+                                    ></lightning-icon>
+                                </template>
+                                {card.footerLine2}
+                            </p>
+                        </div>
+                    </article>
+                </div>
+            </template>
+        </div>
+
+        <lightning-layout multiple-rows class="slds-gutters_small">
+            <lightning-layout-item
+                size="12"
+                medium-device-size="6"
+                large-device-size="6"
+                padding="around-small"
+            >
+                <div class="slds-box slds-theme_default slds-p-around_small">
+                    <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-center slds-m-bottom_small">
+                        <h2 class="slds-text-heading_small slds-text-title_bold">My Upcoming Appointments</h2>
+                        <lightning-button-icon
+                            icon-name="utility:refresh"
+                            alternative-text="Refresh"
+                            title="Refresh"
+                            size="small"
+                            onclick={handleRefresh}
+                        ></lightning-button-icon>
+                    </div>
+
+                    <ul class="slds-has-dividers_bottom-space slds-m-bottom_small">
+                        <template for:each={appointments} for:item="appt">
+                            <li key={appt.id} class="slds-item slds-p-vertical_x-small">
+                                <div class="slds-box slds-box_x-small slds-theme_shade">
+                                    <div class="slds-media slds-media_center">
+                                        <div class="slds-media__figure slds-media__figure_fixed-width slds-m-right_small">
+                                            <div class="slds-text-align_center">
+                                                <p class="slds-text-title_caps slds-text-color_weak slds-line-height_reset">
+                                                    {appt.month}
+                                                </p>
+                                                <p class="slds-text-heading_medium slds-text-color_brand slds-line-height_reset">
+                                                    {appt.day}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div class="slds-media__body">
+                                            <p class="slds-text-body_regular slds-hyphenate">{appt.title}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </li>
+                        </template>
+                    </ul>
+
+                    <div class="slds-text-align_center">
+                        <a href="#" class="slds-text-link" onclick={handleViewAllAppointments}>View All</a>
+                    </div>
+                </div>
+            </lightning-layout-item>
+
+            <lightning-layout-item
+                size="12"
+                medium-device-size="6"
+                large-device-size="6"
+                padding="around-small"
+            >
+                <div class="slds-box slds-theme_default slds-p-around_small">
+                    <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-center slds-m-bottom_small">
+                        <h2 class="slds-text-heading_small slds-text-title_bold">Open Pipeline</h2>
+                        <a href="#" class="slds-text-link" onclick={handleViewAllPipeline}>View All</a>
+                    </div>
+
+                    <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-center slds-border_bottom slds-p-bottom_small slds-m-bottom_small">
+                        <span class="slds-text-body_regular slds-text-color_weak">Total Pipeline Value</span>
+                        <span class="slds-text-heading_large slds-text-title_bold">{pipelineSummary.total}</span>
+                    </div>
+
+                    <ul class="slds-has-dividers_bottom-space slds-border slds-m-bottom_small">
+                        <template for:each={pipelineStages} for:item="stage">
+                            <li key={stage.id} class="slds-item slds-p-around_small">
+                                <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-start">
+                                    <span class="slds-text-title_bold">{stage.name}</span>
+                                    <div class="slds-text-align_right">
+                                        <p class="slds-text-title_bold">{stage.amount}</p>
+                                        <p class="slds-text-body_small slds-text-color_weak">{stage.count} Opportunities</p>
+                                    </div>
+                                </div>
+                            </li>
+                        </template>
+                    </ul>
+
+                    <lightning-layout class="slds-border_top slds-border_bottom slds-p-vertical_small slds-m-top_small">
+                        <lightning-layout-item size="4" padding="around-small">
+                            <div class="slds-text-align_center">
+                                <p class="slds-text-title_caps slds-text-color_weak slds-m-bottom_xx-small">Won</p>
+                                <p class="slds-text-heading_small slds-text-title_bold slds-text-color_success">
+                                    {pipelineSummary.won}
+                                </p>
+                            </div>
+                        </lightning-layout-item>
+                        <lightning-layout-item size="4" padding="around-small">
+                            <div class="slds-text-align_center">
+                                <p class="slds-text-title_caps slds-text-color_weak slds-m-bottom_xx-small">
+                                    PY (Same Period)
+                                </p>
+                                <p class="slds-text-heading_small slds-text-title_bold slds-text-color_success">
+                                    {pipelineSummary.py}
+                                </p>
+                            </div>
+                        </lightning-layout-item>
+                        <lightning-layout-item size="4" padding="around-small">
+                            <div class="slds-text-align_center">
+                                <p class="slds-text-title_caps slds-text-color_weak slds-m-bottom_xx-small">Gap to PY</p>
+                                <p class="slds-text-heading_small slds-text-title_bold slds-text-color_error">
+                                    {pipelineSummary.gap}
+                                </p>
+                            </div>
+                        </lightning-layout-item>
+                    </lightning-layout>
+                </div>
+            </lightning-layout-item>
+        </lightning-layout>
+    </div>
+</template>

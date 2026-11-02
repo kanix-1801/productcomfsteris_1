@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>62.0</apiVersion>
+    <isExposed>true</isExposed>
+    <masterLabel>Action Launcher</masterLabel>
+    <description>Custom action launcher that renders configured quick actions as pills, with search and an overflow dropdown.</description>
+    <targets>
+        <target>lightning__RecordPage</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightning__RecordPage">
+            <property
+                name="actionApiNames"
+                type="String"
+                default="Account.CreateLostBusinessOpportunity,Account.Sample_Delivery_Task,Account.CreateOpportunity,Account.LogFreeGoodsDelivery"
+                label="Quick Action API Names"
+                description="Comma separated quick action API names in display order, for example Account.CreateOpportunity. Add new actions here instead of changing the component." />
+            <property
+                name="visibleActionCount"
+                type="Integer"
+                default="3"
+                min="1"
+                label="Actions Shown Before Overflow"
+                description="Number of actions rendered as buttons. Any beyond this move into the dropdown." />
+            <objects>
+                <object>Account</object>
+            </objects>
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

@@ -1,0 +1,271 @@
+<apex:page standardController="CSC_Visit_Request__c" extensions="CSCVisitPdfController" renderAs="pdf" showHeader="false" sidebar="false" standardStylesheets="false" applyHtmlTag="false" applyBodyTag="false" docType="html-5.0">
+    <html>
+        <head>
+            <style type="text/css">
+                @page {
+                    size: 11in 8.5in;
+                    margin: 121pt 36pt 50pt 36pt;
+                    @top-center { content: element(header); vertical-align: top; }
+                    @bottom-right {
+                        content: counter(page);
+                        font-family: Arial, Helvetica, sans-serif;
+                        font-size: 9.74pt;
+                        vertical-align: bottom;
+                        padding-bottom: 37pt;
+                    }
+                }
+                body { font-family: Arial, Helvetica, sans-serif; font-size: 8.99pt; color: #000000; margin: 0; padding: 0; }
+                div.header { position: running(header); width: 720pt; padding-top: 36pt; }
+                .visitNumber { text-align: right; font-size: 9.74pt; line-height: 11pt; }
+                .accountLine { text-align: center; font-size: 11.99pt; font-weight: bold; line-height: 13.4pt; }
+                .headerLine { text-align: center; font-size: 9.74pt; line-height: 12pt; }
+                .bar { background-color: #D3D3D3; font-size: 9.74pt; font-weight: bold; height: 11.24pt; line-height: 11.24pt; margin: 12pt 0 11pt 0; padding: 0; }
+                .bar.first { margin-top: 0; }
+                .bar.team { width: 648.16pt; height: 13.49pt; line-height: 13.49pt; }
+                .pageBreak { page-break-after: always; height: 0; margin: 0; padding: 0; }
+                .valueRow td { height: 11.24pt; }
+                .cbCell { font-size: 9pt; padding-top: 4pt; }
+                .planList { padding-top: 3pt; }
+                table { border-collapse: collapse; table-layout: fixed; width: 720pt; }
+                td { padding: 0; vertical-align: top; text-align: left; line-height: 11.24pt; font-size: 8.99pt; }
+                .th { font-weight: bold; }
+                .u { text-decoration: underline; }
+                .right { text-align: right; }
+                .product { padding-left: 7.5pt; }
+                .lined td { border-bottom: 0.75pt solid #D3D3D3; }
+                .teamHead td { border-bottom: 0.75pt solid #000000; }
+                .subTitle { font-size: 9.74pt; font-weight: bold; line-height: 11.24pt; margin: 0; }
+                .objective { margin-bottom: 11.24pt; }
+                .question { line-height: 11.24pt; }
+                .answer { line-height: 10.49pt; }
+                .qa { margin-bottom: 11.24pt; }
+                .profile td { line-height: 10.49pt; }
+                .cbRow { height: 14.24pt; line-height: 14.24pt; font-size: 9pt; }
+                .cbRow.level2 { padding-left: 28.5pt; }
+                .cb { display: inline-block; width: 7pt; height: 7pt; border: 1pt solid #696969; background-color: #FFFFFF; margin-right: 1pt; vertical-align: middle; text-align: center; line-height: 7pt; font-size: 7pt; font-family: 'Arial Unicode MS'; }
+                .goal { padding-left: 14.25pt; line-height: 10.49pt; position: relative; top: -1.5pt; }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <div class="visitNumber"><apex:outputText value="CSC Visit #{!SUBSTITUTE(pdf.visitNumber, 'CSC-', '')}"/></div>
+                <div class="accountLine"><apex:outputText value="{!pdf.accountLine}"/></div>
+                <div class="headerLine"><apex:outputText value="CSC Visit: {!pdf.visitWhen}"/></div>
+                <div class="headerLine"><apex:outputText value="Planner: {!pdf.planner}"/></div>
+            </div>
+
+            <div class="bar first">Reason for the Visit</div>
+            <table>
+                <colgroup><col width="180pt"/><col width="180pt"/><col width="180pt"/><col width="180pt"/></colgroup>
+                <tr>
+                    <td class="th"><span class="u">Business</span></td>
+                    <td class="th"><span class="u">Capital $</span></td>
+                    <td class="th"><span class="u">Service $</span></td>
+                    <td class="th"><span class="u">Decision Timeframe:</span></td>
+                </tr>
+                <tr class="valueRow">
+                    <td><apex:outputText value="{!pdf.businessLine}"/></td>
+                    <td><apex:outputText value="{!pdf.capitalAmount}"/></td>
+                    <td><apex:outputText value="{!pdf.serviceAmount}"/></td>
+                    <td><apex:outputText value="{!pdf.decisionTimeframe}"/></td>
+                </tr>
+                <tr>
+                    <td>Anticipated Business:</td>
+                    <td colspan="3"><apex:outputText value="{!pdf.anticipatedBusiness}"/></td>
+                </tr>
+                <tr><td colspan="4">&nbsp;</td></tr>
+                <tr>
+                    <td>Projected Total Spend:</td>
+                    <td><apex:outputText value="{!pdf.projectedSpend}"/></td>
+                    <td>Quote #:</td>
+                    <td><apex:outputText value="{!pdf.quoteNumber}"/></td>
+                </tr>
+                <tr><td colspan="4">&nbsp;</td></tr>
+                <tr>
+                    <td>Expected Opening Date:</td>
+                    <td><apex:outputText value="{!pdf.expectedOpening}"/></td>
+                    <td>PDM Drawing/Opportunity #:</td>
+                    <td><apex:outputText value="{!pdf.pdmReference}"/></td>
+                </tr>
+            </table>
+
+            <div class="bar">Customer Attendees</div>
+            <table>
+                <colgroup><col width="79.52pt"/><col width="160.54pt"/><col width="79.52pt"/><col width="160.54pt"/><col width="159.79pt"/><col width="80.09pt"/></colgroup>
+                <tr>
+                    <td class="th"><span class="u">Name</span></td>
+                    <td class="th"><span class="u">Job Title</span></td>
+                    <td class="th"><span class="u">Status</span></td>
+                    <td class="th"><span class="u">Email</span></td>
+                    <td class="th"><span class="u">STERIS Perception</span></td>
+                    <td class="th"><span class="u">Decision Maker?</span></td>
+                </tr>
+                <apex:repeat value="{!pdf.customerAttendees}" var="customer">
+                    <tr class="lined">
+                        <td><apex:outputText value="{!customer.personName}"/></td>
+                        <td><apex:outputText value="{!customer.title}"/></td>
+                        <td><apex:outputText value="{!customer.status}"/></td>
+                        <td><apex:outputText value="{!customer.email}"/></td>
+                        <td><apex:outputText value="{!customer.perception}"/></td>
+                        <td><apex:outputText value="{!customer.decisionMaker}"/></td>
+                    </tr>
+                </apex:repeat>
+            </table>
+
+            <div class="bar">STERIS Attendees</div>
+            <table>
+                <colgroup><col width="120.03pt"/><col width="240.06pt"/><col width="359.91pt"/></colgroup>
+                <tr>
+                    <td class="th"><span class="u">Name</span></td>
+                    <td class="th"><span class="u">Title</span></td>
+                    <td class="th"><span class="u">Status</span></td>
+                </tr>
+                <apex:repeat value="{!pdf.sterisAttendees}" var="attendee">
+                    <tr>
+                        <td><apex:outputText value="{!attendee.personName}"/></td>
+                        <td><apex:outputText value="{!attendee.title}"/></td>
+                        <td><apex:outputText value="{!attendee.status}"/></td>
+                    </tr>
+                </apex:repeat>
+            </table>
+
+            <div class="bar">Sunshine</div>
+            <table>
+                <colgroup><col width="78.77pt"/><col width="223.56pt"/><col width="43.51pt"/><col width="64.52pt"/><col width="64.52pt"/><col width="108.03pt"/><col width="137.09pt"/></colgroup>
+                <tr>
+                    <td class="th"><span class="u">Type</span></td>
+                    <td class="th"><span class="u">Name</span></td>
+                    <td class="th right"><span class="u">Airfare</span></td>
+                    <td class="th right"><span class="u">Meals (Factor)</span></td>
+                    <td class="th right"><span class="u">Hotel (Factor)</span></td>
+                    <td class="th right"><span class="u">Transportation (Factor)</span></td>
+                    <td class="th product"><span class="u">Product Associated</span></td>
+                </tr>
+                <apex:repeat value="{!pdf.physicians}" var="physician">
+                    <tr>
+                        <td><apex:outputText value="{!physician.sunshineType}"/></td>
+                        <td><apex:outputText value="{!physician.physicianName}"/></td>
+                        <td class="right"><apex:outputText value="{!physician.airfare}"/></td>
+                        <td class="right"><apex:outputText value="{!physician.meals}"/></td>
+                        <td class="right"><apex:outputText value="{!physician.hotel}"/></td>
+                        <td class="right"><apex:outputText value="{!physician.transportation}"/></td>
+                        <td class="product"><apex:outputText value="{!physician.productAssociated}"/></td>
+                    </tr>
+                </apex:repeat>
+            </table>
+
+            <div class="pageBreak"></div>
+            <div>
+                <div class="bar first">Narrative</div>
+                <div class="subTitle">Customer&#8217;s Top 3 Objectives</div>
+                <div style="height: 11.24pt;"></div>
+                <table class="objective">
+                    <colgroup><col width="14.25pt"/><col width="705.75pt"/></colgroup>
+                    <tr><td>1.</td><td><apex:outputText value="{!pdf.objective1}"/></td></tr>
+                </table>
+                <table class="objective">
+                    <colgroup><col width="14.25pt"/><col width="705.75pt"/></colgroup>
+                    <tr><td>2.</td><td><apex:outputText value="{!pdf.objective2}"/></td></tr>
+                </table>
+                <table class="objective">
+                    <colgroup><col width="14.25pt"/><col width="705.75pt"/></colgroup>
+                    <tr><td>3.</td><td><apex:outputText value="{!pdf.objective3}"/></td></tr>
+                </table>
+                <div class="qa">
+                    <div class="question">Is this new construction or a renovation?</div>
+                    <apex:outputPanel layout="block" styleClass="answer" rendered="{!NOT(ISBLANK(pdf.construction))}"><apex:outputText value="{!pdf.construction}"/></apex:outputPanel>
+                </div>
+                <div class="qa">
+                    <div class="question">What is the current status of the project?</div>
+                    <apex:outputPanel layout="block" styleClass="answer" rendered="{!NOT(ISBLANK(pdf.projectStatus))}"><apex:outputText value="{!pdf.projectStatus}"/></apex:outputPanel>
+                </div>
+                <div class="qa">
+                    <div class="question">What is the Customer&#8217;s perspective of STERIS?</div>
+                    <apex:outputPanel layout="block" styleClass="answer" rendered="{!NOT(ISBLANK(pdf.customerPerspective))}"><apex:outputText value="{!pdf.customerPerspective}"/></apex:outputPanel>
+                </div>
+                <div class="qa">
+                    <div class="question">Comments:</div>
+                    <apex:outputPanel layout="block" styleClass="answer" rendered="{!NOT(ISBLANK(pdf.comments))}"><apex:outputText value="{!pdf.comments}"/></apex:outputPanel>
+                </div>
+                <div class="qa">
+                    <div class="question">Who was the last vendor?</div>
+                    <apex:outputPanel layout="block" styleClass="answer" rendered="{!NOT(ISBLANK(pdf.lastVendor))}"><apex:outputText value="{!pdf.lastVendor}"/></apex:outputPanel>
+                </div>
+                <div class="qa">
+                    <div class="question">What does STERIS need to do to win the business?</div>
+                    <apex:outputPanel layout="block" styleClass="answer" rendered="{!NOT(ISBLANK(pdf.winStrategy))}"><apex:outputText value="{!pdf.winStrategy}"/></apex:outputPanel>
+                </div>
+                <div class="qa">
+                    <div class="question">Profile of Attendees:</div>
+                    <apex:outputPanel layout="block" styleClass="answer" rendered="{!NOT(ISBLANK(pdf.attendeeProfile))}"><apex:outputText value="{!pdf.attendeeProfile}"/></apex:outputPanel>
+                </div>
+                <div class="qa">
+                    <div class="question">Other Key Information:</div>
+                    <apex:outputPanel layout="block" styleClass="answer" rendered="{!NOT(ISBLANK(pdf.otherKeyInformation))}"><apex:outputText value="{!pdf.otherKeyInformation}"/></apex:outputPanel>
+                </div>
+            </div>
+
+            <div class="pageBreak"></div>
+            <div>
+                <div class="bar first">Customer Profile</div>
+                <table class="profile">
+                    <colgroup><col width="240pt"/><col width="480pt"/></colgroup>
+                    <tr><td>Global Account Affiliation (owned relationship):</td><td><apex:outputText value="{!pdf.globalAffiliation}"/></td></tr>
+                    <tr><td>IDN Affiliation(s):</td><td><apex:outputText value="{!pdf.idnAffiliation}"/></td></tr>
+                    <tr><td>GPO Affiliation:</td><td><apex:outputText value="{!pdf.gpoAffiliation}"/></td></tr>
+                </table>
+                <div style="height: 12pt;"></div>
+                <div class="subTitle">Current Service Provider</div>
+                <table>
+                    <colgroup><col width="240pt"/><col width="79.5pt"/><col width="80.25pt"/><col width="320.25pt"/></colgroup>
+                    <tr>
+                        <td>Existing Equipment Serviced by:</td>
+                        <td class="cbCell"><span class="cb"><apex:outputText value="&#10004;" escape="false" rendered="{!pdf.serviceSteris}"/></span>STERIS</td>
+                        <td class="cbCell"><span class="cb"><apex:outputText value="&#10004;" escape="false" rendered="{!pdf.serviceInHouse}"/></span>In-House</td>
+                        <td class="cbCell"><span class="cb"><apex:outputText value="&#10004;" escape="false" rendered="{!pdf.serviceThirdParty}"/></span>3rd Party</td>
+                    </tr>
+                </table>
+
+                <div class="bar">CSC Planning Session</div>
+                <div class="planList"></div>
+                <div class="cbRow"><span class="cb"><apex:outputText value="&#10004;" escape="false" rendered="{!pdf.planGeneric}"/></span>Generic &amp; Design Planning Overview</div>
+                <div class="cbRow"><span class="cb"><apex:outputText value="&#10004;" escape="false" rendered="{!pdf.planCustomerSpecific}"/></span>Customer Specific Planning Session</div>
+                <div class="cbRow level2"><span class="cb"></span>SPD</div>
+                <div class="cbRow level2"><span class="cb"></span>OR (specify room types)</div>
+                <div class="cbRow level2"><span class="cb"></span>Hybrid</div>
+                <div class="cbRow level2"><span class="cb"></span>GI</div>
+                <div class="cbRow level2"><span class="cb"></span>ICU</div>
+                <div class="goal">- Identify specific goals of this Planning Session below</div>
+                <apex:outputPanel layout="block" styleClass="goal" rendered="{!NOT(ISBLANK(pdf.planningRequirements))}"><apex:outputText value="{!pdf.planningRequirements}"/></apex:outputPanel>
+                <div class="cbRow"><span class="cb"><apex:outputText value="&#10004;" escape="false" rendered="{!pdf.planVrImmersion}"/></span>VR Immersion Session</div>
+                <div class="cbRow level2"><span class="cb"></span>OR Demo &#8211; General Non-Specific OR</div>
+                <div class="cbRow level2"><span class="cb"></span>SPD Demo &#8211; General Non-Specific SPD</div>
+                <div class="cbRow level2"><span class="cb"></span>Customer Specific OR*</div>
+                <div class="cbRow level2"><span class="cb"></span>Customer Specific SPD*</div>
+            </div>
+
+            <div class="pageBreak"></div>
+            <div>
+                <div class="bar first team">Full Account Team</div>
+                <table style="width: 648.16pt;">
+                    <colgroup><col width="258.81pt"/><col width="129.78pt"/><col width="129.78pt"/><col width="129.79pt"/></colgroup>
+                    <tr class="teamHead">
+                        <td class="th">Manager</td>
+                        <td class="th">Category</td>
+                        <td class="th">Territory</td>
+                        <td class="th">Class</td>
+                    </tr>
+                    <tr><td colspan="4" style="height: 12pt; line-height: 12pt;">&nbsp;</td></tr>
+                    <apex:repeat value="{!pdf.accountTeam}" var="member">
+                        <tr>
+                            <td><apex:outputText value="{!member.manager}"/></td>
+                            <td><apex:outputText value="{!member.category}"/></td>
+                            <td><apex:outputText value="{!member.territory}"/></td>
+                            <td><apex:outputText value="{!member.teamClass}"/></td>
+                        </tr>
+                    </apex:repeat>
+                </table>
+            </div>
+        </body>
+    </html>
+</apex:page>

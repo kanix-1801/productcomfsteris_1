@@ -1,0 +1,104 @@
+<Apex:component controller="DFEmailController" access="global">
+    <Apex:attribute name="caseId1" description="" assignTo="{!caseId}" type="String" /> 
+    
+   
+    
+	<apex:attribute name="street" type="String" description="Street"/>
+    <apex:attribute name="city" type="String" description="City"/>
+    <apex:attribute name="state" type="String" description="State"/>
+    <apex:attribute name="postalCode" type="String" description="postalCode"/>
+    <apex:attribute name="country" type="String" description="country"/>
+
+    <apex:attribute name="liftgate" type="String" description="liftgate"/>
+    <apex:attribute name="standardDocSize" type="String" description="standard docSize"/>
+    <apex:attribute name="docLeveler" type="String" description="Doc Leveler"/>
+    <apex:attribute name="tractorTrailer" type="String" description="tractor Trailer"/>
+    <apex:attribute name="docDays" type="String" description="Doc Days"/>
+    <apex:attribute name="docHours" type="String" description="Doc Hours"/>
+    
+    <apex:image URL="{!DFOrderPreparationBanner}" alt="STERIS Banner" width="982" height="180"/>
+    
+    <p style="max-width:982px;">Dear {!recevingContactName},<br/><br/>
+    
+    I am following up on my recent call to you. Your facility is scheduled to receive a shipment from STERIS, and I want to make sure we have accurate delivery requirements for your order.<br/><br/>
+    
+
+        
+    <span style="display:inline-block; font-weight:bold;">
+        Ship To Location:
+    </span>&nbsp;
+    <span style="display:inline-block; vertical-align:top; text-transform: uppercase; max-width:982px;">
+            	<apex:outputPanel rendered="{!LEN(TRIM(street)) > 0}" layout="none">
+               	    <apex:outputText value="{!TRIM(street)}"/>
+            	</apex:outputPanel>
+                <apex:outputPanel rendered="{!LEN(TRIM(city)) > 0}" layout="none">
+                	<apex:outputText value=", {!TRIM(city)}"/>
+            	</apex:outputPanel><apex:outputPanel rendered="{!LEN(TRIM(state)) > 0}" layout="none">
+                    <apex:outputText value=", {!TRIM(state)}"/>
+                </apex:outputPanel>
+                <apex:outputPanel rendered="{!LEN(TRIM(postalCode)) > 0}" layout="none">
+                    <apex:outputText value=", {!TRIM(postalCode)}"/>
+                </apex:outputPanel><apex:outputPanel rendered="{!LEN(TRIM(country)) > 0}" layout="none">
+                    <apex:outputText value=", {!TRIM(country)}"/>
+                </apex:outputPanel>
+            </span>
+    <br/><br/>
+    In order to prevent any delays in delivering your equipment, please reply to this email and fill in or confirm the table below:<br/><br/>
+
+    <table border="1" cellpadding="5" cellspacing="0" width="982" style="border-collapse:collapse;">
+        <colgroup>
+            <col style="width:60%;"/>
+        	<col style="width:40%;"/>
+        </colgroup>
+        
+        <tr>
+            <td>Is a liftgate required?</td>
+            <td>{!liftgate}</td>
+        </tr>
+        <tr>
+            <td>Is there a dock with leveler?</td>
+            <td>{!docLeveler}</td>
+        </tr>
+        <tr>
+            <td>Is the dock a standard size 48&quot;–52&quot; High</td>
+            <td>{!standardDocSize}</td>
+        </tr>
+        <tr>
+            <td>Can the dock accommodate a tractor trailer? (75 ft × 13.5 ft tractor trailer)</td>
+            <td>{!tractorTrailer}</td>
+        </tr>
+        <tr>
+            <td>Dock Days</td>
+            <td>{!docDays}</td>
+        </tr>
+        <tr>
+            <td>Dock Hours</td>
+            <td>{!docHours}</td>
+        </tr>
+        <tr>
+            <td>Receiving Department Contact</td>
+            <td>{!RecevingContactFullName}</td>
+        </tr>
+        <tr>
+            <td>Receiving Department Contact Phone #</td>
+            <td>{!RecevingContactPhone}</td>
+        </tr>
+        <tr>
+            <td>Receiving Department Contact Email</td>
+            <td>{!RecevingContactEmail}</td>
+        </tr>
+    </table>
+
+
+    <p>Thank you,</p>
+    
+    
+	<apex:outputText value="{!Signature}" escape="false"/>
+     
+    </p><br/><br/>
+
+	<c:ReplyThreadInternalExternal caseId1="{!caseId}"
+            threadType1="External"
+        />
+    
+</apex:component>

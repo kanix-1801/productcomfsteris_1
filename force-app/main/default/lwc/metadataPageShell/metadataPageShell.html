@@ -1,0 +1,42 @@
+<template>
+    <!-- Loading state while DynamicPageElementController wire is in flight -->
+    <template lwc:if={isLoading}>
+        <lightning-spinner alternative-text="Loading page layout"></lightning-spinner>
+    </template>
+
+    <!-- Apex or validation error surfaced to the user -->
+    <template lwc:elseif={hasError}>
+        <div class="slds-p-around_medium slds-text-color_error">
+            {errorMessage}
+        </div>
+    </template>
+
+    <template lwc:else>
+        <lightning-card title={cardTitle}>
+            <template lwc:if={hasTabs}>
+                <!-- One lightning-tab per CMDT Tab row; body delegated to metadataTabContent -->
+                <lightning-tabset>
+                    <template for:each={tabs} for:item="tab">
+                        <lightning-tab
+                            key={tab.apiName}
+                            label={tab.label}
+                            value={tab.apiName}>
+                            <div class="tab-content">
+                                <c-metadata-tab-content
+                                    tab={tab}
+                                    record-id={recordId}
+                                    access-level={accessLevel}>
+                                </c-metadata-tab-content>
+                            </div>
+                        </lightning-tab>
+                    </template>
+                </lightning-tabset>
+            </template>
+            <template lwc:else>
+                <div class="slds-p-around_medium slds-text-color_weak">
+                    No tabs configured for this page.
+                </div>
+            </template>
+        </lightning-card>
+    </template>
+</template>

@@ -1,0 +1,111 @@
+:host {
+    display: block;
+    width: 100%;
+}
+
+.account-card {
+    width: 100%;
+    background: #fff;
+    border-radius: 0 0 12px 12px;
+    overflow: hidden;
+    color: #032d60;
+}
+
+.hero {
+    height: 104px;
+    background: linear-gradient(135deg, #0589d8, #00a6d6);
+}
+
+.avatar {
+    width: 104px;
+    height: 104px;
+    border-radius: 50%;
+    background: #2f66b3;
+    border: 5px solid #fff;
+    margin-top: -68px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.22);
+}
+
+.account-name-row {
+    gap: 0.75rem;
+}
+
+.account-name {
+    flex: 1;
+    min-width: 0;
+}
+
+.hierarchy-button {
+    flex-shrink: 0;
+}
+
+.website-wrapper {
+    min-width: 0;
+}
+
+.website-link {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.icon-circle {
+    width: 40px;
+    height: 40px;
+    border: 1.5px solid #1b5dbf;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.trend {
+    color: #00a69c;
+    font-weight: 700;
+}
+
+.nps-score {
+    color: #2e844a;
+}
+
+.nps-bar {
+    height: 18px;
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+}
+
+.nps-green {
+    width: 60%;
+    background: #2e844a;
+}
+
+.nps-yellow {
+    width: 22%;
+    background: #f4b400;
+}
+
+.nps-red {
+    width: 18%;
+    background: #d0021b;
+}
+
+.last-quarter {
+    color: #8b0000;
+}
+
+.house-account-pill {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 4px 12px;
+    border-radius: 12px;
+    background: #f3e5ab;
+    color: #8a5a00;
+    font-weight: 600;
+    font-size: 12px;
+}

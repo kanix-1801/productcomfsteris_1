@@ -1,0 +1,42 @@
+<template>
+    <template if:true={isFreeGoodsTask}>
+        <lightning-card title="Free Goods Products" icon-name="standard:product">
+            <template if:true={hasRecords}>
+                <span slot="actions" class="slds-text-body_small slds-text-color_weak">
+                    {productCountLabel}
+                </span>
+            </template>
+
+            <template if:true={isLoading}>
+                <div class="slds-is-relative slds-p-around_large">
+                    <lightning-spinner alternative-text="Loading products" size="medium"></lightning-spinner>
+                </div>
+            </template>
+
+            <template if:true={hasRecords}>
+                <div class="slds-p-around_small slds-scrollable_x">
+                    <lightning-datatable
+                        key-field="productId"
+                        data={productRows}
+                        columns={columns}
+                        column-widths-mode="auto"
+                        hide-checkbox-column
+                        show-row-number-column>
+                    </lightning-datatable>
+                </div>
+            </template>
+
+            <template if:true={showEmptyState}>
+                <div class="slds-text-align_center slds-p-vertical_large slds-p-horizontal_small">
+                    <p class="slds-text-color_weak">No Free Goods Products are linked to this Task.</p>
+                </div>
+            </template>
+
+            <template if:true={error}>
+                <div class="slds-text-color_error slds-p-around_medium">
+                    Unable to load Free Goods Products. Please contact your administrator.
+                </div>
+            </template>
+        </lightning-card>
+    </template>
+</template>

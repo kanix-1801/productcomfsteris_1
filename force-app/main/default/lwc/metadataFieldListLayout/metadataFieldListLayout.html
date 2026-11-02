@@ -1,0 +1,156 @@
+<template>
+    <template lwc:if={hasRows}>
+        <template lwc:if={canRenderForm}>
+            <div class="field-list">
+                <template lwc:if={showEditButton}>
+                    <div class="field-list__actions slds-m-bottom_small slds-text-align_right">
+                        <lightning-button
+                            label="Edit"
+                            variant="neutral"
+                            onclick={handleEditClick}>
+                        </lightning-button>
+                    </div>
+                </template>
+
+                <template lwc:if={showViewMode}>
+                    <lightning-record-view-form
+                        record-id={recordId}
+                        object-api-name={objectApiName}>
+                        <div class="field-list__grid slds-grid slds-wrap">
+                            <template for:each={rows} for:item="row">
+                                <div key={row.key} class="field-list__row slds-col slds-size_1-of-1 slds-grid">
+                                    <div class="slds-col slds-size_1-of-2 field-list__cell">
+                                        <template lwc:if={row.left}>
+                                            <template lwc:if={row.left.hasDisplayLabel}>
+                                                <div class="slds-form-element slds-form-element_horizontal slds-form-element_readonly">
+                                                    <span class="slds-form-element__label">{row.left.displayLabel}</span>
+                                                    <div class="slds-form-element__control">
+                                                        <div class="slds-form-element__static">{row.left.displayValue}</div>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                            <template lwc:else>
+                                                <lightning-output-field
+                                                    field-name={row.left.fieldApiName}>
+                                                </lightning-output-field>
+                                            </template>
+                                        </template>
+                                    </div>
+                                    <div class="slds-col slds-size_1-of-2 field-list__cell">
+                                        <template lwc:if={row.right}>
+                                            <template lwc:if={row.right.hasDisplayLabel}>
+                                                <div class="slds-form-element slds-form-element_horizontal slds-form-element_readonly">
+                                                    <span class="slds-form-element__label">{row.right.displayLabel}</span>
+                                                    <div class="slds-form-element__control">
+                                                        <div class="slds-form-element__static">{row.right.displayValue}</div>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                            <template lwc:else>
+                                                <lightning-output-field
+                                                    field-name={row.right.fieldApiName}>
+                                                </lightning-output-field>
+                                            </template>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </lightning-record-view-form>
+                </template>
+
+                <template lwc:else>
+                    <lightning-record-edit-form
+                        record-id={recordId}
+                        object-api-name={objectApiName}
+                        onsuccess={handleSuccess}>
+                        <div class="field-list__grid slds-grid slds-wrap">
+                            <template for:each={rows} for:item="row">
+                                <div key={row.key} class="field-list__row slds-col slds-size_1-of-1 slds-grid">
+                                    <div class="slds-col slds-size_1-of-2 field-list__cell">
+                                        <template lwc:if={row.left}>
+                                            <template lwc:if={row.left.isReadonly}>
+                                                <lightning-record-view-form
+                                                    record-id={recordId}
+                                                    object-api-name={objectApiName}>
+                                                    <template lwc:if={row.left.hasDisplayLabel}>
+                                                        <div class="slds-form-element slds-form-element_horizontal slds-form-element_readonly">
+                                                            <span class="slds-form-element__label">{row.left.displayLabel}</span>
+                                                            <div class="slds-form-element__control">
+                                                                <div class="slds-form-element__static">{row.left.displayValue}</div>
+                                                            </div>
+                                                        </div>
+                                                    </template>
+                                                    <template lwc:else>
+                                                        <lightning-output-field
+                                                            field-name={row.left.fieldApiName}>
+                                                        </lightning-output-field>
+                                                    </template>
+                                                </lightning-record-view-form>
+                                            </template>
+                                            <template lwc:else>
+                                                <lightning-input-field
+                                                    field-name={row.left.fieldApiName}
+                                                    required={row.left.isRequired}>
+                                                </lightning-input-field>
+                                            </template>
+                                        </template>
+                                    </div>
+                                    <div class="slds-col slds-size_1-of-2 field-list__cell">
+                                        <template lwc:if={row.right}>
+                                            <template lwc:if={row.right.isReadonly}>
+                                                <lightning-record-view-form
+                                                    record-id={recordId}
+                                                    object-api-name={objectApiName}>
+                                                    <template lwc:if={row.right.hasDisplayLabel}>
+                                                        <div class="slds-form-element slds-form-element_horizontal slds-form-element_readonly">
+                                                            <span class="slds-form-element__label">{row.right.displayLabel}</span>
+                                                            <div class="slds-form-element__control">
+                                                                <div class="slds-form-element__static">{row.right.displayValue}</div>
+                                                            </div>
+                                                        </div>
+                                                    </template>
+                                                    <template lwc:else>
+                                                        <lightning-output-field
+                                                            field-name={row.right.fieldApiName}>
+                                                        </lightning-output-field>
+                                                    </template>
+                                                </lightning-record-view-form>
+                                            </template>
+                                            <template lwc:else>
+                                                <lightning-input-field
+                                                    field-name={row.right.fieldApiName}
+                                                    required={row.right.isRequired}>
+                                                </lightning-input-field>
+                                            </template>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+
+                        <template lwc:if={showEditActions}>
+                            <div class="field-list__actions field-list__actions_center slds-m-top_medium">
+                                <lightning-button
+                                    type="submit"
+                                    variant="brand"
+                                    label="Save">
+                                </lightning-button>
+                                <lightning-button
+                                    class="slds-m-left_x-small"
+                                    label="Cancel"
+                                    onclick={handleCancelEdit}>
+                                </lightning-button>
+                            </div>
+                        </template>
+                    </lightning-record-edit-form>
+                </template>
+            </div>
+        </template>
+        <template lwc:else>
+            <div class="slds-text-color_weak slds-p-around_small">
+                No record is available to display fields.
+            </div>
+        </template>
+    </template>
+</template>

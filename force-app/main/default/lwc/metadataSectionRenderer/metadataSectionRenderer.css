@@ -1,0 +1,12 @@
+.section-container {
+    margin-bottom: 1rem;
+}
+
+.chevron {
+    transition: transform 0.15s ease-in-out;
+    margin-right: 0.25rem;
+}
+
+.chevron-open {
+    transform: rotate(180deg);
+}

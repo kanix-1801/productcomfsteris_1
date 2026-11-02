@@ -1,0 +1,55 @@
+:host {
+    display: block;
+    background: #ffffff;
+}
+
+.bar {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    min-height: 4.25rem;
+    padding: 0 1.5rem;
+    background: #ffffff;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.logo {
+    display: block;
+    height: 36px;
+    width: auto;
+    flex: 0 0 auto;
+}
+
+.tabs {
+    display: flex;
+    align-items: center;
+    gap: 1.75rem;
+    min-width: 0;
+}
+
+.tab {
+    margin: 0;
+    padding: 1.15rem 0.1rem 0.85rem;
+    border: 0;
+    border-bottom: 3px solid transparent;
+    background: #ffffff;
+    color: #111827;
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.tab-active {
+    border-bottom-color: #1d4ed8;
+}
+
+@media (max-width: 720px) {
+    .bar {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 0.25rem;
+        padding-top: 0.75rem;
+    }
+}

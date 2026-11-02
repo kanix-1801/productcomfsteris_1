@@ -1,0 +1,38 @@
+<template>
+    <lightning-card title="Field Service Backoffice Tool" icon-name="standard:service_resource">
+        <div class="slds-p-around_medium">
+            <p class="slds-m-bottom_medium">
+                Choose an alignment tool. Each option opens as its own tab.
+            </p>
+            <div class="slds-grid slds-gutters slds-wrap">
+                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3 slds-m-bottom_small">
+                    <lightning-button
+                        variant="brand"
+                        label="Tech Account Alignment"
+                        data-tab="Tech_Account_Alignment"
+                        onclick={handleNavigate}
+                        class="slds-size_1-of-1"
+                    ></lightning-button>
+                </div>
+                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3 slds-m-bottom_small">
+                    <lightning-button
+                        variant="neutral"
+                        label="Tech District Alignment"
+                        data-tab="Tech_District_Alignment"
+                        onclick={handleNavigate}
+                        class="slds-size_1-of-1"
+                    ></lightning-button>
+                </div>
+                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3 slds-m-bottom_small">
+                    <lightning-button
+                        variant="neutral"
+                        label="District Zone Alignment"
+                        data-tab="District_Zone_Alignment"
+                        onclick={handleNavigate}
+                        class="slds-size_1-of-1"
+                    ></lightning-button>
+                </div>
+            </div>
+        </div>
+    </lightning-card>
+</template>

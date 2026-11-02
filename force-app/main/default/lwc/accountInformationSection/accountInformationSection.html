@@ -1,0 +1,251 @@
+<template>
+    <template if:true={isLoading}>
+        <lightning-spinner alternative-text="Loading" size="medium"></lightning-spinner>
+    </template>
+
+    <template if:true={loadError}>
+        <div class="slds-text-color_error slds-p-around_medium">
+            Unable to load account.
+        </div>
+    </template>
+
+    <template if:false={isLoading}>
+        <template if:false={loadError}>
+            <section class={sectionClass}>
+                <h3 class="slds-section__title section-header">
+                    <button
+                        type="button"
+                        class="slds-button slds-section__title-action"
+                        onclick={toggleSection}
+                        aria-expanded={sectionOpen}
+                    >
+                        <lightning-icon
+                            icon-name="utility:chevrondown"
+                            size="x-small"
+                            class={chevronClass}
+                        ></lightning-icon>
+                        <span class="slds-truncate">Account Information</span>
+                    </button>
+                </h3>
+
+                <div class="slds-section__content section-body">
+                    <template if:false={isEditing}>
+                        <lightning-layout multiple-rows class="detail-layout">
+                            <lightning-layout-item size="6" class="detail-col">
+                                <div class="detail-field">
+                                    <div class="field-content">
+                                        <div class="field-label">
+                                            <abbr class="slds-required" title="required">*</abbr>
+                                            Account Name
+                                        </div>
+                                        <div class="field-value">
+                                            <lightning-formatted-text value={name}></lightning-formatted-text>
+                                        </div>
+                                    </div>
+                                    <div class="field-action">
+                                        <lightning-button-icon
+                                            icon-name="utility:edit"
+                                            variant="bare"
+                                            alternative-text="Edit Account Name"
+                                            onclick={handleEditClick}
+                                        ></lightning-button-icon>
+                                    </div>
+                                </div>
+
+                                <div class="detail-field">
+                                    <div class="field-content">
+                                        <div class="field-label">Account Source</div>
+                                        <div class="field-value">
+                                            <lightning-formatted-text value={accountSource}></lightning-formatted-text>
+                                        </div>
+                                    </div>
+                                    <div class="field-action">
+                                        <lightning-button-icon
+                                            icon-name="utility:edit"
+                                            variant="bare"
+                                            alternative-text="Edit Account Source"
+                                            onclick={handleEditClick}
+                                        ></lightning-button-icon>
+                                    </div>
+                                </div>
+
+                                <div class="detail-field">
+                                    <div class="field-content">
+                                        <div class="field-label">Phone</div>
+                                        <div class="field-value">
+                                            <lightning-formatted-phone value={phone}></lightning-formatted-phone>
+                                        </div>
+                                    </div>
+                                    <div class="field-action">
+                                        <lightning-button-icon
+                                            icon-name="utility:edit"
+                                            variant="bare"
+                                            alternative-text="Edit Phone"
+                                            onclick={handleEditClick}
+                                        ></lightning-button-icon>
+                                    </div>
+                                </div>
+                            </lightning-layout-item>
+
+                            <lightning-layout-item size="6" class="detail-col">
+                                <div class="detail-field">
+                                    <div class="field-content">
+                                        <div class="field-label">Parent Account</div>
+                                        <div class="field-value lookup-value">
+                                            <template if:true={hasParent}>
+                                                <lightning-icon
+                                                    icon-name="standard:account"
+                                                    size="x-small"
+                                                    class="lookup-icon"
+                                                ></lightning-icon>
+                                                <lightning-formatted-url
+                                                    value={parentUrl}
+                                                    label={parentName}
+                                                    target="_blank"
+                                                ></lightning-formatted-url>
+                                            </template>
+                                        </div>
+                                    </div>
+                                    <div class="field-action">
+                                        <lightning-button-icon
+                                            icon-name="utility:edit"
+                                            variant="bare"
+                                            alternative-text="Edit Parent Account"
+                                            onclick={handleEditClick}
+                                        ></lightning-button-icon>
+                                    </div>
+                                </div>
+
+                                <div class="detail-field">
+                                    <div class="field-content">
+                                        <div class="field-label">Type</div>
+                                        <div class="field-value">
+                                            <lightning-formatted-text value={type}></lightning-formatted-text>
+                                        </div>
+                                    </div>
+                                    <div class="field-action">
+                                        <lightning-button-icon
+                                            icon-name="utility:edit"
+                                            variant="bare"
+                                            alternative-text="Edit Type"
+                                            onclick={handleEditClick}
+                                        ></lightning-button-icon>
+                                    </div>
+                                </div>
+
+                                <div class="detail-field">
+                                    <div class="field-content">
+                                        <div class="field-label">Industry</div>
+                                        <div class="field-value">
+                                            <lightning-formatted-text value={industry}></lightning-formatted-text>
+                                        </div>
+                                    </div>
+                                    <div class="field-action">
+                                        <lightning-button-icon
+                                            icon-name="utility:edit"
+                                            variant="bare"
+                                            alternative-text="Edit Industry"
+                                            onclick={handleEditClick}
+                                        ></lightning-button-icon>
+                                    </div>
+                                </div>
+                            </lightning-layout-item>
+                        </lightning-layout>
+                    </template>
+
+                    <template if:true={isEditing}>
+                        <lightning-record-edit-form
+                            record-id={recordId}
+                            object-api-name="Account"
+                            onsubmit={handleSave}
+                        >
+                            <lightning-messages></lightning-messages>
+
+                            <div class="edit-form">
+                                <lightning-layout multiple-rows>
+                                    <lightning-layout-item size="6" class="edit-col">
+                                        <div class="slds-form slds-form_horizontal">
+                                            <div class="slds-form-element slds-form-element_horizontal">
+                                                <label class="slds-form-element__label">
+                                                    <abbr class="slds-required" title="required">*</abbr>
+                                                    Account Name
+                                                </label>
+                                                <div class="slds-form-element__control">
+                                                    <lightning-input-field
+                                                        field-name="Name"
+                                                        variant="label-hidden"
+                                                        required
+                                                    ></lightning-input-field>
+                                                </div>
+                                            </div>
+                                            <div class="slds-form-element slds-form-element_horizontal">
+                                                <label class="slds-form-element__label">Account Source</label>
+                                                <div class="slds-form-element__control">
+                                                    <lightning-input-field
+                                                        field-name="AccountSource"
+                                                        variant="label-hidden"
+                                                    ></lightning-input-field>
+                                                </div>
+                                            </div>
+                                            <div class="slds-form-element slds-form-element_horizontal">
+                                                <label class="slds-form-element__label">Phone</label>
+                                                <div class="slds-form-element__control">
+                                                    <lightning-input-field
+                                                        field-name="Phone"
+                                                        variant="label-hidden"
+                                                    ></lightning-input-field>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </lightning-layout-item>
+
+                                    <lightning-layout-item size="6" class="edit-col">
+                                        <div class="slds-form slds-form_horizontal">
+                                            <div class="slds-form-element slds-form-element_horizontal">
+                                                <label class="slds-form-element__label">Parent Account</label>
+                                                <div class="slds-form-element__control">
+                                                    <lightning-input-field
+                                                        field-name="ParentId"
+                                                        variant="label-hidden"
+                                                    ></lightning-input-field>
+                                                </div>
+                                            </div>
+                                            <div class="slds-form-element slds-form-element_horizontal">
+                                                <label class="slds-form-element__label">Type</label>
+                                                <div class="slds-form-element__control">
+                                                    <lightning-input-field
+                                                        field-name="Type"
+                                                        variant="label-hidden"
+                                                    ></lightning-input-field>
+                                                </div>
+                                            </div>
+                                            <div class="slds-form-element slds-form-element_horizontal">
+                                                <label class="slds-form-element__label">Industry</label>
+                                                <div class="slds-form-element__control">
+                                                    <lightning-input-field
+                                                        field-name="Industry"
+                                                        variant="label-hidden"
+                                                    ></lightning-input-field>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </lightning-layout-item>
+                                </lightning-layout>
+                            </div>
+
+                            <div class="form-actions">
+                                <lightning-button label="Cancel" onclick={handleCancel}></lightning-button>
+                                <lightning-button
+                                    class="slds-m-left_x-small"
+                                    variant="brand"
+                                    type="submit"
+                                    label="Save"
+                                ></lightning-button>
+                            </div>
+                        </lightning-record-edit-form>
+                    </template>
+                </div>
+            </section>
+        </template>
+    </template>
+</template>

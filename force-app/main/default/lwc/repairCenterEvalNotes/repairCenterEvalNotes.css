@@ -1,0 +1,25 @@
+:host {
+    display: block;
+}
+
+/*
+ * GW-5453 - Read-only QC notes. Same grey box as before; min-height is copied
+ * from a sibling lightning-textarea so a short note matches those fields,
+ * then the box grows with the note.
+ */
+.eval-notes-readonly-value {
+    box-sizing: border-box;
+    height: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    background-color: var(--slds-g-color-neutral-base-95, #ecebea);
+    color: var(--slds-g-color-neutral-base-30, #444444);
+    cursor: default;
+}
+
+.eval-notes-field-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #181818;
+    margin-bottom: 0.25rem;
+}

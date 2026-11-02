@@ -1,0 +1,146 @@
+.tagline {
+    margin-top: 0.25rem;
+    font-size: 0.8125rem;
+    color: #5c5c5c;
+}
+
+.loading {
+    position: relative;
+    min-height: 12rem;
+}
+
+.cards {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    align-items: stretch;
+}
+
+@media (max-width: 48em) {
+    .cards {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.card {
+    display: flex;
+    flex-direction: column;
+    background: #ffffff;
+    border: 1px solid #c9c9c9;
+    border-radius: 0.25rem;
+}
+
+.card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #e5e5e5;
+}
+
+.card-title h2 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #181818;
+}
+
+.card-title p {
+    margin: 0.125rem 0 0;
+    font-size: 0.75rem;
+    color: #5c5c5c;
+}
+
+.status {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.75rem;
+    white-space: nowrap;
+}
+
+.status-unsaved {
+    color: #8c4b02;
+}
+
+.status-saved {
+    color: #2e844a;
+}
+
+.dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: #dd7a01;
+}
+
+.card-body {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem;
+}
+
+.card-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border-top: 1px solid #e5e5e5;
+}
+
+.readonly {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    padding-bottom: 0.375rem;
+    border-bottom: 1px solid #e5e5e5;
+}
+
+.readonly-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+    color: #5c5c5c;
+}
+
+.readonly-value {
+    font-size: 0.875rem;
+    color: #181818;
+    min-height: 1.25rem;
+}
+
+a.readonly-value,
+.link-style {
+    color: #0176d3;
+}
+
+.lock {
+    --slds-c-icon-color-foreground-default: #747474;
+}
+
+.readonly-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.stepper {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.25rem;
+    max-width: 16rem;
+}
+
+.stepper lightning-input {
+    flex-grow: 1;
+}
+
+.error {
+    margin: 0;
+    font-size: 0.75rem;
+    color: #ba0517;
+}

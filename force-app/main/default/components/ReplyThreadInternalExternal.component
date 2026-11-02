@@ -1,0 +1,52 @@
+<apex:component controller="ReplyThreadInternalExternalController" access="global">
+   
+    
+	<apex:attribute name="caseId1"     type="Id"     assignTo="{!caseId}"     description="Case Id to drive replies" />
+    <apex:attribute name="threadType1" type="String" assignTo="{!threadType}" description="Internal/External label"   required="false" default="Internal"/>
+	
+    
+<apex:outputPanel rendered="{!title}">
+
+
+<div style="white-space: pre-wrap; font-weight: bold;">-------------- Original Message --------------</div>
+
+    <div>
+        <span style="font-weight: bold;">From:</span>
+        <span style="font-weight: normal;"><apex:outputText value="{!fromDisplay}" /></span>
+    </div>
+
+    <div>
+        <span style="font-weight: bold;">Sent:</span>
+        <span style="font-weight: normal;"><apex:outputText value="{!sentFormatted}" /></span>
+    </div>
+
+    <div>
+        <span style="font-weight: bold;">To:</span>
+        <span style="font-weight: normal;"><apex:outputText value="{!toDisplay}" /></span>
+    </div>
+    
+    <div>
+        <span style="font-weight: bold;">Cc:</span>
+        <span style="font-weight: normal;"><apex:outputText value="{!ccDisplay}" /></span>
+    </div>
+    
+    <div>
+        <span style="font-weight: bold;">Subject:</span>
+        <span style="font-weight: normal;"><apex:outputText value="{!Subject}" /></span>
+    </div><br/>
+    
+        <!-- Render the email HTML body -->
+        <div>
+            <apex:outputText value="{!bodyHtml}" escape="false"/>
+        </div>
+    </apex:outputPanel>
+
+    <!-- Fallback message when there is no matching email -->
+    <apex:outputPanel rendered="{!title}">
+        <div style="font-family: Consolas, Menlo, Monaco, monospace; white-space: pre-wrap;">
+
+
+
+        </div>
+    </apex:outputPanel>
+</apex:component>

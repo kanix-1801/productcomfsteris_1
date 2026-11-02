@@ -1,0 +1,67 @@
+/* ---------- summary card ---------- */
+.cov-card { background: #fff; border: 1px solid #c9c9c9; border-radius: 0.5rem; overflow: hidden; }
+.cov-card-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    padding: 0.75rem 1rem; background: #eef4ff; border-bottom: 1px solid #dde7f7;
+}
+.cov-head-left { display: flex; align-items: center; gap: 0.75rem; }
+.cov-title { font-size: 0.9375rem; margin: 0; }
+.cov-count { font-weight: 400; color: #5c5c5c; }
+.cov-sub { font-size: 0.75rem; color: #5c5c5c; margin: 0; }
+.cov-card-body { position: relative; padding: 1rem; min-height: 3rem; }
+.cov-loading { position: relative; min-height: 2rem; }
+.cov-empty { color: #444; margin: 0; }
+.cov-error { color: #ba0517; margin-bottom: 0.75rem; }
+
+.cov-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 2rem; height: 2rem; border-radius: 50%; background: #0b6ea8; flex: 0 0 auto;
+}
+
+.cov-table { margin-bottom: 1rem; }
+.cov-col-num { width: 2.5rem; }
+.cov-total td { font-weight: 600; }
+
+.cov-facts { display: flex; flex-wrap: wrap; gap: 1.5rem 3rem; }
+.cov-fact { display: flex; flex-direction: column; }
+.cov-fact-label { font-size: 0.75rem; color: #5c5c5c; }
+.cov-fact-value { font-size: 0.875rem; font-weight: 600; }
+
+/* ---------- modal ---------- */
+.cov-modal-container { width: 95%; max-width: 80rem; }
+.cov-modal-sub { font-size: 0.75rem; letter-spacing: 0.05em; color: #5c5c5c; margin: 0.25rem 0 0; }
+.cov-modal-foot { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.cov-hint { font-size: 0.8125rem; color: #5c5c5c; text-align: left; }
+
+/* 3 tiles across on wide screens; wrap/stack on narrow ones */
+.cov-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+    gap: 1rem; align-items: stretch;
+}
+.cov-tile { display: flex; flex-direction: column; background: #fff; border: 1px solid #c9c9c9; border-radius: 0.5rem; }
+.cov-tile-head {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 0.75rem 1rem; border-bottom: 1px solid #e5e5e5;
+}
+.cov-tile-headtext { flex: 1 1 auto; min-width: 0; }
+.cov-tile-title { font-size: 1rem; font-weight: 600; margin: 0; }
+.cov-tile-sub { font-size: 0.75rem; color: #5c5c5c; margin: 0; }
+.cov-tile-body { flex: 1 1 auto; padding: 1rem; }
+.cov-tile-foot { display: flex; justify-content: flex-end; padding: 0.75rem 1rem; border-top: 1px solid #e5e5e5; }
+
+/* model rows */
+.cov-colhead {
+    display: flex; justify-content: space-between; padding-left: 1.5rem; margin-bottom: 0.25rem;
+    font-size: 0.6875rem; letter-spacing: 0.04em; text-transform: uppercase; color: #5c5c5c;
+}
+.cov-colhead-qty { width: 9.5rem; text-align: center; margin-right: 2rem; }
+.cov-row { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem; }
+.cov-num { width: 1rem; font-size: 0.8125rem; }
+.cov-model { flex: 1 1 8rem; min-width: 0; }
+.cov-stepper { display: inline-flex; align-items: center; gap: 0.25rem; }
+.cov-step { border-radius: 50%; width: 1.75rem; height: 1.75rem; }
+.cov-qty { width: 3.5rem; text-align: center; -moz-appearance: textfield; }
+.cov-qty::-webkit-outer-spin-button,
+.cov-qty::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.cov-del { width: 1.5rem; }
+.cov-repaired { flex-basis: 100%; padding-left: 1.5rem; font-size: 0.75rem; color: #5c5c5c; }

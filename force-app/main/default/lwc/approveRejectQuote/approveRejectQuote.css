@@ -1,0 +1,162 @@
+.page-shell {
+    min-height: 18rem;
+    padding: 1rem 1.25rem 1.25rem;
+}
+
+.header-panel {
+    margin-bottom: 1rem;
+}
+
+.subtitle {
+    color: #706e6b;
+    margin: 0.25rem 0 0;
+}
+
+.subtitle-divider {
+    padding: 0 0.5rem;
+}
+
+.table-wrap {
+    overflow-x: auto;
+}
+
+.quote-table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+.quote-table th,
+.quote-table td {
+    overflow-wrap: anywhere;
+    vertical-align: top;
+    white-space: normal;
+}
+
+.description-cell {
+    line-height: 1.35;
+}
+
+.numeric-cell {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.center-cell {
+    text-align: center;
+    white-space: nowrap;
+}
+
+.col-work-order {
+    width: 8%;
+}
+
+.col-line-item {
+    width: 8%;
+}
+
+.col-description {
+    width: 23%;
+}
+
+.col-quantity {
+    width: 6%;
+}
+
+.col-price {
+    width: 11%;
+}
+
+.col-status {
+    width: 10%;
+}
+
+.col-turn-time {
+    width: 7%;
+}
+
+.col-ship-date {
+    width: 9%;
+}
+
+.col-comment {
+    width: 6%;
+}
+
+.col-decision {
+    width: 6%;
+}
+
+.total-row {
+    background: #0176d3;
+    color: #ffffff;
+}
+
+.total-row td {
+    color: #ffffff;
+}
+
+.decision-header {
+    text-align: center;
+    white-space: nowrap;
+}
+
+.decision-cell {
+    text-align: center;
+    vertical-align: middle;
+}
+
+.decision-cell_approve.selected {
+    background: #cdefc4;
+}
+
+.decision-cell_reject.selected {
+    background: #fedbd9;
+}
+
+.decision-checkbox {
+    cursor: pointer;
+    height: 1rem;
+    margin: 0;
+    width: 1rem;
+}
+
+.decision-cell_approve .decision-checkbox {
+    accent-color: #2e844a;
+}
+
+.decision-cell_reject .decision-checkbox {
+    accent-color: #ba0517;
+}
+
+.footer-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.approve-all {
+    --slds-c-button-neutral-color-background: #2e844a;
+    --slds-c-button-neutral-color-border: #2e844a;
+    --slds-c-button-text-color: #ffffff;
+    --slds-c-button-neutral-color-background-hover: #194e31;
+}
+
+.reject-all {
+    --slds-c-button-neutral-color-background: #ba0517;
+    --slds-c-button-neutral-color-border: #ba0517;
+    --slds-c-button-text-color: #ffffff;
+    --slds-c-button-neutral-color-background-hover: #8e030f;
+}
+
+.slds-modal__header {
+    position: relative;
+}
+
+.comment-modal-close {
+    --slds-c-icon-color-foreground: #444444;
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+}

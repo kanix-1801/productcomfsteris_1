@@ -1,0 +1,57 @@
+.scan-field {
+    max-width: 28rem;
+}
+
+.table-container {
+    overflow-x: hidden;
+    max-height: 28rem;
+    overflow-y: auto;
+}
+
+.table-container table {
+    width: 100%;
+    table-layout: fixed;
+}
+
+.vendor-group-row td {
+    background-color: var(--slds-g-color-neutral-base-95, #f3f3f3);
+    font-weight: 700;
+}
+
+.checkbox-column {
+    width: 2.5rem;
+}
+
+.vendor-address-column {
+    width: 22%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    hyphens: auto;
+}
+
+.footer-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+.selection-count {
+    margin-right: auto;
+}
+
+.summary-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.summary-actions__right {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}

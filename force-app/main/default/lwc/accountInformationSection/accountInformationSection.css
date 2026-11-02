@@ -1,0 +1,105 @@
+:host {
+    display: block;
+}
+
+.section-header {
+    background-color: #f3f3f3;
+    border-top: 1px solid #dddbda;
+    border-bottom: 1px solid #dddbda;
+}
+
+.section-body {
+    padding: 0;
+    background: #fff;
+    border-left: 1px solid #dddbda;
+    border-right: 1px solid #dddbda;
+    border-bottom: 1px solid #dddbda;
+}
+
+.detail-layout {
+    padding: 0.5rem 0 0;
+}
+
+.detail-col {
+    padding: 0 1rem;
+}
+
+.detail-field {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    border-bottom: 1px solid #e5e5e5;
+    padding: 0.625rem 0;
+    min-height: 3.25rem;
+}
+
+.field-content {
+    flex: 1;
+    min-width: 0;
+    padding-right: 0.5rem;
+}
+
+.field-label {
+    font-size: 0.75rem;
+    line-height: 1.25;
+    color: #444444;
+    margin-bottom: 0.125rem;
+}
+
+.field-value {
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: #080707;
+    word-break: break-word;
+}
+
+.field-action {
+    flex-shrink: 0;
+    padding-top: 0.875rem;
+}
+
+.lookup-value {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.lookup-icon {
+    flex-shrink: 0;
+}
+
+.edit-form {
+    padding: 0.75rem 0 0;
+}
+
+.edit-col {
+    padding: 0 1rem;
+}
+
+.edit-form .slds-form-element_horizontal {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 0.75rem;
+}
+
+.edit-form .slds-form-element__label {
+    flex: 0 0 9rem;
+    text-align: right;
+    padding-right: 0.75rem;
+    padding-top: 0.4rem;
+}
+
+.edit-form .slds-form-element__control {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.edit-form lightning-input-field {
+    display: block;
+    width: 100%;
+}
+
+.form-actions {
+    padding: 0.75rem 1rem 1rem;
+    text-align: right;
+}

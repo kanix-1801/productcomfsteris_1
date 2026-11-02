@@ -1,0 +1,155 @@
+<template>
+    <template lwc:if={showCard}>
+        <template lwc:if={showPriceNote}>
+            <div class="price-note" role="note">
+                <lightning-icon icon-name="utility:info" size="x-small" class="price-note-icon"></lightning-icon>
+                <p><b>Note:</b> The Price on this screen is not calculated until it has been saved.</p>
+            </div>
+        </template>
+
+        <section class="card" aria-label={cardTitle}>
+            <header class="card-header">
+                <lightning-icon icon-name="standard:maintenance_plan" size="small"></lightning-icon>
+                <div class="card-title">
+                    <h2>{cardTitle} <span class="count">{countLabel}</span></h2>
+                    <p>{cardSubtitle}</p>
+                </div>
+                <template lwc:if={savedNotice}>
+                    <span class="saved"><lightning-icon icon-name="utility:check" size="xx-small" variant="success"></lightning-icon>Saved</span>
+                </template>
+            </header>
+
+            <div class="card-body">
+                <template lwc:if={error}>
+                    <p class="error" role="alert">{error}</p>
+                </template>
+
+                <template lwc:if={lineUnknown}>
+                    <p class="empty">Open this line from the bundle screen (breadcrumb, then the gear icon) to see its asset and visits.</p>
+                </template>
+                <template lwc:elseif={loading}>
+                    <div class="loading"><lightning-spinner alternative-text="Loading" size="small"></lightning-spinner></div>
+                </template>
+
+                <!-- Single mode: this line's own asset -->
+                <template lwc:elseif={isSingle}>
+                    <dl class="fields">
+                        <div class="field">
+                            <dt>Asset</dt>
+                            <dd title={assetLabel}>{assetLabel}</dd>
+                        </div>
+                        <div class="field">
+                            <dt>Serial Number</dt>
+                            <dd title={serialLabel}>{serialLabel}</dd>
+                        </div>
+                        <div class="field">
+                            <dt>PFCL</dt>
+                            <dd title={pfclLabel}>{pfclLabel}</dd>
+                        </div>
+                        <div class="field">
+                            <dt>PM Plan</dt>
+                            <dd class="muted">{pmPlanLabel}</dd>
+                        </div>
+                        <div class="field">
+                            <dt>Standard Visits</dt>
+                            <dd class="muted">{standardLabel}</dd>
+                        </div>
+                        <div class="field">
+                            <dt><label for="line-visits">Requested Visits</label></dt>
+                            <dd>
+                                <div class="stepper">
+                                    <button class="step" aria-label="Decrease requested visits" data-step="-1" onclick={handleLineStep}>−</button>
+                                    <input id="line-visits" class={lineInputClass} type="number" min="0" step="1"
+                                        value={lineVisits} onchange={handleLineInput} />
+                                    <button class="step" aria-label="Increase requested visits" data-step="1" onclick={handleLineStep}>+</button>
+                                </div>
+                            </dd>
+                        </div>
+                    </dl>
+
+                    <div class="card-footer bordered">
+                        <template lwc:if={lineChanged}>
+                            <span class="unsaved" role="status"><span class="dot"></span>Not saved yet</span>
+                            <lightning-button label="Cancel" onclick={handleCancel}></lightning-button>
+                            <lightning-button variant="brand" label="Save" onclick={handleSave}></lightning-button>
+                        </template>
+                        <template lwc:else>
+                            <span class="note">Requested defaults to 2 (will become the PM Plan’s standard visits).</span>
+                        </template>
+                    </div>
+                </template>
+
+                <!-- Table mode: every selected asset, before lines are created -->
+                <template lwc:elseif={hasAssets}>
+                    <div class="toolbar">
+                        <div class="filter">
+                            <lightning-icon icon-name="utility:search" size="x-small"></lightning-icon>
+                            <input type="search" aria-label="Filter assets" placeholder="Filter by serial number or name"
+                                value={filterText} oninput={handleFilter} />
+                        </div>
+                        <label class="inline-check">
+                            <input type="checkbox" checked={showChangedOnly} onchange={handleShowChangedOnly} />
+                            Show changed only
+                        </label>
+                    </div>
+
+                    <div class="preview visits-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th scope="col" style="width: 17%">Serial Number</th>
+                                    <th scope="col" style="width: 21%">Asset Name</th>
+                                    <th scope="col" style="width: 16%">PM Plan</th>
+                                    <th scope="col" class="num" style="width: 15%">Standard Visits</th>
+                                    <th scope="col" class="num" style="width: 19%">Requested Visits</th>
+                                    <th scope="col" style="width: 12%"><span class="slds-assistive-text">Status</span></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template for:each={rows} for:item="row">
+                                    <tr key={row.id} class={row.rowClass}>
+                                        <td title={row.serialNumber}>{row.serialNumber}</td>
+                                        <td title={row.name}>{row.name}</td>
+                                        <td class="muted">{row.pmPlanLabel}</td>
+                                        <td class="num muted">{row.standardLabel}</td>
+                                        <td class="num stepper-cell">
+                                            <div class="stepper">
+                                                <button class="step" aria-label={row.decreaseLabel} data-id={row.id} data-step="-1" onclick={handleStep}>−</button>
+                                                <input class={row.inputClass} type="number" min="0" step="1" aria-label={row.inputLabel}
+                                                    data-id={row.id} value={row.requested} onchange={handleInput} />
+                                                <button class="step" aria-label={row.increaseLabel} data-id={row.id} data-step="1" onclick={handleStep}>+</button>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <template lwc:if={row.changed}>
+                                                <span class="changed"><span class="dot"></span>Changed</span>
+                                            </template>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                        <template lwc:if={showEmptyFilter}>
+                            <p class="empty">{emptyFilterMessage}</p>
+                        </template>
+                    </div>
+
+                    <div class="card-footer">
+                        <template lwc:if={tableChanged}>
+                            <span class="unsaved" role="status"><span class="dot"></span>{changedLabel}</span>
+                            <lightning-button label="Cancel" onclick={handleCancel}></lightning-button>
+                            <lightning-button variant="brand" label="Save" onclick={handleSave}></lightning-button>
+                        </template>
+                        <template lwc:else>
+                            <span class="note">Requested defaults to 2 (will become the PM Plan’s standard visits).</span>
+                        </template>
+                    </div>
+                </template>
+
+                <template lwc:else>
+                    <p class="empty">No assets selected for the bundle yet. Choose them on the bundle screen.</p>
+                </template>
+            </div>
+        </section>
+    </template>
+</template>

@@ -1,0 +1,75 @@
+<template>
+    <div class="vendor-form">
+        <template lwc:if={formError}>
+            <div class="slds-text-color_error slds-m-bottom_small" role="alert">{formError}</div>
+        </template>
+        <div class="slds-grid slds-wrap slds-gutters">
+            <!-- Column 1 -->
+            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                <lightning-record-picker
+                    label="Vendor"
+                    placeholder="Search accounts"
+                    object-api-name="Account"
+                    value={vendorPickerValue}
+                    required
+                    disabled={isVendorPickerDisabled}
+                    onchange={handleVendorChange}
+                ></lightning-record-picker>
+                <lightning-textarea
+                    class="slds-m-top_small"
+                    label="Instructions to Vendor"
+                    value={instructionsToVendor}
+                    required
+                    disabled={isInstructionsDisabled}
+                    onchange={handleInstructionsChange}
+                ></lightning-textarea>
+                <lightning-input
+                    class="slds-m-top_small"
+                    type="text"
+                    label="STERIS Purchase Order to Vendor"
+                    value={sterisPurchaseOrderToVendor}
+                    maxlength="255"
+                    onchange={handleSterisPurchaseOrderChange}
+                ></lightning-input>
+                <lightning-input
+                    class="slds-m-top_small"
+                    type="date"
+                    label="Date Shipped to Vendor"
+                    value={shippedToVendorDate}
+                    read-only
+                ></lightning-input>
+            </div>
+            <!-- Column 2 -->
+            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                <lightning-input
+                    type="text"
+                    label="Vendor Reference Number"
+                    value={vendorReferenceNumber}
+                    onchange={handleVendorReferenceNumberChange}
+                ></lightning-input>
+                <lightning-textarea
+                    class="slds-m-top_small"
+                    label="Vendor Notes"
+                    value={vendorNotes}
+                    onchange={handleVendorNotesChange}
+                ></lightning-textarea>
+                <lightning-input
+                    class="slds-m-top_small"
+                    type="number"
+                    label="Vendor Cost"
+                    value={vendorCost}
+                    formatter="currency"
+                    step="0.01"
+                    onchange={handleVendorCostChange}
+                ></lightning-input>
+                <lightning-input
+                    class="slds-m-top_small"
+                    type="text"
+                    label="Tracking Number"
+                    value={trackingNumber}
+                    read-only
+                ></lightning-input>
+            </div>
+        </div>
+    </div>
+</template>

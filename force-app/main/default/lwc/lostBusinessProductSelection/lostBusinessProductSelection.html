@@ -1,0 +1,277 @@
+<template>
+    <div class="lost-business-products">
+        <template if:true={hasError}>
+            <div class="slds-scoped-notification slds-media slds-media_center slds-theme_error slds-m-bottom_medium"
+                role="alert">
+                <div class="slds-media__figure">
+                    <lightning-icon icon-name="utility:error" variant="inverse" size="small"
+                        alternative-text="Error">
+                    </lightning-icon>
+                </div>
+                <div class="slds-media__body">
+                    <p>{errorMessage}</p>
+                </div>
+            </div>
+        </template>
+
+        <template if:true={showCopyMode}>
+            <lightning-card title="Products from the originating opportunity" icon-name="standard:product">
+                <lightning-button-icon slot="actions" icon-name={originatingToggleIcon}
+                    alternative-text={originatingToggleLabel} title={originatingToggleLabel}
+                    variant="border-filled" onclick={handleToggleOriginatingProducts}>
+                </lightning-button-icon>
+                <div class="slds-p-horizontal_medium slds-p-bottom_medium">
+                    <p class="loss-guidance-primary">
+                        Feel free to deselect any product that is not part of this loss.
+                    </p>
+                    <p class="loss-guidance-secondary slds-m-bottom_small">
+                        Update Quantity and Consumption Frequency as needed
+                    </p>
+
+                    <div class={originatingBodyClass}>
+                        <template if:true={hasCopyableRows}>
+                            <lightning-datatable key-field="sourceLineItemId" data={copyableRows}
+                                columns={copyColumns} selected-rows={selectedSourceLineIds}
+                                max-row-selection={maxCopySelection} onrowselection={handleCopySelection}>
+                            </lightning-datatable>
+                        </template>
+
+                        <template if:true={hasUnavailableRows}>
+                            <div class="slds-m-top_medium">
+                                <p class="slds-text-heading_small slds-m-bottom_x-small">Cannot be copied</p>
+                                <template for:each={unavailableRows} for:item="product">
+                                    <p key={product.sourceLineItemId} class="slds-text-color_weak">
+                                        {product.productName} ({product.productSku}): {product.unavailableReason}
+                                    </p>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </lightning-card>
+
+            <template if:true={hasSelectedCopyRecords}>
+                <div class="slds-m-top_medium">
+                    <lightning-card title="Selected products" icon-name="standard:orders">
+                        <lightning-button-icon slot="actions" icon-name={selectedProductsToggleIcon}
+                            alternative-text={selectedProductsToggleLabel} title={selectedProductsToggleLabel}
+                            variant="border-filled" onclick={handleToggleSelectedProducts}>
+                        </lightning-button-icon>
+                        <div class={selectedProductsBodyClass}>
+                            <table class="slds-table slds-table_cell-buffer slds-table_bordered selected-products-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col" class="product-name-cell">Product Name</th>
+                                        <th scope="col" class="product-code-cell">Product / SKU</th>
+                                        <th scope="col" class="quantity-cell">Quantity</th>
+                                        <th scope="col" class="picklist-cell">Consumption Frequency</th>
+                                        <th scope="col" class="sales-price-cell">Unit Price</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={selectedCopyRecords} for:item="product">
+                                        <tr key={product.sourceLineItemId}>
+                                            <td class="product-name-cell">{product.productName}</td>
+                                            <td class="product-code-cell">{product.productSku}</td>
+                                            <td class="quantity-cell">
+                                                <lightning-input type="number" variant="label-hidden"
+                                                    label="Quantity" min="0.01" step="0.01"
+                                                    value={product.quantity}
+                                                    data-productid={product.sourceLineItemId}
+                                                    data-field="quantity"
+                                                    onchange={handleCopyFieldChange} required
+                                                    data-validate="quantity"
+                                                    message-when-value-missing="Quantity is required"
+                                                    message-when-range-underflow="Quantity must be greater than zero">
+                                                </lightning-input>
+                                            </td>
+                                            <td class="picklist-cell">
+                                                <div class="slds-select_container">
+                                                    <select class="slds-select" aria-label="Consumption Frequency"
+                                                        data-productid={product.sourceLineItemId}
+                                                        data-field="consumptionFrequency"
+                                                        onchange={handleCopyFieldChange}>
+                                                        <template for:each={product.frequencyChoices} for:item="option">
+                                                            <option key={option.key} value={option.value}
+                                                                selected={option.selected}>
+                                                                {option.label}
+                                                            </option>
+                                                        </template>
+                                                    </select>
+                                                </div>
+                                            </td>
+                                            <td class="sales-price-cell">
+                                                <lightning-formatted-number value={product.unitPrice}
+                                                    minimum-fraction-digits="2" maximum-fraction-digits="2">
+                                                </lightning-formatted-number>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </lightning-card>
+                </div>
+            </template>
+        </template>
+
+        <template if:true={showCatalogMode}>
+            <div class="slds-scoped-notification slds-media slds-media_center slds-theme_info slds-m-bottom_medium"
+                role="status">
+                <div class="slds-media__figure">
+                    <lightning-icon icon-name="utility:info" variant="inverse" size="small"
+                        alternative-text="Information">
+                    </lightning-icon>
+                </div>
+                <div class="slds-media__body">
+                    <p>
+                        No products are available to copy from the originating opportunity. Search below to add products, or Submit without products.
+                    </p>
+                </div>
+            </div>
+
+            <lightning-card title="Add Products" icon-name="standard:product">
+                <div class="slds-p-horizontal_medium slds-p-bottom_medium">
+                    <div class="product-search-row">
+                        <div class="product-search-input">
+                            <lightning-input type="search" label="Product Name or Product Code"
+                                value={productSearchKey} onchange={handleProductSearchChange}
+                                onkeypress={handleProductSearchEnter}
+                                placeholder="Search by Product Name or Product Code">
+                            </lightning-input>
+                        </div>
+                        <div class="product-search-button">
+                            <lightning-button label="Search Products" variant="brand"
+                                onclick={handleSearchProducts}>
+                            </lightning-button>
+                        </div>
+                    </div>
+
+                    <template if:true={showNoResults}>
+                        <div class="slds-text-color_weak slds-m-top_medium">
+                            No active products matched your search. Try a different product name or code.
+                        </div>
+                    </template>
+
+                    <template if:true={hasProductResults}>
+                        <div class="slds-m-top_small slds-m-bottom_small slds-grid slds-grid_align-spread slds-grid_vertical-align-center">
+                            <div>
+                                <strong>Total Products:</strong> {productTotalRecords}
+                            </div>
+                            <lightning-button-icon icon-name={searchResultsToggleIcon}
+                                alternative-text={searchResultsToggleLabel}
+                                title={searchResultsToggleLabel} variant="border-filled"
+                                onclick={handleToggleSearchResults}>
+                            </lightning-button-icon>
+                        </div>
+
+                        <div class={searchResultsBodyClass}>
+                            <lightning-datatable key-field="productId" data={productData}
+                                columns={productColumns} selected-rows={selectedProductIds}
+                                max-row-selection="2000" onrowselection={handleProductSelection}>
+                            </lightning-datatable>
+
+                            <div class="slds-m-top_medium slds-grid slds-grid_vertical-align-center slds-grid_align-spread">
+                                <lightning-button label="Previous" onclick={handlePreviousProductPage}
+                                    disabled={disablePreviousProductPage}>
+                                </lightning-button>
+                                <div class="slds-grid slds-grid_vertical-align-center">
+                                    <div class="slds-m-right_medium">
+                                        Page {productPageNumber} of {productTotalPages}
+                                    </div>
+                                    <lightning-combobox label="Records Per Page" variant="label-hidden"
+                                        value={productPageSizeValue} options={pageSizeOptions}
+                                        onchange={handleProductPageSizeChange}>
+                                    </lightning-combobox>
+                                </div>
+                                <lightning-button label="Next" onclick={handleNextProductPage}
+                                    disabled={disableNextProductPage}>
+                                </lightning-button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </lightning-card>
+
+            <template if:true={hasSelectedProducts}>
+                <div class="slds-m-top_medium">
+                    <lightning-card title="Selected Products" icon-name="standard:orders">
+                        <lightning-button-icon slot="actions" icon-name={selectedProductsToggleIcon}
+                            alternative-text={selectedProductsToggleLabel} title={selectedProductsToggleLabel}
+                            variant="border-filled" onclick={handleToggleSelectedProducts}>
+                        </lightning-button-icon>
+                        <div class={selectedProductsBodyClass}>
+                            <table class="slds-table slds-table_cell-buffer slds-table_bordered selected-products-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col" class="product-name-cell">Product Name</th>
+                                        <th scope="col" class="product-code-cell">Product / SKU</th>
+                                        <th scope="col" class="quantity-cell">Quantity</th>
+                                        <th scope="col" class="picklist-cell">Consumption Frequency</th>
+                                        <th scope="col" class="sales-price-cell">Unit Price</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={selectedProductRecords} for:item="product">
+                                        <tr key={product.productId}>
+                                            <td class="product-name-cell">{product.productName}</td>
+                                            <td class="product-code-cell">{product.productCode}</td>
+                                            <td class="quantity-cell">
+                                                <lightning-input type="number" variant="label-hidden"
+                                                    label="Quantity" min="0.01" step="0.01"
+                                                    value={product.quantity}
+                                                    data-productid={product.productId}
+                                                    data-field="quantity"
+                                                    onchange={handleCatalogFieldChange} required
+                                                    data-validate="quantity"
+                                                    message-when-value-missing="Quantity is required"
+                                                    message-when-range-underflow="Quantity must be greater than zero">
+                                                </lightning-input>
+                                            </td>
+                                            <td class="picklist-cell">
+                                                <div class="slds-select_container">
+                                                    <select class="slds-select" aria-label="Consumption Frequency"
+                                                        data-productid={product.productId}
+                                                        data-field="consumptionFrequency"
+                                                        onchange={handleCatalogFieldChange}>
+                                                        <template for:each={product.frequencyChoices} for:item="option">
+                                                            <option key={option.key} value={option.value}
+                                                                selected={option.selected}>
+                                                                {option.label}
+                                                            </option>
+                                                        </template>
+                                                    </select>
+                                                </div>
+                                            </td>
+                                            <td class="sales-price-cell">
+                                                <lightning-formatted-number value={product.unitPrice}
+                                                    minimum-fraction-digits="2" maximum-fraction-digits="2">
+                                                </lightning-formatted-number>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </lightning-card>
+                </div>
+            </template>
+        </template>
+
+        <div class="action-bar slds-grid slds-grid_align-spread slds-grid_vertical-align-center">
+            <span class="slds-text-body_small slds-text-color_weak">{selectedProductsHeading}</span>
+            <div class="slds-grid slds-grid_vertical-align-center">
+                <lightning-button class="slds-m-right_x-small" label="Back" onclick={handleBack}
+                    disabled={isBackDisabled}>
+                </lightning-button>
+                <lightning-button label="Submit" variant="brand" onclick={handleSave}
+                    disabled={isSaveDisabled}>
+                </lightning-button>
+            </div>
+        </div>
+
+        <template if:true={isLoading}>
+            <lightning-spinner alternative-text="Processing"></lightning-spinner>
+        </template>
+    </div>
+</template>

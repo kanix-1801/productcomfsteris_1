@@ -1,0 +1,1134 @@
+<template>
+    <div class={rootClass}>
+            <template lwc:if={isScanMode}>
+        <lightning-card title="Device Evaluation &amp; Repair" icon-name="custom:custom19">
+            <div class="slds-p-around_medium">
+                <p class="slds-text-heading_small slds-m-bottom_small">Scan Work Order</p>
+                <c-repair-center-scan-input
+                    label={scanFieldLabel}
+                    placeholder={scanFieldPlaceholder}
+                    value={workOrderNumber}
+                    disabled={isLoading}
+                    onvaluechange={handleScanValueChange}
+                    oncontinue={handleScanContinue}
+                ></c-repair-center-scan-input>
+
+                <template lwc:if={errorMessage}>
+                    <div class="slds-text-color_error slds-m-top_small" role="alert">
+                        {errorMessage}
+                    </div>
+                </template>
+
+                <template lwc:if={isLoading}>
+                    <div class="slds-m-top_medium slds-is-relative slds-p-around_large">
+                        <lightning-spinner alternative-text="Loading" size="small"></lightning-spinner>
+                    </div>
+                </template>
+            </div>
+        </lightning-card>
+            </template>
+
+            <template lwc:elseif={isWorkspaceMode}>
+                <!--
+                  Workspace is outside lightning-card so host height constraints apply.
+                  Sticky header does not scroll; only .workspace-panel / .workspace-nav do.
+                -->
+                <div class="evaluation-content">
+                <template lwc:if={workspaceError}>
+                    <div
+                        class="slds-notify slds-notify_alert slds-theme_error slds-m-bottom_small workspace-error-banner"
+                        role="alert"
+                    >
+                        <span class="slds-assistive-text">Error</span>
+                        <h2 class="slds-text-heading_small">{workspaceError}</h2>
+                    </div>
+                </template>
+
+                <div class="workspace-shell">
+                    <template lwc:if={isEvaluationMode}>
+                    <aside class="workspace-nav" aria-label="Evaluation sections">
+                        <template lwc:if={showMarkAllOk}>
+                            <div class="workspace-nav__mark-all-ok">
+                                <lightning-input
+                                    type="toggle"
+                                    label="Mark All Ok"
+                                    message-toggle-active="On"
+                                    message-toggle-inactive="Off"
+                                    checked={areAllOkObservationCodesSelected}
+                                    onchange={handleMarkAllOkToggle}
+                                    disabled={isActionBusy}
+                                    class="mark-all-ok-toggle"
+                                ></lightning-input>
+                            </div>
+                        </template>
+                        <nav class="slds-nav-vertical">
+                            <ul>
+                                <template for:each={navItems} for:item="item">
+                                    <li key={item.value} class={item.itemClass}>
+                                        <!--
+                                          Use button (not <a>) so iOS does not keep a sticky
+                                          :hover/:focus highlight that looks like a second selected tab.
+                                        -->
+                                        <button
+                                            type="button"
+                                            class="slds-nav-vertical__action workspace-nav__action"
+                                            data-tab={item.value}
+                                            onclick={handleNavClick}
+                                            aria-current={item.ariaCurrent}
+                                        >
+                                            {item.label}
+                                        </button>
+                                    </li>
+                                </template>
+                            </ul>
+                        </nav>
+                    </aside>
+                    </template>
+
+                    <div class="workspace-main">
+                        <header class="workspace-header">
+                            <template lwc:if={showContaminatedWarning}>
+                                <div
+                                    class="slds-notify slds-notify_alert slds-alert_warning slds-m-bottom_small"
+                                    role="alert"
+                                >
+                                    Please move bin with contaminated items to the Cleaning Area.
+                                </div>
+                            </template>
+
+                            <div class="slds-m-bottom_small workspace-header__title-row">
+                                <div class="workspace-header__title-text">
+                                    <div class="workspace-header__title-heading">
+                                        <!-- Same heading class as Asset Information section title -->
+                                        <h3 class="slds-text-heading_small slds-m-bottom_xx-small">
+                                            {evaluation.workOrderNumber}
+                                        </h3>
+                                        <c-repair-center-ship-complete-indicator
+                                            lwc:if={showShipCompleteIndicator}
+                                        ></c-repair-center-ship-complete-indicator>
+                                    </div>
+                                    <p class="slds-text-body_regular workspace-header__subtitle">
+                                        {evaluation.deviceIdentityLine}
+                                    </p>
+                                </div>
+                                <c-repair-center-cio-indicator
+                                    lwc:if={showCioIndicator}
+                                    size="large"
+                                ></c-repair-center-cio-indicator>
+                            </div>
+
+                            <!--
+                              Sticky header uses the same detail-row style as IE Work Order Information.
+                              Col1: Sub Status, Turn Time
+                              Col2: Photos Required, Unable To Take Photo
+                              Col3: Usage Count, Usage Count Date
+                            -->
+                            <div class="slds-grid slds-wrap slds-gutters detail-grid detail-grid_header">
+                                <div class="slds-col slds-size_1-of-3 detail-grid__col_3">
+                                    <div class="detail-row">
+                                        <label class="detail-row__label" for="header-sub-status">
+                                            Sub Status
+                                        </label>
+                                        <div class="detail-row__value detail-row__value_grow">
+                                            <select
+                                                id="header-sub-status"
+                                                class="sticky-field__control sticky-field__control_select"
+                                                onchange={handleSubStatusChange}
+                                                disabled={isActionBusy}
+                                                aria-label="Sub Status"
+                                            >
+                                                <option value="">--None--</option>
+                                                <template for:each={subStatusOptions} for:item="option">
+                                                    <option key={option.value} value={option.value}>
+                                                        {option.label}
+                                                    </option>
+                                                </template>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="detail-row">
+                                        <label class="detail-row__label" for="header-turn-time">
+                                            Turn Time
+                                        </label>
+                                        <div class="detail-row__value detail-row__value_grow">
+                                            <input
+                                                id="header-turn-time"
+                                                class="sticky-field__control"
+                                                type="text"
+                                                inputmode="numeric"
+                                                value={turnTimeInputValue}
+                                                onchange={handleTurnTimeInputChange}
+                                                oninput={handleTurnTimeInputChange}
+                                                disabled={isActionBusy}
+                                                aria-label="Turn Time"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="slds-col slds-size_1-of-3 detail-grid__col_3">
+                                    <div class="detail-row">
+                                        <span class="detail-row__label">Photos Required</span>
+                                        <div class="detail-row__value">
+                                            <lightning-input
+                                                type="checkbox"
+                                                variant="label-hidden"
+                                                label="Photos Required"
+                                                checked={evaluation.photosRequired}
+                                                disabled
+                                            ></lightning-input>
+                                        </div>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-row__label">Unable To Take Photo</span>
+                                        <div class="detail-row__value">
+                                            <lightning-input
+                                                type="checkbox"
+                                                variant="label-hidden"
+                                                label="Unable To Take Photo"
+                                                checked={evaluation.unableToTakePhoto}
+                                                onchange={handleUnableToTakePhotoChange}
+                                            ></lightning-input>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="slds-col slds-size_1-of-3 detail-grid__col_3">
+                                    <template lwc:if={showUsageCountFields}>
+                                        <div class="detail-row">
+                                            <label class="detail-row__label" for="usage-count-input">
+                                                Usage Count
+                                            </label>
+                                            <div class="detail-row__value detail-row__value_grow">
+                                                <input
+                                                    id="usage-count-input"
+                                                    class="sticky-field__control"
+                                                    type="text"
+                                                    value={usageCountInputValue}
+                                                    onchange={handleUsageCountInputChange}
+                                                    oninput={handleUsageCountInputChange}
+                                                    disabled={isActionBusy}
+                                                    aria-label="Usage Count"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div class="detail-row">
+                                            <span class="detail-row__label">Usage Count Date</span>
+                                            <div class="detail-row__value">{usageCountDateDisplay}</div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-center workspace-action-row">
+                                <div class="workspace-header-actions workspace-header-actions_left">
+                                    <template lwc:if={isEvaluationMode}>
+                                        <lightning-button
+                                            label="Cancel"
+                                            onclick={handleCancel}
+                                            disabled={isActionBusy}
+                                        ></lightning-button>
+                                        <lightning-button
+                                            label="Quick Save"
+                                            onclick={handleQuickSave}
+                                            disabled={isActionBusy}
+                                            class="slds-m-left_x-small"
+                                        ></lightning-button>
+                                        <lightning-button
+                                            label="Save & Close"
+                                            onclick={handleSaveAndClose}
+                                            disabled={isActionBusy}
+                                            class="slds-m-left_x-small"
+                                        ></lightning-button>
+                                        <template lwc:if={showReturnToEval}>
+                                            <lightning-button
+                                                label="Return to Eval"
+                                                variant="brand"
+                                                onclick={handleReturnToEval}
+                                                disabled={isActionBusy}
+                                                class="slds-m-left_x-small"
+                                            ></lightning-button>
+                                        </template>
+                                    </template>
+                                </div>
+                                <div class="workspace-header-actions">
+                                    <p class="slds-text-body_small slds-text-color_weak slds-m-right_small">
+                                        Selected codes: {selectedCount}
+                                    </p>
+                                    <template lwc:if={isEvaluationMode}>
+                                        <lightning-button
+                                            label="Next"
+                                            variant="brand"
+                                            onclick={handleNext}
+                                            disabled={isActionBusy}
+                                        ></lightning-button>
+                                    </template>
+                                    <template lwc:elseif={isSummaryMode}>
+                                        <lightning-button
+                                            label="Continue Evaluation/Repair"
+                                            onclick={handleContinueEvaluation}
+                                            disabled={isActionBusy}
+                                            class="slds-m-right_small"
+                                        ></lightning-button>
+                                        <lightning-button
+                                            label="Complete"
+                                            variant="brand"
+                                            onclick={handleComplete}
+                                            disabled={isCompleteDisabled}
+                                        ></lightning-button>
+                                    </template>
+                                </div>
+                            </div>
+                        </header>
+
+                        <template lwc:if={isEvaluationMode}>
+                        <section class="workspace-panel" aria-live="polite">
+                        <template lwc:if={isWoDetailsTab}>
+                            <!--
+                              Same pattern as Asset Information (heading + compact
+                              record-view-form). Do not alter the Asset tab markup.
+                            -->
+                            <h3 class="slds-text-heading_small slds-m-bottom_small">
+                                Work Order Information
+                            </h3>
+                            <template lwc:if={evaluation}>
+                                <div class="slds-grid slds-wrap slds-gutters detail-grid">
+                                    <div class="slds-col slds-size_1-of-2 detail-grid__col">
+                                        <div class="detail-row">
+                                            <span class="detail-row__label">Status</span>
+                                            <div class="detail-row__value">{woInfoStatus}</div>
+                                        </div>
+                                        <div class="detail-row">
+                                            <span class="detail-row__label">Repair Warranty</span>
+                                            <div class="detail-row__value">{woInfoRepairWarranty}</div>
+                                        </div>
+                                        <div class="detail-row">
+                                            <span class="detail-row__label">
+                                                Continuous Improvement Opportunity
+                                            </span>
+                                            <div class="detail-row__value">
+                                                <lightning-input
+                                                    type="checkbox"
+                                                    variant="label-hidden"
+                                                    label="Continuous Improvement Opportunity"
+                                                    checked={evaluation.continuousImprovementOpportunity}
+                                                    disabled
+                                                ></lightning-input>
+                                            </div>
+                                        </div>
+                                        <div class="detail-row">
+                                            <span class="detail-row__label">Description</span>
+                                            <div class="detail-row__value">{woInfoDescription}</div>
+                                        </div>
+                                    </div>
+                                    <div class="slds-col slds-size_1-of-2 detail-grid__col">
+                                        <div class="detail-row">
+                                            <span class="detail-row__label">Estimate Required</span>
+                                            <div class="detail-row__value">{woInfoEstimateRequired}</div>
+                                        </div>
+                                        <div class="detail-row">
+                                            <span class="detail-row__label">Customer PO Required</span>
+                                            <div class="detail-row__value">
+                                                <lightning-input
+                                                    type="checkbox"
+                                                    variant="label-hidden"
+                                                    label="Customer PO Required"
+                                                    checked={evaluation.customerPORequired}
+                                                    disabled
+                                                ></lightning-input>
+                                            </div>
+                                        </div>
+                                        <div class="detail-row">
+                                            <span class="detail-row__label">Customer PO</span>
+                                            <div class="detail-row__value">{woInfoCustomerPo}</div>
+                                        </div>
+                                        <div class="detail-row">
+                                            <span class="detail-row__label">Ship Complete</span>
+                                            <div class="detail-row__value">
+                                                <lightning-input
+                                                    type="checkbox"
+                                                    variant="label-hidden"
+                                                    label="Ship Complete"
+                                                    checked={evaluation.shipComplete}
+                                                    disabled
+                                                ></lightning-input>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                            <c-contamination-information
+                                visible={showContaminatedWarning}
+                                value={contaminationValue}
+                                disabled={isActionBusy}
+                                oncontaminationchange={handleContaminationChange}
+                            ></c-contamination-information>
+                        </template>
+
+                        <template lwc:elseif={isVendorTab}>
+                            <h3 class="slds-text-heading_small slds-m-bottom_small">
+                                Vendor Information
+                            </h3>
+                            <c-vendor-details-form
+                                value={vendorFormValue}
+                                onvendorchange={handleVendorFormChange}
+                            ></c-vendor-details-form>
+                        </template>
+
+                        <template lwc:elseif={isAssetTab}>
+                            <h3 class="slds-text-heading_small slds-m-bottom_small">Asset Information</h3>
+                            <div class="slds-grid slds-wrap slds-gutters detail-grid">
+                                <div class="slds-col slds-size_1-of-2 detail-grid__col">
+                                    <div class="detail-row">
+                                        <span class="detail-row__label">Asset Name</span>
+                                        <div class="detail-row__value">{assetInfoName}</div>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-row__label">Serial Number</span>
+                                        <div class="detail-row__value">{assetInfoSerialNumber}</div>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-row__label">Product</span>
+                                        <div class="detail-row__value">
+                                            <template lwc:if={hasProductLink}>
+                                                <a
+                                                    href={productRecordUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                >
+                                                    {productDisplayName}
+                                                </a>
+                                            </template>
+                                            <template lwc:else>—</template>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="slds-col slds-size_1-of-2 detail-grid__col">
+                                    <div class="detail-row">
+                                        <span class="detail-row__label">Manufacturer</span>
+                                        <div class="detail-row__value">{assetInfoManufacturer}</div>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-row__label">Model</span>
+                                        <div class="detail-row__value">{assetInfoModel}</div>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-row__label">Product Line</span>
+                                        <div class="detail-row__value">{assetInfoProductLine}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <c-repair-center-repair-history-table
+                                rows={evaluation.repairHistory}
+                                has-more={evaluation.repairHistoryHasMore}
+                            ></c-repair-center-repair-history-table>
+                        </template>
+
+                        <template lwc:elseif={isPreferencesTab}>
+                            <c-customer-preferences-table
+                                preferences={evaluation.customerPreferences}
+                            ></c-customer-preferences-table>
+                        </template>
+
+                        <template lwc:elseif={isNotesTab}>
+                            <c-repair-center-eval-notes
+                                evaluation-notes={evaluation.evaluationNotes}
+                                internal-evaluation-notes={evaluation.internalEvaluationNotes}
+                                internal-specialist-evaluation-notes={evaluation.internalSpecialistEvaluationNotes}
+                                qc-inspection-notes={evaluation.qcInspectionNotes}
+                                disabled={isActionBusy}
+                                onnoteschange={handleNotesChange}
+                            ></c-repair-center-eval-notes>
+                        </template>
+
+                        <template lwc:elseif={isWreTab}>
+                            <template lwc:if={workOrderId}>
+                                <c-warranty-repair-evaluation-panel
+                                    work-order-id={workOrderId}
+                                    initial-rows={warrantyRepairEvaluations}
+                                    onwresaved={handleWarrantyRepairEvaluationSaved}
+                                ></c-warranty-repair-evaluation-panel>
+                            </template>
+                        </template>
+
+                        <template lwc:elseif={isWorkPerformedTab}>
+                            <h3 class="slds-text-heading_small slds-m-bottom_small">
+                                Work Performed
+                            </h3>
+                            <template lwc:if={hasWorkPerformedSignableRows}>
+                                <div class="work-performed-sign-toolbar slds-m-bottom_small">
+                                    <div class="work-performed-sign-toolbar__spacer"></div>
+                                    <div class="work-performed-sign-toolbar__action">
+                                        <lightning-button
+                                            label="Sign All"
+                                            variant="brand"
+                                            onclick={handleSignAllRepairCodes}
+                                            disabled={isSignAllDisabled}
+                                        ></lightning-button>
+                                    </div>
+                                </div>
+                                <table class="slds-table slds-table_cell-buffer slds-table_bordered work-code-table">
+                                    <colgroup>
+                                        <col class="work-code-table__col-category" />
+                                        <col class="work-code-table__col-item" />
+                                        <col class="work-code-table__col-description" />
+                                        <col class="work-code-table__col-action" />
+                                    </colgroup>
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">Category</th>
+                                            <th scope="col">Item Number</th>
+                                            <th scope="col">Description</th>
+                                            <th scope="col">Apply Signature</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template
+                                            for:each={workPerformedSignableRows}
+                                            for:item="row"
+                                        >
+                                            <tr key={row.productId}>
+                                                <td>{row.evalCategory}</td>
+                                                <td>{row.productCode}</td>
+                                                <td>{row.productName}</td>
+                                                <td>
+                                                    <div class="signature-stack">
+                                                        <template
+                                                            for:each={row.signatures}
+                                                            for:item="signature"
+                                                        >
+                                                            <div
+                                                                key={signature.id}
+                                                                class="signature-line"
+                                                            >
+                                                                <span>{signature.userName}</span>
+                                                                <template lwc:if={signature.canRemove}>
+                                                                    <lightning-button-icon
+                                                                        icon-name="utility:delete"
+                                                                        alternative-text="Remove signature"
+                                                                        title="Remove signature"
+                                                                        variant="bare"
+                                                                        data-signature-id={signature.id}
+                                                                        onclick={handleRemoveRepairSignature}
+                                                                        disabled={isActionBusy}
+                                                                    ></lightning-button-icon>
+                                                                </template>
+                                                            </div>
+                                                        </template>
+                                                        <template lwc:if={row.showSignButton}>
+                                                            <lightning-button
+                                                                label="Sign"
+                                                                variant="neutral"
+                                                                data-product-id={row.productId}
+                                                                onclick={handleSignRepairCode}
+                                                                disabled={isActionBusy}
+                                                            ></lightning-button>
+                                                        </template>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </template>
+                            <template lwc:else>
+                                <p class="slds-text-body_regular slds-m-bottom_medium">
+                                    No selected category or service codes.
+                                </p>
+                            </template>
+
+                            <h3 class="slds-text-heading_small slds-m-top_medium slds-m-bottom_small">
+                                Observation Codes
+                            </h3>
+                            <template lwc:if={hasWorkPerformedObservationRows}>
+                                <table class="slds-table slds-table_cell-buffer slds-table_bordered work-code-table">
+                                    <colgroup>
+                                        <col class="work-code-table__col-category" />
+                                        <col class="work-code-table__col-item" />
+                                        <col class="work-code-table__col-description" />
+                                        <col class="work-code-table__col-action" />
+                                    </colgroup>
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">Category</th>
+                                            <th scope="col">Item Number</th>
+                                            <th scope="col">Description</th>
+                                            <th scope="col">Photos</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template
+                                            for:each={workPerformedObservationRows}
+                                            for:item="row"
+                                        >
+                                            <tr key={row.productId}>
+                                                <td>{row.evalCategory}</td>
+                                                <td>{row.productCode}</td>
+                                                <td>{row.productName}</td>
+                                                <td>
+                                                    <div class="work-performed-photos">
+                                                        <span class="work-performed-photos__count">
+                                                            {row.photoCountLabel}
+                                                        </span>
+                                                        <lightning-button
+                                                            label="Take Photo"
+                                                            variant="brand"
+                                                            data-product-id={row.productId}
+                                                            data-product-code={row.productCode}
+                                                            data-product-name={row.productName}
+                                                            onclick={handleTakePhotoClick}
+                                                            disabled={isActionBusy}
+                                                        ></lightning-button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </template>
+                            <template lwc:else>
+                                <p class="slds-text-body_regular">
+                                    No selected observation codes.
+                                </p>
+                            </template>
+                        </template>
+
+                        <template lwc:elseif={isCategoryTab}>
+                            <template lwc:if={hasCategoryCodes}>
+                                <div class="code-grid" role="list">
+                                    <template for:each={categoryCards} for:item="card">
+                                        <div
+                                            key={card.productId}
+                                            class={card.buttonClass}
+                                            data-product-id={card.productId}
+                                            onclick={handleCardClick}
+                                            onkeydown={handleCardKeyDown}
+                                            aria-pressed={card.selected}
+                                            role="button"
+                                            tabindex="0"
+                                        >
+                                            <div class="code-card__header">
+                                                <span class="code-card__code">{card.productCode}</span>
+                                                <span class={card.checkboxClass} aria-hidden="true">
+                                                    <template lwc:if={card.selected}>
+                                                        <lightning-icon
+                                                            icon-name="utility:check"
+                                                            size="xx-small"
+                                                            alternative-text=""
+                                                        ></lightning-icon>
+                                                    </template>
+                                                </span>
+                                            </div>
+                                            <span class="code-card__name">{card.productName}</span>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+                            <template lwc:else>
+                                <p>No Pricing Codes available.</p>
+                            </template>
+                        </template>
+
+                        <template lwc:elseif={isDynamicCategoryTab}>
+                            <template lwc:if={activeDynamicTab}>
+                                <h3 class="slds-text-heading_small slds-m-bottom_small">
+                                    Observation Codes
+                                </h3>
+                                <template lwc:if={activeDynamicTab.hasObservationCodes}>
+                                    <div class="code-grid" role="list">
+                                        <template
+                                            for:each={activeDynamicTab.observationCodes}
+                                            for:item="card"
+                                        >
+                                            <div
+                                                key={card.productId}
+                                                class={card.buttonClass}
+                                                data-product-id={card.productId}
+                                                onclick={handleCardClick}
+                                                onkeydown={handleCardKeyDown}
+                                                aria-pressed={card.selected}
+                                                role="button"
+                                                tabindex="0"
+                                            >
+                                                <div class="code-card__header">
+                                                    <span class="code-card__code">{card.productCode}</span>
+                                                    <span class={card.checkboxClass} aria-hidden="true">
+                                                        <template lwc:if={card.selected}>
+                                                            <lightning-icon
+                                                                icon-name="utility:check"
+                                                                size="xx-small"
+                                                                alternative-text=""
+                                                            ></lightning-icon>
+                                                        </template>
+                                                    </span>
+                                                </div>
+                                                <span class="code-card__name">{card.productName}</span>
+                                                <template lwc:if={card.selected}>
+                                                    <div class="code-card__photo-actions">
+                                                        <lightning-button
+                                                            label="Take Photo"
+                                                            variant="brand"
+                                                            data-product-id={card.productId}
+                                                            data-product-code={card.productCode}
+                                                            data-product-name={card.productName}
+                                                            onclick={handleTakePhotoClick}
+                                                        ></lightning-button>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+                                <template lwc:else>
+                                    <p class="slds-m-bottom_medium">No observation codes.</p>
+                                </template>
+
+                                <h3 class="slds-text-heading_small slds-m-top_medium slds-m-bottom_small">
+                                    Service Codes
+                                </h3>
+                                <template lwc:if={activeDynamicTab.hasServiceCodes}>
+                                    <div class="code-grid" role="list">
+                                        <template
+                                            for:each={activeDynamicTab.serviceCodes}
+                                            for:item="card"
+                                        >
+                                            <div
+                                                key={card.productId}
+                                                class={card.buttonClass}
+                                                data-product-id={card.productId}
+                                                onclick={handleCardClick}
+                                                onkeydown={handleCardKeyDown}
+                                                aria-pressed={card.selected}
+                                                role="button"
+                                                tabindex="0"
+                                            >
+                                                <div class="code-card__header">
+                                                    <span class="code-card__code">{card.productCode}</span>
+                                                    <span class={card.checkboxClass} aria-hidden="true">
+                                                        <template lwc:if={card.selected}>
+                                                            <lightning-icon
+                                                                icon-name="utility:check"
+                                                                size="xx-small"
+                                                                alternative-text=""
+                                                            ></lightning-icon>
+                                                        </template>
+                                                    </span>
+                                                </div>
+                                                <span class="code-card__name">{card.productName}</span>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+                                <template lwc:else>
+                                    <p>No service codes.</p>
+                                </template>
+                            </template>
+                        </template>
+                        </section>
+                        </template>
+
+                        <template lwc:elseif={isSummaryMode}>
+                            <section class="workspace-panel" aria-live="polite">
+                                <h2 class="slds-text-heading_small slds-m-bottom_small">
+                                    Evaluation Summary
+                                </h2>
+
+                                <div class="slds-m-bottom_medium">
+                                    <h3 class="slds-text-heading_small slds-m-bottom_small">Notes</h3>
+                                    <!--
+                                      Draft (unsaved) notes from evaluation state — not record-view-form,
+                                      which only shows values already saved to the Work Order.
+                                      Same colgroup as the tables below so values start on Item Number.
+                                    -->
+                                    <table
+                                        class="slds-table slds-table_cell-buffer slds-table_bordered de-summary-table summary-notes-table"
+                                    >
+                                        <colgroup>
+                                            <col class="de-summary-table__col-eval-category" />
+                                            <col class="de-summary-table__col-item-number" />
+                                            <col class="de-summary-table__col-description" />
+                                            <col class="de-summary-table__col-type" />
+                                            <col class="de-summary-table__col-signatures" />
+                                        </colgroup>
+                                        <tbody>
+                                            <tr>
+                                                <th scope="row" class="summary-notes-label">
+                                                    Evaluation Notes
+                                                </th>
+                                                <td class="summary-notes-value" colspan="4">
+                                                    {evaluationNotesSummaryDisplay}
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <th scope="row" class="summary-notes-label">
+                                                    Internal Evaluation Notes
+                                                </th>
+                                                <td class="summary-notes-value" colspan="4">
+                                                    {internalEvaluationNotesSummaryDisplay}
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <th scope="row" class="summary-notes-label">
+                                                    Internal Specialist Evaluation Notes
+                                                </th>
+                                                <td class="summary-notes-value" colspan="4">
+                                                    {internalSpecialistNotesSummaryDisplay}
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <template lwc:if={hasSummarySelections}>
+                                    <template for:each={summaryGroups} for:item="group">
+                                        <div key={group.groupKey} class="slds-m-bottom_medium">
+                                            <h3 class="slds-text-heading_small slds-m-bottom_x-small">
+                                                {group.groupName}
+                                            </h3>
+                                            <table
+                                                class="slds-table slds-table_cell-buffer slds-table_bordered de-summary-table"
+                                            >
+                                                <colgroup>
+                                                    <col class="de-summary-table__col-eval-category" />
+                                                    <col class="de-summary-table__col-item-number" />
+                                                    <col class="de-summary-table__col-description" />
+                                                    <col class="de-summary-table__col-type" />
+                                                    <col class="de-summary-table__col-signatures" />
+                                                </colgroup>
+                                                <thead>
+                                                    <tr>
+                                                        <th
+                                                            scope="col"
+                                                            class="de-summary-table__col-eval-category"
+                                                        >
+                                                            Evaluation Category
+                                                        </th>
+                                                        <th
+                                                            scope="col"
+                                                            class="de-summary-table__col-item-number"
+                                                        >
+                                                            Item Number
+                                                        </th>
+                                                        <th
+                                                            scope="col"
+                                                            class="de-summary-table__col-description"
+                                                        >
+                                                            Description
+                                                        </th>
+                                                        <th
+                                                            scope="col"
+                                                            class="de-summary-table__col-type"
+                                                        >
+                                                            Type
+                                                        </th>
+                                                        <th
+                                                            scope="col"
+                                                            class="de-summary-table__col-signatures"
+                                                        >
+                                                            Repair Signatures
+                                                        </th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <template for:each={group.rows} for:item="row">
+                                                        <tr key={row.productId}>
+                                                            <td
+                                                                class="de-summary-table__col-eval-category"
+                                                            >
+                                                                {row.evalCategory}
+                                                            </td>
+                                                            <td
+                                                                class="de-summary-table__col-item-number"
+                                                            >
+                                                                {row.productCode}
+                                                            </td>
+                                                            <td
+                                                                class="de-summary-table__col-description"
+                                                            >
+                                                                {row.productName}
+                                                            </td>
+                                                            <td class="de-summary-table__col-type">
+                                                                {row.codeType}
+                                                            </td>
+                                                            <td
+                                                                class="de-summary-table__col-signatures"
+                                                            >
+                                                                {row.signaturesDisplay}
+                                                            </td>
+                                                        </tr>
+                                                    </template>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </template>
+                                </template>
+                                <template lwc:else>
+                                    <p class="slds-text-body_regular">
+                                        No repair codes are selected.
+                                    </p>
+                                </template>
+
+                                <div class="slds-m-top_medium slds-m-bottom_medium">
+                                    <h3 class="slds-text-heading_small slds-m-bottom_small">
+                                        Photos
+                                    </h3>
+                                    <template lwc:if={hasAttachedFiles}>
+                                        <table
+                                            class="slds-table slds-table_cell-buffer slds-table_bordered files-table"
+                                        >
+                                            <thead>
+                                                <tr>
+                                                    <th scope="col" class="files-table__col-icon"></th>
+                                                    <th scope="col">Repair Code</th>
+                                                    <th scope="col">Description</th>
+                                                    <th scope="col">Title</th>
+                                                    <th scope="col">Type</th>
+                                                    <th scope="col">Modified</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <template
+                                                    for:each={displayAttachedFiles}
+                                                    for:item="file"
+                                                >
+                                                    <tr key={file.contentDocumentId}>
+                                                        <td class="files-table__col-icon">
+                                                            <template lwc:if={file.showThumbnail}>
+                                                                <img
+                                                                    src={file.thumbnailUrl}
+                                                                    alt=""
+                                                                    class="files-table__thumb"
+                                                                    data-doc-id={file.contentDocumentId}
+                                                                    onerror={handleThumbnailError}
+                                                                />
+                                                            </template>
+                                                            <template lwc:else>
+                                                                <div class="files-table__icon-slot">
+                                                                    <lightning-icon
+                                                                        icon-name={file.docTypeIcon}
+                                                                        size="small"
+                                                                        alternative-text={file.fileExtension}
+                                                                    ></lightning-icon>
+                                                                </div>
+                                                            </template>
+                                                        </td>
+                                                        <td>{file.productCodeDisplay}</td>
+                                                        <td>{file.productNameDisplay}</td>
+                                                        <td>
+                                                            <a
+                                                                href={file.downloadUrl}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                            >
+                                                                {file.title}
+                                                            </a>
+                                                        </td>
+                                                        <td>{file.fileExtension}</td>
+                                                        <td>{file.lastModifiedDate}</td>
+                                                    </tr>
+                                                </template>
+                                            </tbody>
+                                        </table>
+                                    </template>
+                                    <template lwc:else>
+                                        <p class="slds-text-body_regular">
+                                            No photos for selected repair codes.
+                                        </p>
+                                    </template>
+                                </div>
+                                <div class="summary-scroll-spacer" aria-hidden="true"></div>
+                            </section>
+                        </template>
+                    </div>
+                </div>
+                </div>
+            </template>
+
+    <template lwc:if={isPhotoModalOpen}>
+        <section
+            role="dialog"
+            tabindex="-1"
+            aria-modal="true"
+            aria-labelledby="device-eval-photo-title"
+            class="slds-modal slds-fade-in-open camera-modal"
+        >
+            <div class="slds-modal__container">
+                <header class="slds-modal__header">
+                    <lightning-button-icon
+                        icon-name="utility:close"
+                        alternative-text="Close"
+                        title="Close"
+                        class="slds-modal__close"
+                        onclick={handleClosePhotoModal}
+                    ></lightning-button-icon>
+                    <h2 id="device-eval-photo-title" class="slds-modal__title slds-hyphenate">
+                        {photoModalTitle}
+                    </h2>
+                    <p class="slds-text-body_small slds-text-color_weak slds-m-top_xx-small">
+                        Files are staged for this repair code and saved to the Work Order Line Item
+                        on Quick Save, Save &amp; Close, or Complete.
+                    </p>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium">
+                    <div class="slds-m-bottom_medium">
+                        <input
+                            type="file"
+                            class="slds-hide"
+                            data-id="staged-file-input"
+                            accept={fileAccept}
+                            multiple
+                            onchange={handleStagedFileSelected}
+                        />
+                        <lightning-button
+                            label="Upload files"
+                            icon-name="utility:upload"
+                            onclick={handleChooseFilesClick}
+                            disabled={isPhotoModalBusy}
+                            class="slds-m-right_small"
+                        ></lightning-button>
+                    </div>
+
+                    <h3 class="slds-text-heading_small slds-m-bottom_x-small">Camera</h3>
+                    <div class="slds-m-bottom_small">
+                        <lightning-combobox
+                            label="Camera"
+                            value={selectedCameraId}
+                            options={cameraOptions}
+                            onchange={handleCameraChange}
+                            disabled={isCameraStarting}
+                            placeholder="Select a camera"
+                        ></lightning-combobox>
+                    </div>
+                    <div class="slds-m-bottom_small">
+                        <lightning-button
+                            label="Start camera"
+                            onclick={handleStartCamera}
+                            disabled={isCameraBusy}
+                            class="slds-m-right_small"
+                        ></lightning-button>
+                        <lightning-button
+                            label="Capture photo"
+                            variant="brand"
+                            onclick={handleCapturePhoto}
+                            disabled={isCaptureDisabled}
+                            class="slds-m-right_small"
+                        ></lightning-button>
+                        <lightning-button
+                            label="Stop camera"
+                            onclick={handleStopCamera}
+                            disabled={isStopCameraDisabled}
+                        ></lightning-button>
+                    </div>
+                    <template lwc:if={cameraError}>
+                        <div class="slds-text-color_error slds-m-bottom_small" role="alert">
+                            {cameraError}
+                        </div>
+                    </template>
+                    <video
+                        class="camera-preview"
+                        autoplay
+                        playsinline
+                        muted
+                        lwc:dom="manual"
+                    ></video>
+                    <canvas class="slds-hide" lwc:dom="manual"></canvas>
+
+                    <h3 class="slds-text-heading_small slds-m-top_medium slds-m-bottom_x-small">
+                        Photos
+                    </h3>
+                    <template lwc:if={hasModalStagedPhotos}>
+                        <table
+                            class="slds-table slds-table_cell-buffer slds-table_bordered files-table"
+                        >
+                            <thead>
+                                <tr>
+                                    <th scope="col" class="files-table__col-icon"></th>
+                                    <th scope="col">Title</th>
+                                    <th scope="col">Type</th>
+                                    <th scope="col" class="files-table__col-actions">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template for:each={modalStagedPhotos} for:item="file">
+                                    <tr key={file.contentDocumentId}>
+                                        <td class="files-table__col-icon">
+                                            <template lwc:if={file.showThumbnail}>
+                                                <img
+                                                    src={file.thumbnailUrl}
+                                                    alt=""
+                                                    class="files-table__thumb"
+                                                    data-doc-id={file.contentDocumentId}
+                                                    onerror={handleThumbnailError}
+                                                />
+                                            </template>
+                                            <template lwc:else>
+                                                <div class="files-table__icon-slot">
+                                                    <lightning-icon
+                                                        icon-name={file.docTypeIcon}
+                                                        size="small"
+                                                        alternative-text={file.fileExtension}
+                                                    ></lightning-icon>
+                                                </div>
+                                            </template>
+                                        </td>
+                                        <td>
+                                            <div class="slds-grid slds-grid_vertical-align-center">
+                                                <div class="slds-col slds-grow">
+                                                    <lightning-input
+                                                        variant="label-hidden"
+                                                        label="Photo title"
+                                                        value={file.editTitle}
+                                                        data-doc-id={file.contentDocumentId}
+                                                        onchange={handleStagedPhotoTitleChange}
+                                                        onkeyup={handleStagedPhotoTitleChange}
+                                                        disabled={file.isRenaming}
+                                                        class={file.titleInputClass}
+                                                    ></lightning-input>
+                                                </div>
+                                                <div class="slds-col slds-no-flex slds-m-left_xx-small">
+                                                    <lightning-button-icon
+                                                        icon-name="utility:check"
+                                                        alternative-text="Save title"
+                                                        title={file.titleSaveTitle}
+                                                        variant={file.titleSaveVariant}
+                                                        class={file.titleSaveClass}
+                                                        data-doc-id={file.contentDocumentId}
+                                                        onclick={handleSaveStagedPhotoTitle}
+                                                        disabled={file.isSaveTitleDisabled}
+                                                    ></lightning-button-icon>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>{file.fileExtension}</td>
+                                        <td class="files-table__col-actions">
+                                            <lightning-button-icon
+                                                icon-name="utility:delete"
+                                                alternative-text="Delete photo"
+                                                title="Delete photo"
+                                                data-doc-id={file.contentDocumentId}
+                                                data-title={file.title}
+                                                onclick={handleDeleteFile}
+                                                disabled={file.isDeleting}
+                                            ></lightning-button-icon>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </template>
+                    <template lwc:else>
+                        <p class="slds-text-body_regular">No photos for this repair code yet.</p>
+                    </template>
+                </div>
+                <footer class="slds-modal__footer">
+                    <lightning-button
+                        label="Done"
+                        variant="brand"
+                        onclick={handleClosePhotoModal}
+                    ></lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open camera-modal-backdrop"></div>
+    </template>
+    </div>
+</template>

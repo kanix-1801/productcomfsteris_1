@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>66.0</apiVersion>
+    <isExposed>false</isExposed>
+    <masterLabel>Metadata Tab Content</masterLabel>
+    <description>GC-3183 Renders optional sections and direct tab elements from metadata.</description>
+</LightningComponentBundle>

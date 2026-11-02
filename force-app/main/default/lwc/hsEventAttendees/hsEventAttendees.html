@@ -1,0 +1,98 @@
+<template>
+    <div>
+        <template if:true={errorMessage}>
+            <p class="slds-text-color_error slds-m-bottom_x-small">{errorMessage}</p>
+        </template>
+        <template if:true={isLoading}>
+            <lightning-spinner alternative-text="Loading attendees" size="small"></lightning-spinner>
+        </template>
+
+        <lightning-tabset>
+            <lightning-tab label="People" value="People" onactive={handleTab}></lightning-tab>
+            <lightning-tab label="Resources" value="Resources" onactive={handleTab}></lightning-tab>
+        </lightning-tabset>
+
+        <div class="slds-form-element slds-m-top_x-small">
+            <label class="slds-form-element__label slds-assistive-text" for="attendee-search">{searchPlaceholder}</label>
+            <div class="slds-form-element__control">
+                <div class="slds-combobox_container">
+                    <div class={comboboxClass} aria-expanded={isDropdownOpen} aria-haspopup="listbox" role="combobox">
+                        <template if:true={isEditable}>
+                            <div class="slds-combobox__form-element slds-input-has-icon slds-input-has-icon_right" role="none">
+                                <input
+                                    id="attendee-search"
+                                    class="slds-input slds-combobox__input"
+                                    type="search"
+                                    autocomplete="off"
+                                    placeholder={searchPlaceholder}
+                                    value={searchTerm}
+                                    oninput={handleSearchInput} />
+                                <lightning-icon
+                                    class="slds-input__icon slds-input__icon_right"
+                                    icon-name="utility:search"
+                                    alternative-text="Search"
+                                    size="x-small">
+                                </lightning-icon>
+                            </div>
+                        </template>
+                        <template if:true={isDropdownOpen}>
+                            <div class="slds-dropdown slds-dropdown_length-5 slds-dropdown_fluid" role="listbox">
+                                <ul class="slds-listbox slds-listbox_vertical" role="presentation">
+                                    <template if:true={isSearching}>
+                                        <li class="slds-listbox__item" role="presentation">
+                                            <span class="slds-listbox__option slds-text-color_weak">Searching...</span>
+                                        </li>
+                                    </template>
+                                    <template for:each={results} for:item="result">
+                                        <li key={result.recordId} class="slds-listbox__item" role="presentation">
+                                            <div
+                                                class="slds-media slds-listbox__option slds-listbox__option_entity slds-listbox__option_has-meta"
+                                                role="option"
+                                                data-id={result.recordId}
+                                                onclick={handleAdd}>
+                                                <span class="slds-media__figure slds-listbox__option-icon">
+                                                    <lightning-icon icon-name={result.iconName} alternative-text={result.kind} size="small"></lightning-icon>
+                                                </span>
+                                                <span class="slds-media__body">
+                                                    <span class="slds-listbox__option-text slds-listbox__option-text_entity">{result.name}</span>
+                                                    <span class="slds-listbox__option-meta slds-listbox__option-meta_entity">{result.kind}</span>
+                                                </span>
+                                            </div>
+                                        </li>
+                                    </template>
+                                    <template if:true={showEmptyResults}>
+                                        <li class="slds-listbox__item" role="presentation">
+                                            <span class="slds-listbox__option slds-text-color_weak">{emptyResultsLabel}</span>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <template if:true={hasVisibleAttendees}>
+            <div class="slds-pill_container slds-m-top_xx-small">
+                <ul class="slds-listbox slds-listbox_horizontal slds-listbox_inline" role="listbox" aria-label="Selected attendees">
+                    <template for:each={visibleAttendees} for:item="person">
+                        <li key={person.recordId} class="slds-listbox-item" role="presentation">
+                            <span class="slds-pill">
+                                <span class="slds-pill__icon_container">
+                                    <lightning-icon icon-name={person.iconName} alternative-text={person.kind} size="x-small"></lightning-icon>
+                                </span>
+                                <span class="slds-pill__label" title={person.name}>{person.name}</span>
+                                <template if:true={person.canRemove}>
+                                    <button class="slds-button slds-button_icon slds-pill__remove" type="button" title="Remove" data-id={person.recordId} onclick={handleRemove}>
+                                        <lightning-icon icon-name="utility:close" alternative-text="Remove" size="xx-small"></lightning-icon>
+                                    </button>
+                                </template>
+                            </span>
+                        </li>
+                    </template>
+                </ul>
+            </div>
+        </template>
+    </div>
+</template>

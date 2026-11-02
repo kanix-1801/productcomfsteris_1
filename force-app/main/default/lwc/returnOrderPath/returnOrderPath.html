@@ -1,0 +1,43 @@
+<template>
+    <template if:true={errorMessage}>
+        <div class="slds-box slds-theme_error slds-m-around_small" role="alert">
+            {errorMessage}
+        </div>
+    </template>
+
+    <template if:false={errorMessage}>
+        <template if:true={isLoading}>
+            <div class="slds-is-relative slds-p-around_medium path-loading">
+                <lightning-spinner alternative-text="Loading status path" size="small"></lightning-spinner>
+            </div>
+        </template>
+
+        <template if:true={showEmptyState}>
+            <div class="slds-box slds-box_x-small slds-theme_shade slds-m-around_small">
+                No status values are configured for Return Order.
+            </div>
+        </template>
+
+        <template if:true={hasPath}>
+            <div class="path-wrapper">
+                <ul class="path-nav" role="list" aria-label="Return Order Status">
+                    <template for:each={pathSteps} for:item="step">
+                        <li key={step.value} class={step.className} role="listitem">
+                            <div class="path-step">
+                                <template if:true={step.showCheck}>
+                                    <lightning-icon
+                                        icon-name="utility:check"
+                                        size="x-small"
+                                        class="path-check-icon"
+                                        alternative-text="Complete"
+                                    ></lightning-icon>
+                                </template>
+                                <span class="path-step-label">{step.label}</span>
+                            </div>
+                        </li>
+                    </template>
+                </ul>
+            </div>
+        </template>
+    </template>
+</template>

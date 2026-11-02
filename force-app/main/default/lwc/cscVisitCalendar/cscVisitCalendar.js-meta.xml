@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>66.0</apiVersion>
+    <isExposed>true</isExposed>
+    <masterLabel>CSC Visit Calendar</masterLabel>
+    <description>GC-3518 calendar. CSC Visit uses Visit Location. ORC, IMS, and OSV use Request Type.</description>
+    <targets>
+        <target>lightning__FlowScreen</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightning__FlowScreen">
+            <property name="requestType" type="String" label="Request Type" role="inputOnly" description="CSC, ORC, IMS, or OSV"/>
+            <property name="visitLocation" type="String" label="Visit Location" role="inputOnly"/>
+            <property name="selectionMode" type="String" label="Selection Mode" role="inputOnly" description="Visit, Block, or Change"/>
+            <property name="excludeVisitId" type="String" label="Exclude Visit Id" role="inputOnly" description="Visit being rescheduled. Its own dates stay selectable."/>
+            <property name="primaryDate" type="Date" label="Primary Requested Date"/>
+            <property name="backupDate" type="Date" label="Backup Requested Date"/>
+            <property name="datesToBlock" type="String" label="Dates To Block" role="outputOnly"/>
+            <property name="datesToUnblock" type="String" label="Dates To Unblock" role="outputOnly"/>
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

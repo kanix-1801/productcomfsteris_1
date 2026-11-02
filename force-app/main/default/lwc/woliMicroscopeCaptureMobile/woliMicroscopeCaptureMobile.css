@@ -1,0 +1,131 @@
+/*
+ * Colours, spacing and radii use SLDS global styling hooks (with fallbacks) so the component
+ * follows the org theme and the Field Service app look and feel.
+ */
+.capture-panel {
+  max-width: 100%;
+  padding: var(--slds-g-spacing-3, 0.75rem);
+}
+
+.panel-section + .panel-section {
+  margin-top: var(--slds-g-spacing-4, 1rem);
+}
+
+/* Rows of equal-width buttons (panel footer and in-panel actions); they wrap instead of overflowing */
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--slds-g-spacing-2, 0.5rem);
+}
+
+.button-row lightning-button {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+/* Live camera */
+.video-container {
+  background: #000000;
+  border-radius: var(--slds-g-radius-border-2, 0.25rem);
+  overflow: hidden;
+}
+
+.preview-video {
+  display: block;
+  width: 100%;
+  max-height: 55vh;
+  object-fit: contain;
+}
+
+.hidden-canvas {
+  display: none;
+}
+
+.preview-image {
+  display: block;
+  max-width: 100%;
+  border: 1px solid var(--slds-g-color-border-1, #c9c9c9);
+  border-radius: var(--slds-g-radius-border-2, 0.25rem);
+}
+
+/* Annotate existing file */
+.annotate-existing-section {
+  background: var(--slds-g-color-neutral-base-95, #f3f3f3);
+  border: 1px solid var(--slds-g-color-border-1, #c9c9c9);
+  border-radius: var(--slds-g-radius-border-2, 0.25rem);
+  padding: var(--slds-g-spacing-3, 0.75rem);
+}
+
+/* Markup editor: two columns on narrow screens, the tool picker and actions span both */
+.annotation-toolbar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--slds-g-spacing-2, 0.5rem);
+  align-items: end;
+}
+
+.toolbar-tool {
+  grid-column: 1 / -1;
+}
+
+.toolbar-actions {
+  grid-column: 1 / -1;
+  justify-self: end;
+}
+
+/* The canvas is sized in JS to fit this box (width and 55vh), so the whole photo is visible */
+.annotation-canvas-wrapper {
+  display: flex;
+  justify-content: center;
+  border: 1px solid var(--slds-g-color-border-1, #c9c9c9);
+  border-radius: var(--slds-g-radius-border-2, 0.25rem);
+  background: var(--slds-g-color-neutral-base-95, #f3f3f3);
+  overflow: auto;
+  max-height: 55vh;
+}
+
+.annotation-host {
+  display: inline-block;
+  min-height: 160px;
+  max-width: 100%;
+}
+
+/* Session photo list */
+.photo-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.photo-row {
+  display: flex;
+  gap: var(--slds-g-spacing-3, 0.75rem);
+  padding: var(--slds-g-spacing-2, 0.5rem) 0;
+  border-bottom: 1px solid var(--slds-g-color-border-1, #e5e5e5);
+}
+
+.thumb {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: var(--slds-g-radius-border-2, 0.25rem);
+  flex: 0 0 auto;
+  background: var(--slds-g-color-neutral-base-95, #f3f3f3);
+}
+
+.meta {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.title {
+  font-weight: 600;
+}
+
+.status[data-status="saved"] {
+  color: var(--slds-g-color-success-1, #2e844a);
+}
+
+.status[data-status="processing"] {
+  color: var(--slds-g-color-neutral-base-50, #706e6b);
+}

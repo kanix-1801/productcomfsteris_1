@@ -1,0 +1,34 @@
+<Apex:component controller="COAEmailController"  access="global">
+    <Apex:attribute name="caseId1" description="" assignTo="{!caseId}" type="String" />  
+    
+	<apex:attribute name="accountName" type="String" description="Account Name"/>
+    <apex:attribute name="poNumber" type="String" description="Po Number"/>
+    <apex:attribute name="orderNumber" type="string" description="Order Number"/>
+    
+    
+    <apex:image URL="{!BannerUrlCOAProject}" alt="STERIS Banner" />
+     
+     <p>Bonjour {!PurchasingContactPO},</p>
+    
+     			<p style="max-width:982px;">
+                    Nous vous remercions d'avoir choisi STERIS. Nous avons procédé à la saisie de votre bon de commande numéro # {!poNumber}. 
+                    Votre numéro de confirmation STERIS est le # {!orderNumber}. 
+                    Si vous avez des questions, n'hésitez pas à contacter votre coordinateur/coordinatrice des ventes  {!RegionalSalesCoOrdinatorBlUserFrnch} ou votre représentant des ventes {!AccountManagerCapLineSalesRepfrnch}.
+                </p> 
+    <p style="max-width:982px;">
+    Nous vous remercions encore d'avoir choisi STERIS. Notre mission est de fournir à nos clients une expérience supérieure. N'hésitez pas à nous contacter si vous avez besoin d'assistance supplémentaire.
+    </p>
+    
+    
+<div class="section">
+                Cordialement,
+            </div><br/><br/>
+
+            <div class="footer">
+                L'Équipe de Vente de Commande<br/>
+                STERIS Corporation | Healthcare<br/>
+                5960 Heisley Road | Mentor, OH 44060-1834 USA<br/>
+                IPT Direct: 440.392.7399<br/>
+                Surgical Direct: 440.392.8859
+            </div>
+</apex:component>

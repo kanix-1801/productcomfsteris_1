@@ -1,0 +1,35 @@
+<template>
+    <template lwc:if={hasCards}>
+        <div class="code-grid" role="list">
+            <template for:each={displayCards} for:item="card">
+                <div
+                    key={card.cardId}
+                    class={card.buttonClass}
+                    data-card-id={card.cardId}
+                    onclick={handleCardClick}
+                    onkeydown={handleCardKeyDown}
+                    aria-pressed={card.selected}
+                    role="button"
+                    tabindex="0"
+                >
+                    <div class="code-card__header">
+                        <span class="code-card__code">{card.title}</span>
+                        <span class={card.checkboxClass} aria-hidden="true">
+                            <template lwc:if={card.selected}>
+                                <lightning-icon
+                                    icon-name="utility:check"
+                                    size="xx-small"
+                                    alternative-text=""
+                                ></lightning-icon>
+                            </template>
+                        </span>
+                    </div>
+                    <span class="code-card__name">{card.name}</span>
+                </div>
+            </template>
+        </div>
+    </template>
+    <template lwc:else>
+        <p>{emptyMessage}</p>
+    </template>
+</template>

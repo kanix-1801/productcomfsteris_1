@@ -1,0 +1,23 @@
+<!--#GC-3194 ,Author :Sahithi
+ * Shows a warning banner on Opportunity Line Item when Oracle pricing is stale.
+ * Reads Last_Refreshed_Date_Time_From_Oracle__c and checks if it is more than 30 days old.
+ * If older than 30 days, the banner is displayed.
+-->
+<template>
+    <template if:true={showBanner}>
+        <div class="slds-notify slds-notify_alert banner-container banner-warning" role="alert">
+            <div class="banner-content">
+                <lightning-icon
+                    icon-name="utility:warning"
+                    alternative-text="Warning"
+                    size="small"
+                    class="banner-icon">
+                </lightning-icon>
+
+                <p class="banner-message">
+                    {warningMessage}
+                </p>
+            </div>
+        </div>
+    </template>
+</template>

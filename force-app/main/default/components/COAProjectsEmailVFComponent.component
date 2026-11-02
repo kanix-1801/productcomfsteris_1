@@ -1,0 +1,19 @@
+<Apex:component controller="COAEmailController"  access="global">
+    <Apex:attribute name="caseId1" description="" assignTo="{!caseId}" type="String" />  
+    
+	<apex:attribute name="accountName" type="String" description="Account Name"/>
+    <apex:attribute name="poNumber" type="String" description="Po Number"/>
+    <apex:attribute name="orderNumber" type="string" description="Order Number"/>
+    
+    <apex:image URL="{!BannerUrlCOAProject}" alt="STERIS Banner"/>
+     
+    
+     <p>Dear {!PurchasingContactPO},</p>
+    
+     			<p style="max-width:982px;">
+                    Thank you for choosing STERIS. We have processed your purchase order # {!poNumber}. 
+                    Your STERIS confirmation is # {!orderNumber}. 
+                    If you have any questions, contact your STERIS Coordinator  {!RegionalSalesCoOrdinatorBlUser} or your Account Manager {!AccountManagerCapLineSalesRep}.
+                </p> 
+    
+</apex:component>

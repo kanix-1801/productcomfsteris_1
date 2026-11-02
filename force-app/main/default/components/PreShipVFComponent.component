@@ -1,0 +1,83 @@
+<apex:component controller="C2EmailController" access="global">
+    <Apex:attribute name="caseId1" description="" assignTo="{!caseId}" type="String" />  
+ 
+    <apex:attribute name="SOANumber" type="String" description="Order Number"/>
+    
+    <apex:attribute name="CustomerName" type="String" description="Customer Name"/>
+    
+    <p >
+        Dear {!AccountManagerCapSerLineSalesRep},
+    </p>
+    
+    <p style="font-family:Arial; font-size:14px; max-width:982px;">
+        Order {!SOANumber}# for  &nbsp;<apex:outputText value="{!TRIM(CustomerName)}"/> is scheduled to arrive at Transpro, Ontario, between
+        &nbsp;
+            <apex:outputText style="font-weight:bold; background-color:#e0e0e0;" rendered="{!!(ISBLANK(FirstScheduledShipDate))}" value="{0,date,MMM d, yyyy}">
+                <apex:param value="{!FirstScheduledShipDate}"/>
+            </apex:outputText>
+            <apex:outputPanel style="max-width:982px;" rendered="{!ISBLANK(FirstScheduledShipDate)}" >
+                <span style="font-weight:bold; background-color:#e0e0e0;">&lt;XX/XX&gt;</span>
+            </apex:outputPanel> and &nbsp;
+            <apex:outputText style="font-weight:bold; background-color:#e0e0e0;" rendered="{!!(ISBLANK(LastScheduledShipDate))}" value="{0,date,MMM d, yyyy}">
+                <apex:param value="{!LastScheduledShipDate}"/>
+            </apex:outputText>
+            <apex:outputPanel style="max-width:982px;" rendered="{!ISBLANK(LastScheduledShipDate)}" >
+                <span style="font-weight:bold; background-color:#e0e0e0;">&lt;XX/XX&gt;</span>
+            </apex:outputPanel>.
+        
+        To allow us to release the LC hold, please confirm that the information below is correct and advise whether a guaranteed delivery date is required.
+    </p>
+        
+        <table width="982" style="border-collapse: collapse; font-family: Arial, sans-serif;">
+            <tr style="background-color: #4F81BD; color: white; font-weight: bold;">
+                <td style="padding: 8px; border: 1px solid #ccc;">Item Number</td>
+                <td style="padding: 8px; border: 1px solid #ccc;">Line Number</td>
+                <td style="padding: 8px; border: 1px solid #ccc;">Schedule Date</td>
+                <td style="padding: 8px; border: 1px solid #ccc;">Quantity</td>
+                <td style="padding: 8px; border: 1px solid #ccc;">Item Description</td>
+                <td style="padding: 8px; border: 1px solid #ccc;">Ship To Location</td>
+            </tr>
+
+            <apex:repeat value="{!shippingLineItems}" var="li">
+                <tr>
+                    <td style="padding: 8px; border: 1px solid #ccc;">
+                        <apex:outputText value="{!li.itemNumber}"/>
+                    </td>
+                    <td style="padding: 8px; border: 1px solid #ccc;">
+                        <apex:outputText value="{!li.lineNumber}"/>
+                    </td>
+                    <td style="padding: 8px; border: 1px solid #ccc;">
+                        <apex:outputText value="{0,date,MMM dd yyyy}">
+                            <apex:param value="{!li.shipDate}"/>
+                        </apex:outputText>
+                    </td>
+                    <td style="padding: 8px; border: 1px solid #ccc;">
+                        <apex:outputText value="{!li.qty}"/>
+                    </td>
+                    <td style="padding: 8px; border: 1px solid #ccc; text-align: right;">
+                        <apex:outputText value="{!li.itemDescription}"/>
+                    </td>
+                    <td style="padding: 8px; border: 1px solid #ccc; text-align: right;">
+                        <apex:outputPanel rendered="{!LEN(TRIM(li.street)) > 0}" layout="none">
+                            <apex:outputText value="{!TRIM(li.street)}"/>
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!LEN(TRIM(li.city)) > 0}" layout="none">
+                            <apex:outputText value=", {!TRIM(li.city)}"/>
+                        </apex:outputPanel><apex:outputPanel rendered="{!LEN(TRIM(li.state)) > 0}" layout="none">
+                            <apex:outputText value=", {!TRIM(li.state)}"/>
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!LEN(TRIM(li.postalCode)) > 0}" layout="none">
+                            <apex:outputText value=", {!TRIM(li.postalCode)}"/>
+                        </apex:outputPanel><apex:outputPanel rendered="{!LEN(TRIM(li.country)) > 0}" layout="none">
+                            <apex:outputText value=", {!TRIM(li.country)}"/>
+                        </apex:outputPanel>
+                    </td>
+                </tr>
+            </apex:repeat>
+        </table>
+	<p>Thank you,</p>
+        <apex:outputText value="{!EmailSignature}" escape="false"/>   
+    <c:ReplyThreadInternalExternal caseId1="{!caseId}"
+            threadType1="Internal"
+        />
+</apex:component>

@@ -1,0 +1,95 @@
+<template>
+    <template if:false={showWizard}>
+        <lightning-card title="Scan Serial for Return" icon-name="standard:asset_object">
+            <div class="slds-p-around_medium scan-page">
+                <section class="scan-section">
+                    <p class="slds-text-body_regular slds-m-bottom_small">
+                        Scan or enter a serial number to create a return order line for that asset.
+                    </p>
+
+                    <lightning-input
+                        label="Serial Number"
+                        value={serialInput}
+                        placeholder="Scan or enter serial number"
+                        onchange={handleSerialChange}
+                        onkeyup={handleSerialKeyUp}
+                        required
+                    ></lightning-input>
+
+                    <div class="slds-m-top_small">
+                        <lightning-button
+                            label="Search"
+                            variant="brand"
+                            onclick={handleSearchSerial}
+                            disabled={isSearchDisabled}
+                        ></lightning-button>
+                    </div>
+
+                    <template if:true={scanErrorMessage}>
+                        <div class="slds-box slds-theme_error slds-m-top_medium" role="alert">
+                            {scanErrorMessage}
+                        </div>
+                    </template>
+
+                    <template if:true={accountErrorMessage}>
+                        <div class="slds-box slds-theme_warning slds-m-top_medium" role="alert">
+                            {accountErrorMessage}
+                        </div>
+                    </template>
+
+                    <template if:true={isSearching}>
+                        <div class="slds-is-relative slds-m-top_medium">
+                            <lightning-spinner alternative-text="Searching assets" size="small"></lightning-spinner>
+                        </div>
+                    </template>
+                </section>
+
+                <template if:true={hasMultipleMatches}>
+                    <section class="slds-m-top_large">
+                        <h2 class="slds-text-heading_small slds-m-bottom_small">Select Asset</h2>
+                        <p class="slds-text-body_small slds-m-bottom_small">
+                            Multiple assets matched this serial. Choose the asset to return.
+                        </p>
+
+                        <div class="table-container">
+                            <table class="slds-table slds-table_cell-buffer slds-table_bordered asset-results-table">
+                                <thead>
+                                    <tr class="slds-line-height_reset">
+                                        <th scope="col">Serial</th>
+                                        <th scope="col">Product</th>
+                                        <th scope="col">Model</th>
+                                        <th scope="col">Account</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={matchedAssetsDisplay} for:item="row">
+                                        <tr
+                                            key={row.rowKey}
+                                            class="asset-result-row"
+                                            data-id={row.id}
+                                            onclick={handleSelectAsset}
+                                        >
+                                            <td>{row.serialNumber}</td>
+                                            <td>{row.productName}</td>
+                                            <td>{row.model}</td>
+                                            <td>{row.accountName}</td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                </template>
+            </div>
+        </lightning-card>
+    </template>
+
+    <template if:true={showWizard}>
+        <c-create-return-order
+            embedded-mode
+            record-ids={selectedAssetIds}
+            object-api-name="Asset"
+            onexit={handleExitWizard}
+        ></c-create-return-order>
+    </template>
+</template>

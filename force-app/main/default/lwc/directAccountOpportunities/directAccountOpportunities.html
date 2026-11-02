@@ -1,0 +1,75 @@
+<template>
+    <section class="related-list-container">
+        <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-center related-list-header">
+            <div class="slds-grid slds-grid_vertical-align-center">
+                <lightning-icon
+                    icon-name="standard:opportunity"
+                    size="small"
+                    alternative-text="Opportunities">
+                </lightning-icon>
+
+                <h2 class="slds-text-heading_small slds-m-left_small">
+                    {title}
+                </h2>
+            </div>
+
+            <div class="slds-grid slds-grid_vertical-align-center">
+                <lightning-button
+                    label="New"
+                    variant="neutral"
+                    onclick={handleNewOpportunity}
+                    disabled={isLoading}>
+                </lightning-button>
+
+                <lightning-button-icon
+                    class="slds-m-left_small"
+                    icon-name="utility:refresh"
+                    alternative-text="Refresh"
+                    title="Refresh Opportunities"
+                    onclick={handleRefresh}
+                    disabled={isLoading}>
+                </lightning-button-icon>
+            </div>
+        </div>
+
+        <template lwc:if={isLoading}>
+            <div class="spinner-container">
+                <lightning-spinner
+                    alternative-text="Loading Opportunities"
+                    size="medium">
+                </lightning-spinner>
+            </div>
+        </template>
+
+        <template lwc:if={hasError}>
+            <div
+                class="slds-p-around_medium slds-text-color_error"
+                role="alert">
+                {errorMessage}
+            </div>
+        </template>
+
+        <template lwc:if={hasSuccessfulResponse}>
+            <template lwc:if={hasOpportunities}>
+                <div class="datatable-container">
+                    <lightning-datatable
+                        key-field="opportunityId"
+                        data={opportunities}
+                        columns={columns}
+                        hide-checkbox-column
+                        show-row-number-column
+                        sorted-by={sortedBy}
+                        sorted-direction={sortDirection}
+                        onsort={handleSort}>
+                    </lightning-datatable>
+                </div>
+            </template>
+
+            <template lwc:else>
+                <div class="empty-state">
+                    No Opportunities Found
+                </div>
+            </template>
+        </template>
+    </section>
+</template>

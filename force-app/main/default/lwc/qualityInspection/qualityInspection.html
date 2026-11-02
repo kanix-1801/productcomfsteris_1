@@ -1,0 +1,756 @@
+<template>
+    <div class={rootClass}>
+        <template lwc:if={isScanScreen}>
+            <lightning-card title="Quality Inspection" icon-name="custom:custom19">
+                <div class="slds-p-around_medium">
+                    <p class="slds-text-heading_small slds-m-bottom_small">Scan Work Order</p>
+                    <c-repair-center-scan-input
+                        label={scanFieldLabel}
+                        placeholder={scanFieldPlaceholder}
+                        value={workOrderInput}
+                        disabled={isBusy}
+                        onvaluechange={handleScanChange}
+                        oncontinue={handleScanContinue}
+                    ></c-repair-center-scan-input>
+                    <template lwc:if={errorMessage}>
+                        <div class="slds-text-color_error slds-m-top_small" role="alert">
+                            {errorMessage}
+                        </div>
+                    </template>
+                    <template lwc:if={isBusy}>
+                        <div class="slds-m-top_medium slds-is-relative slds-p-around_large">
+                            <lightning-spinner
+                                alternative-text="Loading"
+                                size="small"
+                            ></lightning-spinner>
+                        </div>
+                    </template>
+                </div>
+            </lightning-card>
+        </template>
+
+        <template lwc:if={isInspectionScreen}>
+            <lightning-card title="Quality Inspection" icon-name="standard:work_order">
+            <div class="slds-p-around_medium">
+                <template lwc:if={isBusy}>
+                    <lightning-spinner alternative-text="Saving"></lightning-spinner>
+                </template>
+
+                <section class="section">
+                    <div class="section-title-row">
+                        <div class="section-title-row__start">
+                            <h2 class="section-title section-title_inline">Work Order Information</h2>
+                            <c-repair-center-ship-complete-indicator
+                                lwc:if={showShipCompleteIndicator}
+                            ></c-repair-center-ship-complete-indicator>
+                        </div>
+                        <c-repair-center-cio-indicator
+                            lwc:if={showCioIndicator}
+                        ></c-repair-center-cio-indicator>
+                    </div>
+                    <div class="slds-grid slds-wrap slds-gutters">
+                        <div class="slds-col slds-size_1-of-1 slds-large-size_1-of-3">
+                            <lightning-input
+                                label="Work Order"
+                                value={workspace.workOrderNumber}
+                                disabled
+                            ></lightning-input>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1 slds-large-size_1-of-3">
+                            <lightning-input
+                                label="Return Order"
+                                value={workspace.returnOrderNumber}
+                                disabled
+                            ></lightning-input>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1 slds-large-size_1-of-3">
+                            <lightning-input
+                                label="Status"
+                                value={workspace.status}
+                                disabled
+                            ></lightning-input>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1 slds-large-size_1-of-2">
+                            <lightning-combobox
+                                name="subStatus"
+                                label="Sub Status"
+                                value={workspace.subStatus}
+                                options={subStatusOptions}
+                                onchange={handleWorkspaceChange}
+                                required
+                            ></lightning-combobox>
+                        </div>
+                        <template lwc:if={workspace.showPressureGauge}>
+                            <div class="slds-col slds-size_1-of-1 slds-large-size_1-of-2">
+                                <lightning-input
+                                    name="pressureGaugeSerialNumber"
+                                    label="Pressure Gauge Serial Number"
+                                    value={workspace.pressureGaugeSerialNumber}
+                                    onchange={handleWorkspaceChange}
+                                ></lightning-input>
+                            </div>
+                        </template>
+                        <template lwc:else>
+                            <div
+                                class="slds-col slds-large-size_1-of-2 column-spacer"
+                                aria-hidden="true"
+                            ></div>
+                        </template>
+                        <div class="slds-col slds-size_1-of-1 slds-large-size_1-of-2">
+                            <lightning-textarea
+                                label="Reported Problem"
+                                value={workspace.reportedProblem}
+                                disabled
+                            ></lightning-textarea>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1 slds-large-size_1-of-2">
+                            <lightning-textarea
+                                name="inspectionNotes"
+                                label="QC Inspection Notes"
+                                value={workspace.inspectionNotes}
+                                onchange={handleWorkspaceChange}
+                            ></lightning-textarea>
+                        </div>
+                    </div>
+                </section>
+
+                <div class="footer-actions section-actions">
+                    <lightning-button label="Cancel" onclick={handleCancel} disabled={isBusy}>
+                    </lightning-button>
+                    <lightning-button
+                        label="Quick Save"
+                        onclick={handleQuickSave}
+                        disabled={isBusy}
+                    ></lightning-button>
+                    <lightning-button
+                        label="Save &amp; Close"
+                        variant="brand"
+                        onclick={handleSaveAndClose}
+                        disabled={isBusy}
+                    ></lightning-button>
+                </div>
+
+                <template lwc:if={workspace.showAssetInformation}>
+                    <section class="section">
+                        <h2 class="section-title">Asset Information</h2>
+                        <dl class="asset-grid">
+                            <div><dt>Asset</dt><dd>{workspace.assetName}</dd></div>
+                            <div><dt>Serial Number</dt><dd>{workspace.serialNumber}</dd></div>
+                            <div><dt>Product</dt><dd>{workspace.productName}</dd></div>
+                            <div><dt>Product Line</dt><dd>{workspace.productLine}</dd></div>
+                            <div><dt>Model</dt><dd>{workspace.model}</dd></div>
+                            <div><dt>Manufacturer</dt><dd>{workspace.manufacturer}</dd></div>
+                        </dl>
+                    </section>
+                </template>
+
+                <template lwc:if={workspace.showInstrumentInformation}>
+                    <section class="section">
+                        <h2 class="section-title">Instrument Information</h2>
+                        <template lwc:if={hasInstrumentLines}>
+                            <div class="table-wrap">
+                                <table class="slds-table slds-table_cell-buffer slds-table_bordered instrument-table">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">Quantity</th>
+                                            <th scope="col">Product</th>
+                                            <th scope="col">Model</th>
+                                            <th scope="col">Manufacturer</th>
+                                            <th scope="col">Repair Summary</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template for:each={workspace.instrumentLines} for:item="line">
+                                            <tr key={line.lineId}>
+                                                <td>{line.quantity}</td>
+                                                <td>{line.productName}</td>
+                                                <td>{line.model}</td>
+                                                <td>{line.manufacturer}</td>
+                                                <td class="codes-cell">
+                                                    <template
+                                                        for:each={line.repairSummary}
+                                                        for:item="code"
+                                                    >
+                                                        <div key={code.value}>{code.label}</div>
+                                                    </template>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </template>
+                        <template lwc:else>
+                            <p class="slds-text-color_weak">
+                                No Product Serviced items on this Work Order.
+                            </p>
+                        </template>
+                    </section>
+                </template>
+
+                <section class="section">
+                    <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-center">
+                        <h2 class="section-title section-title_inline">Nonconformance Reports</h2>
+                        <div>
+                            <template lwc:if={workspace.canCreateNcr}>
+                                <lightning-button
+                                    label="Create NCR"
+                                    variant="brand-outline"
+                                    onclick={openNewNcrModal}
+                                ></lightning-button>
+                            </template>
+                        </div>
+                    </div>
+                    <template lwc:if={hasNcrs}>
+                        <div class="table-wrap slds-m-top_small ncr-header-table-wrap">
+                            <table class="slds-table slds-table_cell-buffer slds-table_bordered ncr-header-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Nonconformance Report Number</th>
+                                        <th scope="col">Work Order Line Item</th>
+                                        <th scope="col">Serial Number</th>
+                                        <th scope="col">Product</th>
+                                        <th scope="col">Product Line</th>
+                                        <th scope="col">Model</th>
+                                        <th scope="col">Manufacturer</th>
+                                        <th scope="col">NCR Status</th>
+                                        <th scope="col" class="ncr-line-col-action">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={workspace.ncrs} for:item="report">
+                                        <tr key={report.reportId}>
+                                            <td>{report.reportNumber}</td>
+                                            <td>{report.workOrderLineItemName}</td>
+                                            <td>{report.serialNumber}</td>
+                                            <td>{report.productName}</td>
+                                            <td>{report.productLine}</td>
+                                            <td>{report.model}</td>
+                                            <td>{report.manufacturer}</td>
+                                            <td>{report.ncrStatus}</td>
+                                            <td>
+                                                <div class="ncr-row-actions">
+                                                    <lightning-button-icon
+                                                        icon-name="utility:edit"
+                                                        alternative-text="Edit NCR"
+                                                        title="Edit NCR"
+                                                        data-id={report.reportId}
+                                                        onclick={openEditNcrHeaderModal}
+                                                    ></lightning-button-icon>
+                                                    <lightning-button-icon
+                                                        icon-name="utility:photo"
+                                                        alternative-text="Take Photo"
+                                                        title="Take Photo"
+                                                        data-id={report.reportId}
+                                                        onclick={handleNcrTakePhoto}
+                                                    ></lightning-button-icon>
+                                                    <lightning-button-icon
+                                                        icon-name="utility:add"
+                                                        alternative-text="Add NCR Line Item"
+                                                        title="Add NCR Line Item"
+                                                        data-id={report.reportId}
+                                                        onclick={openAddNcrLineModal}
+                                                    ></lightning-button-icon>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </template>
+                    <template lwc:if={hasNcrLines}>
+                        <h3 class="modal-section-title ncr-line-items-heading">NCR Line Items</h3>
+                        <div class="table-wrap slds-m-top_small">
+                            <table class="slds-table slds-table_cell-buffer slds-table_bordered ncr-line-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col" class="ncr-line-col-ncr">NCR</th>
+                                        <th scope="col" class="ncr-line-col-item">NCR Line Item</th>
+                                        <th scope="col" class="ncr-line-col-source">NCR Source</th>
+                                        <th scope="col" class="ncr-line-col-date">NCR Date</th>
+                                        <th scope="col" class="ncr-line-col-inspector">Quality Inspector</th>
+                                        <th scope="col" class="ncr-line-col-reason">Reason</th>
+                                        <th scope="col" class="ncr-line-col-location">Location/Context</th>
+                                        <th scope="col" class="ncr-line-col-status">Status</th>
+                                        <th scope="col" class="ncr-line-col-risk">Risk</th>
+                                        <th scope="col" class="ncr-line-col-action">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={workspace.ncrLines} for:item="line">
+                                        <tr key={line.lineId}>
+                                            <td>{line.reportNumber}</td>
+                                            <td>{line.lineNumber}</td>
+                                            <td>{line.ncrSource}</td>
+                                            <td>{line.ncrDate}</td>
+                                            <td>{line.qualityInspectorName}</td>
+                                            <td class="ncr-line-wrap">{line.ncrReasonLabel}</td>
+                                            <td class="ncr-line-wrap">{line.ncrLocationContextLabel}</td>
+                                            <td>{line.ncrStatus}</td>
+                                            <td class={line.riskRatingClass}>{line.riskRating}</td>
+                                            <td>
+                                                <lightning-button-icon
+                                                    icon-name="utility:edit"
+                                                    alternative-text="Edit NCR Line"
+                                                    data-id={line.lineId}
+                                                    onclick={openEditNcrModal}
+                                                ></lightning-button-icon>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </template>
+                    <template lwc:elseif={hasNcrs}>
+                        <p class="ncr-line-items-heading slds-text-color_weak">No NCR line items.</p>
+                    </template>
+                    <template lwc:else>
+                        <p class="slds-m-top_small slds-text-color_weak">
+                            No Nonconformance Report exists for this Work Order.
+                        </p>
+                    </template>
+                    <template lwc:if={hasNcrs}>
+                        <c-ncr-file-list
+                            report-ids-key={ncrFileReportIdsKey}
+                            record-id={ncrFileReportId}
+                        ></c-ncr-file-list>
+                    </template>
+                </section>
+            </div>
+
+            <div
+                lwc:if={workspace.hasNcr}
+                slot="footer"
+                class="footer-actions card-footer-actions"
+            >
+                <lightning-button label="Cancel" onclick={handleCancel} disabled={isBusy}>
+                </lightning-button>
+                <lightning-button
+                    label="Quick Save"
+                    onclick={handleQuickSave}
+                    disabled={isBusy}
+                ></lightning-button>
+                <lightning-button
+                    label="Save &amp; Close"
+                    variant="brand"
+                    onclick={handleSaveAndClose}
+                    disabled={isBusy}
+                ></lightning-button>
+            </div>
+            </lightning-card>
+        </template>
+    </div>
+
+    <template lwc:if={showNcrModal}>
+        <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open slds-modal_large">
+            <div class="slds-modal__container">
+                <header class="slds-modal__header">
+                    <lightning-button-icon
+                        class="modal-close"
+                        icon-name="utility:close"
+                        alternative-text="Close"
+                        variant="bare"
+                        onclick={closeNcrModal}
+                    ></lightning-button-icon>
+                    <h2 class="slds-modal__title">{modalTitle}</h2>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium">
+                    <template lwc:if={isBusy}>
+                        <lightning-spinner alternative-text="Saving NCR"></lightning-spinner>
+                    </template>
+                    <template lwc:if={showNcrHeaderSection}>
+                        <section class="modal-section">
+                            <h3 class="modal-section-title">NCR Information</h3>
+                            <div class="slds-grid slds-wrap slds-gutters">
+                                <div class="slds-col slds-size_1-of-1 slds-large-size_1-of-2">
+                                    <lightning-input
+                                        label="NCR Status"
+                                        value={ncrForm.headerNcrStatus}
+                                        disabled
+                                    ></lightning-input>
+                                    <lightning-input
+                                        label="Work Order"
+                                        value={workspace.workOrderNumber}
+                                        disabled
+                                    ></lightning-input>
+                                    <template lwc:if={showWorkOrderLineItemPicker}>
+                                        <div class={woliPickerFieldClass}>
+                                            <label class="slds-form-element__label">
+                                                <abbr class="slds-required" title="required">*</abbr>
+                                                Work Order Line Item
+                                            </label>
+                                            <div class="slds-form-element__control woli-picker-select">
+                                                <lightning-input
+                                                    variant="label-hidden"
+                                                    label="Work Order Line Item"
+                                                    value={selectedWoliDisplay}
+                                                    disabled
+                                                ></lightning-input>
+                                                <lightning-button
+                                                    label="Select"
+                                                    onclick={openWoliPicker}
+                                                ></lightning-button>
+                                            </div>
+                                            <template lwc:if={woliPickerError}>
+                                                <div class="slds-form-element__help" role="alert">
+                                                    {woliPickerError}
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </template>
+                                    <template lwc:else>
+                                        <lightning-input
+                                            label="Work Order Line Item"
+                                            value={workOrderLineItemDisplayName}
+                                            disabled
+                                        ></lightning-input>
+                                    </template>
+                                    <lightning-input
+                                        label="Account"
+                                        value={workspace.accountName}
+                                        disabled
+                                    ></lightning-input>
+                                    <lightning-input
+                                        label="Repair Center"
+                                        value={workspace.repairCenterName}
+                                        disabled
+                                    ></lightning-input>
+                                    <lightning-combobox
+                                        name="departmentId"
+                                        label="Department"
+                                        value={ncrForm.departmentId}
+                                        options={departmentOptions}
+                                        onchange={handleNcrChange}
+                                        placeholder="Select a Service Team"
+                                    ></lightning-combobox>
+                                </div>
+                                <div class="slds-col slds-size_1-of-1 slds-large-size_1-of-2">
+                                    <lightning-input
+                                        label="Asset"
+                                        value={ncrModalAssetName}
+                                        disabled
+                                    ></lightning-input>
+                                    <lightning-input
+                                        label="Serial Number"
+                                        value={ncrModalSerialNumber}
+                                        disabled
+                                    ></lightning-input>
+                                    <lightning-input
+                                        label="Product"
+                                        value={ncrModalProductName}
+                                        disabled
+                                    ></lightning-input>
+                                    <lightning-input
+                                        label="Product Line"
+                                        value={ncrModalProductLine}
+                                        disabled
+                                    ></lightning-input>
+                                    <lightning-input
+                                        label="Model"
+                                        value={ncrModalModel}
+                                        disabled
+                                    ></lightning-input>
+                                    <lightning-input
+                                        label="Manufacturer"
+                                        value={ncrModalManufacturer}
+                                        disabled
+                                    ></lightning-input>
+                                </div>
+                            </div>
+                        </section>
+                    </template>
+                    <template lwc:if={showNcrLineSection}>
+                    <section class="modal-section">
+                        <h3 class="modal-section-title">NCR Line Item Information</h3>
+                        <div class="slds-grid slds-wrap slds-gutters">
+                            <div class="slds-col slds-size_1-of-1 slds-large-size_1-of-2">
+                                <lightning-input
+                                    name="ncrDescription"
+                                    label="NCR Description"
+                                    value={ncrForm.ncrDescription}
+                                    onchange={handleNcrChange}
+                                ></lightning-input>
+                                <lightning-combobox
+                                    class="ncr-required"
+                                    name="ncrSource"
+                                    label="NCR Source"
+                                    value={ncrForm.ncrSource}
+                                    options={ncrSourceOptions}
+                                    onchange={handleNcrChange}
+                                    required
+                                ></lightning-combobox>
+                                <lightning-combobox
+                                    class="ncr-required"
+                                    name="repairRelated"
+                                    label="Repair Related"
+                                    value={ncrForm.repairRelated}
+                                    options={repairRelatedOptions}
+                                    onchange={handleNcrChange}
+                                    required
+                                ></lightning-combobox>
+                                <lightning-input
+                                    class="ncr-required"
+                                    name="ncrDate"
+                                    type="date"
+                                    label="NCR Date"
+                                    value={ncrForm.ncrDate}
+                                    onchange={handleNcrChange}
+                                    required
+                                ></lightning-input>
+                                <lightning-record-picker
+                                    class="ncr-required"
+                                    label="Initiated By"
+                                    object-api-name="User"
+                                    value={ncrForm.initiatedById}
+                                    onchange={handleInitiatedByChange}
+                                    required
+                                ></lightning-record-picker>
+                                <lightning-record-picker
+                                    class="ncr-required"
+                                    label="Quality Inspector"
+                                    object-api-name="User"
+                                    value={ncrForm.qualityInspectorId}
+                                    onchange={handleInspectorChange}
+                                    required
+                                ></lightning-record-picker>
+                                <lightning-input
+                                    label="Product Line"
+                                    value={ncrForm.productLine}
+                                    disabled
+                                ></lightning-input>
+                                <lightning-combobox
+                                    class="ncr-required"
+                                    name="ncrReason"
+                                    label="NCR Reason"
+                                    value={ncrForm.ncrReason}
+                                    options={ncrReasonOptions}
+                                    onchange={handleNcrChange}
+                                    required
+                                ></lightning-combobox>
+                                <lightning-combobox
+                                    name="ncrLocationContext"
+                                    label="NCR Location Context"
+                                    value={ncrForm.ncrLocationContext}
+                                    options={ncrLocationOptions}
+                                    onchange={handleNcrChange}
+                                ></lightning-combobox>
+                                <lightning-textarea
+                                    name="comments"
+                                    label="Comments"
+                                    value={ncrForm.comments}
+                                    onchange={handleNcrChange}
+                                ></lightning-textarea>
+                            </div>
+                            <div class="slds-col slds-size_1-of-1 slds-large-size_1-of-2">
+                                <lightning-combobox
+                                    class="ncr-required"
+                                    name="ncrStatus"
+                                    label="NCR Status"
+                                    value={ncrForm.ncrStatus}
+                                    options={ncrStatusOptions}
+                                    onchange={handleNcrChange}
+                                    required
+                                ></lightning-combobox>
+                                <lightning-combobox
+                                    name="severityRating"
+                                    label="Severity Rating"
+                                    value={ncrForm.severityRating}
+                                    options={severityOptions}
+                                    onchange={handleNcrChange}
+                                ></lightning-combobox>
+                                <div class="risk-field">
+                                    <lightning-combobox
+                                        name="severityJustification"
+                                        label="Severity Justification"
+                                        value={ncrForm.severityJustification}
+                                        options={severityJustificationOptions}
+                                        onchange={handleNcrChange}
+                                    ></lightning-combobox>
+                                    <lightning-button-icon
+                                        class="risk-help"
+                                        icon-name="utility:info"
+                                        alternative-text="View Severity risk analysis table"
+                                        onclick={openSeverityRiskHelp}
+                                    ></lightning-button-icon>
+                                </div>
+                                <div class="risk-field">
+                                    <lightning-combobox
+                                        name="occurrenceRating"
+                                        label="Occurrence Rating"
+                                        value={ncrForm.occurrenceRating}
+                                        options={occurrenceOptions}
+                                        onchange={handleNcrChange}
+                                    ></lightning-combobox>
+                                    <lightning-button-icon
+                                        class="risk-help"
+                                        icon-name="utility:info"
+                                        alternative-text="View Occurrence risk analysis table"
+                                        onclick={openOccurrenceRiskHelp}
+                                    ></lightning-button-icon>
+                                </div>
+                                <div class="slds-form-element">
+                                    <label class="slds-form-element__label">Risk Rating</label>
+                                    <div class="slds-form-element__control">
+                                        <input
+                                            class={formRiskRatingClass}
+                                            type="text"
+                                            disabled
+                                            value={calculatedRiskRating}
+                                        />
+                                    </div>
+                                </div>
+                                <lightning-input
+                                    name="quantityRejected"
+                                    type="number"
+                                    label="Quantity Rejected"
+                                    value={ncrForm.quantityRejected}
+                                    onchange={handleNcrChange}
+                                ></lightning-input>
+                                <lightning-input
+                                    name="capaNumber"
+                                    label="CAPA Number"
+                                    value={ncrForm.capaNumber}
+                                    onchange={handleNcrChange}
+                                ></lightning-input>
+                                <lightning-input
+                                    label="NCR Owner"
+                                    value={ncrForm.ncrOwner}
+                                    disabled
+                                ></lightning-input>
+                                <div class="slds-form-element">
+                                    <label class="slds-form-element__label">Risk Justification</label>
+                                    <div class="slds-form-element__control">
+                                        <textarea
+                                            class="slds-textarea risk-justification"
+                                            rows="1"
+                                            disabled
+                                            value={calculatedRiskJustification}
+                                        ></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                    </template>
+                </div>
+                <footer class="slds-modal__footer">
+                    <lightning-button label="Cancel" onclick={closeNcrModal}></lightning-button>
+                    <lightning-button
+                        class="slds-m-left_x-small"
+                        label="Save"
+                        variant="brand"
+                        onclick={handleNcrSave}
+                        disabled={isBusy}
+                    ></lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open"></div>
+    </template>
+
+    <template lwc:if={showWoliPicker}>
+        <section
+            role="dialog"
+            tabindex="-1"
+            aria-modal="true"
+            aria-labelledby="woli-picker-title"
+            class="slds-modal slds-fade-in-open slds-modal_large woli-picker-modal"
+        >
+            <div class="slds-modal__container">
+                <header class="slds-modal__header">
+                    <lightning-button-icon
+                        class="modal-close"
+                        icon-name="utility:close"
+                        alternative-text="Close"
+                        variant="bare"
+                        onclick={closeWoliPicker}
+                    ></lightning-button-icon>
+                    <h2 id="woli-picker-title" class="slds-modal__title">
+                        Select Work Order Line Item
+                    </h2>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium">
+                    <template lwc:if={hasAvailableWoliRows}>
+                        <div class="table-wrap">
+                            <table
+                                class="slds-table slds-table_cell-buffer slds-table_bordered slds-table_hoverable instrument-table woli-picker-table"
+                            >
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Quantity</th>
+                                        <th scope="col">Product</th>
+                                        <th scope="col">Model</th>
+                                        <th scope="col">Manufacturer</th>
+                                        <th scope="col">Repair Summary</th>
+                                        <th scope="col" class="ncr-line-col-action">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={availableWoliRows} for:item="line">
+                                        <tr
+                                            key={line.lineId}
+                                            class={line.rowClass}
+                                            data-id={line.lineId}
+                                            onclick={handleWoliRowClick}
+                                        >
+                                            <td>{line.quantityDisplay}</td>
+                                            <td>{line.productName}</td>
+                                            <td>{line.model}</td>
+                                            <td>{line.manufacturer}</td>
+                                            <td class="codes-cell">
+                                                <template
+                                                    for:each={line.repairSummary}
+                                                    for:item="code"
+                                                >
+                                                    <div key={code.value}>{code.label}</div>
+                                                </template>
+                                            </td>
+                                            <td>
+                                                <lightning-button
+                                                    label="Select"
+                                                    variant="brand"
+                                                    data-id={line.lineId}
+                                                    onclick={handleWoliSelectClick}
+                                                ></lightning-button>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </template>
+                    <template lwc:else>
+                        <p class="slds-text-color_weak">
+                            No Product Serviced items are available for a new NCR.
+                        </p>
+                    </template>
+                </div>
+                <footer class="slds-modal__footer">
+                    <lightning-button label="Cancel" onclick={closeWoliPicker}></lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open woli-picker-backdrop"></div>
+    </template>
+
+    <template lwc:if={showRiskHelp}>
+        <section
+            role="dialog"
+            tabindex="-1"
+            aria-label={riskHelpTitle}
+            class="slds-modal slds-fade-in-open risk-help-modal"
+        >
+            <div class="slds-modal__container">
+                <div class="slds-modal__content slds-p-around_medium risk-help-content">
+                    <img class="risk-help-image" src={riskHelpImage} alt={riskHelpAlt} />
+                </div>
+                <footer class="slds-modal__footer">
+                    <lightning-button label="Close" onclick={closeRiskHelp}></lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open risk-help-backdrop"></div>
+    </template>
+</template>

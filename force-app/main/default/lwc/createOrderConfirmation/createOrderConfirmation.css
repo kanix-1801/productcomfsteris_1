@@ -1,0 +1,9 @@
+.create-order-confirmation__success {
+    background: #cdefc4;
+    border: 1px solid #2e844a;
+    border-radius: 0.25rem;
+    color: #181818;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    padding: 0.75rem 1rem;
+}

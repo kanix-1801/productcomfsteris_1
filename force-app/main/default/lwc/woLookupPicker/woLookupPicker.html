@@ -1,0 +1,54 @@
+<template>
+    <div class="picker-wrapper">
+        <label class="picker-label">{label}</label>
+
+        <template lwc:if={hasSelection}>
+            <div class="picker-pill">
+                <span class="picker-pill-label">{displayLabel}</span>
+                <button
+                    class="picker-pill-clear"
+                    type="button"
+                    title="Clear"
+                    disabled={disabled}
+                    onclick={handleClear}>×</button>
+            </div>
+        </template>
+
+        <template lwc:else>
+            <input
+                type="search"
+                class={inputClass}
+                placeholder={placeholder}
+                value={query}
+                disabled={disabled}
+                onfocus={handleFocus}
+                onblur={handleBlur}
+                oninput={handleInput} />
+
+            <template lwc:if={open}>
+                <div class="picker-dropdown">
+                    <template lwc:if={hasOptions}>
+                        <template for:each={filteredOptions} for:item="opt">
+                            <button
+                                key={opt.value}
+                                type="button"
+                                class="picker-option"
+                                data-value={opt.value}
+                                data-label={opt.label}
+                                onmousedown={handleSelect}
+                                ontouchstart={handleSelect}>
+                                <div class="picker-option-label">{opt.label}</div>
+                                <template lwc:if={opt.sublabel}>
+                                    <div class="picker-option-sublabel">{opt.sublabel}</div>
+                                </template>
+                            </button>
+                        </template>
+                    </template>
+                    <template lwc:else>
+                        <div class="picker-no-results">No results</div>
+                    </template>
+                </div>
+            </template>
+        </template>
+    </div>
+</template>

@@ -1,0 +1,82 @@
+<template>
+    <section class="related-list-container">
+        <div
+            class="slds-grid slds-grid_align-spread slds-grid_vertical-align-center related-list-header"
+        >
+            <div class="slds-grid slds-grid_vertical-align-center">
+                <lightning-icon
+                    icon-name="standard:record"
+                    size="small"
+                    alternative-text="Key Account Process Reviews"
+                >
+                </lightning-icon>
+                <h2 class="slds-text-heading_small slds-m-left_small">{title}</h2>
+            </div>
+
+            <lightning-button-icon
+                icon-name="utility:refresh"
+                alternative-text="Refresh"
+                title="Refresh Key Account Process Review history"
+                onclick={handleRefresh}
+                disabled={isLoading}
+            >
+            </lightning-button-icon>
+        </div>
+
+        <p class="slds-p-horizontal_medium slds-p-bottom_small slds-text-color_weak">
+            {scopeSummary}
+        </p>
+
+        <template lwc:if={isLoading}>
+            <div class="spinner-container">
+                <lightning-spinner
+                    alternative-text="Loading Key Account Process Review history"
+                    size="medium"
+                >
+                </lightning-spinner>
+            </div>
+        </template>
+
+        <template lwc:if={hasError}>
+            <div class="slds-p-around_medium slds-text-color_error" role="alert">
+                {errorMessage}
+            </div>
+        </template>
+
+        <template lwc:if={resultLimitReached}>
+            <div
+                class="slds-notify slds-notify_alert slds-alert_warning slds-m-around_small"
+                role="alert"
+            >
+                <span class="slds-assistive-text">Warning</span>
+                <h2>
+                    The 2,000-record display limit was reached. Additional Process Reviews may exist.
+                </h2>
+            </div>
+        </template>
+
+        <template lwc:if={hasReviews}>
+            <div class="datatable-container">
+                <div class="datatable-width">
+                    <lightning-datatable
+                        key-field="reviewId"
+                        data={reviews}
+                        columns={columns}
+                        column-widths-mode="fixed"
+                        wrap-text-max-lines="10"
+                        hide-checkbox-column
+                        show-row-number-column
+                        sorted-by={sortedBy}
+                        sorted-direction={sortDirection}
+                        onsort={handleSort}
+                    >
+                    </lightning-datatable>
+                </div>
+            </div>
+        </template>
+
+        <template lwc:if={showEmptyState}>
+            <div class="empty-state">No Key Account Process Reviews found.</div>
+        </template>
+    </section>
+</template>

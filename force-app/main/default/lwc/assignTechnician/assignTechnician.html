@@ -1,0 +1,48 @@
+<template>
+    <div class="assign-technician-root slds-p-around_medium">
+        <lightning-card title="Assign Technician" icon-name="standard:user">
+            <div class="slds-p-around_medium">
+                <p class="slds-text-heading_small slds-m-bottom_small">Scan Work Order</p>
+
+                <lightning-input
+                    data-id="work-order-input"
+                    type="text"
+                    label="Work Order"
+                    value={workOrderInput}
+                    placeholder="Scan or enter Work Order Id / Number"
+                    disabled={isLoading}
+                    onchange={handleWorkOrderChange}
+                    onkeydown={handleWorkOrderKeyDown}
+                ></lightning-input>
+
+                <template lwc:if={errorMessage}>
+                    <div
+                        class="slds-notify slds-notify_alert slds-theme_warning slds-m-top_small"
+                        role="alert"
+                    >
+                        <span class="slds-assistive-text">Warning</span>
+                        <h2 class="slds-text-heading_small">{errorMessage}</h2>
+                    </div>
+                </template>
+
+                <div class="slds-m-top_medium">
+                    <lightning-button
+                        variant="brand"
+                        label="Continue"
+                        onclick={handleContinue}
+                        disabled={isContinueDisabled}
+                    ></lightning-button>
+                </div>
+
+                <template lwc:if={isLoading}>
+                    <div class="slds-m-top_medium slds-is-relative slds-p-around_large">
+                        <lightning-spinner
+                            alternative-text="Assigning technician"
+                            size="small"
+                        ></lightning-spinner>
+                    </div>
+                </template>
+            </div>
+        </lightning-card>
+    </div>
+</template>

@@ -1,0 +1,229 @@
+<template>
+
+<div class="activity-card">
+
+<!-- Activity Actions -->
+
+<div class="activity-actions">
+
+<!-- Task -->
+
+<div class="action-button">
+
+<div class="action-main">
+<div class="icon-box task-icon">
+<lightning-icon
+icon-name="utility:task"
+size="x-small"
+class="white-icon">
+</lightning-icon>
+</div>
+</div>
+
+<div class="action-arrow">
+<lightning-icon
+icon-name="utility:down"
+size="xx-small">
+</lightning-icon>
+</div>
+
+</div>
+
+<!-- Email -->
+
+<div class="action-button">
+
+<div class="action-main">
+<div class="icon-box email-icon">
+<lightning-icon
+icon-name="utility:email"
+size="x-small"
+class="white-icon">
+</lightning-icon>
+</div>
+</div>
+
+<div class="action-arrow">
+<lightning-icon
+icon-name="utility:down"
+size="xx-small">
+</lightning-icon>
+</div>
+
+</div>
+
+</div>
+
+<!-- Filters -->
+
+<div class="filter-row">
+
+<div class="filter-text">
+Filters: All time • All activities • All types
+</div>
+
+<lightning-button-icon
+icon-name="utility:settings"
+size="small">
+</lightning-button-icon>
+
+</div>
+
+<!-- Toolbar -->
+
+<div class="toolbar">
+
+<a href="javascript:void(0)">Refresh</a>
+
+<span>•</span>
+
+<a href="javascript:void(0)">Expand All</a>
+
+<span>•</span>
+
+<a href="javascript:void(0)">View All</a>
+
+</div>
+
+<!-- Accordion Header -->
+
+<div
+class="section-header"
+onclick={toggleUpcoming}>
+
+<lightning-icon
+icon-name={upcomingIcon}
+size="xx-small">
+</lightning-icon>
+
+<span>Upcoming &amp; Overdue</span>
+
+</div>
+
+<!-- Accordion Body -->
+
+<template if:true={isUpcomingOpen}>
+
+<div class="timeline">
+
+<!-- Row 1 -->
+
+<div class="timeline-row">
+
+<div class="timeline-left">
+
+<lightning-icon
+icon-name="utility:chevronright"
+size="xx-small">
+</lightning-icon>
+
+<div class="timeline-icon">
+
+<lightning-icon
+icon-name="utility:email"
+size="x-small">
+</lightning-icon>
+
+</div>
+
+</div>
+
+<div class="timeline-content">
+
+<div class="subject">
+Send Letter
+</div>
+
+<div class="description">
+You sent an email
+</div>
+
+</div>
+
+<div class="timeline-actions">
+
+<div class="timeline-date">
+Jun 11
+</div>
+
+<lightning-button-icon
+icon-name="utility:down"
+size="small">
+</lightning-button-icon>
+
+</div>
+
+</div>
+
+<!-- Row 2 -->
+
+<div class="timeline-row">
+
+<div class="timeline-left">
+
+<lightning-icon
+icon-name="utility:chevronright"
+size="xx-small">
+</lightning-icon>
+
+<div class="timeline-icon">
+
+<lightning-icon
+icon-name="utility:email"
+size="x-small">
+</lightning-icon>
+
+</div>
+
+</div>
+
+<div class="timeline-content">
+
+<div class="subject">
+Call
+</div>
+
+<div class="description">
+You sent an email
+</div>
+
+</div>
+
+<div class="timeline-actions">
+
+<div class="timeline-date overdue">
+May 31
+</div>
+
+<lightning-button-icon
+icon-name="utility:down"
+size="small">
+</lightning-button-icon>
+
+</div>
+
+</div>
+
+</div>
+
+</template>
+
+<!-- View More -->
+
+<div class="view-more">
+
+<button class="view-more-btn">
+View More
+</button>
+
+</div>
+
+<!-- Footer -->
+
+<div class="footer">
+No past activity. Past meetings and tasks marked as done show up here.
+</div>
+
+</div>
+
+</template>

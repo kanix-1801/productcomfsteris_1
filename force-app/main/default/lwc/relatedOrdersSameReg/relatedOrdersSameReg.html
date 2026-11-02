@@ -1,0 +1,88 @@
+<template>
+    <article class="slds-card slds-card_boundary slds-m-bottom_medium">
+        <!-- Header -->
+        <div class="slds-card__header slds-grid slds-p-horizontal_small">
+            <header class="slds-media slds-media_center slds-has-flexi-truncate">
+                <div class="slds-media__figure">
+                    <span class="slds-icon_container slds-icon-standard-case" title="Related">
+                        <svg class="slds-icon slds-icon_small" aria-hidden="true">
+                            <use xlink:href="/assets/icons/standard-sprite/svg/symbols.svg#case"></use>
+                        </svg>
+                        <span class="slds-assistive-text">Related</span>
+                    </span>
+                </div>
+                <div class="slds-media__body slds-grid slds-grid_align-spread slds-has-flexi-truncate">
+                    <h2 class="slds-card__header-title slds-truncate" title={title}>
+                        <span class="slds-text-heading_small">{title}</span>
+                    </h2>
+                    <div class="slds-card__header-actions">
+                        <lightning-button-icon
+                            icon-name={chevronIcon}
+                            alternative-text="Toggle"
+                            variant="bare"
+                            onclick={toggleCollapse}>
+                        </lightning-button-icon>
+                    </div>
+                </div>
+            </header>
+        </div>
+
+        <!-- Body (collapsible) -->
+        <template if:false={collapsed}>
+            <div class="slds-card__body slds-card__body_inner">
+                <template if:true={loading}>
+                    <lightning-spinner size="small" alternative-text="Loading"></lightning-spinner>
+                </template>
+
+                <template if:true={hasRows}>
+                    <ul class="slds-has-dividers_around-space">
+                        <template for:each={rows} for:item="row">
+                            <li key={row.id} class="slds-item slds-p-around_small">
+                                <div class="slds-grid slds-grid_align-spread slds-m-bottom_xx-small">
+                                    <a href={row.recordUrl} target="_blank"
+                                       class="slds-text-link slds-truncate slds-text-heading_small"
+                                       title={row.caseNumber}>
+                                        {row.caseNumber}
+                                    </a>
+                                    <lightning-button-icon
+                                        icon-name="utility:new_window"
+                                        variant="bare"
+                                        size="small"
+                                        alternative-text="Open"
+                                        onclick={openRow}
+                                        data-id={row.id}>
+                                    </lightning-button-icon>
+                                </div>
+
+                                <div class="kv">
+                                    <div class="pair">
+                                        <span class="label">Subject:</span>
+                                        <span class="value slds-truncate" title={row.subject}>{row.subject}</span>
+                                    </div>
+                                    <div class="pair">
+                                        <span class="label">Want Date:</span>
+                                        <span class="value">{row.wantDate}</span>
+                                    </div>
+                                    <div class="pair">
+                                        <span class="label">First Scheduled Ship Date:</span>
+                                        <span class="value">{row.firstScheduledShipDate}</span>
+                                    </div>
+                                    <div class="pair">
+                                        <span class="label">Stage:</span>
+                                        <span class="value">{row.stage}</span>
+                                    </div>
+                                </div>
+                            </li>
+                        </template>
+                    </ul>
+                </template>
+
+                <template if:false={hasRows}>
+                    <div class="slds-p-vertical_medium slds-align_absolute-center slds-text-color_weak">
+                        No related orders found.
+                    </div>
+                </template>
+            </div>
+        </template>
+    </article>
+</template>

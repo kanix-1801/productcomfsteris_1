@@ -1,0 +1,52 @@
+.asset-pagination-row {
+    gap: 0.5rem;
+}
+
+.pagination-center {
+    gap: 0.5rem;
+}
+
+.page-size-combobox {
+    width: 5.5rem;
+}
+
+.summary-table-wrap {
+    display: inline-block;
+    max-width: 100%;
+}
+
+.summary-table {
+    width: auto;
+    table-layout: auto;
+}
+
+.summary-table .slds-cell-wrap {
+    white-space: normal;
+    word-break: break-word;
+}
+
+.summary-col-count {
+    width: 6rem;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.summary-col-value {
+    width: 7.5rem;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.asset-table-scroll {
+    overflow-x: auto;
+}
+
+.asset-table-scroll lightning-datatable {
+    min-width: 75rem;
+}
+
+.asset-table-scroll .slds-cell-wrap {
+    white-space: normal;
+    text-overflow: clip;
+    overflow: visible;
+}

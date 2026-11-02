@@ -1,0 +1,71 @@
+<template>
+    <template if:true={isLoading}>
+        <lightning-spinner alternative-text="Loading page configuration"></lightning-spinner>
+    </template>
+
+    <template if:true={hasError}>
+        <div class="slds-p-around_medium slds-text-color_error">
+            {errorMessage}
+        </div>
+    </template>
+
+    <template if:false={isLoading}>
+        <lightning-card title="Customer 360">
+            <lightning-tabset > <!--active-tab-value={activeTabValue} -->
+
+                <lightning-tab  label="Details" value="details"> <!--lwc:if={showDetailsTab}-->
+                    <div class="tab-panel-content slds-p-around_small">
+                        <c-account-details-form record-id={recordId}></c-account-details-form>
+                        <template if:true={showAccountHighlights}>
+                            <!--<c-account-highlights
+                                record-id={recordId}
+                                is-editable={accountHighlightsEditable}>
+                            </c-account-highlights>-->
+                        </template>
+                    </div>
+                </lightning-tab>
+
+                <lightning-tab lwc:if={showDashboardTab} label="Dashboard" value="dashboard">
+                    <div class="tab-panel-content slds-p-around_small">
+                        <c-account-dashbord record-id={recordId} embedded></c-account-dashbord>
+                    </div>
+                </lightning-tab>
+
+                <lightning-tab label="Account Team" value="accountTeam">  <!--lwc:if={showAccountTeamTab}-->                      
+                        <c-account-team-member-details record-id={recordId}></c-account-team-member-details>
+                </lightning-tab>
+                <lightning-tab lwc:if={showOpportunityTab} label="Opportunity" value="opportunity">
+                    <div class="tab-panel-content slds-p-around_small">
+                        <c-opportunity-related-list record-id={recordId}></c-opportunity-related-list>
+                    </div>
+                </lightning-tab>
+                
+
+                <lightning-tab lwc:if={showAddressesTab} label="Addresses" value="addresses">
+                    <div class="tab-panel-content slds-p-around_small">
+                        <c-account-addresses record-id={recordId}></c-account-addresses>
+                    </div>
+                </lightning-tab>
+
+                <lightning-tab lwc:if={showGPOAffilicationsTab} label="GPO Affiliations" value="gpoAffiliations">
+                    <div class="tab-panel-content slds-p-around_small">
+                        <c-gpo-affiliations record-id={recordId}></c-gpo-affiliations>
+                    </div>
+                </lightning-tab>
+
+                <lightning-tab label="Competitive Installed Base" value="competitiveInstalledBase">
+                    <div class="tab-panel-content slds-p-around_small">
+                        <c-competitive-installed-base record-id={recordId}></c-competitive-installed-base>
+                    </div>
+                </lightning-tab>
+
+                <lightning-tab lwc:if={showRelatedTab} label="Related" value="related">
+                    <div class="tab-panel-content slds-p-around_small">
+                        <c-related-tab record-id={recordId}></c-related-tab>
+                    </div>
+                </lightning-tab>
+
+            </lightning-tabset>
+        </lightning-card>
+    </template>
+</template>

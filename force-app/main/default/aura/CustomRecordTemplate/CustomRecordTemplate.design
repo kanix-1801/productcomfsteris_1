@@ -1,0 +1,32 @@
+<!--
+    @description       : Design metadata for Custom Account Workspace Layout.
+                         Defines drag-and-drop regions available in Lightning App Builder.
+    @author            : Suraj Thapliyal
+    @last modified on  : 02-06-2026
+-->
+
+<design:component label="Custom Account Workspace Layout 1">
+
+    <flexipage:template>
+
+        <!-- Left Sidebar Region -->
+        <flexipage:region
+            name="left"
+            label="Left Sidebar"
+            defaultWidth="SMALL" />
+
+        <!-- Main Content Region -->
+        <flexipage:region
+            name="main"
+            label="Main Content"
+            defaultWidth="LARGE" />
+
+        <!-- Right Sidebar Region -->
+        <flexipage:region
+            name="right"
+            label="Right Sidebar"
+            defaultWidth="SMALL" />
+
+    </flexipage:template>
+
+</design:component>

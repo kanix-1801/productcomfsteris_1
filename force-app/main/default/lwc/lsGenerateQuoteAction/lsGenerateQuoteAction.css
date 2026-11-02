@@ -1,0 +1,17 @@
+:host {
+    display: block;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+    box-sizing: border-box;
+}
+
+.quick-action-shell {
+    display: block;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+    box-sizing: border-box;
+}

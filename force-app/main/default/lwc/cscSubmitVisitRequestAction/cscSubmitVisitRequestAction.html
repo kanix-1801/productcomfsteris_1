@@ -1,0 +1,15 @@
+<!-- GC-2601: Hosts the Submit CSC Visit Request flow inside the quick action panel. -->
+<template>
+    <lightning-spinner
+        alternative-text="Submitting visit request"
+        size="small">
+    </lightning-spinner>
+
+    <template if:true={isReady}>
+        <lightning-flow
+            flow-api-name={flowApiName}
+            flow-input-variables={flowInputVariables}
+            onstatuschange={handleStatusChange}>
+        </lightning-flow>
+    </template>
+</template>

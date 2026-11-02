@@ -1,0 +1,117 @@
+<template>
+    <div class="portal-page">
+        <header class="welcome-row">
+            <div>
+                <h1>Welcome back, let's close some deals!</h1>
+                <p>Your dealer pipeline, expected orders, and opportunities that need attention.</p>
+            </div>
+            <lightning-button variant="brand" label="Create Opportunity" onclick={openCreate}></lightning-button>
+        </header>
+
+        <template if:true={errorMessage}>
+            <p class="form-error" role="alert">{errorMessage}</p>
+        </template>
+
+        <section class="metric-row">
+            <article class="metric-card">
+                <img class="metric-icon" src={pipelineIconUrl} alt="" />
+                <p class="metric-label">Open Pipeline Value</p>
+                <p class="metric-value">{openPipelineLabel}</p>
+            </article>
+            <article class="metric-card">
+                <img class="metric-icon" src={activeIconUrl} alt="" />
+                <p class="metric-label">Active Opportunities</p>
+                <p class="metric-value">{openCountLabel}</p>
+            </article>
+            <article class="metric-card">
+                <span class="metric-icon metric-green">✓</span>
+                <p class="metric-label">Closed Won</p>
+                <p class="metric-value">{closedWonLabel}</p>
+                <p class="metric-note">{closedWonCountLabel}</p>
+            </article>
+        </section>
+
+        <section class="insight-grid">
+            <article class="panel">
+                <header class="panel-header">
+                    <h2>Past-Due Opportunities</h2>
+                    <button type="button" class="text-button" onclick={viewAllPastDue}>View All</button>
+                </header>
+                <c-dealer-opportunity-table
+                    records={pastDueOpportunities}
+                    variant="pastdue"
+                    empty-message="No past-due opportunities.">
+                </c-dealer-opportunity-table>
+            </article>
+            <article class="panel">
+                <header class="panel-header">
+                    <h2>My Pipeline This Quarter</h2>
+                </header>
+                <div class="chart-list">
+                    <template if:true={hasStageChart}>
+                        <template for:each={stageBars} for:item="bar">
+                            <div key={bar.stageName} class="bar-row">
+                                <span class="bar-label">{bar.stageName}</span>
+                                <span class="bar-track"><span class={bar.className} style={bar.style}></span></span>
+                                <strong class="bar-value">{bar.valueLabel}</strong>
+                            </div>
+                        </template>
+                    </template>
+                    <template if:false={hasStageChart}>
+                        <p class="empty-copy">No open pipeline to chart.</p>
+                    </template>
+                </div>
+            </article>
+        </section>
+
+        <section class="chart-grid">
+            <article class="panel">
+                <h2>Quarterly Pipeline Trend</h2>
+                <div class="chart-list">
+                    <template if:true={hasQuarterChart}>
+                        <template for:each={quarterBars} for:item="bar">
+                            <div key={bar.label} class="bar-row">
+                                <span class="bar-label">{bar.label}</span>
+                                <span class="bar-track"><span class="bar-fill bar-blue" style={bar.style}></span></span>
+                                <strong class="bar-value">{bar.valueLabel}</strong>
+                            </div>
+                        </template>
+                    </template>
+                    <template if:false={hasQuarterChart}>
+                        <p class="empty-copy">No quarterly pipeline is available.</p>
+                    </template>
+                </div>
+            </article>
+            <article class="panel">
+                <h2>Pipeline by Country</h2>
+                <div class="chart-list">
+                    <template if:true={hasCountryChart}>
+                        <template for:each={countryBars} for:item="bar">
+                            <div key={bar.label} class="bar-row">
+                                <span class="bar-label">{bar.label}</span>
+                                <span class="bar-track"><span class="bar-fill bar-gold" style={bar.style}></span></span>
+                                <strong class="bar-value">{bar.valueLabel}</strong>
+                            </div>
+                        </template>
+                    </template>
+                    <template if:false={hasCountryChart}>
+                        <p class="empty-copy">No country pipeline is available.</p>
+                    </template>
+                </div>
+            </article>
+        </section>
+
+        <article class="panel">
+            <header class="panel-header">
+                <h2>Recently Created Opportunities</h2>
+                <button type="button" class="text-button" onclick={viewOpportunities}>View All</button>
+            </header>
+            <c-dealer-opportunity-table
+                records={recentOpportunities}
+                variant="recent"
+                empty-message="No recent opportunities available.">
+            </c-dealer-opportunity-table>
+        </article>
+    </div>
+    <c-dealer-opportunity-create is-open={isCreateOpen} onclose={closeCreate} oncreated={handleCreated}></c-dealer-opportunity-create>
+</template>

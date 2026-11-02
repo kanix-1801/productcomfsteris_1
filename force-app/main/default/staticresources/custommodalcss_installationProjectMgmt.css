@@ -1,0 +1,9 @@
+.slds-modal__container{
+    width: 50% !important;
+    max-width: 50% !important;
+}
+.no-row-numbers .slds-row-number {
+    display: none !important;
+    width: 0 !important;
+    padding: 0 !important;
+}

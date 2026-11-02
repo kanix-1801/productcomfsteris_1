@@ -1,0 +1,73 @@
+<template>
+    <lightning-modal-body class="body">
+        <header class="modal-header">
+            <lightning-icon icon-name="standard:maintenance_plan" size="small"></lightning-icon>
+            <div class="modal-title">
+                <h2>PM Visits by Asset</h2>
+                <p>{productName} · {assetCount} assets from the bundle</p>
+            </div>
+        </header>
+
+        <div class="toolbar">
+            <div class="filter">
+                <lightning-icon icon-name="utility:search" size="x-small"></lightning-icon>
+                <input type="search" aria-label="Filter assets" placeholder="Filter by serial number or name"
+                    value={filterText} oninput={handleFilter} />
+            </div>
+            <label class="inline-check">
+                <input type="checkbox" checked={showChangedOnly} onchange={handleShowChangedOnly} />
+                Show changed only
+            </label>
+        </div>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th scope="col" style="width: 18%">Serial Number</th>
+                        <th scope="col" style="width: 24%">Asset Name</th>
+                        <th scope="col" style="width: 18%">PM Plan</th>
+                        <th scope="col" class="num" style="width: 12%">Standard</th>
+                        <th scope="col" class="num" style="width: 16%">Requested</th>
+                        <th scope="col" style="width: 12%"><span class="slds-assistive-text">Status</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template for:each={displayRows} for:item="row">
+                        <tr key={row.id} class={row.rowClass}>
+                            <td title={row.serialNumber}>{row.serialNumber}</td>
+                            <td title={row.name}>{row.name}</td>
+                            <td class="muted" title={row.pmPlanLabel}>{row.pmPlanLabel}</td>
+                            <td class="num muted">{row.standardLabel}</td>
+                            <td class="num stepper-cell">
+                                <div class="stepper">
+                                    <button class="step" aria-label={row.decreaseLabel} data-id={row.id} data-step="-1" onclick={handleStep}>−</button>
+                                    <input class={row.inputClass} type="number" min="0" step="1" aria-label={row.inputLabel}
+                                        data-id={row.id} value={row.value} onchange={handleInput} />
+                                    <button class="step" aria-label={row.increaseLabel} data-id={row.id} data-step="1" onclick={handleStep}>+</button>
+                                </div>
+                            </td>
+                            <td>
+                                <template lwc:if={row.changed}>
+                                    <span class="changed"><span class="dot"></span>Changed</span>
+                                </template>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+            <template lwc:if={showEmpty}>
+                <p class="empty">{emptyMessage}</p>
+            </template>
+        </div>
+        <p class="note">Requested defaults to 2 (will become the PM Plan’s standard visits).</p>
+    </lightning-modal-body>
+
+    <lightning-modal-footer>
+        <div class="footer">
+            <span class="footer-count">{changedLabel}</span>
+            <lightning-button label="Cancel" onclick={handleCancel}></lightning-button>
+            <lightning-button variant="brand" label="Save Visits" onclick={handleSave} disabled={saveDisabled}></lightning-button>
+        </div>
+    </lightning-modal-footer>
+</template>

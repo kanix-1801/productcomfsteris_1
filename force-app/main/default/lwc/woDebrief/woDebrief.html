@@ -1,0 +1,1272 @@
+<template>
+
+    <!-- ── Offline banner (static at top) ─────────────────────────────── -->
+    <template lwc:if={isOffline}>
+        <div class="offline-banner">
+            <lightning-icon icon-name="utility:offline" size="x-small"></lightning-icon>
+            Offline — internet connection is required to save changes.
+        </div>
+    </template>
+
+    <!-- ── Loading spinner ───────────────────────────────────────────── -->
+    <template lwc:if={isLoading}>
+        <div class="slds-align_absolute-center slds-p-around_large">
+            <lightning-spinner alternative-text="Loading work order…" size="medium"></lightning-spinner>
+        </div>
+    </template>
+
+    <!-- ── Wire error ────────────────────────────────────────────────── -->
+    <template lwc:if={hasError}>
+        <div class="slds-box slds-box_x-small slds-theme_error slds-m-around_small">
+            <lightning-formatted-text value={errorMessage}></lightning-formatted-text>
+        </div>
+    </template>
+
+    <!-- ── Main content ──────────────────────────────────────────────── -->
+    <template lwc:if={_workOrder}>
+
+        <!-- ── WO Header (single row: WO #, Status, Account, Asset, Order Type) ── -->
+        <div class="wo-header">
+            <div class="header-toolbar">
+                <lightning-button
+                    label="+ Add Multiple Assets"
+                    variant="neutral"
+                    onclick={handleOpenMultiAssetPicker}>
+                </lightning-button>
+            </div>
+            <div class="header-fields">
+                <div class="header-field">
+                    <div class="field-label">WO #</div>
+                    <div class="field-value field-value_strong">{woNumber}</div>
+                </div>
+                <div class="header-field">
+                    <div class="field-label">Status</div>
+                    <span class="status-badge">{woStatus}</span>
+                </div>
+                <div class="header-field">
+                    <div class="field-label">Account</div>
+                    <div class="field-value">{woAccountName}</div>
+                </div>
+                <div class="header-field">
+                    <div class="field-label">Asset</div>
+                    <div class="field-value">{woAssetName}</div>
+                </div>
+                <div class="header-field">
+                    <div class="field-label">Order Type</div>
+                    <div class="field-value">{woType}</div>
+                </div>
+            </div>
+            <div class="header-picture-action">
+                <label class="mobile-picture-button" data-scope="header">
+                    <input
+                        type="file"
+                        accept="image/*"
+                        class="mobile-picture-input"
+                        data-scope="header"
+                        data-id={recordId}
+                        onchange={handleMobilePictureSelected} />
+                    Mobile Device Picture
+                </label>
+                <span class="picture-count">{headerPictureCountLabel}</span>
+            </div>
+            <template lwc:if={hasHeaderPictures}>
+                <div class="picture-strip">
+                    <template for:each={headerPictures} for:item="picture">
+                        <div key={picture.key} class="picture-tile">
+                            <button
+                                type="button"
+                                class="picture-thumb-btn"
+                                data-key={picture.key}
+                                data-scope="header"
+                                data-line-id={recordId}
+                                onclick={handleReviewPicture}>
+                                    <template lwc:if={picture.previewUrl}>
+                                        <img
+                                            class="picture-thumb"
+                                            src={picture.previewUrl}
+                                            alt="Mobile Device Picture"
+                                            data-version-id={picture.contentVersionId}
+                                            onerror={handlePicturePreviewError} />
+                                    </template>
+                                </button>
+                            <lightning-button-icon
+                                class="picture-delete"
+                                icon-name="utility:delete"
+                                alternative-text="Delete picture"
+                                title="Delete picture"
+                                variant="border-filled"
+                                size="small"
+                                data-key={picture.key}
+                                data-scope="header"
+                                data-line-id={recordId}
+                                onclick={handleDeletePicture}>
+                            </lightning-button-icon>
+                            <template lwc:if={picture.hasComment}>
+                                <div class="picture-comment-caption" title={picture.comment}>{picture.commentPreview}</div>
+                            </template>
+                        </div>
+                    </template>
+                </div>
+            </template>
+        </div>
+
+        <!-- ── Custom tab bar (data-driven from TAB_DEFS) ────────────── -->
+        <div class="tab-bar">
+            <template for:each={tabs} for:item="tab">
+                <button key={tab.key} class="tab-btn" data-tab={tab.key} onclick={handleTabSelect}>
+                    <span class="tab-label">{tab.label}</span>
+                    <template lwc:if={tab.isActive}><span class="tab-indicator"></span></template>
+                </button>
+            </template>
+        </div>
+
+        <!-- ── Inner-scroll region (lines + add form + save report) ── -->
+        <div class="scrollable-content">
+
+            <!-- ── Active tab panel ──────────────────────────────────────── -->
+            <template lwc:if={activeTabModel}>
+                <div class="tab-panel slds-p-around_x-small">
+
+                    <template lwc:if={showProductServicedMultiAsset}>
+                        <div class="add-form-wrapper">
+                            <template lwc:if={multiAssetLoading}>
+                                <div class="slds-align_absolute-center slds-p-around_medium">
+                                    <lightning-spinner alternative-text="Loading assets…" size="small"></lightning-spinner>
+                                </div>
+                            </template>
+                            <template lwc:elseif={multiAssetStatusMessage}>
+                                <p class="multi-asset-status">{multiAssetStatusMessage}</p>
+                            </template>
+                            <template lwc:else>
+                                <p class="multi-asset-intro">Select one or more IMS Assets to link to this Work Order. Assets with no last serviced date, then the oldest date, are listed first. IMS Assets that already have a Work Order Line Item on this Work Order are not shown.</p>
+                                <div class="asset-filter-grid">
+                                    <lightning-combobox
+                                        label="Product Line"
+                                        value={assetFilters.productLine}
+                                        options={productLineFilterOptions}
+                                        data-field="productLine"
+                                        onchange={handleAssetFilterChange}>
+                                    </lightning-combobox>
+                                    <lightning-combobox
+                                        label="Sub Product Line"
+                                        value={assetFilters.subProductLine}
+                                        options={subProductLineFilterOptions}
+                                        data-field="subProductLine"
+                                        onchange={handleAssetFilterChange}>
+                                    </lightning-combobox>
+                                    <lightning-combobox
+                                        label="Device Type"
+                                        value={assetFilters.deviceType}
+                                        options={deviceTypeFilterOptions}
+                                        data-field="deviceType"
+                                        onchange={handleAssetFilterChange}>
+                                    </lightning-combobox>
+                                    <lightning-combobox
+                                        label="Manufacturer"
+                                        value={assetFilters.manufacturer}
+                                        options={manufacturerFilterOptions}
+                                        data-field="manufacturer"
+                                        onchange={handleAssetFilterChange}>
+                                    </lightning-combobox>
+                                    <lightning-combobox
+                                        label="Model"
+                                        value={assetFilters.model}
+                                        options={modelFilterOptions}
+                                        data-field="model"
+                                        onchange={handleAssetFilterChange}>
+                                    </lightning-combobox>
+                                </div>
+                                <template lwc:if={multiAssetFilterEmpty}>
+                                    <p class="multi-asset-status">No assets match the product filters.</p>
+                                </template>
+                                <template lwc:else>
+                                    <div class="asset-pick-list">
+                                        <template for:each={availableInspectAssets} for:item="asset">
+                                            <label key={asset.rowKey} class="asset-pick-row">
+                                                <input
+                                                    class="asset-pick-check"
+                                                    type="checkbox"
+                                                    checked={asset.selected}
+                                                    data-id={asset.id}
+                                                    onchange={handleMultiAssetToggle} />
+                                                <span class="asset-pick-text">
+                                                    <span class="asset-pick-name">{asset.nameLine}</span>
+                                                    <span class="asset-pick-dates">{asset.dateLine}</span>
+                                                </span>
+                                            </label>
+                                        </template>
+                                    </div>
+                                </template>
+                            </template>
+                            <template lwc:if={multiAssetError}>
+                                <p class="error-text">{multiAssetError}</p>
+                            </template>
+                            <div class="form-actions">
+                                <lightning-button
+                                    label="Cancel"
+                                    onclick={handleMultiAssetCancel}>
+                                </lightning-button>
+                                <template lwc:if={multiAssetCanLink}>
+                                    <lightning-button
+                                        label="Link Assets"
+                                        variant="brand"
+                                        onclick={handleMultiAssetConfirm}>
+                                    </lightning-button>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+
+                    <div class="tab-search slds-m-bottom_small">
+                        <lightning-input
+                            type="search"
+                            label="Search"
+                            variant="label-hidden"
+                            placeholder={activeTabSearchPlaceholder}
+                            value={activeTabSearchTerm}
+                            onchange={handleTabSearchChange}>
+                        </lightning-input>
+                    </div>
+
+                    <template lwc:if={activeTabHasNoSearchResults}>
+                        <p class="no-search-results">No lines match your search.</p>
+                    </template>
+
+                    <template for:each={activeTabModel.lines} for:item="line">
+                        <div key={line.Id} class="slds-m-bottom_x-small">
+
+                            <!-- Card. Tapping the info area toggles edit (same
+                                 behavior as the pencil icon). The action buttons
+                                 sit outside .woli-info so they don't bubble. -->
+                            <div class={line.cardClass}>
+                                <div class="woli-info" data-id={line.Id} onclick={handleEditToggle}>
+                                    <div class="woli-description">{line.title}</div>
+                                    <div class="woli-meta">
+                                        <template lwc:if={line.showLineType}>
+                                            <span class="line-type-chip">{line.lineTypeLabel}</span>
+                                        </template>
+                                        {line.metaLine}
+                                    </div>
+                                    <template lwc:if={line.isNew}>
+                                        <span class="new-badge">New</span>
+                                    </template>
+                                    <template lwc:if={line.showMobilePictureCount}>
+                                        <span class="picture-count-badge">{line.mobilePictureCountLabel}</span>
+                                    </template>
+                                    <template lwc:if={line.isDirty}>
+                                        <span class="dirty-badge">Modified</span>
+                                    </template>
+                                </div>
+                                <!-- All lines (existing and new) get edit + delete -->
+                                <div class="woli-actions">
+                                    <lightning-button-icon
+                                        icon-name="utility:edit"
+                                        alternative-text="Edit"
+                                        title="Edit"
+                                        variant="border-filled"
+                                        size="medium"
+                                        data-id={line.Id}
+                                        onclick={handleEditToggle}>
+                                    </lightning-button-icon>
+                                    <lightning-button-icon
+                                        icon-name="utility:delete"
+                                        alternative-text="Delete"
+                                        title="Delete"
+                                        variant="border-filled"
+                                        size="medium"
+                                        data-id={line.Id}
+                                        onclick={handleDelete}>
+                                    </lightning-button-icon>
+                                </div>
+                            </div>
+
+                            <template lwc:if={line.editError}>
+                                <p class="error-text slds-m-top_x-small">{line.editError}</p>
+                            </template>
+
+                            <!-- Inline edit form -->
+                            <template lwc:if={line.isEditing}>
+                                <div class="edit-form">
+
+                                    <!-- Time tab (Travel + Labor) -->
+                                    <template lwc:if={line.isTimeSchema}>
+                                        <div class="field-grid">
+                                            <div class="field-full">
+                                                <lightning-combobox
+                                                    label="Line Type"
+                                                    value={line.editLineType}
+                                                    options={timeLineTypeOptions}
+                                                    required
+                                                    data-id={line.Id}
+                                                    data-field="lineType"
+                                                    onchange={handleEditFieldChange}>
+                                                </lightning-combobox>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-record-picker
+                                                    label="Assigned Resource"
+                                                    placeholder="Search active resources…"
+                                                    object-api-name="ServiceResource"
+                                                    value={line.editAssignedResId}
+                                                    filter={resourcePickerFilter}
+                                                    display-info={resourcePickerDisplayInfo}
+                                                    matching-info={resourcePickerMatchingInfo}
+                                                    data-id={line.Id}
+                                                    data-field="assignedResourceId"
+                                                    onchange={handleLookupChange}>
+                                                </lightning-record-picker>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-input
+                                                    label="Start Date"
+                                                    type="datetime"
+                                                    value={line.editStartDate}
+                                                    data-id={line.Id}
+                                                    data-field="startDate"
+                                                    onchange={handleEditFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-input
+                                                    label="End Date"
+                                                    type="datetime"
+                                                    value={line.editEndDate}
+                                                    data-id={line.Id}
+                                                    data-field="endDate"
+                                                    onchange={handleEditFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                            <div class="field-full read-only-field">
+                                                <div class="read-only-label">Duration</div>
+                                                <div class="read-only-value">{line.editDurationLabel}</div>
+                                            </div>
+                                        </div>
+                                    </template>
+
+                                    <template lwc:elseif={line.isProductServicedSchema}>
+                                        <div class="field-grid">
+                                            <div class="field-full">
+                                                <lightning-input
+                                                    type="checkbox"
+                                                    label="Cancel Line"
+                                                    checked={line.editCanceled}
+                                                    data-id={line.Id}
+                                                    data-field="canceled"
+                                                    onchange={handleEditFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-record-picker
+                                                    label="Work Type"
+                                                    placeholder="Search work types…"
+                                                    object-api-name="WorkType"
+                                                    value={line.editWorkTypeId}
+                                                    required={line.requiresInspectionDetails}
+                                                    data-id={line.Id}
+                                                    data-field="workTypeId"
+                                                    onchange={handleLookupChange}>
+                                                </lightning-record-picker>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-record-picker
+                                                    label="Assigned Resource"
+                                                    placeholder="Search active resources…"
+                                                    object-api-name="ServiceResource"
+                                                    value={line.editAssignedResId}
+                                                    filter={resourcePickerFilter}
+                                                    display-info={resourcePickerDisplayInfo}
+                                                    matching-info={resourcePickerMatchingInfo}
+                                                    required={line.requiresInspectionDetails}
+                                                    data-id={line.Id}
+                                                    data-field="assignedResourceId"
+                                                    onchange={handleLookupChange}>
+                                                </lightning-record-picker>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-record-picker
+                                                    label="Asset"
+                                                    placeholder="Search by serial number or name…"
+                                                    object-api-name="Asset"
+                                                    value={line.editAssetId}
+                                                    filter={productServicedAssetFilter}
+                                                    display-info={assetPickerDisplayInfo}
+                                                    matching-info={assetPickerMatchingInfo}
+                                                    required
+                                                    data-id={line.Id}
+                                                    data-field="assetId"
+                                                    onchange={handleLookupChange}>
+                                                </lightning-record-picker>
+                                            </div>
+                                            <div class="field-full">
+                                            <lightning-combobox
+                                                label="Inspection Outcome"
+                                                placeholder="Select inspection outcome…"
+                                                value={line.editInspectionOutcome}
+                                                options={inspectionOutcomeOptions}
+                                                required={line.requiresInspectionDetails}
+                                                data-id={line.Id}
+                                                data-field="inspectionOutcome"
+                                                onchange={handleEditFieldChange}>
+                                            </lightning-combobox>
+                                            </div>
+                                            <div class="field-full">
+                                                <div class="picture-field-label">Mobile Device Picture</div>
+                                                <div class="picture-field-actions">
+                                                    <label
+                                                        class="mobile-picture-button"
+                                                        data-scope="line"
+                                                        data-picture-slot={line.pictureSlot}
+                                                        data-save-key={line.pictureSaveKey}
+                                                        data-line-number={line.pictureLineNumber}
+                                                        data-id={line.Id}>
+                                                        <input
+                                                            type="file"
+                                                            accept="image/*"
+                                                            class="mobile-picture-input"
+                                                            data-scope="line"
+                                                            data-picture-slot={line.pictureSlot}
+                                                            data-save-key={line.pictureSaveKey}
+                                                            data-line-number={line.pictureLineNumber}
+                                                            data-id={line.Id}
+                                                            onchange={handleMobilePictureSelected} />
+                                                        Mobile Device Picture
+                                                    </label>
+                                                    <span class="picture-count">{line.mobilePictureCountLabel}</span>
+                                                </div>
+                                                <template lwc:if={line.hasMobilePictures}>
+                                                    <div class="picture-strip picture-strip_in-form">
+                                                        <template for:each={line.mobilePictures} for:item="picture">
+                                                            <div key={picture.key} class="picture-tile">
+                                                                <button
+                                                                    type="button"
+                                                                    class="picture-thumb-btn"
+                                                                    data-key={picture.key}
+                                                                    data-scope="line"
+                                                                    data-line-id={line.Id}
+                                                                    onclick={handleReviewPicture}>
+                                                                    <template lwc:if={picture.previewUrl}>
+                                                                        <img
+                                                                            class="picture-thumb"
+                                                                            src={picture.previewUrl}
+                                                                            alt="Mobile Device Picture"
+                                                                            data-version-id={picture.contentVersionId}
+                                                                            onerror={handlePicturePreviewError} />
+                                                                    </template>
+                                                                </button>
+                                                                <lightning-button-icon
+                                                                    class="picture-delete"
+                                                                    icon-name="utility:delete"
+                                                                    alternative-text="Delete picture"
+                                                                    title="Delete picture"
+                                                                    variant="border-filled"
+                                                                    size="small"
+                                                                    data-key={picture.key}
+                                                                    data-scope="line"
+                                                                    data-line-id={line.Id}
+                                                                    onclick={handleDeletePicture}>
+                                                                </lightning-button-icon>
+                                                                <template lwc:if={picture.hasComment}>
+                                                                    <div class="picture-comment-caption" title={picture.comment}>{picture.commentPreview}</div>
+                                                                </template>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                            <template lwc:if={line.showRepairCenterFields}>
+                                                <div class="field-full">
+                                                    <lightning-textarea
+                                                        label="Not Inspected Reason"
+                                                        value={line.editNotInspectedReason}
+                                                        required
+                                                        data-id={line.Id}
+                                                        data-field="notInspectedReason"
+                                                        onchange={handleEditFieldChange}>
+                                                    </lightning-textarea>
+                                                </div>
+                                                <div class="field-full">
+                                                    <div class="repair-center-title">Return Order Info</div>
+                                                </div>
+                                                <div class="field-full">
+                                                    <lightning-input
+                                                        key={line.repairMakeKey}
+                                                        label="Make"
+                                                        value={line.editSerialNumber}
+                                                        required
+                                                        data-id={line.Id}
+                                                        data-field="serialNumber"
+                                                        onchange={handleEditFieldChange}>
+                                                    </lightning-input>
+                                                </div>
+                                                <div class="field-full">
+                                                    <lightning-input
+                                                        key={line.repairModelKey}
+                                                        label="Model"
+                                                        value={line.editModel}
+                                                        required
+                                                        data-id={line.Id}
+                                                        data-field="model"
+                                                        onchange={handleEditFieldChange}>
+                                                    </lightning-input>
+                                                </div>
+                                                <div class="field-full">
+                                                    <lightning-combobox
+                                                        label="Department"
+                                                        value={line.editDepartmentId}
+                                                        options={departmentOptions}
+                                                        placeholder="Select a department"
+                                                        required
+                                                        data-id={line.Id}
+                                                        data-field="departmentId"
+                                                        onchange={handleEditFieldChange}>
+                                                    </lightning-combobox>
+                                                </div>
+                                                <div class="field-full">
+                                                    <lightning-textarea
+                                                        label="Reported Problem"
+                                                        value={line.editReportedProblem}
+                                                        required
+                                                        data-id={line.Id}
+                                                        data-field="reportedProblem"
+                                                        onchange={handleEditFieldChange}>
+                                                    </lightning-textarea>
+                                                </div>
+                                                <div class="field-full">
+                                                    <lightning-input
+                                                        type="checkbox"
+                                                        label="Additional Services"
+                                                        checked={line.editAdditionalServices}
+                                                        data-id={line.Id}
+                                                        data-field="additionalServices"
+                                                        onchange={handleEditFieldChange}>
+                                                    </lightning-input>
+                                                </div>
+                                                <template lwc:if={line.showInsulationField}>
+                                                    <div class="field-full">
+                                                        <lightning-dual-listbox
+                                                            label="Insulation / Powder Coating"
+                                                            source-label="Available"
+                                                            selected-label="Selected"
+                                                            options={insulationPowderCoatingOptions}
+                                                            value={line.editInsulationPowderCoating}
+                                                            size="4"
+                                                            data-id={line.Id}
+                                                            data-field="insulationPowderCoating"
+                                                            onchange={handleEditFieldChange}>
+                                                        </lightning-dual-listbox>
+                                                    </div>
+                                                </template>
+                                                <div class="field-full">
+                                                    <template lwc:if={line.showRecordPictureUpload}>
+                                                        <lightning-file-upload
+                                                            label="Picture (Repair Center)"
+                                                            accept="image/*"
+                                                            record-id={line.persistedLineIdForUpload}>
+                                                        </lightning-file-upload>
+                                                    </template>
+                                                    <template lwc:if={line.showStagedPictureUpload}>
+                                                        <lightning-file-upload
+                                                            label="Picture"
+                                                            accept="image/*"
+                                                            data-id={line.Id}
+                                                            onuploadfinished={handleRepairCenterFileUpload}>
+                                                        </lightning-file-upload>
+                                                        <template lwc:if={line.pictureItems.length}>
+                                                            <ul class="repair-center-pictures">
+                                                                <template for:each={line.pictureItems} for:item="picture">
+                                                                    <li key={picture.id}>{picture.name}</li>
+                                                                </template>
+                                                            </ul>
+                                                        </template>
+                                                    </template>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </template>
+
+                                    <!-- Expense object fields: WorkOrder (read-only), ExpenseType, TransactionDate, Amount -->
+                                    <template lwc:elseif={line.isExpenseSchema}>
+                                        <div class="field-grid">
+                                            <div class="field-full read-only-field">
+                                                <div class="read-only-label">Work Order</div>
+                                                <div class="read-only-value">{woNumber}</div>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-combobox
+                                                    label="Expense Type"
+                                                    placeholder="Select an expense type…"
+                                                    value={line.editExpenseType}
+                                                    options={expenseTypeOptions}
+                                                    data-id={line.Id}
+                                                    data-field="expenseType"
+                                                    onchange={handleEditFieldChange}>
+                                                </lightning-combobox>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-input
+                                                    label="Transaction Date"
+                                                    type="date"
+                                                    value={line.editTransactionDate}
+                                                    data-id={line.Id}
+                                                    data-field="transactionDate"
+                                                    onchange={handleEditFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-input
+                                                    label="Amount"
+                                                    type="number"
+                                                    value={line.editAmount}
+                                                    min="0.01"
+                                                    step="0.01"
+                                                    formatter="currency"
+                                                    data-id={line.Id}
+                                                    data-field="amount"
+                                                    onchange={handleEditFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                            <div class="field-full expense-billable-divider"></div>
+                                            <template lwc:if={line.isBillableAmountReadOnly}>
+                                                <div class="field-full read-only-field">
+                                                    <div class="read-only-label">Billable Amount</div>
+                                                    <div class="read-only-value billable-locked-value">
+                                                        <span>${line.editBillableAmountDisplay}</span>
+                                                        <lightning-icon
+                                                            icon-name="utility:lock"
+                                                            size="x-small"
+                                                            alternative-text="Locked">
+                                                        </lightning-icon>
+                                                    </div>
+                                                    <div class="picker-helper">Auto-set from Amount</div>
+                                                </div>
+                                            </template>
+                                            <template lwc:else>
+                                                <div class="field-full">
+                                                    <lightning-input
+                                                        label="Billable Amount"
+                                                        type="number"
+                                                        value={line.editBillableAmount}
+                                                        min="0"
+                                                        step="0.01"
+                                                        formatter="currency"
+                                                        data-id={line.Id}
+                                                        data-field="billableAmount"
+                                                        onchange={handleEditFieldChange}>
+                                                    </lightning-input>
+                                                </div>
+                                            </template>
+                                            <div class="field-full">
+                                                <lightning-input
+                                                    type="toggle"
+                                                    label="Override Billable Amount"
+                                                    checked={line.editOverrideBillableAmount}
+                                                    message-toggle-active="On"
+                                                    message-toggle-inactive="Off"
+                                                    data-id={line.Id}
+                                                    data-field="overrideBillableAmount"
+                                                    onchange={handleEditFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-combobox
+                                                    label="Override Code"
+                                                    placeholder="Select an override code…"
+                                                    value={line.editOverrideCode}
+                                                    options={overrideCodeOptions}
+                                                    required={line.isOverrideCodeRequired}
+                                                    data-id={line.Id}
+                                                    data-field="overrideCode"
+                                                    onchange={handleEditFieldChange}>
+                                                </lightning-combobox>
+                                            </div>
+                                        </div>
+                                    </template>
+
+                                    <!-- Generic schema fields -->
+                                    <template lwc:else>
+                                        <div class="field-grid">
+                                            <div class="field-full">
+                                                <lightning-input
+                                                    label="Description"
+                                                    value={line.editDesc}
+                                                    data-id={line.Id}
+                                                    data-field="desc"
+                                                    onchange={handleEditFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                            <lightning-input
+                                                label="Duration (hrs)"
+                                                type="number"
+                                                value={line.editDuration}
+                                                min="0.01"
+                                                step="0.01"
+                                                data-id={line.Id}
+                                                data-field="duration"
+                                                onchange={handleEditFieldChange}>
+                                            </lightning-input>
+                                            <lightning-input
+                                                label="Unit Price"
+                                                type="number"
+                                                value={line.editUnitPrice}
+                                                min="0"
+                                                step="0.01"
+                                                data-id={line.Id}
+                                                data-field="unitPrice"
+                                                onchange={handleEditFieldChange}>
+                                            </lightning-input>
+                                        </div>
+                                    </template>
+
+                                    <template lwc:if={line.editError}>
+                                        <p class="error-text">{line.editError}</p>
+                                    </template>
+                                    <div class="form-actions">
+                                        <lightning-button
+                                            label="Close"
+                                            data-id={line.Id}
+                                            onclick={handleEditClose}>
+                                        </lightning-button>
+                                    </div>
+                                </div>
+                            </template>
+
+                        </div>
+                    </template>
+
+                    <!-- Add Line button + form (only for tabs with canAdd=true) -->
+                    <template lwc:if={activeTabModel.canAdd}>
+                        <template lwc:if={activeTabModel.showAddForm}>
+                            <div class="add-form-wrapper">
+
+                                <!-- Time tab add form -->
+                                <template lwc:if={isActiveTabTime}>
+                                    <div class="field-grid">
+                                        <div class="field-full">
+                                            <lightning-combobox
+                                                label="Line Type"
+                                                value={addFormState.lineType}
+                                                options={timeLineTypeOptions}
+                                                required
+                                                data-field="lineType"
+                                                onchange={handleAddFieldChange}>
+                                            </lightning-combobox>
+                                        </div>
+                                        <template lwc:if={addFormHasTimeLineType}>
+                                            <div class="field-full">
+                                                <lightning-record-picker
+                                                    label="Assigned Resource"
+                                                    placeholder="Search active resources…"
+                                                    object-api-name="ServiceResource"
+                                                    value={addFormState.assignedResourceId}
+                                                    filter={resourcePickerFilter}
+                                                    display-info={resourcePickerDisplayInfo}
+                                                    matching-info={resourcePickerMatchingInfo}
+                                                    data-tab={activeTabModel.key}
+                                                    data-field="assignedResourceId"
+                                                    onchange={handleLookupChange}>
+                                                </lightning-record-picker>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-input
+                                                    label="Start Date"
+                                                    type="datetime"
+                                                    value={addFormState.startDate}
+                                                    data-field="startDate"
+                                                    onchange={handleAddFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-input
+                                                    label="End Date"
+                                                    type="datetime"
+                                                    value={addFormState.endDate}
+                                                    data-field="endDate"
+                                                    onchange={handleAddFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                            <div class="field-full read-only-field">
+                                                <div class="read-only-label">Duration</div>
+                                                <div class="read-only-value">{addFormDurationLabel}</div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+
+                                <template lwc:elseif={isActiveTabProductServiced}>
+                                    <div class="field-grid">
+                                        <div class="field-full">
+                                            <lightning-input
+                                                type="checkbox"
+                                                label="Cancel Line"
+                                                checked={addFormState.canceled}
+                                                data-field="canceled"
+                                                onchange={handleAddFieldChange}>
+                                            </lightning-input>
+                                        </div>
+                                        <div class="field-full">
+                                            <lightning-record-picker
+                                                label="Work Type"
+                                                placeholder="Search work types…"
+                                                object-api-name="WorkType"
+                                                value={addFormState.workTypeId}
+                                                required
+                                                data-tab={activeTabModel.key}
+                                                data-field="workTypeId"
+                                                onchange={handleLookupChange}>
+                                            </lightning-record-picker>
+                                        </div>
+                                        <div class="field-full">
+                                            <lightning-record-picker
+                                                label="Assigned Resource"
+                                                placeholder="Search active resources…"
+                                                object-api-name="ServiceResource"
+                                                value={addFormState.assignedResourceId}
+                                                filter={resourcePickerFilter}
+                                                display-info={resourcePickerDisplayInfo}
+                                                matching-info={resourcePickerMatchingInfo}
+                                                required
+                                                data-tab={activeTabModel.key}
+                                                data-field="assignedResourceId"
+                                                onchange={handleLookupChange}>
+                                            </lightning-record-picker>
+                                        </div>
+                                        <div class="field-full">
+                                            <div class="asset-scan-row">
+                                                <div class="asset-scan-input">
+                                                    <lightning-input
+                                                        type="search"
+                                                        label="Scan serial number"
+                                                        placeholder="Scan or type a serial number"
+                                                        value={assetScanSerial}
+                                                        onchange={handleAssetScanInput}>
+                                                    </lightning-input>
+                                                </div>
+                                                <template lwc:if={showBarcodeScanButton}>
+                                                    <lightning-button
+                                                        label="Scan"
+                                                        onclick={handleAssetCameraScan}>
+                                                    </lightning-button>
+                                                </template>
+                                            </div>
+                                            <template lwc:if={assetScanMessage}>
+                                                <p class="error-text">{assetScanMessage}</p>
+                                            </template>
+                                        </div>
+                                        <div class="field-full">
+                                            <lightning-record-picker
+                                                label="Asset"
+                                                placeholder="Search by serial number or name…"
+                                                object-api-name="Asset"
+                                                value={addFormState.assetId}
+                                                filter={productServicedAssetFilter}
+                                                display-info={assetPickerDisplayInfo}
+                                                matching-info={assetPickerMatchingInfo}
+                                                required
+                                                data-tab={activeTabModel.key}
+                                                data-field="assetId"
+                                                onchange={handleLookupChange}>
+                                            </lightning-record-picker>
+                                        </div>
+                                        <div class="field-full">
+                                            <lightning-combobox
+                                                label="Inspection Outcome"
+                                                placeholder="Select inspection outcome…"
+                                                value={addFormState.inspectionOutcome}
+                                                options={inspectionOutcomeOptions}
+                                                required
+                                                data-field="inspectionOutcome"
+                                                onchange={handleAddFieldChange}>
+                                            </lightning-combobox>
+                                        </div>
+                                        <div class="field-full add-form-picture-action">
+                                            <div class="picture-field-label">Mobile Device Picture</div>
+                                            <div class="picture-field-actions">
+                                                <label class="mobile-picture-button" data-scope="add">
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        class="mobile-picture-input"
+                                                        data-scope="add"
+                                                        onchange={handleMobilePictureSelected} />
+                                                    Mobile Device Picture
+                                                </label>
+                                                <span class="picture-count">{addFormMobilePictureCountLabel}</span>
+                                            </div>
+                                            <template lwc:if={hasAddFormMobilePictures}>
+                                                <div class="picture-strip picture-strip_in-form">
+                                                    <template for:each={addFormMobilePictures} for:item="picture">
+                                                        <div key={picture.key} class="picture-tile">
+                                                            <button
+                                                                type="button"
+                                                                class="picture-thumb-btn"
+                                                                data-key={picture.key}
+                                                                data-scope="add"
+                                                                onclick={handleReviewPicture}>
+                                                                <template lwc:if={picture.previewUrl}>
+                                                                    <img
+                                                                        class="picture-thumb"
+                                                                        src={picture.previewUrl}
+                                                                        alt="Mobile Device Picture"
+                                                                        onerror={handlePicturePreviewError} />
+                                                                </template>
+                                                            </button>
+                                                            <lightning-button-icon
+                                                                class="picture-delete"
+                                                                icon-name="utility:delete"
+                                                                alternative-text="Delete picture"
+                                                                title="Delete picture"
+                                                                variant="border-filled"
+                                                                size="small"
+                                                                data-key={picture.key}
+                                                                data-scope="add"
+                                                                onclick={handleDeletePicture}>
+                                                            </lightning-button-icon>
+                                                            <template lwc:if={picture.hasComment}>
+                                                                <div class="picture-comment-caption" title={picture.comment}>{picture.commentPreview}</div>
+                                                            </template>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </template>
+                                        </div>
+                                        <template lwc:if={addFormShowRepairCenterFields}>
+                                            <div class="field-full">
+                                                <lightning-textarea
+                                                    label="Not Inspected Reason"
+                                                    value={addFormState.notInspectedReason}
+                                                    required
+                                                    data-field="notInspectedReason"
+                                                    onchange={handleAddFieldChange}>
+                                                </lightning-textarea>
+                                            </div>
+                                            <div class="field-full">
+                                                <div class="repair-center-title">Return Order Info</div>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-input
+                                                    key={addFormMakeKey}
+                                                    label="Make"
+                                                    value={addFormState.serialNumber}
+                                                    required
+                                                    data-field="serialNumber"
+                                                    onchange={handleAddFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-input
+                                                    key={addFormModelKey}
+                                                    label="Model"
+                                                    value={addFormState.model}
+                                                    required
+                                                    data-field="model"
+                                                    onchange={handleAddFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-combobox
+                                                    label="Department"
+                                                    value={addFormState.departmentId}
+                                                    options={departmentOptions}
+                                                    placeholder="Select a department"
+                                                    required
+                                                    data-field="departmentId"
+                                                    onchange={handleAddFieldChange}>
+                                                </lightning-combobox>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-textarea
+                                                    label="Reported Problem"
+                                                    value={addFormState.reportedProblem}
+                                                    required
+                                                    data-field="reportedProblem"
+                                                    onchange={handleAddFieldChange}>
+                                                </lightning-textarea>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-input
+                                                    type="checkbox"
+                                                    label="Additional Services"
+                                                    checked={addFormState.additionalServices}
+                                                    data-field="additionalServices"
+                                                    onchange={handleAddFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                            <template lwc:if={addFormShowInsulation}>
+                                                <div class="field-full">
+                                                    <lightning-dual-listbox
+                                                        label="Insulation / Powder Coating"
+                                                        source-label="Available"
+                                                        selected-label="Selected"
+                                                        options={insulationPowderCoatingOptions}
+                                                        value={addFormState.insulationPowderCoating}
+                                                        size="4"
+                                                        data-field="insulationPowderCoating"
+                                                        onchange={handleAddFieldChange}>
+                                                    </lightning-dual-listbox>
+                                                </div>
+                                            </template>
+                                            <div class="field-full">
+                                                <lightning-file-upload
+                                                    label="Picture"
+                                                    accept="image/*"
+                                                    onuploadfinished={handleRepairCenterFileUpload}>
+                                                </lightning-file-upload>
+                                                <template lwc:if={addFormPictureItems.length}>
+                                                    <ul class="repair-center-pictures">
+                                                        <template for:each={addFormPictureItems} for:item="picture">
+                                                            <li key={picture.id}>{picture.name}</li>
+                                                        </template>
+                                                    </ul>
+                                                </template>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+
+                                <!-- Expense object add form: WorkOrder (read-only), ExpenseType, TransactionDate, Amount -->
+                                <template lwc:elseif={isActiveTabExpense}>
+                                    <div class="field-grid">
+                                        <div class="field-full read-only-field">
+                                            <div class="read-only-label">Work Order</div>
+                                            <div class="read-only-value">{woNumber}</div>
+                                        </div>
+                                        <div class="field-full">
+                                            <lightning-combobox
+                                                label="Expense Type"
+                                                placeholder="Select an expense type…"
+                                                value={addFormState.expenseType}
+                                                options={expenseTypeOptions}
+                                                data-field="expenseType"
+                                                onchange={handleAddFieldChange}>
+                                            </lightning-combobox>
+                                        </div>
+                                        <div class="field-full">
+                                            <lightning-input
+                                                label="Transaction Date"
+                                                type="date"
+                                                value={addFormState.transactionDate}
+                                                data-field="transactionDate"
+                                                onchange={handleAddFieldChange}>
+                                            </lightning-input>
+                                        </div>
+                                        <div class="field-full">
+                                            <lightning-input
+                                                label="Amount"
+                                                type="number"
+                                                value={addFormState.amount}
+                                                min="0.01"
+                                                step="0.01"
+                                                formatter="currency"
+                                                data-field="amount"
+                                                onchange={handleAddFieldChange}>
+                                            </lightning-input>
+                                        </div>
+                                        <div class="field-full expense-billable-divider"></div>
+                                        <template lwc:if={isAddBillableAmountReadOnly}>
+                                            <div class="field-full read-only-field">
+                                                <div class="read-only-label">Billable Amount</div>
+                                                <div class="read-only-value billable-locked-value">
+                                                    <span>${formattedAddBillableAmount}</span>
+                                                    <lightning-icon
+                                                        icon-name="utility:lock"
+                                                        size="x-small"
+                                                        alternative-text="Locked">
+                                                    </lightning-icon>
+                                                </div>
+                                                <div class="picker-helper">Auto-set from Amount</div>
+                                            </div>
+                                        </template>
+                                        <template lwc:else>
+                                            <div class="field-full">
+                                                <lightning-input
+                                                    label="Billable Amount"
+                                                    type="number"
+                                                    value={addFormState.billableAmount}
+                                                    min="0"
+                                                    step="0.01"
+                                                    formatter="currency"
+                                                    data-field="billableAmount"
+                                                    onchange={handleAddFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                        </template>
+                                        <div class="field-full">
+                                            <lightning-input
+                                                type="toggle"
+                                                label="Override Billable Amount"
+                                                checked={addFormState.overrideBillableAmount}
+                                                message-toggle-active="On"
+                                                message-toggle-inactive="Off"
+                                                data-field="overrideBillableAmount"
+                                                onchange={handleAddFieldChange}>
+                                            </lightning-input>
+                                        </div>
+                                        <div class="field-full">
+                                            <lightning-combobox
+                                                label="Override Code"
+                                                placeholder="Select an override code…"
+                                                value={addFormState.overrideCode}
+                                                options={overrideCodeOptions}
+                                                required={isAddOverrideCodeRequired}
+                                                data-field="overrideCode"
+                                                onchange={handleAddFieldChange}>
+                                            </lightning-combobox>
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <!-- Generic schema add form -->
+                                <template lwc:else>
+                                    <div class="field-grid">
+                                        <div class="field-full">
+                                            <lightning-input
+                                                label="Description"
+                                                value={addFormState.desc}
+                                                data-field="desc"
+                                                onchange={handleAddFieldChange}>
+                                            </lightning-input>
+                                        </div>
+                                        <lightning-input
+                                            label="Duration (hrs)"
+                                            type="number"
+                                            value={addFormState.duration}
+                                            min="0.01"
+                                            step="0.01"
+                                            data-field="duration"
+                                            onchange={handleAddFieldChange}>
+                                        </lightning-input>
+                                        <lightning-input
+                                            label="Unit Price"
+                                            type="number"
+                                            value={addFormState.unitPrice}
+                                            min="0"
+                                            step="0.01"
+                                            data-field="unitPrice"
+                                            onchange={handleAddFieldChange}>
+                                        </lightning-input>
+                                    </div>
+                                </template>
+
+                                <template lwc:if={activeTabModel.addError}>
+                                    <p class="error-text">{activeTabModel.addError}</p>
+                                </template>
+                                <div class="form-actions">
+                                    <lightning-button
+                                        label="Cancel"
+                                        data-tab={activeTabModel.key}
+                                        onclick={handleAddCancel}>
+                                    </lightning-button>
+                                    <lightning-button
+                                        label="Add"
+                                        variant="brand"
+                                        data-tab={activeTabModel.key}
+                                        onclick={handleAddConfirm}>
+                                    </lightning-button>
+                                </div>
+                            </div>
+                        </template>
+                        <template lwc:else>
+                            <template lwc:if={showTabAddButton}>
+                            <div class="add-btn-wrapper">
+                                <div class="add-btn-stack">
+                                    <lightning-button
+                                        label={activeTabModel.addLabel}
+                                        variant="neutral"
+                                        data-tab={activeTabModel.key}
+                                        onclick={handleAddToggle}
+                                        class="slds-size_1-of-1">
+                                    </lightning-button>
+                                </div>
+                            </div>
+                            </template>
+                        </template>
+                    </template>
+
+                </div>
+            </template>
+
+        </div><!-- end .scrollable-content (inner scroll) -->
+
+    </template><!-- end lwc:if _workOrder -->
+
+    <!-- ── Footer — always pinned at bottom via flex layout ─────────────── -->
+    <template lwc:if={_workOrder}>
+        <div class="footer-bar">
+            <lightning-button
+                label="Cancel"
+                disabled={cancelDisabled}
+                onclick={handleDiscardAll}>
+            </lightning-button>
+            <lightning-button
+                label="Save All"
+                variant="brand"
+                disabled={saveAllDisabled}
+                onclick={handleSaveAll}>
+            </lightning-button>
+        </div>
+    </template>
+
+    <template lwc:if={showPictureReview}>
+        <section role="dialog" tabindex="-1" aria-modal="true" aria-labelledby="picture-review-heading" class="slds-modal slds-fade-in-open picture-review-modal">
+            <div class="slds-modal__container">
+                <header class="slds-modal__header">
+                    <h2 id="picture-review-heading" class="slds-modal__title">Mobile Device Picture</h2>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium picture-review-content">
+                    <div class="picture-review-preview">
+                        <template lwc:if={reviewPictureLoading}>
+                            <lightning-spinner alternative-text="Loading picture" size="medium"></lightning-spinner>
+                        </template>
+                        <template lwc:else>
+                            <img class="picture-review-image" src={reviewPictureUrl} alt="Mobile Device Picture" />
+                        </template>
+                    </div>
+                    <div class="picture-review-comment">
+                        <lightning-textarea
+                            label="Comment (optional)"
+                            value={reviewPictureComment}
+                            max-length="1000"
+                            onchange={handleReviewPictureCommentChange}>
+                        </lightning-textarea>
+                    </div>
+                </div>
+                <footer class="slds-modal__footer">
+                    <template lwc:if={reviewPictureCanSaveComment}>
+                        <lightning-button label="Save Comment" variant="brand" onclick={handleSaveReviewPictureComment}></lightning-button>
+                    </template>
+                    <lightning-button label="Delete" variant="destructive" onclick={handleDeleteReviewedPicture}></lightning-button>
+                    <lightning-button label="Close" onclick={handleClosePictureReview}></lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open picture-review-backdrop"></div>
+    </template>
+
+    <template lwc:if={showPictureCommentCapture}>
+        <section role="dialog" tabindex="-1" aria-modal="true" aria-labelledby="picture-comment-capture-heading" class="slds-modal slds-fade-in-open picture-comment-capture-modal">
+            <div class="slds-modal__container">
+                <header class="slds-modal__header">
+                    <h2 id="picture-comment-capture-heading" class="slds-modal__title">Add picture comment</h2>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium picture-comment-capture-content">
+                    <template lwc:if={pictureCommentCapturePreviewUrl}>
+                        <img class="picture-comment-capture-preview" src={pictureCommentCapturePreviewUrl} alt="Mobile Device Picture preview" />
+                    </template>
+                    <lightning-textarea
+                        label="Comment (optional)"
+                        value={pictureCommentDraftText}
+                        max-length="1000"
+                        placeholder="Describe this picture"
+                        onchange={handlePictureCommentDraftChange}>
+                    </lightning-textarea>
+                </div>
+                <footer class="slds-modal__footer">
+                    <lightning-button label="Cancel" onclick={handlePictureCommentCaptureCancel}></lightning-button>
+                    <lightning-button label="Save picture" variant="brand" onclick={handlePictureCommentCaptureConfirm}></lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open picture-comment-capture-backdrop"></div>
+    </template>
+
+</template>

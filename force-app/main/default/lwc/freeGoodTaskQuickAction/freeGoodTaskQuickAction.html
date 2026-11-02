@@ -1,0 +1,248 @@
+<template>
+    <div class="free-good-task-container">
+        <!-- Validation and save failures stay on screen until the rep fixes them -->
+        <template if:true={hasError}>
+            <div class="slds-scoped-notification slds-media slds-media_center slds-theme_error slds-m-bottom_medium"
+                role="alert">
+                <div class="slds-media__figure">
+                    <lightning-icon icon-name="utility:error" variant="inverse" size="small"
+                        alternative-text="Error">
+                    </lightning-icon>
+                </div>
+                <div class="slds-media__body">
+                    <p>{errorMessage}</p>
+                </div>
+            </div>
+        </template>
+
+        <!-- Search the product catalogue -->
+        <lightning-card title="Add Products to the Task" icon-name="standard:product">
+            <div class="slds-p-horizontal_medium slds-p-bottom_medium">
+                <div class="product-search-row">
+                    <div class="product-search-input">
+                        <lightning-input type="search" label="Product Name or Product Code"
+                            value={productSearchKey} onchange={handleProductSearchChange}
+                            onkeypress={handleProductSearchEnter}
+                            placeholder="Search by Product Name or Product Code">
+                        </lightning-input>
+                    </div>
+
+                    <div class="product-search-button">
+                        <lightning-button label="Search Products" variant="brand"
+                            onclick={handleSearchProducts}>
+                        </lightning-button>
+                    </div>
+                </div>
+
+                <template if:true={showNoResults}>
+                    <div class="slds-text-color_weak slds-m-top_medium">
+                        No active products matched your search. Try a different product name or code.
+                    </div>
+                </template>
+
+                <template if:true={hasProductResults}>
+                    <div
+                        class="slds-m-top_small slds-m-bottom_small slds-grid slds-grid_align-spread slds-grid_vertical-align-center">
+                        <div>
+                            <strong>Total Products:</strong> {productTotalRecords}
+                        </div>
+                        <lightning-button-icon icon-name={searchResultsToggleIcon}
+                            alternative-text={searchResultsToggleLabel}
+                            title={searchResultsToggleLabel} variant="border-filled"
+                            onclick={handleToggleSearchResults}>
+                        </lightning-button-icon>
+                    </div>
+
+                    <div class={searchResultsBodyClass}>
+                        <lightning-datatable key-field="productId" data={productData}
+                            columns={productColumns} selected-rows={selectedProductIds}
+                            onrowselection={handleProductSelection}>
+                        </lightning-datatable>
+
+                        <div
+                            class="slds-m-top_medium slds-grid slds-grid_vertical-align-center slds-grid_align-spread">
+                            <lightning-button label="Previous" onclick={handlePreviousProductPage}
+                                disabled={disablePreviousProductPage}>
+                            </lightning-button>
+
+                            <div class="slds-grid slds-grid_vertical-align-center">
+                                <div class="slds-m-right_medium">
+                                    Page {productPageNumber} of {productTotalPages}
+                                </div>
+                                <lightning-combobox label="Records Per Page" variant="label-hidden"
+                                    value={productPageSizeValue} options={pageSizeOptions}
+                                    onchange={handleProductPageSizeChange}>
+                                </lightning-combobox>
+                            </div>
+
+                            <lightning-button label="Next" onclick={handleNextProductPage}
+                                disabled={disableNextProductPage}>
+                            </lightning-button>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </lightning-card>
+
+        <!-- Selected products and their required quantities -->
+        <template if:true={hasSelectedProducts}>
+            <div class="slds-m-top_medium">
+                <lightning-card icon-name="standard:orders">
+                    <h2 slot="title" class="slds-card__header-title">
+                        <span class="slds-m-right_x-small">Selected Products</span>
+                        <lightning-badge label={selectedProductCount}></lightning-badge>
+                    </h2>
+
+                    <div class="slds-p-horizontal_medium slds-p-bottom_medium selected-products-scroll">
+                        <table
+                            class="slds-table slds-table_cell-buffer slds-table_bordered selected-products-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col" class="product-name-cell">Product</th>
+                                    <th scope="col" class="line-description-cell">Line Description</th>
+                                    <th scope="col" class="quantity-cell">Quantity</th>
+                                    <th scope="col" class="sales-price-cell">Sales Price</th>
+                                    <th scope="col" class="picklist-cell">Consumption Frequency</th>
+                                    <th scope="col" class="picklist-cell">Status</th>
+                                    <th scope="col" class="picklist-cell">Confidence Level</th>
+                                    <th scope="col" class="date-cell">Expected Ship Date / Consumption Start</th>
+                                    <th scope="col" class="contract-cell">Contract</th>
+                                    <th scope="col" class="comments-cell">Comments</th>
+                                    <th scope="col" class="remove-cell">Remove</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template for:each={selectedProductRecords} for:item="product">
+                                    <tr key={product.productId}>
+                                        <td class="product-name-cell" title={product.productName}>
+                                            {product.productName}
+                                        </td>
+                                        <td class="line-description-cell">
+                                            <lightning-input type="text" variant="label-hidden"
+                                                label="Line Description" max-length="80"
+                                                value={product.lineDescription}
+                                                data-productid={product.productId}
+                                                data-field="lineDescription"
+                                                onchange={handleLineFieldChange}>
+                                            </lightning-input>
+                                        </td>
+                                        <td class="quantity-cell">
+                                            <lightning-input type="number" variant="label-hidden"
+                                                label="Quantity" min="1" step="1"
+                                                value={product.quantity}
+                                                data-productid={product.productId}
+                                                data-field="quantity"
+                                                onchange={handleLineFieldChange} required
+                                                data-validate="quantity"
+                                                message-when-value-missing="Quantity is required"
+                                                message-when-range-underflow="Quantity must be greater than zero">
+                                            </lightning-input>
+                                        </td>
+                                        <td class="sales-price-cell">
+                                            <lightning-input type="number" variant="label-hidden"
+                                                label="Sales Price" formatter="currency"
+                                                step="0.01" min="0"
+                                                value={product.salesPrice}
+                                                data-productid={product.productId}
+                                                data-field="salesPrice"
+                                                onchange={handleLineFieldChange}>
+                                            </lightning-input>
+                                        </td>
+                                        <td class="picklist-cell">
+                                            <lightning-combobox variant="label-hidden"
+                                                label="Consumption Frequency"
+                                                value={product.consumptionFrequency}
+                                                options={consumptionFrequencyOptions}
+                                                data-productid={product.productId}
+                                                data-field="consumptionFrequency"
+                                                onchange={handleLineFieldChange} required
+                                                data-validate="consumptionFrequency"
+                                                message-when-value-missing="Consumption Frequency is required">
+                                            </lightning-combobox>
+                                        </td>
+                                        <td class="picklist-cell">
+                                            <lightning-combobox variant="label-hidden"
+                                                label="Status"
+                                                value={product.status}
+                                                options={statusOptions}
+                                                data-productid={product.productId}
+                                                data-field="status"
+                                                onchange={handleLineFieldChange}>
+                                            </lightning-combobox>
+                                        </td>
+                                        <td class="picklist-cell">
+                                            <lightning-combobox variant="label-hidden"
+                                                label="Confidence Level"
+                                                value={product.confidenceLevel}
+                                                options={confidenceLevelOptions}
+                                                data-productid={product.productId}
+                                                data-field="confidenceLevel"
+                                                onchange={handleLineFieldChange}>
+                                            </lightning-combobox>
+                                        </td>
+                                        <td class="date-cell">
+                                            <lightning-input type="date" variant="label-hidden"
+                                                label="Expected Ship Date / Consumption Start"
+                                                value={product.expectedShipDate}
+                                                data-productid={product.productId}
+                                                data-field="expectedShipDate"
+                                                onchange={handleLineFieldChange}>
+                                            </lightning-input>
+                                        </td>
+                                        <td class="contract-cell">
+                                            <lightning-input type="text" variant="label-hidden"
+                                                label="Contract" max-length="18"
+                                                value={product.contractValue}
+                                                data-productid={product.productId}
+                                                data-field="contractValue"
+                                                onchange={handleLineFieldChange}>
+                                            </lightning-input>
+                                        </td>
+                                        <td class="comments-cell">
+                                            <lightning-input type="text" variant="label-hidden"
+                                                label="Comments" max-length="20"
+                                                value={product.comments}
+                                                data-productid={product.productId}
+                                                data-field="comments"
+                                                onchange={handleLineFieldChange}>
+                                            </lightning-input>
+                                        </td>
+                                        <td class="remove-cell">
+                                            <lightning-button-icon icon-name="utility:delete"
+                                                variant="bare" alternative-text="Remove Product"
+                                                title="Remove Product"
+                                                data-productid={product.productId}
+                                                onclick={handleRemoveSelectedProduct}>
+                                            </lightning-button-icon>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </lightning-card>
+            </div>
+        </template>
+
+        <!-- This component owns the footer; the flow screen footer is hidden -->
+        <div class="action-bar slds-grid slds-grid_align-spread slds-grid_vertical-align-center">
+            <span class="slds-text-body_small slds-text-color_weak">
+                {selectedProductsHeading}
+            </span>
+
+            <div class="slds-grid slds-grid_vertical-align-center">
+                <lightning-button class="slds-m-right_x-small" label="Back" onclick={handleBack}
+                    disabled={isBackDisabled}>
+                </lightning-button>
+
+                <lightning-button label="Save &amp; Finish" variant="brand" onclick={handleSave}
+                    disabled={isSaveDisabled}>
+                </lightning-button>
+            </div>
+        </div>
+
+        <template if:true={isLoading}>
+            <lightning-spinner alternative-text="Processing"></lightning-spinner>
+        </template>
+    </div>
+</template>

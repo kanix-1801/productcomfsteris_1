@@ -1,0 +1,55 @@
+<template>
+    <div class="create-order-confirmation">
+        <div class="create-order-confirmation__success slds-m-bottom_medium" role="status">
+            Success: The following Orders were successfully created. Select an Order to open it, or
+            close this window to return to your previous screen.
+        </div>
+
+        <template lwc:if={hasOrders}>
+            <table
+                class="slds-table slds-table_cell-buffer slds-table_bordered slds-table_fixed-layout"
+            >
+                <thead>
+                    <tr class="slds-line-height_reset">
+                        <th scope="col">
+                            <div class="slds-truncate" title="Order Number">Order Number</div>
+                        </th>
+                        <th scope="col">
+                            <div class="slds-truncate" title="Product Line">Product Line</div>
+                        </th>
+                        <th scope="col">
+                            <div class="slds-truncate" title="Repair Center">Repair Center</div>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template for:each={orders} for:item="order">
+                        <tr key={order.rowKey}>
+                            <td>
+                                <a
+                                    href="javascript:void(0);"
+                                    class="slds-text-link"
+                                    title={order.workOrderNumber}
+                                    data-work-order-id={order.workOrderId}
+                                    onclick={handleWorkOrderClick}
+                                >
+                                    {order.workOrderNumber}
+                                </a>
+                            </td>
+                            <td>
+                                <div class="slds-truncate" title={order.productLine}>
+                                    {order.productLine}
+                                </div>
+                            </td>
+                            <td>
+                                <div class="slds-truncate" title={order.repairCenterName}>
+                                    {order.repairCenterName}
+                                </div>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </template>
+    </div>
+</template>

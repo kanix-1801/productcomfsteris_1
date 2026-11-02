@@ -1,0 +1,35 @@
+:host {
+    display: block;
+}
+
+.slds-scoped-notification {
+    border-radius: 0.25rem;
+}
+
+.slds-scoped-notification_warning {
+    border: 1px solid #dd7a01;
+}
+
+.slds-scoped-notification_success {
+    border: 1px solid #2e844a;
+}
+
+.slds-scoped-notification_error {
+    border: 1px solid #ba0517;
+}
+
+.banner-actions {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.approver-table-wrapper {
+    overflow-x: auto;
+}
+
+.truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

@@ -1,0 +1,227 @@
+<template>
+
+    <!-- ===================== SUMMARY BLOCK ===================== -->
+    <div class="cov-card">
+        <div class="cov-card-head">
+            <div class="cov-head-left">
+                <span class="cov-icon">
+                    <lightning-icon icon-name="utility:products" size="x-small" variant="inverse" alternative-text="Model coverage"></lightning-icon>
+                </span>
+                <div>
+                    <h3 class="cov-title"><strong>Model Coverage</strong> <span class="cov-count">({modelCount})</span></h3>
+                    <p class="cov-sub">Applies to this IMS Repair Contract product</p>
+                </div>
+            </div>
+            <lightning-button label="Edit" icon-name="utility:edit" onclick={openModal} ></lightning-button>
+        </div>
+
+        <div class="cov-card-body">
+            <div if:true={errorMessage} class="cov-error" role="alert">{errorMessage}</div>
+
+            <div if:true={isLoading} class="cov-loading">
+                <lightning-spinner size="small" alternative-text="Loading"></lightning-spinner>
+            </div>
+
+            <template if:false={hasData}>
+                <template if:true={hasLineId}>
+                    <p class="cov-empty">No coverage configured yet. Click Edit to add models.</p>
+                </template>
+                <template if:false={hasLineId}>
+                    <p class="cov-empty">Save the configuration first (Save &amp; Exit), then reopen it to set model coverage.</p>
+                </template>
+            </template>
+
+            <template if:true={hasData}>
+                <template if:true={hasModels}>
+                    <table class="slds-table slds-table_cell-buffer slds-table_bordered cov-table">
+                        <thead>
+                            <tr class="slds-line-height_reset">
+                                <th scope="col" class="cov-col-num">#</th>
+                                <th scope="col">Model</th>
+                                <th scope="col" class="slds-text-align_right">Covered Qty</th>
+                                <th scope="col" class="slds-text-align_right">Qty Repaired</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template for:each={summaryModels} for:item="m">
+                                <tr key={m.key}>
+                                    <td>{m.number}</td>
+                                    <td>{m.model}</td>
+                                    <td class="slds-text-align_right">{m.qty}</td>
+                                    <td class="slds-text-align_right">{m.repaired}</td>
+                                </tr>
+                            </template>
+                        </tbody>
+                        <tfoot>
+                            <tr class="cov-total">
+                                <td></td>
+                                <td>Total</td>
+                                <td class="slds-text-align_right">{totalCovered}</td>
+                                <td class="slds-text-align_right">{totalRepaired}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </template>
+
+                <div class="cov-facts">
+                    <div class="cov-fact">
+                        <span class="cov-fact-label">Include / Exclude</span>
+                        <span class="cov-fact-value">{incExcDisplay}</span>
+                    </div>
+                    <div class="cov-fact">
+                        <span class="cov-fact-label">Pricing Program</span>
+                        <span class="cov-fact-value">{pricingDisplay}</span>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- ===================== MODAL ===================== -->
+    <template if:true={isModalOpen}>
+        <section role="dialog" tabindex="-1" aria-modal="true" aria-labelledby="cov-modal-title"
+            class="slds-modal slds-fade-in-open" onkeydown={handleKeydown}>
+            <div class="slds-modal__container cov-modal-container">
+
+                <header class="slds-modal__header">
+                    <lightning-button-icon class="slds-modal__close" icon-name="utility:close" variant="bare-inverse"
+                        size="large" alternative-text="Close" onclick={handleCancelModal}></lightning-button-icon>
+                    <h2 id="cov-modal-title" class="slds-modal__title slds-hyphenate">Model Quantity Details</h2>
+                    <p class="cov-modal-sub">IMS REPAIR CONTRACT</p>
+                </header>
+
+                <div class="slds-modal__content slds-p-around_medium">
+                    <div if:true={modalError} class="cov-error" role="alert">{modalError}</div>
+
+                    <div class="cov-grid">
+
+                        <!-- Tile 1: Model Qty -->
+                        <section class="cov-tile">
+                            <div class="cov-tile-head">
+                                <span class="cov-icon">
+                                    <lightning-icon icon-name="utility:products" size="x-small" variant="inverse" alternative-text="Model Qty"></lightning-icon>
+                                </span>
+                                <div class="cov-tile-headtext">
+                                    <h3 class="cov-tile-title">Model Qty</h3>
+                                    <p class="cov-tile-sub">Models and covered quantities</p>
+                                </div>
+                                <span if:true={modelsUnsaved} class="slds-badge slds-theme_warning">Unsaved changes</span>
+                                <span if:true={modelsReady} class="slds-badge slds-theme_success">Ready</span>
+                            </div>
+
+                            <div class="cov-tile-body">
+                                <div class="cov-colhead">
+                                    <span>Model</span>
+                                    <span class="cov-colhead-qty">Covered Qty</span>
+                                </div>
+
+                                <template for:each={rows} for:item="row">
+                                    <div key={row.key} class="cov-row">
+                                        <span class="cov-num">{row.number}</span>
+                                        <lightning-input class="cov-model" variant="label-hidden" label="Model"
+                                            placeholder="Model number" maxlength="100" value={row.model}
+                                            data-key={row.key} onchange={handleModelChange}
+                                            disabled={row.modelDisabled}></lightning-input>
+                                        <div class="cov-stepper">
+                                            <button type="button" class="slds-button slds-button_icon slds-button_icon-border-filled cov-step"
+                                                data-key={row.key} onclick={handleDecrement} disabled={row.decDisabled} title="Decrease">
+                                                <lightning-icon icon-name="utility:dash" size="xx-small" alternative-text="Decrease"></lightning-icon>
+                                            </button>
+                                            <input type="number" class="slds-input cov-qty" min={row.minQty} step="1"
+                                                aria-label="Covered quantity" value={row.qty} data-key={row.key}
+                                                onchange={handleQtyChange} />
+                                            <button type="button" class="slds-button slds-button_icon slds-button_icon-border-filled cov-step"
+                                                data-key={row.key} onclick={handleIncrement} title="Increase">
+                                                <lightning-icon icon-name="utility:add" size="xx-small" alternative-text="Increase"></lightning-icon>
+                                            </button>
+                                        </div>
+                                        <lightning-button-icon class="cov-del" icon-name="utility:delete" variant="bare"
+                                            alternative-text="Remove row" data-key={row.key} onclick={handleRemoveRow}
+                                            disabled={row.deleteDisabled}></lightning-button-icon>
+                                        <span if:true={row.hasRepaired} class="cov-repaired">{row.repaired} already repaired</span>
+                                    </div>
+                                </template>
+
+                                <lightning-button label="Add Another Model" icon-name="utility:add" variant="base"
+                                    onclick={handleAddRow}></lightning-button>
+                            </div>
+
+                            <footer class="cov-tile-foot">
+                                <lightning-button label="Cancel" class="slds-m-right_x-small"
+                                    onclick={handleCancelModelsTile} disabled={modelsCancelDisabled}></lightning-button>
+                                <lightning-button label="Save" variant="brand" onclick={handleSaveModelsTile}
+                                    disabled={modelsSaveDisabled}></lightning-button>
+                            </footer>
+                        </section>
+
+                        <!-- Tile 2: Include / Exclude -->
+                        <section class="cov-tile">
+                            <div class="cov-tile-head">
+                                <span class="cov-icon">
+                                    <lightning-icon icon-name="utility:rules" size="x-small" variant="inverse" alternative-text="Include or exclude"></lightning-icon>
+                                </span>
+                                <div class="cov-tile-headtext">
+                                    <h3 class="cov-tile-title">Include / Exclude</h3>
+                                    <p class="cov-tile-sub">Coverage treatment</p>
+                                </div>
+                                <span if:true={incExcUnsaved} class="slds-badge slds-theme_warning">Unsaved changes</span>
+                                <span if:true={incExcReady} class="slds-badge slds-theme_success">Ready</span>
+                            </div>
+
+                            <div class="cov-tile-body">
+                                <lightning-radio-group name="incExc" label="Include / Exclude" type="button"
+                                    options={incExcOptions} value={wIncExc} onchange={handleIncExcChange}></lightning-radio-group>
+                            </div>
+
+                            <footer class="cov-tile-foot">
+                                <lightning-button label="Cancel" class="slds-m-right_x-small"
+                                    onclick={handleCancelIncExcTile} disabled={incExcCancelDisabled}></lightning-button>
+                                <lightning-button label="Save" variant="brand" onclick={handleSaveIncExcTile}
+                                    disabled={incExcSaveDisabled}></lightning-button>
+                            </footer>
+                        </section>
+
+                        <!-- Tile 3: Pricing Program -->
+                        <section class="cov-tile">
+                            <div class="cov-tile-head">
+                                <span class="cov-icon">
+                                    <lightning-icon icon-name="utility:moneybag" size="x-small" variant="inverse" alternative-text="Pricing program"></lightning-icon>
+                                </span>
+                                <div class="cov-tile-headtext">
+                                    <h3 class="cov-tile-title">Pricing Program</h3>
+                                    <p class="cov-tile-sub">Pricing applied to this line</p>
+                                </div>
+                                <span if:true={pricingUnsaved} class="slds-badge slds-theme_warning">Unsaved changes</span>
+                                <span if:true={pricingReady} class="slds-badge slds-theme_success">Ready</span>
+                            </div>
+
+                            <div class="cov-tile-body">
+                                <lightning-combobox name="pricingProgram" label="Pricing Program"
+                                    placeholder="Select a program" options={pricingOptions} value={wPricing}
+                                    onchange={handlePricingChange} disabled={noPricingOptions}></lightning-combobox>
+                            </div>
+
+                            <footer class="cov-tile-foot">
+                                <lightning-button label="Cancel" class="slds-m-right_x-small"
+                                    onclick={handleCancelPricingTile} disabled={pricingCancelDisabled}></lightning-button>
+                                <lightning-button label="Save" variant="brand" onclick={handleSavePricingTile}
+                                    disabled={pricingSaveDisabled}></lightning-button>
+                            </footer>
+                        </section>
+                    </div>
+                </div>
+
+                <footer class="slds-modal__footer cov-modal-foot">
+                    <span class="cov-hint">{footerHint}</span>
+                    <div>
+                        <lightning-button label="Cancel" class="slds-m-right_x-small" onclick={handleCancelModal}
+                            disabled={busy}></lightning-button>
+                        <lightning-button label="Save" variant="brand" onclick={handleCommit}
+                            disabled={commitDisabled}></lightning-button>
+                    </div>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open" role="presentation"></div>
+    </template>
+</template>

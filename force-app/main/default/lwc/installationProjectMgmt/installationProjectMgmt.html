@@ -1,0 +1,613 @@
+<template>
+    <lightning-card>
+        <!-- Loading Spinner -->
+        <template if:true={isCreatingProject}>
+            <lightning-spinner 
+                alternative-text="Creating project..." 
+                size="large">
+            </lightning-spinner>
+        </template>
+
+        <!-- Progress Indicator -->
+        <div class="slds-m-around_medium">
+            <lightning-progress-indicator 
+                current-step={currentStepValue} 
+                type="base" 
+                variant="base">
+                <template for:each={progressSteps} for:item="step">
+                    <lightning-progress-step 
+                        key={step.value}
+                        label={step.label} 
+                        value={step.value}
+                        assistive-text={step.assistiveText}>
+                    </lightning-progress-step>
+                </template>
+            </lightning-progress-indicator>
+        </div>
+
+        <!-- Fixed Height Content Container -->
+        <div class="content-wrapper">
+            <!-- Page Content Area -->
+            <div class="page-content">
+                <!-- Case Review Page (Page 1) -->
+                <template lwc:if={isPage1}>
+                    <div class="slds-m-horizontal_medium">
+                        <template lwc:if={caseHasRelatedProject}>
+                            <div class="existing-project-banner slds-m-bottom_medium" role="alert" aria-live="assertive">
+                                <div class="existing-project-banner__alert slds-notify slds-notify_alert slds-alert_warning">
+                                    <span class="slds-assistive-text">warning</span>
+                                    <lightning-icon
+                                        icon-name="utility:warning"
+                                        alternative-text="Warning"
+                                        variant="warning"
+                                        size="small"
+                                        class="existing-project-banner__icon"
+                                    ></lightning-icon>
+                                    <div class="existing-project-banner__content">
+                                        <p class="existing-project-banner__title">This Case already has a project</p>
+                                        <p class="existing-project-banner__message">
+                                            At least one Installation Project is already linked to this Case. Creating another project may result in duplicate work. Review the existing project before you continue.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- Page Title with Icon -->
+                        <div class="slds-media slds-m-bottom_medium">
+                            <div class="slds-media__figure">
+                                <lightning-icon 
+                                    icon-name="utility:case" 
+                                    size="small"
+                                    class="brandIcon">
+                                </lightning-icon>
+                            </div>
+                            <div class="slds-media__body">
+                                <h3 class="slds-text-heading_small slds-m-bottom_none">Case Review</h3>
+                            </div>
+                        </div>
+                        
+                        <template if:true={caseData}>
+                            <div class="slds-grid slds-wrap slds-gutters">
+                                <!-- Row 1: Case Number / Subject / Record Type -->
+                                <div class="slds-col slds-size_1-of-3">
+                                    <div class="slds-form-element">
+                                        <label class="slds-form-element__label">Case Number</label>
+                                        <div class="slds-form-element__control">
+                                            <div class="slds-form-element__static">{caseData.CaseNumber}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="slds-col slds-size_1-of-3">
+                                    <div class="slds-form-element">
+                                        <label class="slds-form-element__label">Subject</label>
+                                        <div class="slds-form-element__control">
+                                            <div class="slds-form-element__static">{caseData.Subject}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="slds-col slds-size_1-of-3">
+                                    <div class="slds-form-element">
+                                        <label class="slds-form-element__label">Record Type</label>
+                                        <div class="slds-form-element__control">
+                                            <div class="slds-form-element__static">{recordTypeName}</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Row 2: Status / Priority / Owner -->
+                                <div class="slds-col slds-size_1-of-3">
+                                    <div class="slds-form-element slds-m-top_small">
+                                        <label class="slds-form-element__label">Stage</label>
+                                        <div class="slds-form-element__control">
+                                            <div class="slds-form-element__static">{caseData.Status}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="slds-col slds-size_1-of-3">
+                                    <div class="slds-form-element slds-m-top_small">
+                                        <label class="slds-form-element__label">Priority</label>
+                                        <div class="slds-form-element__control">
+                                            <div class="slds-form-element__static">{caseData.Priority}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="slds-col slds-size_1-of-3">
+                                    <div class="slds-form-element slds-m-top_small">
+                                        <label class="slds-form-element__label">Case Owner</label>
+                                        <div class="slds-form-element__control">
+                                            <div class="slds-form-element__static">{ownerName}</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Row 3: Account / Order # / Empty -->
+                                <div class="slds-col slds-size_1-of-3">
+                                    <div class="slds-form-element slds-m-top_small">
+                                        <label class="slds-form-element__label">Account</label>
+                                        <div class="slds-form-element__control">
+                                            <div class="slds-form-element__static">{accountName}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="slds-col slds-size_1-of-3">
+                                    <div class="slds-form-element slds-m-top_small">
+                                        <label class="slds-form-element__label">Order #</label>
+                                        <div class="slds-form-element__control">
+                                            <div class="slds-form-element__static">{orderNumber}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="slds-col slds-size_1-of-3">
+                                    <!-- Empty column -->
+                                </div>
+
+                                <!-- Row 4: Description - spans all 3 columns -->
+                                <div class="slds-col slds-size_1-of-1">
+                                    <div class="slds-form-element slds-m-top_small">
+                                        <label class="slds-form-element__label">Description</label>
+                                        <div class="slds-form-element__control">
+                                            <div class="slds-form-element__static">{caseData.Description}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                        <template if:false={caseData}>
+                            <div class="slds-text-align_center slds-p-around_medium">
+                                <lightning-spinner alternative-text="Loading case data..."></lightning-spinner>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+
+                <!-- Page 2: Template Selection -->
+                <template lwc:if={isPage2}>
+                    <div class="slds-m-horizontal_medium">
+                        <!-- Page Title with Icon -->
+                        <div class="slds-media slds-m-bottom_medium">
+                            <div class="slds-media__figure">
+                                <lightning-icon
+                                icon-name="utility:layout"
+                                size="small"
+                                class="brandIcon">
+                              </lightning-icon>
+                            </div>
+                            <div class="slds-media__body">
+                                <h3 class="slds-text-heading_small slds-m-bottom_none">Template Selection</h3>
+                            </div>
+                        </div>
+                        
+                        <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_medium">
+                            Choose a template that best fits your project needs. You can customize it after selection.
+                        </p>
+                        <template if:true={templates}>
+                            <lightning-datatable
+                                key-field="Id"
+                                data={templates}
+                                columns={templateColumns}
+                                max-row-selection="1"
+                                selected-rows={selectedTemplateRows}
+                                onrowselection={handleTemplateRowSelection}>
+                            </lightning-datatable>
+                        </template>
+                        <template if:false={templates}>
+                            <div class="slds-text-align_center slds-p-around_medium">
+                                <lightning-spinner alternative-text="Loading templates..."></lightning-spinner>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+
+                <!-- Page 3: Configure Project Details (Header) -->
+                <template if:true={isPage3}>
+                    <div class="slds-m-horizontal_medium">
+                        <!-- Page Title with Icon -->
+                        <div class="slds-media slds-m-bottom_medium">
+                            <div class="slds-media__figure">
+                                <lightning-icon 
+                                    icon-name="utility:settings" 
+                                    size="small"
+                                    class="brandIcon">
+                                </lightning-icon>
+                            </div>
+                            <div class="slds-media__body">
+                                <h3 class="slds-text-heading_small slds-m-bottom_none">Configure Project</h3>
+                            </div>
+                        </div>
+                        
+                        <form>
+                            <!-- Row 1: Template / Account (Output fields) -->
+                            <div class="slds-grid slds-wrap slds-gutters">
+                                <div class="slds-col slds-size_1-of-2">
+                                    <div class="slds-form-element">
+                                        <label class="slds-form-element__label">Template</label>
+                                        <div class="slds-form-element__control">
+                                            <div class="slds-form-element__static">{selectedTemplateName}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="slds-col slds-size_1-of-2">
+                                    <div class="slds-form-element">
+                                        <label class="slds-form-element__label">Account</label>
+                                        <div class="slds-form-element__control">
+                                            <div class="slds-form-element__static">{projectAccountName}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Row 2: Project Name / Project Description -->
+                            <div class="slds-grid slds-wrap slds-gutters slds-m-top_small">
+                                <div class="slds-col slds-size_1-of-2">
+                                    <lightning-input
+                                        label="Project Name"
+                                        value={projectName}
+                                        onchange={handleProjectNameChange}
+                                        required>
+                                    </lightning-input>
+                                </div>
+                                <div class="slds-col slds-size_1-of-2">
+                                    <lightning-input
+                                        label="Project Description"
+                                        value={projectDescription}
+                                        onchange={handleProjectDescriptionChange}>
+                                    </lightning-input>
+                                </div>
+                            </div>
+
+                            <!-- Row 3: Project Owner -->
+                            <div class="slds-grid slds-wrap slds-gutters slds-m-top_small">
+                                <div class="slds-col slds-size_1-of-2">
+                                    <lightning-input-field
+                                        field-name="OwnerId"
+                                        value={projectOwnerId}
+                                        object-api-name="Project__c"
+                                        onchange={handleProjectOwnerChange}
+                                        required>
+                                    </lightning-input-field>
+                                </div>
+                                <div class="slds-col slds-size_1-of-2">
+                                    <!-- Empty column -->
+                                </div>
+                            </div>
+
+                            <!-- Row 4: Project Start Date / Project Contact -->
+                            <div class="slds-grid slds-wrap slds-gutters slds-m-top_small">
+                                <div class="slds-col slds-size_1-of-2">
+                                    <lightning-input
+                                        type="date"
+                                        label="Project Start Date"
+                                        value={projectStartDate}
+                                        onchange={handleProjectStartDateChange}
+                                        data-id="projectStartDate"
+                                        required>
+                                    </lightning-input>
+                                </div>
+                                <div class="slds-col slds-size_1-of-2">
+                                    <div class="slds-form-element">
+                                        <label class="slds-form-element__label">Project Contact</label>
+                                        <div class="slds-form-element__control">
+                                            <div class="contact-lookup-container">
+                                                <lightning-input
+                                                    type="text"
+                                                    label=""
+                                                    variant="label-hidden"
+                                                    placeholder="Search contacts..."
+                                                    value={projectContactName}
+                                                    onchange={handleProjectContactSearch}
+                                                    onfocus={handleProjectContactFocus}
+                                                    onblur={handleProjectContactBlur}>
+                                                </lightning-input>
+                                                <template if:true={showContactAutocomplete}>
+                                                    <div class="contact-lookup-dropdown">
+                                                        <template if:true={filteredContacts.length}>
+                                                            <template for:each={filteredContacts} for:item="contact">
+                                                                <div
+                                                                    key={contact.value}
+                                                                    class="contact-lookup-option"
+                                                                    data-contact-id={contact.value}
+                                                                    data-contact-name={contact.label}
+                                                                    onclick={handleProjectContactSelect}>
+                                                                    {contact.label}
+                                                                </div>
+                                                            </template>
+                                                        </template>
+                                                        <template if:false={filteredContacts.length}>
+                                                            <div class="contact-lookup-option contact-lookup-no-results">
+                                                                No contacts found
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Row 5: Revenue Release Date / Install Start Date -->
+                            <div class="slds-grid slds-wrap slds-gutters slds-m-top_small">
+                                <div class="slds-col slds-size_1-of-2">
+                                    <lightning-input
+                                        type="date"
+                                        label="Revenue Release Date"
+                                        value={shippedDate}
+                                        onchange={handleShippedDateChange}
+                                        data-id="shippedDate"
+                                        required>
+                                    </lightning-input>
+                                </div>
+                                <div class="slds-col slds-size_1-of-2">
+                                    <lightning-input
+                                        type="date"
+                                        label="Install Start Date"
+                                        value={requestedDate}
+                                        onchange={handleRequestedDateChange}
+                                        data-id="requestedDate"
+                                        required>
+                                    </lightning-input>
+                                </div>
+                            </div>
+
+                            <!-- Row 6: Primary EST / Primary Installer -->
+                            <div class="slds-grid slds-wrap slds-gutters slds-m-top_small">
+                                <div class="slds-col slds-size_1-of-2">
+                                    <lightning-input
+                                        label="Primary EST"
+                                        value={primaryEst}
+                                        onchange={handlePrimaryEstChange}
+                                        data-id="primaryEst"
+                                        maxlength="50">
+                                    </lightning-input>
+                                </div>
+                                <div class="slds-col slds-size_1-of-2">
+                                    <lightning-input
+                                        label="Primary Installer"
+                                        value={primaryInstaller}
+                                        onchange={handlePrimaryInstallerChange}
+                                        data-id="primaryInstaller"
+                                        maxlength="50">
+                                    </lightning-input>
+                                </div>
+                            </div>
+
+                            <!-- Row 7: Area Service Manager / Capital Account Manager -->
+                            <div class="slds-grid slds-wrap slds-gutters slds-m-top_small">
+                                <div class="slds-col slds-size_1-of-2">
+                                    <lightning-input
+                                        label="Area Service Manager"
+                                        value={districtServiceManager}
+                                        onchange={handleDistrictServiceManagerChange}
+                                        data-id="districtServiceManager"
+                                        maxlength="50">
+                                    </lightning-input>
+                                </div>
+                                <div class="slds-col slds-size_1-of-2">
+                                    <lightning-input
+                                        label="Capital Account Manager"
+                                        value={capitalAccountManager}
+                                        onchange={handleCapitalAccountManagerChange}
+                                        data-id="capitalAccountManager"
+                                        maxlength="50">
+                                    </lightning-input>
+                                </div>
+                            </div>
+
+                            <!-- Row 9: Cases -->
+                            <div class="slds-grid slds-wrap slds-gutters slds-m-top_small">
+                                <div class="slds-col slds-size_1-of-1">
+                                    <lightning-dual-listbox
+                                        name="cases"
+                                        label="Cases"
+                                        source-label="Available Cases"
+                                        selected-label="Selected Cases"
+                                        field-level-help="Select one or more cases to associate with this project"
+                                        options={caseOptions}
+                                        value={selectedCaseIds}
+                                        onchange={handleCaseSelection}
+                                        size="4"
+                                        required>
+                                    </lightning-dual-listbox>
+                                </div>
+                            </div>
+                            
+                            <!-- Empty row for spacing -->
+                            <div class="slds-m-top_medium"></div>
+                        </form>
+                    </div>
+                </template>
+
+                <!-- Page 4: Configure Project Details (Lines) -->
+                <template if:true={isPage4}>
+                    <div class="slds-m-horizontal_medium slds-m-bottom_medium">
+                        <!-- Page Title with Icon -->
+                        <div class="slds-media slds-m-bottom_medium">
+                            <div class="slds-media__figure">
+                                <lightning-icon 
+                                    icon-name="utility:settings" 
+                                    size="small"
+                                    class="brandIcon">
+                                </lightning-icon>
+                            </div>
+                            <div class="slds-media__body">
+                                <h3 class="slds-text-heading_small slds-m-bottom_none">Configure Items</h3>
+                            </div>
+                        </div>
+                        
+                        <p class="slds-text-body_small slds-m-bottom_small slds-text-color_weak">
+                            Define the project structure by configuring the lines. You can add, edit, or remove lines and sub-lines.
+                        </p>
+                        
+                        <template if:true={templateItemsWithDates}>
+                            <div class="no-row-numbers" style="height: 330px;">
+                                <lightning-datatable
+                                key-field="Id"
+                                data={templateItemsWithDates}
+                                columns={templateItemColumns}
+                                draft-values={draftValues}
+                                onrowaction={handleRowAction}
+	                            onsave={handleSave}
+                                hide-checkbox-column>
+                            </lightning-datatable>
+                            </div>
+                        </template>
+                        
+                        <template if:false={templateItemsWithDates}>
+                            <div class="slds-box slds-theme_shade">
+                                <p class="slds-text-body_regular">
+                                    No template items found. Please go back and select a template.
+                                </p>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+
+                <!-- Page 5: Confirmation -->
+                <template if:true={isPage5}>
+                    <div class="page5-container">
+                        <div class="page5-content">
+                            <!-- Title with Green Checkmark Icon -->
+                            <div class="slds-media slds-m-bottom_x-small">
+                                <div class="slds-media__figure">
+                                    <lightning-icon 
+                                        icon-name="utility:success" 
+                                        size="small" 
+                                        variant="success">
+                                    </lightning-icon>
+                                </div>
+                                <div class="slds-media__body">
+                                    <h3 class="slds-text-heading_small slds-m-bottom_none">
+                                        Ready to Create Project
+                                    </h3>
+                                </div>
+                            </div>
+                            
+                            <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_medium">
+                                Review your project details below
+                            </p>
+                            
+                            <!-- Project Details Summary -->
+                            <div class="slds-grid slds-wrap slds-gutters">
+                                <!-- Row 1: Project Name / Description -->
+                                <div class="slds-col slds-size_1-of-2">
+                                    <div class="slds-form-element">
+                                        <label class="slds-form-element__label">Project Name</label>
+                                        <div class="slds-form-element__control">
+                                            <div class="slds-form-element__static">{projectName}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <template if:true={projectDescription}>
+                                    <div class="slds-col slds-size_1-of-2">
+                                        <div class="slds-form-element">
+                                            <label class="slds-form-element__label">Description</label>
+                                            <div class="slds-form-element__control">
+                                                <div class="slds-form-element__static">{projectDescription}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <!-- Row 2: Project Owner -->
+                                <div class="slds-col slds-size_1-of-1">
+                                    <div class="slds-form-element slds-m-top_small">
+                                        <label class="slds-form-element__label">Project Owner</label>
+                                        <div class="slds-form-element__control">
+                                            <div class="slds-form-element__static">
+                                                <template if:true={currentUserName}>
+                                                    {currentUserName}
+                                                </template>
+                                                <template if:false={currentUserName}>
+                                                    {projectOwnerName}
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Row 3: Account / Case -->
+                                <div class="slds-col slds-size_1-of-2">
+                                    <div class="slds-form-element slds-m-top_small">
+                                        <label class="slds-form-element__label">Account</label>
+                                        <div class="slds-form-element__control">
+                                            <div class="slds-form-element__static">{projectAccountName}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="slds-col slds-size_1-of-2">
+                                    <div class="slds-form-element slds-m-top_small">
+                                        <label class="slds-form-element__label">{caseLabel}</label>
+                                        <div class="slds-form-element__control">
+                                            <template for:each={selectedCasesArray} for:item="caseItem">
+                                                <div key={caseItem} class="slds-form-element__static">
+                                                    {caseItem}
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Success Banner - Sticky at Bottom -->
+                        <div class="page5-banner">
+                            <div class="slds-notify slds-notify_alert slds-theme_alert-texture slds-theme_success" role="alert">
+                                <span class="slds-assistive-text">success</span>
+                                <h2>
+                                    <lightning-icon 
+                                        icon-name="utility:success" 
+                                        size="x-small" 
+                                        variant="inverse"
+                                        class="slds-m-right_x-small"
+                                        style="display: inline-block; vertical-align: middle;">
+                                    </lightning-icon>
+                                    <strong style="display: inline;">All information is ready</strong>
+                                    <p>Click "Create Project" to complete the process. You'll be able to manage the project immediately.</p>
+                                </h2>
+                                
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Separator -->
+            <div class="slds-m-horizontal_small">
+                <hr class="slds-m-vertical_medium">
+            </div>
+
+            <!-- Footer Buttons -->
+            <div class="slds-m-horizontal_medium slds-m-top_x-small slds-m-bottom_x-small slds-clearfix">
+                <div class="slds-float_left">
+                    <template if:true={showBackButton}>
+                        <lightning-button 
+                            label="Back" 
+                            variant="neutral"
+                            onclick={handleBack}
+                            disabled={isBackDisabled}>
+                        </lightning-button>
+                    </template>
+                </div>
+                <div class="slds-float_right">
+                    <template if:true={showNextButton}>
+                        <lightning-button 
+                            label="Next" 
+                            variant="brand"
+                            disabled={isNextDisabled}
+                            onclick={handleNext}>
+                        </lightning-button>
+                    </template>
+                    <template if:true={showCreateButton}>
+                        <lightning-button 
+                            label="Create Project" 
+                            variant="success"
+                            onclick={handleCreateProject}
+                            disabled={isCreatingProject}>
+                        </lightning-button>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </lightning-card>
+</template>

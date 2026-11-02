@@ -1,0 +1,58 @@
+:host {
+    display: block;
+}
+
+.slds-scoped-notification {
+    border: 1px solid #dd7a01;
+    border-radius: 0.25rem;
+}
+
+.banner-actions {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.closed-lost-modal-container {
+    width: 92%;
+    max-width: 64rem;
+    min-width: 48rem;
+}
+
+.modal-content {
+    position: relative;
+    min-height: 3rem;
+}
+
+.modal-spinner {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.6);
+    z-index: 1;
+}
+
+.modal-message {
+    margin: 0;
+}
+
+.modal-message_loading {
+    opacity: 0.5;
+}
+
+.quote-table-wrapper {
+    overflow-x: auto;
+}
+
+.quote-table {
+    width: 100%;
+    background: #fff;
+}
+
+.truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

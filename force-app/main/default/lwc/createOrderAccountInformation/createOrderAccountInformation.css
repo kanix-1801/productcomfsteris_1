@@ -1,0 +1,17 @@
+:host {
+    display: block;
+}
+
+.section-title {
+    color: #706e6b;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.025em;
+    text-transform: uppercase;
+}
+
+.field-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}

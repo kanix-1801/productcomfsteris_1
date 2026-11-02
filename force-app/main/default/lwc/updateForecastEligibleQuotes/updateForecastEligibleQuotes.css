@@ -1,0 +1,95 @@
+.qa-panel {
+    display: block;
+    width: 100%;
+}
+
+.qa-panel__container {
+    width: 100%;
+    max-width: 64rem;
+    margin: 0 auto;
+    background: #fff;
+    border-radius: 0.25rem;
+    box-shadow: 0 2px 3px 0 rgba(0, 0, 0, 0.16);
+}
+
+.qa-panel__header {
+    border-bottom: 1px solid #e5e5e5;
+    padding: 1rem 1.5rem;
+    text-align: center;
+}
+
+.qa-panel__body {
+    overflow: auto;
+    position: relative;
+}
+
+.qa-panel__footer {
+    display: flex;
+    justify-content: center;
+    border-top: 1px solid #e5e5e5;
+    padding: 0.75rem 1rem;
+}
+
+.help-text {
+    color: #444;
+}
+
+.panel-loading,
+.panel-saving {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.75);
+    z-index: 1;
+}
+
+.panel-loading {
+    position: relative;
+    min-height: 8rem;
+    background: transparent;
+}
+
+.quote-table {
+    width: 100%;
+}
+
+.quote-table th,
+.quote-table td {
+    vertical-align: middle;
+}
+
+.col-quote-number {
+    width: 13%;
+}
+
+.col-status {
+    width: 11%;
+}
+
+.col-approval-status {
+    width: 14%;
+}
+
+.col-last-modified {
+    width: 20%;
+}
+
+.col-total {
+    width: 16%;
+}
+
+.col-forecast-eligible {
+    width: 12%;
+}
+
+.forecast-col {
+    text-align: center;
+}
+
+.truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

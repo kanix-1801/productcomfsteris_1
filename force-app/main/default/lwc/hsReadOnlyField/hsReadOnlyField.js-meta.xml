@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>66.0</apiVersion>
+    <isExposed>true</isExposed>
+    <masterLabel>HS Read Only Field</masterLabel>
+    <description>Shows a label and value like a standard record detail row, with a pencil that opens edit mode.</description>
+    <targets>
+        <target>lightning__FlowScreen</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightning__FlowScreen">
+            <property name="label" type="String" label="Label" role="inputOnly"/>
+            <property name="value" type="String" label="Value" role="inputOnly"/>
+            <property name="dateValue" type="Date" label="Date Value" role="inputOnly"/>
+            <property name="dateTimeValue" type="DateTime" label="Date/Time Value" role="inputOnly"/>
+            <property name="editable" type="Boolean" label="Show Pencil" role="inputOnly"/>
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

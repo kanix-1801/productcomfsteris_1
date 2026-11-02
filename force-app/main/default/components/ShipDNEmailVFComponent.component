@@ -1,0 +1,218 @@
+<Apex:component controller="ShipDNEmailController" access="global">
+    <Apex:attribute name="caseId1" description="" assignTo="{!caseId}" type="String" /> 
+    <apex:attribute name="GuaranteedDelivery" type="String" description="GuaranteedDelivery"/>
+    <apex:attribute name="poNumber" type="String" description="poNumber"/>
+
+    <apex:attribute name="shippingAddress" type="String" description="shippingAddress"/>
+    <apex:attribute name="accountName" type="String" description="Account Name"/>
+
+    <apex:attribute name="liftgate" type="String" description="liftgate"/>
+    <apex:attribute name="standardDocSize" type="String" description="standard docSize"/>
+    <apex:attribute name="insideDeliveryreq" type="String" description="inside Deliveryreq"/>
+    <apex:attribute name="tractorTrailer" type="String" description="tractor Trailer"/>
+    
+    
+    <apex:image URL="{!BannerUrlSDN}" alt="STERIS Banner" width="982" height="180"/>
+     
+    <p>Dear {!recevingContactName},<br/></p>
+                  
+	<apex:outputPanel rendered="{!GuaranteedDelivery == 'Y'}">
+        <p>           
+           <span style="display:block; width:982px; max-width:982px; margin:0 0 12px 0;">I am writing to inform you that the below equipment on purchase order # {!poNumber}
+            has shipped and will be delivered on 
+             <span  style="font-weight:bold; background-color:#e0e0e0;">&lt;DATE&gt;</span> from 
+            <span  style="font-weight:bold; background-color:#e0e0e0;">&lt;TimeFrame&gt;</span>.
+            Please note that the carrier will be calling ahead of delivery and upon arrival
+            on your guaranteed delivery date.
+               <p>
+               The install contact that we have for this order is {!InstallConName} with phone number of #{!InstallConPhone}.
+                     </p>  </span>
+            
+           </p>
+         </apex:outputPanel>  
+   	<apex:outputPanel style="max-width:982px;" rendered="{!OR(GuaranteedDelivery = 'N', ISBLANK(GuaranteedDelivery))}">       	
+			I am writing to inform you that the below equipment on purchase order # {!poNumber}
+            has shipped for an approximate delivery on or around &nbsp;
+       
+             
+            
+                <apex:outputText style="font-weight:bold; background-color:#e0e0e0;" value="{0,date,dd MMM yyyy}">
+                    <apex:param value="{!calculateActualShipDate}"/>
+                </apex:outputText>
+            
+        	
+                <apex:outputPanel style="max-width:982px;" rendered="{!ISBLANK(calculateActualShipDate)}" >
+                        <span style="font-weight:bold; background-color:#e0e0e0;">DD/MM/YYYY</span>
+                    </apex:outputPanel>
+               
+
+
+            <span style="display:block; width:982px; max-width:982px; margin:0 0 12px 0;">If you need this delivery at a specific time or day of the week, please let us know
+            so we can work to upgrade your order to a guaranteed delivery.</span>
+        
+        	<p>
+            <span style="display:block; width:982px; max-width:982px; margin:0 0 12px 0;">
+                   The install contact that we have for this order is {!InstallConName} with phone number of #{!InstallConPhone}.
+                       </span>
+           </p>
+        </apex:outputPanel>
+    
+    
+   <p style="display:inline-block; font-weight:bold;">
+       Equipment Shipping:
+    </p> 
+    
+	<table width="982" style="border-collapse: collapse; font-family: Arial, sans-serif;">
+        <tr style="background-color: #4F81BD; color: white; font-weight: bold;">
+            <td style="padding: 8px; border: 1px solid #ccc;">Item Number</td>
+            <td style="padding: 8px; border: 1px solid #ccc;">Line Number</td>
+            <td style="padding: 8px; border: 1px solid #ccc;">Item Description</td>
+            <td style="padding: 8px; border: 1px solid #ccc;">Quantity</td>
+            <td style="padding: 8px; border: 1px solid #ccc;">Ship To Location</td>
+        </tr>
+
+        <apex:repeat value="{!shippingLineItems}" var="li">
+            <tr>
+                <td style="padding: 8px; border: 1px solid #ccc;">
+                    <apex:outputText value="{!li.itemNumber}"/>
+                </td>
+                <td style="padding: 8px; border: 1px solid #ccc;">
+                    <apex:outputText value="{!li.lineNumber}"/>
+                </td>
+                <td style="padding: 8px; border: 1px solid #ccc;">
+                    <apex:outputText value="{!li.itemDescription}"/>
+                </td>
+                <td style="padding: 8px; border: 1px solid #ccc;">
+                    <apex:outputText value="{!li.qty}"/>
+                </td>
+                <td style="padding: 8px; border: 1px solid #ccc;">
+                    <apex:outputPanel rendered="{!LEN(TRIM(li.street)) > 0}" layout="none">
+                        <apex:outputText value="{!TRIM(li.street)}"/>
+                    </apex:outputPanel>
+                    <apex:outputPanel rendered="{!LEN(TRIM(li.city)) > 0}" layout="none">
+                        <apex:outputText value=", {!TRIM(li.city)}"/>
+                    </apex:outputPanel><apex:outputPanel rendered="{!LEN(TRIM(li.state)) > 0}" layout="none">
+                        <apex:outputText value=", {!TRIM(li.state)}"/>
+                    </apex:outputPanel>
+                    <apex:outputPanel rendered="{!LEN(TRIM(li.postalCode)) > 0}" layout="none">
+                        <apex:outputText value=", {!TRIM(li.postalCode)}"/>
+                    </apex:outputPanel><apex:outputPanel rendered="{!LEN(TRIM(li.country)) > 0}" layout="none">
+                        <apex:outputText value=", {!TRIM(li.country)}"/>
+                    </apex:outputPanel>
+                </td>
+            </tr>
+        </apex:repeat>
+    </table>
+
+
+    
+    <span style="max-width:982px; width:982px;">
+		<p>
+            Your installation professional for this order is <span class="emph"><apex:outputPanel rendered="{!LEN(TRIM(AccountManagerSerLineSalesRep)) > 0}">
+                                                                                    <apex:outputText value="{!AccountManagerSerLineSalesRep}"/>
+                                                                                </apex:outputPanel>
+            
+             </span> and they are copied on this communication if you have any questions as to the timing of your installation.                     
+        </p>
+    </span>   
+    
+   
+    
+    <apex:outputPanel rendered="{!IsTradeInLine}">
+        <span style="font-weight:bold;">TRADE-IN EQUIPMENT:</span>
+        On your order, the following trade-in equipment is due to be returned back to STERIS.
+        <br/><br/>
+
+
+    
+    <table width="982" style="border-collapse: collapse; font-family: Arial, sans-serif;">
+        <tr style="background-color: #4F81BD; color: white; font-weight: bold;">
+            <td style="padding: 8px; border: 1px solid #ccc;">Item Number</td>
+            <td style="padding: 8px; border: 1px solid #ccc;">Line Number</td>
+            <td style="padding: 8px; border: 1px solid #ccc;">Item Description</td>
+            <td style="padding: 8px; border: 1px solid #ccc;">Quantity</td>
+            <td style="padding: 8px; border: 1px solid #ccc;">Ship To Location</td>
+        </tr>
+
+        <apex:repeat value="{!TradeInLineItems}" var="li">
+            <tr>
+                <td style="padding: 8px; border: 1px solid #ccc;">
+                    <apex:outputText value="{!li.itemNumber}"/>
+                </td>
+                <td style="padding: 8px; border: 1px solid #ccc;">
+                    <apex:outputText value="{!li.lineNumber}"/>
+                </td>
+                <td style="padding: 8px; border: 1px solid #ccc;">
+                    <apex:outputText value="{!li.itemDescription}"/>
+                </td>
+                <td style="padding: 8px; border: 1px solid #ccc;">
+                    <apex:outputText value="{!li.qty}"/>
+                </td>
+                <td style="padding: 8px; border: 1px solid #ccc;">
+                    <apex:outputPanel rendered="{!LEN(TRIM(li.street)) > 0}" layout="none">
+                        <apex:outputText value="{!TRIM(li.street)}"/>
+                    </apex:outputPanel>
+                    <apex:outputPanel rendered="{!LEN(TRIM(li.city)) > 0}" layout="none">
+                        <apex:outputText value=", {!TRIM(li.city)}"/>
+                    </apex:outputPanel><apex:outputPanel rendered="{!LEN(TRIM(li.state)) > 0}" layout="none">
+                        <apex:outputText value=", {!TRIM(li.state)}"/>
+                    </apex:outputPanel>
+                    <apex:outputPanel rendered="{!LEN(TRIM(li.postalCode)) > 0}" layout="none">
+                        <apex:outputText value=", {!TRIM(li.postalCode)}"/>
+                    </apex:outputPanel><apex:outputPanel rendered="{!LEN(TRIM(li.country)) > 0}" layout="none">
+                        <apex:outputText value=", {!TRIM(li.country)}"/>
+                    </apex:outputPanel>
+                </td>
+            </tr>
+        </apex:repeat>
+    </table>
+    <p style="font-weight: bold;">
+        Please remove pads prior to trade-in pickup of Procedural Table.
+    </p>
+        <br/>
+        
+	 
+    Your local STERIS representative will reach out to schedule trade-in pickup.<br/><br/>
+        </apex:outputPanel>
+    <p>
+        <br/>
+    Please review the current instructions below and confirm accuracy.
+    <br/>
+        </p>     
+         
+        <div style="max-width:982px;">
+            <p style="margin:0;">
+                <span style="font-weight:bold;">Carrier Instructions: &nbsp;</span>
+               
+                <apex:outputText value="{!shippingInstructions}"/>
+            </p>
+        </div>
+        <br/>
+    
+	<table width="982" style="border-collapse: collapse; font-family: Arial, sans-serif;">
+            <tr style="background-color: #4F81BD; color: white; font-weight: bold;">
+                <th>Standard Size<br/>Dock<br/><span class="muted">Y/N</span></th>
+                <th>Accommodate Tractor<br/>Trailer<br/><span class="muted">Y/N</span></th>
+                <th>Inside<br/>Delivery<br/><span class="muted">Y/N</span></th>
+                <th>Liftgate<br/>Required<br/><span class="muted">Y/N</span></th>
+            </tr >
+            <tr style="padding: 8px; border: 1px solid #ccc;">
+                <td style="padding: 8px; border: 1px solid #ccc;"><apex:outputText value="{!standardDocSize}"/></td>
+                <td style="padding: 8px; border: 1px solid #ccc;"><apex:outputText value="{!tractorTrailer}"/></td>
+                <td style="padding: 8px; border: 1px solid #ccc;"><apex:outputText value="{!insideDeliveryreq}"/></td>
+                <td style="padding: 8px; border: 1px solid #ccc;"><apex:outputText value="{!liftgate}"/></td>
+            </tr>
+        </table><br/>
+
+         
+    <p>Please let us know if you have any questions.</p>
+
+        <p>Thank you,</p>
+    
+       <apex:outputText value="{!EmailSignature}" escape="false"/><br/><br/>
+     
+    <c:ReplyThreadInternalExternal caseId1="{!caseId}"
+            threadType1="External"
+        />
+
+</apex:component>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ApexComponent xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>66.0</apiVersion>
+    <description>GW-6257: Inspected Asset and Do Not Use Assets tables for the CRSS On Location End of Day Report email.</description>
+    <label>On Location CRSS End of Day Report Tables</label>
+</ApexComponent>

@@ -1,0 +1,49 @@
+.epp-modal {
+    width: 90%;
+    max-width: 80rem;
+}
+
+.epp-detail-modal {
+    width: 90%;
+    max-width: 64rem;
+}
+
+.epp-detail-content {
+    max-height: 65vh;
+    overflow-y: auto;
+}
+
+.detail-section + .detail-section {
+    margin-top: 1rem;
+}
+
+.detail-section-title {
+    background: var(--lwc-colorBackgroundAlt, #f3f3f3);
+    border-radius: 0.25rem;
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    padding: 0.5rem 0.75rem;
+}
+
+.search-row {
+    display: flex;
+    align-items: end;
+    gap: 1rem;
+}
+
+.search-input {
+    flex: 1 1 auto;
+}
+
+.existing-products-scroll {
+    overflow-x: auto;
+}
+
+.selected-products-scroll {
+    overflow-x: auto;
+}
+
+.selected-products-scroll table {
+    min-width: 72rem;
+}

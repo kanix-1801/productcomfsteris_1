@@ -1,0 +1,13 @@
+<aura:component implements="force:lightningQuickActionWithoutHeader,force:hasRecordId" access="global">
+    <aura:html tag="style">
+        .slds-modal { visibility: hidden; display: none; }
+        .slds-backdrop { display: none; }
+    </aura:html>
+
+    <aura:handler name="init" value="{!this}" action="{!c.doInit}"/>
+
+    <lightning:quickActionAPI aura:id="quickActionAPI"/>
+    <lightning:navigation aura:id="navService"/>
+
+    <c:taskQuickAction hardcodedValue = "French" recordId="{!v.recordId}" oncomplete="{!c.handleComplete}"/>
+</aura:component>

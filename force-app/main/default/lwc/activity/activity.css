@@ -1,0 +1,230 @@
+.activity-card {
+background: #ffffff;
+border: 1px solid #d8dde6;
+border-radius: 4px;
+}
+
+/* Activity Buttons */
+
+.activity-actions {
+display: flex;
+gap: 12px;
+padding: 16px;
+}
+
+.action-button {
+display: flex;
+align-items: center;
+background: #ffffff;
+border: 1px solid #c9c9c9;
+border-radius: 24px;
+overflow: hidden;
+min-height: 40px;
+}
+
+.action-main {
+width: 72px;
+display: flex;
+justify-content: center;
+align-items: center;
+padding: 6px 12px;
+}
+
+.action-arrow {
+width: 36px;
+border-left: 1px solid #d8dde6;
+display: flex;
+justify-content: center;
+align-items: center;
+}
+
+.icon-box {
+width: 28px;
+height: 28px;
+border-radius: 4px;
+display: flex;
+justify-content: center;
+align-items: center;
+}
+
+.task-icon {
+background: #2e844a;
+}
+
+.email-icon {
+background: #919191;
+}
+
+.white-icon {
+--slds-c-icon-color-foreground-default: white;
+}
+
+/* Filters */
+
+.filter-row {
+display: flex;
+justify-content: flex-end;
+align-items: center;
+gap: 12px;
+padding: 0 16px 12px;
+}
+
+.filter-text {
+color: #706e6b;
+font-size: 12px;
+}
+
+/* Toolbar */
+
+.toolbar {
+display: flex;
+justify-content: flex-end;
+gap: 8px;
+padding: 0 16px 12px;
+font-size: 13px;
+}
+
+.toolbar a {
+color: #0176d3;
+text-decoration: none;
+}
+
+.toolbar a:hover {
+text-decoration: underline;
+}
+
+/* Accordion Header */
+
+.section-header {
+display: flex;
+align-items: center;
+gap: 8px;
+background: #f3f3f3;
+padding: 12px 16px;
+font-weight: 600;
+cursor: pointer;
+}
+
+.section-header:hover {
+background: #ecebea;
+}
+
+/* Timeline */
+
+.timeline {
+padding: 8px 0;
+}
+
+.timeline-row {
+position: relative;
+display: flex;
+align-items: flex-start;
+padding: 12px 16px 28px;
+}
+
+/* Vertical connector */
+
+.timeline-row:not(:last-child)::after {
+content: '';
+position: absolute;
+left: 73px;
+top: 42px;
+width: 2px;
+height: 58px;
+background: #d8dde6;
+}
+
+/* Left section */
+
+.timeline-left {
+display: flex;
+align-items: center;
+min-width: 100px;
+}
+
+.timeline-icon {
+width: 32px;
+height: 32px;
+margin-left: 14px;
+border-radius: 50%;
+background: #ecebea;
+display: flex;
+justify-content: center;
+align-items: center;
+}
+
+/* Middle section */
+
+.timeline-content {
+flex: 1;
+}
+
+.subject {
+font-size: 16px;
+font-weight: 600;
+}
+
+.activity-link {
+color: #0176d3;
+cursor: pointer;
+}
+
+.activity-link:hover {
+text-decoration: underline;
+}
+
+.description {
+font-size: 14px;
+color: #706e6b;
+margin-top: 4px;
+}
+
+/* Right section */
+
+.timeline-actions {
+display: flex;
+align-items: center;
+gap: 16px;
+min-width: 130px;
+justify-content: flex-end;
+}
+
+.timeline-date {
+font-size: 14px;
+white-space: nowrap;
+}
+
+.overdue {
+color: #c23934;
+font-weight: 700;
+}
+
+/* View More */
+
+.view-more {
+text-align: center;
+padding: 8px 0 20px;
+}
+
+.view-more-btn {
+background: white;
+border: 1px solid #c9c9c9;
+border-radius: 24px;
+padding: 8px 28px;
+cursor: pointer;
+font-weight: 600;
+}
+
+.view-more-btn:hover {
+background: #f3f3f3;
+}
+
+/* Footer */
+
+.footer {
+border-top: 1px solid #d8dde6;
+padding: 18px;
+text-align: center;
+color: #706e6b;
+font-size: 13px;
+}

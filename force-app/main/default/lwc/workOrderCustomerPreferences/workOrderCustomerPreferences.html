@@ -1,0 +1,116 @@
+<template>
+    <template lwc:if={shouldRenderCard}>
+        <lightning-card title={cardTitle} icon-name="standard:related_list">
+            <lightning-button-icon
+                slot="actions"
+                icon-name="utility:refresh"
+                alternative-text="Refresh"
+                title="Refresh"
+                onclick={handleRefresh}
+                disabled={isLoading}
+            ></lightning-button-icon>
+
+            <div class="slds-p-horizontal_small slds-p-bottom_small card-body">
+                <template lwc:if={isLoading}>
+                    <div class="slds-is-relative slds-p-around_medium">
+                        <lightning-spinner
+                            alternative-text="Loading"
+                            size="small"
+                        ></lightning-spinner>
+                    </div>
+                </template>
+                <template lwc:elseif={hasError}>
+                    <div class="slds-text-color_error" role="alert">{errorMessage}</div>
+                </template>
+                <template lwc:else>
+                    <c-customer-preferences-table
+                        preferences={previewPreferences}
+                        variant="card"
+                    ></c-customer-preferences-table>
+                </template>
+            </div>
+
+            <template lwc:if={showViewAll}>
+                <div slot="footer" class="slds-text-align_center">
+                    <a href="javascript:void(0);" onclick={handleViewAll}>{viewAllLabel}</a>
+                </div>
+            </template>
+        </lightning-card>
+    </template>
+
+    <template lwc:if={shouldRenderFullPage}>
+        <div class="full-page">
+            <div class="slds-page-header full-page__header">
+                <div class="slds-page-header__row">
+                    <div class="slds-page-header__col-title">
+                        <nav class="breadcrumb" aria-label="Breadcrumbs">
+                            <ol class="breadcrumb__list">
+                                <li class="breadcrumb__item">
+                                    <span class="breadcrumb__plain">Work Orders</span>
+                                </li>
+                                <li class="breadcrumb__item" aria-hidden="true">
+                                    <span class="breadcrumb__separator">&gt;</span>
+                                </li>
+                                <li class="breadcrumb__item">
+                                    <a
+                                        class="breadcrumb__link"
+                                        href={workOrderUrl}
+                                        onclick={handleBackToWorkOrder}
+                                    >
+                                        {workOrderBreadcrumbLabel}
+                                    </a>
+                                </li>
+                            </ol>
+                        </nav>
+
+                        <div class="slds-media slds-media_center">
+                            <div class="slds-media__figure">
+                                <lightning-icon
+                                    icon-name="standard:related_list"
+                                    size="medium"
+                                    alternative-text="Customer Preferences"
+                                ></lightning-icon>
+                            </div>
+                            <div class="slds-media__body">
+                                <h1 class="slds-page-header__title slds-truncate">
+                                    Customer Preferences
+                                </h1>
+                                <p class="slds-text-body_small slds-text-color_weak">
+                                    {itemCountLabel}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="slds-page-header__col-actions">
+                        <lightning-button-icon
+                            icon-name="utility:refresh"
+                            alternative-text="Refresh"
+                            title="Refresh"
+                            onclick={handleRefresh}
+                            disabled={isLoading}
+                        ></lightning-button-icon>
+                    </div>
+                </div>
+            </div>
+
+            <div class="full-page__body">
+                <template lwc:if={isLoading}>
+                    <div class="slds-is-relative slds-p-around_large">
+                        <lightning-spinner
+                            alternative-text="Loading"
+                            size="small"
+                        ></lightning-spinner>
+                    </div>
+                </template>
+                <template lwc:elseif={hasError}>
+                    <div class="slds-text-color_error" role="alert">{errorMessage}</div>
+                </template>
+                <template lwc:else>
+                    <c-customer-preferences-table
+                        preferences={preferences}
+                    ></c-customer-preferences-table>
+                </template>
+            </div>
+        </div>
+    </template>
+</template>

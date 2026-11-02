@@ -1,0 +1,53 @@
+<template>
+    <div class="slds-form-element slds-form-element_horizontal slds-form-element_readonly slds-m-bottom_none">
+        <span class="slds-form-element__label">{label}</span>
+        <div class="slds-form-element__control">
+            <div class="slds-form-element__static slds-grid slds-grid_vertical-align-center">
+                <div class="slds-col slds-grow">
+                    <template if:true={hasDateTime}>
+                        <lightning-formatted-date-time
+                            value={dateTimeValue}
+                            year="numeric"
+                            month="numeric"
+                            day="numeric"
+                            hour="numeric"
+                            minute="2-digit">
+                        </lightning-formatted-date-time>
+                    </template>
+                    <template if:true={hasDate}>
+                        <lightning-formatted-date-time
+                            value={dateValue}
+                            year="numeric"
+                            month="numeric"
+                            day="numeric"
+                            time-zone="UTC">
+                        </lightning-formatted-date-time>
+                    </template>
+                    <template if:true={hasText}>
+                        <lightning-formatted-text value={value} linkify></lightning-formatted-text>
+                    </template>
+                </div>
+                <div class="slds-col slds-grow-none slds-p-left_x-small">
+                    <template if:true={isEditable}>
+                        <lightning-button-icon
+                            icon-name="utility:edit"
+                            variant="bare"
+                            size="small"
+                            alternative-text={label}
+                            title="Edit"
+                            onclick={handleEdit}>
+                        </lightning-button-icon>
+                    </template>
+                    <template if:false={isEditable}>
+                        <lightning-icon
+                            icon-name="utility:lock"
+                            size="xx-small"
+                            alternative-text="Read only"
+                            title="Read only">
+                        </lightning-icon>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>

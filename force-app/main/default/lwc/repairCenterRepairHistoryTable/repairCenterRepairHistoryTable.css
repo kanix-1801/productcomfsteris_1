@@ -1,0 +1,27 @@
+:host {
+    display: block;
+}
+
+table thead th {
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.notes-cell {
+    max-width: 14rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.repair-code-chip {
+    display: inline-block;
+    margin: 0.125rem 0.25rem 0.125rem 0;
+    padding: 0.125rem 0.5rem;
+    border: 1px solid #dddbda;
+    border-radius: 1rem;
+    background: #f3f3f3;
+    font-size: 0.75rem;
+    line-height: 1.25;
+    white-space: nowrap;
+}

@@ -1,0 +1,237 @@
+.fsr {
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 10px;
+    color: #000;
+    line-height: 1.3;
+}
+
+.error {
+    color: #c23934;
+    font-size: 12px;
+}
+
+/* "Page x of y" in the top-right page margin of every PDF page (CSS paged media margin box) */
+@page {
+    @top-right {
+        content: 'Page ' counter(page) ' of ' counter(pages);
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 9px;
+    }
+}
+
+/* Page layout: thead repeats on every printed page */
+.page {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 10px;
+}
+
+.page-header {
+    display: table-header-group;
+}
+
+.page > thead > tr > td.page-cell,
+.page > tbody > tr > td.page-cell {
+    border: none;
+    padding: 0;
+}
+
+/* The body row spans pages; the generic "tr { avoid }" rule must not apply to it */
+.page > tbody > tr {
+    page-break-inside: auto;
+    break-inside: auto;
+}
+
+/* Header */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 14px;
+}
+
+.header-entity {
+    flex: 1 1 40%;
+    font-size: 9px;
+}
+
+.header-title {
+    flex: 1 1 35%;
+    text-align: center;
+    padding-top: 20px;
+}
+
+.title {
+    display: inline-block;
+    background: #00007f;
+    color: #fff;
+    font-size: 18px;
+    font-weight: bold;
+    padding: 2px 8px;
+}
+
+.header-meta {
+    flex: 1 1 25%;
+    text-align: right;
+    font-size: 9px;
+}
+
+/* Section bands */
+.band {
+    background: #0070c0;
+    color: #fff;
+    text-align: center;
+    font-size: 14px;
+    font-weight: bold;
+    padding: 2px 0;
+    margin-top: 12px;
+}
+
+.subband {
+    background: #b4c6e7;
+    text-align: center;
+    font-size: 12px;
+    font-weight: bold;
+    padding: 1px 0;
+    margin-bottom: 2px;
+}
+
+/* Customer details */
+.details {
+    display: flex;
+    border: 1px solid #b4c6e7;
+}
+
+.details-col {
+    flex: 1 1 33%;
+    border-right: 1px solid #b4c6e7;
+    padding-bottom: 4px;
+}
+
+.details-col:last-child {
+    border-right: none;
+}
+
+.kv {
+    display: flex;
+    page-break-inside: avoid;
+}
+
+.k {
+    flex: 0 0 42%;
+    text-align: right;
+    font-weight: bold;
+    padding-right: 6px;
+}
+
+.v {
+    flex: 1 1 auto;
+    word-break: break-word;
+}
+
+/* Record */
+.record {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 14px;
+}
+
+.record-right {
+    text-align: right;
+}
+
+.service-needed {
+    margin-top: 10px;
+}
+
+/* Charge tables */
+.table-title {
+    font-weight: bold;
+    font-size: 11px;
+    margin: 12px 0 4px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th {
+    background: #b4c6e7;
+    text-align: left;
+    padding: 2px 4px;
+}
+
+td {
+    border: 1px solid #b4c6e7;
+    padding: 2px 4px;
+    vertical-align: top;
+}
+
+tr {
+    page-break-inside: avoid;
+}
+
+.none {
+    font-style: italic;
+    color: #555;
+}
+
+.num {
+    text-align: right;
+}
+
+.grand-total {
+    display: flex;
+    justify-content: flex-end;
+    gap: 30px;
+    font-weight: bold;
+    font-size: 11px;
+    margin-top: 10px;
+}
+
+.prices-hidden {
+    text-align: right;
+    font-style: italic;
+    margin-top: 10px;
+}
+
+/* Resolution and footer */
+.resolution {
+    margin-top: 14px;
+}
+
+.signature {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-top: 14px;
+    page-break-inside: avoid;
+}
+
+.authorizing {
+    font-style: italic;
+    margin-left: 80px;
+}
+
+.signature-box {
+    width: 200px;
+    text-align: center;
+}
+
+.signature-line {
+    height: 36px;
+}
+
+.signature-caption {
+    font-weight: bold;
+}
+
+.footer {
+    border-top: 1px solid #000;
+    margin-top: 20px;
+    padding-top: 4px;
+    font-style: italic;
+    font-weight: bold;
+}

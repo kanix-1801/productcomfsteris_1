@@ -1,0 +1,41 @@
+<template>
+    <div class="container full-width">
+        <lightning-card title="Applicable Order Lines" icon-name="standard:orders">
+            <!-- Loading State -->
+            <template if:true={isLoading}>
+                <div class="slds-p-around_small slds-grid slds-grid_align-spread slds-grid_vertical-align-center">
+                    <lightning-spinner alternative-text="Loading" size="medium"></lightning-spinner>
+                </div>
+            </template>
+
+            <!-- Data Table -->
+            <template if:true={hasRecords}>
+                <div class="slds-p-around_small slds-scrollable_y" style="max-height: 300px;">
+                    <lightning-datatable
+                        key-field="Id"
+                        data={orderLines}
+                        columns={columns}
+                        hide-checkbox-column
+                        class="slds-m-top_x-small">
+                    </lightning-datatable>
+                </div>
+            </template>
+
+            <!-- Empty State -->
+            <template if:false={hasRecords}>
+                <template if:false={isLoading}>
+                    <div class="slds-text-align_center slds-p-vertical_large slds-p-horizontal_small">
+                        <p class="slds-text-color_weak">No applicable Order Lines found.</p>
+                    </div>
+                </template>
+            </template>
+
+            <!-- Error State -->
+            <template if:true={error}>
+                <div class="slds-text-color_error slds-p-around_small">
+                    Error loading Order Lines. Please contact your admin.
+                </div>
+            </template>
+        </lightning-card>
+    </div>
+</template>

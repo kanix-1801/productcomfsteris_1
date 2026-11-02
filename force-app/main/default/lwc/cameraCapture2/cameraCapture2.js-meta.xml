@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>65.0</apiVersion>
+    <isExposed>true</isExposed>
+    <masterLabel>Camera Capture 2</masterLabel>
+    <description>Captures photos via native device camera (iOS/Android) with HTML5 fallback. Saves images to Salesforce Files.</description>
+
+    <targets>
+        <!-- Record pages — auto-receives recordId -->
+        <target>lightning__RecordPage</target>
+        <!-- App / Home pages -->
+        <target>lightning__AppPage</target>
+        <target>lightning__HomePage</target>
+        <!-- Flows -->
+        <target>lightning__FlowScreen</target>
+        <!-- Utility bar -->
+        <target>lightning__UtilityBar</target>
+    </targets>
+
+    <targetConfigs>
+        <targetConfig targets="lightning__RecordPage">
+            <supportedFormFactors>
+                <supportedFormFactor type="Large" />
+                <supportedFormFactor type="Small" />
+            </supportedFormFactors>
+            <!-- <property name="cardTitle"
+                      type="String"
+                      label="Card Title"
+                      default="Camera Capture"
+                      description="Title displayed on the card header." />
+            <property name="imageQuality"
+                      type="Integer"
+                      label="Image Quality (0-100)"
+                      default="75"
+                      description="JPEG quality for native capture. 0 = lowest, 100 = highest." />
+            <property name="maxWidth"
+                      type="Integer"
+                      label="Max Image Width (px)"
+                      default="1920"
+                      description="Maximum width in pixels. The image will be resized proportionally." />
+            <property name="maxHeight"
+                      type="Integer"
+                      label="Max Image Height (px)"
+                      default="1080"
+                      description="Maximum height in pixels." /> -->
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

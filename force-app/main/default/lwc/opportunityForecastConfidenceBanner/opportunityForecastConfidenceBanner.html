@@ -1,0 +1,139 @@
+<template>
+    <template lwc:if={isVisible}>
+        <div class="slds-scoped-notification slds-scoped-notification_warning slds-m-bottom_small" role="status">
+            <div class="slds-media slds-media_center">
+                <div class="slds-media__figure">
+                    <lightning-icon
+                        icon-name="utility:warning"
+                        alternative-text="Warning"
+                        size="x-small"
+                        variant="warning">
+                    </lightning-icon>
+                </div>
+                <div class="slds-media__body">
+                    <p class="slds-text-body_small">
+                        <strong>{bannerTitle}.</strong> {bannerMessage}
+                    </p>
+                    <p class="slds-text-body_small banner-submessage">
+                        Opportunity Forecast Confidence: <strong>{opportunityForecastConfidence}</strong>
+                    </p>
+                </div>
+                <div class="slds-media__figure slds-media__figure_reverse banner-actions">
+                    <lightning-button
+                        label="Review Quotes"
+                        title="Review associated quotes"
+                        variant="neutral"
+                        onclick={handleOpenModal}
+                        disabled={isBusy}>
+                    </lightning-button>
+                    <lightning-button
+                        label="Dismiss"
+                        title="Hide until you reload or open this record again"
+                        variant="neutral"
+                        class="slds-m-left_x-small"
+                        onclick={handleDismiss}
+                        disabled={isBusy}>
+                    </lightning-button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <template lwc:if={showPropagateModal}>
+        <section
+            role="dialog"
+            tabindex="-1"
+            aria-modal="true"
+            aria-labelledby="forecast-propagate-modal-heading"
+            class="slds-modal slds-fade-in-open"
+            onkeydown={handleModalKeyDown}>
+            <div class="slds-modal__container propagate-modal-container">
+                <header class="slds-modal__header">
+                    <h2 id="forecast-propagate-modal-heading" class="slds-modal__title slds-hyphenate">
+                        Propagate Forecast Confidence to Quotes
+                    </h2>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium modal-content">
+                    <template lwc:if={isPropagating}>
+                        <lightning-spinner
+                            alternative-text="Saving"
+                            size="small"
+                            class="modal-spinner">
+                        </lightning-spinner>
+                    </template>
+                    <p class="modal-message">
+                        Select the associated quotes that should receive the updated Quote Forecast Confidence value.
+                    </p>
+                    <div class="quote-table-wrapper slds-m-top_small">
+                        <table class="slds-table slds-table_cell-buffer slds-table_bordered slds-table_fixed-layout quote-table">
+                            <colgroup>
+                                <col class="col-select" />
+                                <col class="col-quote-number" />
+                                <col class="col-status" />
+                                <col class="col-current-confidence" />
+                                <col class="col-updated-confidence" />
+                            </colgroup>
+                            <thead>
+                                <tr class="slds-line-height_reset">
+                                    <th scope="col" class="col-select">
+                                        <lightning-input
+                                            type="checkbox"
+                                            label="Select all quotes"
+                                            variant="label-hidden"
+                                            checked={allSelected}
+                                            disabled={isBusy}
+                                            onchange={handleSelectAllChange}>
+                                        </lightning-input>
+                                    </th>
+                                    <th scope="col">Quote Number</th>
+                                    <th scope="col">Status</th>
+                                    <th scope="col">Current Quote Forecast Confidence</th>
+                                    <th scope="col">Updated Quote Forecast Confidence</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template for:each={quoteRows} for:item="quote">
+                                    <tr key={quote.id}>
+                                        <td class="col-select">
+                                            <lightning-input
+                                                type="checkbox"
+                                                label={quote.quoteNumber}
+                                                variant="label-hidden"
+                                                data-id={quote.id}
+                                                checked={quote.selected}
+                                                disabled={isBusy}
+                                                onchange={handleQuoteSelectionChange}>
+                                            </lightning-input>
+                                        </td>
+                                        <td>
+                                            <div class="truncate" title={quote.quoteNumber}>{quote.quoteNumber}</div>
+                                        </td>
+                                        <td>{quote.status}</td>
+                                        <td>{quote.currentForecastConfidence}</td>
+                                        <td>{quote.pendingForecastConfidence}</td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <footer class="slds-modal__footer">
+                    <lightning-button
+                        label="Cancel"
+                        onclick={handleCloseModal}
+                        disabled={isBusy}>
+                    </lightning-button>
+                    <lightning-button
+                        variant="brand"
+                        label="Propagate to Selected Quotes"
+                        class="slds-m-left_x-small"
+                        onclick={handlePropagate}
+                        disabled={propagateDisabled}
+                        is-loading={isPropagating}>
+                    </lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open"></div>
+    </template>
+</template>

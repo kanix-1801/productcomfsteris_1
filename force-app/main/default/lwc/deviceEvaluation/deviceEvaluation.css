@@ -1,0 +1,1039 @@
+:host {
+    display: block;
+}
+
+/*
+ * Workspace mode: host height is set inline from JS (remaining viewport /
+ * scroll-parent space). Do not use 100vh — LEX chrome varies and overflows
+ * into the page scroller (one bar over header + panel).
+ */
+:host(.is-evaluation) {
+    display: flex;
+    flex-direction: column;
+    height: var(--de-available-height, 70vh);
+    max-height: var(--de-available-height, 70vh);
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+.device-evaluation-root {
+    position: relative;
+}
+
+/* Match Assign Technician / Assign Rack scan card width (Hadar). */
+.device-evaluation-root_scan {
+    max-width: 40rem;
+}
+
+.device-evaluation-root_eval {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    max-height: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+}
+
+.camera-modal {
+    z-index: 9001;
+}
+
+.camera-modal-backdrop {
+    z-index: 9000;
+}
+
+.evaluation-content {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    max-height: 100%;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    overflow: hidden;
+    background: #ffffff;
+}
+
+.workspace-shell {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+    gap: 0;
+    background: #ffffff;
+}
+
+.workspace-nav {
+    flex: 0 0 14rem;
+    width: 14rem;
+    max-width: 16rem;
+    height: 100%;
+    max-height: 100%;
+    min-height: 0;
+    border-right: 1px solid #dddbda;
+    background: #ffffff;
+    padding: 0.75rem 0.5rem;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    box-sizing: border-box;
+}
+
+.workspace-main {
+    flex: 1 1 auto;
+    min-width: 0; /* required so header/panel can scroll instead of expanding */
+    min-height: 0;
+    height: 100%;
+    max-height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #ffffff;
+}
+
+/*
+ * Shared horizontal inset for sticky header + details panel so both
+ * header-edit-grid instances share the same content width and value column.
+ */
+.workspace-header,
+.workspace-panel {
+    padding-left: 1rem;
+    padding-right: 1rem;
+    box-sizing: border-box;
+}
+
+.workspace-header {
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    padding-top: 0.75rem;
+    padding-bottom: 0.5rem;
+    /* Clip here so wide sticky fields cannot expand the flex parent and get
+       silently cut off by .workspace-main { overflow: hidden }. */
+    overflow-x: hidden;
+    overflow-y: visible;
+    position: relative;
+    z-index: 3;
+    border-bottom: 2px solid #706e6b;
+    background: #ffffff;
+}
+
+.workspace-header__title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.workspace-header__title-text {
+    min-width: 0;
+}
+
+.workspace-header__title-heading {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.workspace-header__title-heading h3 {
+    margin-bottom: 0;
+}
+
+/*
+ * Scrollport for sticky fields only (action buttons stay put).
+ * Must stay width-bounded (min-width:0). Child must be width:max-content
+ * or iPad clips with no scrollbar.
+ */
+.header-edit-scroll {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: scroll;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    touch-action: pan-x pinch-zoom;
+    padding-bottom: 0.65rem;
+    margin-bottom: 0.15rem;
+    scrollbar-width: auto;
+    scrollbar-color: #706e6b #e5e5e5;
+}
+
+.header-edit-scroll::-webkit-scrollbar {
+    height: 0.75rem;
+    -webkit-appearance: none;
+    display: block;
+}
+
+.header-edit-scroll::-webkit-scrollbar-track {
+    background: #e5e5e5;
+    border-radius: 0.25rem;
+}
+
+.header-edit-scroll::-webkit-scrollbar-thumb {
+    background: #706e6b;
+    border-radius: 0.25rem;
+}
+
+/*
+ * ALWAYS size to the grid (max-content). min-width:100% only stretches when
+ * the viewport is wider than the fields so desktop gutters can balance.
+ */
+.header-edit-scroll-inner {
+    display: block;
+    width: max-content;
+    min-width: 100%;
+    max-width: none;
+    box-sizing: border-box;
+}
+
+.workspace-nav__action {
+    display: block;
+    width: 100%;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+/*
+ * Only the active item keeps the SLDS highlight. Non-active hover/focus must not
+ * look selected — iOS often leaves :hover/:focus stuck after a tap.
+ */
+.workspace-nav .slds-nav-vertical__item:not(.slds-is-active) .workspace-nav__action:hover,
+.workspace-nav .slds-nav-vertical__item:not(.slds-is-active) .workspace-nav__action:focus,
+.workspace-nav .slds-nav-vertical__item:not(.slds-is-active) .workspace-nav__action:focus-visible,
+.workspace-nav .slds-nav-vertical__item:not(.slds-is-active) .workspace-nav__action:active {
+    background-color: transparent;
+    color: inherit;
+    box-shadow: none;
+    outline: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .workspace-nav .slds-nav-vertical__item:not(.slds-is-active) .workspace-nav__action:hover {
+        background-color: #f3f3f3;
+    }
+}
+
+.workspace-error-banner {
+    flex: 0 0 auto;
+    margin: 0.5rem 0.75rem 0;
+}
+
+.workspace-action-row {
+    position: relative;
+    z-index: 1;
+    margin-top: 0.75rem;
+    padding-top: 0.25rem;
+}
+
+.workspace-header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.workspace-header-actions_left {
+    justify-content: flex-start;
+}
+
+.workspace-nav__mark-all-ok {
+    padding: 0 0.5rem 0.75rem;
+    margin-bottom: 0.5rem;
+    border-bottom: 1px solid #dddbda;
+}
+
+.mark-all-ok-toggle {
+    --slds-c-checkbox-toggle-color-background-checked: #0176d3;
+    white-space: nowrap;
+}
+
+.standard-detail-form {
+    width: 100%;
+}
+
+.standard-detail-form lightning-output-field {
+    display: block;
+    /* Match Asset Information bold field labels. */
+    --slds-c-form-element-label-font-weight: 700;
+}
+
+/*
+ * Detail rows — match IE Work Order Information (also Contamination / Asset / header).
+ */
+.detail-grid {
+    width: 100%;
+}
+
+.detail-grid__col {
+    width: 50%;
+    max-width: 50%;
+    flex: 0 0 50%;
+    box-sizing: border-box;
+}
+
+.detail-row {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    width: 100%;
+    min-height: 2rem;
+    margin: 0;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid #e5e5e5;
+    box-sizing: border-box;
+}
+
+.detail-row__label {
+    flex: 0 1 auto;
+    margin: 0;
+    padding: 0;
+    color: #181818;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.detail-row__value {
+    flex: 0 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-width: 0;
+    font-size: 0.8125rem;
+    font-weight: 400;
+    line-height: 1.25;
+    color: #181818;
+    text-align: right;
+}
+
+.detail-row__value_grow {
+    flex: 1 1 auto;
+    max-width: 60%;
+}
+
+.detail-row__value_grow .sticky-field__control,
+.detail-row__value_grow select,
+.detail-row__value_grow input.sticky-field__control {
+    width: 100%;
+}
+
+.detail-grid_header .detail-grid__col_3 {
+    width: 33.333%;
+    max-width: 33.333%;
+    flex: 0 0 33.333%;
+    box-sizing: border-box;
+}
+
+@media (max-width: 47.9375em) {
+    .detail-grid_header .detail-grid__col_3 {
+        width: 100%;
+        max-width: 100%;
+        flex: 0 0 100%;
+    }
+
+    .detail-row__value_grow {
+        max-width: none;
+    }
+}
+
+.asset-detail-form__col {
+    width: 50%;
+    max-width: 50%;
+    flex: 0 0 50%;
+    box-sizing: border-box;
+}
+
+/*
+ * Default 2-col grid (WO Details). Sticky header uses header-edit-grid_3col.
+ */
+.header-edit-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 1.5rem;
+    row-gap: 0;
+    margin-bottom: 0.25rem;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.header-edit-grid_3col {
+    --de-sticky-label-width: 10rem;
+    --de-sticky-control-width: 22rem;
+    /*
+     * Fixed track sizes (not 1fr) so inputs cannot stretch.
+     * width:max-content drives the horizontal scroller; min-width:100% +
+     * space-between balances gutters only when there is leftover room.
+     */
+    grid-template-columns:
+        calc(var(--de-sticky-label-width) + 0.5rem + var(--de-sticky-control-width))
+        max-content
+        calc(var(--de-sticky-label-width) + 0.5rem + var(--de-sticky-control-width));
+    justify-content: space-between;
+    column-gap: 2rem;
+    margin-bottom: 0.5rem;
+    width: max-content;
+    min-width: 100%;
+    max-width: none;
+    box-sizing: border-box;
+}
+
+/*
+ * Dedicated sticky field layout (avoids SLDS horizontal form).
+ * Fixed label + control widths — controls must not grow with the viewport.
+ */
+.sticky-field {
+    /* Height pixel-locked; width fits longest Sub Status (+ caret padding). */
+    --de-sticky-control-height: 24px;
+    /* Longest: "Waiting for Approval (Estimate Sent)" (36 chars) */
+    --de-sticky-control-width: 22rem;
+    --de-sticky-control-border: #747474;
+    --de-sticky-control-font-size: 13px;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.5rem;
+    width: max-content;
+    min-width: max-content;
+    max-width: max-content;
+    margin: 0;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid #e5e5e5;
+    box-sizing: border-box;
+}
+
+.sticky-field__label {
+    flex: 0 0 var(--de-sticky-label-width);
+    width: var(--de-sticky-label-width);
+    min-width: var(--de-sticky-label-width);
+    margin: 0;
+    padding: 0;
+    color: var(--slds-g-color-neutral-base-30, #444444);
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sticky-field__value {
+    position: static;
+    flex: 0 0 var(--de-sticky-control-width);
+    width: var(--de-sticky-control-width);
+    min-width: var(--de-sticky-control-width);
+    max-width: var(--de-sticky-control-width);
+    height: var(--de-sticky-control-height);
+    min-height: var(--de-sticky-control-height);
+    max-height: var(--de-sticky-control-height);
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.sticky-field__value_checkbox {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    width: auto;
+    min-width: 1.5rem;
+    max-width: none;
+    height: var(--de-sticky-control-height);
+    min-height: var(--de-sticky-control-height);
+    max-height: none;
+    overflow: visible;
+}
+
+/*
+ * Sub Status / Turn Time / Usage Count — same box via fixed height/width (in flow).
+ */
+.sticky-field__control {
+    display: block;
+    position: static;
+    width: 100% !important;
+    height: var(--de-sticky-control-height) !important;
+    min-height: var(--de-sticky-control-height) !important;
+    max-height: var(--de-sticky-control-height) !important;
+    margin: 0 !important;
+    padding: 0 8px !important;
+    border: 1px solid #747474 !important;
+    border-radius: 4px !important;
+    background-color: #ffffff !important;
+    color: #181818 !important;
+    font-family: inherit !important;
+    font-size: 13px !important;
+    font-weight: 400 !important;
+    line-height: 22px !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    box-sizing: border-box !important;
+}
+
+.sticky-field__control_select {
+    padding-right: 28px !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23706e6b' d='M1 1l5 5 5-5'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 8px center !important;
+    background-size: 10px !important;
+    background-color: #ffffff !important;
+    /* Tablet uses a shorter control; full value remains in the open list. */
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.sticky-field__control:focus {
+    outline: none !important;
+    border-color: #0176d3 !important;
+    box-shadow: 0 0 0 1px #0176d3 !important;
+}
+
+.sticky-field__control:disabled {
+    background-color: #f3f3f3 !important;
+    color: #444444 !important;
+}
+
+.sticky-field__static {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    padding: 0 8px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 22px;
+    color: var(--slds-g-color-neutral-base-10, #181818);
+    box-sizing: border-box;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.header-edit-cell {
+    min-height: 2rem;
+    min-width: max-content;
+    width: max-content;
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
+}
+
+.header-compact-field {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    width: 100%;
+    margin-bottom: 0;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid #e5e5e5;
+    box-sizing: border-box;
+}
+
+/* Fixed label column so right-side values line up top ↔ bottom. */
+.header-compact-field .slds-form-element__label {
+    flex: 0 0 11rem;
+    width: 11rem;
+    max-width: 11rem;
+    float: none;
+    position: relative;
+    z-index: 1;
+    padding-top: 0.45rem;
+    margin-bottom: 0;
+    color: var(--slds-g-color-neutral-base-30, #444444);
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.header-compact-field .slds-form-element__control {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding-left: 0;
+    clear: none;
+    min-height: 1.875rem;
+}
+
+.header-compact-field .slds-form-element__static {
+    min-height: 1.875rem;
+    /* Match lightning-input text inset so read-only values line up with inputs. */
+    padding-top: 0.45rem;
+    padding-bottom: 0.25rem;
+    padding-left: 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 400;
+    color: var(--slds-g-color-neutral-base-10, #181818);
+}
+
+.header-compact-field lightning-input,
+.header-compact-field lightning-combobox {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+}
+
+.header-compact-field__checkbox {
+    display: flex;
+    align-items: center;
+    min-height: 1.875rem;
+    padding-top: 0.2rem;
+}
+
+.header-fields {
+    margin-bottom: 0.25rem;
+}
+
+.workspace-panel .files-table th,
+.workspace-panel .slds-table thead th {
+    font-weight: 700;
+}
+
+/*
+ * Only this panel scrolls. Do not set height:100% here — that overflows
+ * past the sticky header and makes the whole main column scroll.
+ */
+.workspace-panel {
+    position: relative;
+    z-index: 1;
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 0; /* force flex child to take remaining space, not content height */
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    background: #ffffff;
+}
+
+.summary-scroll-spacer {
+    height: 3rem;
+    width: 100%;
+}
+
+.camera-preview {
+    width: 100%;
+    max-width: 100%;
+    min-height: 14rem;
+    background: #080707;
+    border-radius: 0.25rem;
+    object-fit: contain;
+}
+
+.files-table__col-icon {
+    width: 3.5rem;
+}
+
+/* Browser default centers th text. Keep every Photos header left, including Repair Code. */
+table.files-table th,
+table.files-table td {
+    text-align: left;
+}
+
+table.files-table th.files-table__col-actions,
+table.files-table td.files-table__col-actions {
+    width: 4rem;
+    text-align: center;
+}
+
+.files-table__icon-slot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 2.25rem;
+}
+
+.files-table__thumb {
+    display: block;
+    width: 3rem;
+    height: 2.25rem;
+    object-fit: cover;
+    border: 1px solid #d8dde6;
+    border-radius: 0.125rem;
+    background: #f3f3f3;
+}
+
+.photo-title-input_dirty {
+    --slds-c-input-color-border: #0176d3;
+    --slds-c-input-shadow: 0 0 0 1px #0176d3;
+}
+
+.photo-title-save {
+    display: inline-flex;
+}
+
+.photo-title-save_clean {
+    opacity: 0.4;
+}
+
+.photo-title-save_dirty {
+    opacity: 1;
+}
+
+.code-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+    gap: 0.75rem;
+}
+
+.code-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    min-height: 8.5rem;
+    padding: 0.75rem;
+    border: 1px solid #c9c7c5;
+    border-radius: 0.25rem;
+    background: #ffffff;
+    text-align: left;
+    cursor: pointer;
+    color: #080707;
+    box-sizing: border-box;
+}
+
+.code-card:hover,
+.code-card:focus {
+    border-color: #0176d3;
+    box-shadow: 0 0 0 1px #0176d3 inset;
+    outline: none;
+}
+
+.code-card_selected {
+    border-color: #0176d3;
+    background: #ffffff;
+    box-shadow: 0 0 0 1px #0176d3 inset;
+}
+
+.code-card__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.5rem;
+    width: 100%;
+    margin-bottom: 0.35rem;
+}
+
+.code-card__code {
+    font-size: 0.875rem;
+    font-weight: 700;
+    line-height: 1.25;
+    min-width: 0;
+}
+
+.code-card__checkbox {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    border: 1px solid #c9c7c5;
+    border-radius: 0.125rem;
+    background: #f3f3f3;
+    color: #ffffff;
+}
+
+.code-card__checkbox_checked {
+    background: #0176d3;
+    border-color: #0176d3;
+}
+
+.code-card__checkbox_checked lightning-icon {
+    --slds-c-icon-color-foreground-default: #ffffff;
+}
+
+.code-card__name {
+    flex: 1 1 auto;
+    font-size: 0.75rem;
+    line-height: 1.3;
+    color: #3e3e3c;
+}
+
+.code-card__photo-actions {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    margin-top: auto;
+    padding-top: 0.75rem;
+}
+
+.code-card__photo-actions lightning-button {
+    width: auto;
+}
+
+/*
+ * Tablet / iPad (incl. landscape): tighter fixed fields so the strip can fit
+ * or scroll horizontally. Do not stretch inputs with 1fr.
+ */
+@media (max-width: 1200px) {
+    .header-edit-scroll-inner {
+        /* Pack to content — do not stretch to 100% (that killed overflow-x). */
+        width: max-content;
+        min-width: max-content;
+    }
+
+    .header-edit-grid_3col {
+        --de-sticky-label-width: 7rem;
+        --de-sticky-control-width: 12rem;
+        grid-template-columns:
+            calc(7rem + 0.5rem + 12rem)
+            max-content
+            calc(7rem + 0.5rem + 12rem);
+        justify-content: start;
+        column-gap: 1.25rem;
+        width: max-content;
+        min-width: max-content;
+    }
+
+    .sticky-field {
+        --de-sticky-label-width: 7rem;
+        --de-sticky-control-width: 12rem;
+    }
+
+    /* Ensure left category navigator stays visible (do not stack under phone layout). */
+    .workspace-shell {
+        flex-direction: row;
+    }
+
+    .workspace-nav {
+        flex: 0 0 12rem;
+        width: 12rem;
+        max-width: 12rem;
+        height: 100%;
+        max-height: 100%;
+        border-right: 1px solid #dddbda;
+        border-bottom: none;
+        overflow-x: hidden;
+        overflow-y: auto;
+    }
+
+    .workspace-main {
+        min-width: 0;
+        overflow-x: hidden;
+    }
+}
+
+/*
+ * Phone only — iPad CSS width is usually >= 768px (often reduced by LEX chrome).
+ * Keep this narrow so tablets keep the left navigator + 3-column sticky header.
+ */
+@media (max-width: 540px) {
+    .header-edit-scroll-inner {
+        width: max-content;
+        min-width: max-content;
+    }
+
+    .header-edit-grid_3col {
+        --de-sticky-label-width: 6.5rem;
+        --de-sticky-control-width: 11rem;
+        grid-template-columns:
+            calc(6.5rem + 0.5rem + 11rem)
+            max-content
+            calc(6.5rem + 0.5rem + 11rem);
+        justify-content: start;
+        column-gap: 1rem;
+        width: max-content;
+        min-width: max-content;
+    }
+
+    .sticky-field {
+        --de-sticky-label-width: 6.5rem;
+        --de-sticky-control-width: 11rem;
+    }
+
+    .asset-detail-form__col {
+        width: 100%;
+        max-width: 100%;
+        flex: 0 0 100%;
+    }
+
+    :host(.is-evaluation) {
+        height: auto;
+        max-height: none;
+        overflow: visible;
+    }
+
+    .device-evaluation-root_eval {
+        height: auto;
+        max-height: none;
+        overflow: visible;
+    }
+
+    .evaluation-content {
+        height: auto;
+        max-height: none;
+        overflow: visible;
+    }
+
+    .workspace-shell {
+        flex-direction: column;
+        height: auto;
+        overflow: visible;
+    }
+
+    .workspace-nav {
+        flex: 0 0 auto;
+        width: auto;
+        max-width: none;
+        height: auto;
+        max-height: 12rem;
+        border-right: none;
+        border-bottom: 1px solid #dddbda;
+        overflow-y: scroll;
+    }
+
+    .workspace-main {
+        height: auto;
+        max-height: none;
+        min-width: 0;
+        overflow-x: hidden;
+        overflow-y: visible;
+    }
+
+    .workspace-panel {
+        height: auto;
+        max-height: min(60vh, 28rem);
+        overflow-x: hidden;
+        overflow-y: scroll;
+        padding-bottom: 1rem;
+    }
+
+    .summary-scroll-spacer {
+        display: none;
+    }
+}
+
+/* Match Instrument Evaluation Sign All: right-aligned, with space above the table. */
+.work-performed-sign-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.work-performed-sign-toolbar__spacer {
+    flex: 1 1 auto;
+}
+
+.work-performed-photos {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.75rem;
+}
+
+.work-performed-photos__count {
+    text-align: left;
+}
+
+/*
+ * Stacked tables on one screen share these widths so columns line up
+ * (Work Performed + Observation Codes, and each Evaluation Summary group).
+ */
+table.work-code-table,
+table.de-summary-table {
+    width: 100%;
+    table-layout: fixed;
+}
+
+table.work-code-table th,
+table.work-code-table td,
+table.de-summary-table th,
+table.de-summary-table td {
+    overflow-wrap: anywhere;
+    vertical-align: top;
+    white-space: normal;
+}
+
+.work-code-table__col-category,
+.de-summary-table__col-eval-category {
+    width: 16%;
+}
+
+.work-code-table__col-item,
+.de-summary-table__col-item-number {
+    width: 14%;
+}
+
+.work-code-table__col-description,
+.de-summary-table__col-description {
+    width: 40%;
+}
+
+.work-code-table__col-action {
+    width: 30%;
+}
+
+.de-summary-table__col-type {
+    width: 14%;
+}
+
+.de-summary-table__col-signatures {
+    width: 16%;
+}
+
+/*
+ * Notes use the summary colgroup. The value cell is colspan from Item Number,
+ * so the text starts on that column. Keep horizontal rules only.
+ */
+.summary-notes-table {
+    margin-bottom: 0;
+}
+
+table.summary-notes-table th,
+table.summary-notes-table td {
+    background: #ffffff;
+    box-shadow: none;
+}
+
+table.summary-notes-table tbody tr:hover > th,
+table.summary-notes-table tbody tr:hover > td {
+    background: #ffffff;
+    box-shadow: none;
+}
+
+table.summary-notes-table th.summary-notes-label {
+    max-width: 0;
+    font-weight: 700;
+    color: #181818;
+    font-size: 0.75rem;
+    line-height: 1.25;
+    text-align: left;
+}
+
+table.summary-notes-table td.summary-notes-value {
+    white-space: pre-wrap;
+    color: #181818;
+    font-size: 0.8125rem;
+    font-weight: 400;
+    line-height: 1.35;
+}

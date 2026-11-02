@@ -1,0 +1,265 @@
+<!--
+  @description       : 
+  @author            : 
+  @group             : 
+  @last modified on  : 10-30-2026
+  @last modified by  : 
+-->
+<template>
+    <template lwc:if={errorMessage}>
+        <p class="error">{errorMessage}</p>
+    </template>
+
+    <template lwc:if={isLoaded}>
+        <!-- Page layout table: the PDF renderer repeats <thead> at the top of every printed page,
+             so the header block prints on each page like the form. -->
+        <table class="page">
+            <thead class="page-header">
+                <tr>
+                    <td class="page-cell">
+                        <!-- 1. Header -->
+                        <div class="header">
+                            <div class="header-entity">
+                                <lightning-formatted-rich-text value={headerHtml}></lightning-formatted-rich-text>
+                            </div>
+                            <div class="header-title">
+                                <span class="title">{documentTitle}</span>
+                            </div>
+                            <div class="header-meta">
+                                <div>{revision}</div>
+                                <div>{formNumber}</div>
+                                <div>Date:{reportDate}</div>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="page-cell">
+                        <div class="fsr">
+
+                            <!-- 2-4. Customer details -->
+                            <div class="band">CUSTOMER DETAILS</div>
+                            <div class="details">
+                                <div class="details-col">
+                                    <div class="subband">Equipment</div>
+                                    <template for:each={equipment} for:item="row">
+                                        <div key={row.key} class="kv">
+                                            <span class="k">{row.label}</span><span class="v">{row.value}</span>
+                                        </div>
+                                    </template>
+                                </div>
+                                <div class="details-col">
+                                    <div class="subband">Billing</div>
+                                    <template for:each={billing} for:item="row">
+                                        <div key={row.key} class="kv">
+                                            <span class="k">{row.label}</span><span class="v">{row.value}</span>
+                                        </div>
+                                    </template>
+                                </div>
+                                <div class="details-col">
+                                    <div class="subband">Shipping</div>
+                                    <template for:each={shipping} for:item="row">
+                                        <div key={row.key} class="kv">
+                                            <span class="k">{row.label}</span><span class="v">{row.value}</span>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <!-- 5. Record -->
+                            <div class="record">
+                                <div>
+                                    <div><b>Service Request#:</b> {serviceRequestNumber}</div>
+                                    <div><b>Date Opened:</b> {dateOpened}</div>
+                                    <div><b>Date Closed:</b> {dateClosed}</div>
+                                </div>
+                                <div class="record-right">
+                                    <div><b>Contact:</b> {contactName}</div>
+                                    <div><b>FSR Number:</b> {serviceRequestNumber}</div>
+                                </div>
+                            </div>
+                            <div class="service-needed"><b>Service Needed:</b> {serviceNeeded}</div>
+
+                            <!-- 6. Service charges -->
+                            <!-- Every section always prints, as on the form; an empty table prints a "None" row. -->
+                            <div class="band">SERVICE CHARGES</div>
+
+                            <div class="table-title">LABOR/TRAVEL CHARGES</div>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Tech Name</th>
+                                        <th>Work Date</th>
+                                        <th>Type</th>
+                                        <th>Type of Labor</th>
+                                        <th>Charge Reason</th>
+                                        <th class="num">Qty</th>
+                                        <template lwc:if={showPrices}>
+                                            <th class="num">Unit Price</th>
+                                            <th class="num">Actual Price</th>
+                                        </template>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={laborLines} for:item="line">
+                                        <tr key={line.id}>
+                                            <td>{line.techName}</td>
+                                            <td>{line.workDate}</td>
+                                            <td>{line.type}</td>
+                                            <td>{line.lineTypeLabel}</td>
+                                            <td>{line.chargeReason}</td>
+                                            <td class="num">{line.qty}</td>
+                                            <template lwc:if={showPrices}>
+                                                <td class="num">{line.unitPriceText}</td>
+                                                <td class="num">{line.totalText}</td>
+                                            </template>
+                                        </tr>
+                                    </template>
+                                    <template lwc:if={noLaborLines}>
+                                        <tr>
+                                            <td class="none" colspan={laborColspan}>None</td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+
+                            <div class="table-title">EXPENSES</div>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Tech Name</th>
+                                        <th>Type</th>
+                                        <th>Comments</th>
+                                        <th>Charge Reason</th>
+                                        <th class="num">Qty</th>
+                                        <template lwc:if={showPrices}>
+                                            <th class="num">Unit Price</th>
+                                            <th class="num">Actual Price</th>
+                                        </template>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={expenseLines} for:item="line">
+                                        <tr key={line.id}>
+                                            <td>{line.techName}</td>
+                                            <td>{line.type}</td>
+                                            <td>{line.comments}</td>
+                                            <td>{line.chargeReason}</td>
+                                            <td class="num">{line.qty}</td>
+                                            <template lwc:if={showPrices}>
+                                                <td class="num">{line.unitPriceText}</td>
+                                                <td class="num">{line.totalText}</td>
+                                            </template>
+                                        </tr>
+                                    </template>
+                                    <template lwc:if={noExpenseLines}>
+                                        <tr>
+                                            <td class="none" colspan={expenseColspan}>None</td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+
+                            <div class="table-title">PART REPLACEMENT</div>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Tech Name</th>
+                                        <th>Type</th>
+                                        <th>Item</th>
+                                        <th>Description</th>
+                                        <th>Charge Reason</th>
+                                        <th class="num">Qty</th>
+                                        <template lwc:if={showPrices}>
+                                            <th class="num">Unit Price</th>
+                                            <th class="num">Actual Price</th>
+                                        </template>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={partLines} for:item="line">
+                                        <tr key={line.id}>
+                                            <td>{line.techName}</td>
+                                            <td>{line.type}</td>
+                                            <td>{line.item}</td>
+                                            <td>{line.description}</td>
+                                            <td>{line.chargeReason}</td>
+                                            <td class="num">{line.qty}</td>
+                                            <template lwc:if={showPrices}>
+                                                <td class="num">{line.unitPriceText}</td>
+                                                <td class="num">{line.totalText}</td>
+                                            </template>
+                                        </tr>
+                                    </template>
+                                    <template lwc:if={noPartLines}>
+                                        <tr>
+                                            <td class="none" colspan={partColspan}>None</td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+
+                            <template lwc:if={showPrices}>
+                                <div class="grand-total">
+                                    <span>Grand Total</span><span>{grandTotal}</span>
+                                </div>
+                            </template>
+                            <template lwc:if={pricesHidden}>
+                                <div class="prices-hidden">Prices not shown</div>
+                            </template>
+
+                            <!-- Tools used (calibration tool lines; not priced) -->
+                            <div class="table-title">TOOLS USED</div>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Tech Name</th>
+                                        <th>Tool</th>
+                                        <th>Serial#</th>
+                                        <th>Calibration Due</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={toolLines} for:item="line">
+                                        <tr key={line.id}>
+                                            <td>{line.techName}</td>
+                                            <td>{line.tool}</td>
+                                            <td>{line.serialNumber}</td>
+                                            <td>{line.calibrationDue}</td>
+                                        </tr>
+                                    </template>
+                                    <template lwc:if={noToolLines}>
+                                        <tr>
+                                            <td class="none" colspan="4">None</td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+
+                            <!-- 7. Resolution and signature -->
+                            <div class="resolution">
+                                <div><b>Resolution Description:</b> {resolutionDescription}</div>
+                                <div><b>Unit Condition:</b> {unitCondition}</div>
+                                <div><b>Quantity of Parts Consumed:</b> {partsConsumedQty}</div>
+                            </div>
+                            
+                            <!-- The signer name and signature image come from the standard Document Builder Signature
+                                 component (SignatureType Customer), placed directly below this component in the template. -->
+                            <!-- <div class="signature">
+                                <div class="authorizing">Authorizing signature indicates the services listed above were performed.</div>
+                                <div class="signature-box">
+                                    <div class="signature-line"></div>
+                                    <div class="signature-caption">CUSTOMER SIGNATURE</div>
+                                </div>
+                            </div>
+
+                            <div class="footer">{footerText}</div> -->
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </template>
+</template>

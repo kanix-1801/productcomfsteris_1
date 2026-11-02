@@ -1,0 +1,162 @@
+<template>
+    <!-- Main Opportunity creation card -->
+    <lightning-card title="Create Opportunity">
+        <div class="slds-p-around_medium">
+
+            <!-- Record type selector shown before form fields are displayed -->
+            <template if:true={showRecordTypeSelector}>
+                <lightning-combobox
+                    name="recordType"
+                    label="Opportunity Record Type"
+                    value={selectedRecordTypeId}
+                    options={recordTypeOptions}
+                    onchange={handleRecordTypeChange}
+                    required>
+                </lightning-combobox>
+            </template>
+
+            <!-- Opportunity form displayed after record type selection -->
+            <template if:true={selectedRecordTypeId}>
+
+                <!-- Soft duplicate warning banner -->
+                <template if:true={hasDuplicates}>
+                    <div
+                        class="slds-notify slds-notify_alert slds-theme_warning slds-m-bottom_medium"
+                        role="alert">
+
+                        <span class="slds-assistive-text">Warning</span>
+
+                        <div class="slds-grid slds-grid_vertical-align-center">
+                            <lightning-icon
+                                icon-name="utility:warning"
+                                size="x-small"
+                                variant="warning"
+                                class="slds-m-right_x-small">
+                            </lightning-icon>
+
+                            <span>
+                                <strong>{label.duplicateWarningTitle}.</strong>
+                                {label.duplicateWarningMessage}
+                                <a
+                                    href="javascript:void(0);"
+                                    class="slds-m-left_x-small"
+                                    onclick={openDuplicateModal}>
+                                    View Duplicates
+                                </a>
+                            </span>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Dynamic Opportunity create form -->
+                <lightning-record-edit-form
+                    object-api-name="Opportunity"
+                    record-type-id={selectedRecordTypeId}
+                    onsuccess={handleSuccess}
+                    onerror={handleError}
+                    onsubmit={handleSubmit}
+                    class="slds-m-top_medium">
+
+                    <lightning-messages></lightning-messages>
+
+                    <!-- Two-column field layout -->
+                    <div class="slds-grid slds-wrap slds-gutters">
+
+                        <!-- Left section fields -->
+                        <div class="slds-col slds-size_1-of-1 slds-large-size_1-of-2">
+                            <template for:each={leftFields} for:item="field">
+                                <lightning-input-field
+                                    key={field.apiName}
+                                    field-name={field.apiName}
+                                    data-field-name={field.apiName}
+                                    required={field.required}
+                                    onchange={handleFieldChange}>
+                                </lightning-input-field>
+                            </template>
+                        </div>
+
+                        <!-- Right section fields -->
+                        <div class="slds-col slds-size_1-of-1 slds-large-size_1-of-2">
+                            <template for:each={rightFields} for:item="field">
+                                <lightning-input-field
+                                    key={field.apiName}
+                                    field-name={field.apiName}
+                                    data-field-name={field.apiName}
+                                    required={field.required}
+                                    onchange={handleFieldChange}>
+                                </lightning-input-field>
+                            </template>
+                        </div>
+
+                    </div>
+
+                    <!-- Save button -->
+                    <div class="slds-m-top_medium slds-text-align_right">
+                        <lightning-button
+                            type="submit"
+                            variant="brand"
+                            label="Save">
+                        </lightning-button>
+                    </div>
+
+                </lightning-record-edit-form>
+            </template>
+        </div>
+    </lightning-card>
+
+    <!-- Duplicate Opportunity modal -->
+    <template if:true={showDuplicateModal}>
+        <section
+            role="dialog"
+            tabindex="-1"
+            aria-modal="true"
+            class="slds-modal slds-fade-in-open slds-modal_large">
+
+            <div class="slds-modal__container">
+
+                <!-- Modal header -->
+                <header class="slds-modal__header">
+                    <button
+                        class="slds-button slds-button_icon slds-modal__close slds-button_icon-inverse"
+                        title="Close"
+                        onclick={closeDuplicateModal}>
+
+                        <lightning-icon
+                            icon-name="utility:close"
+                            alternative-text="Close"
+                            variant="inverse"
+                            size="small">
+                        </lightning-icon>
+                    </button>
+
+                    <h2 class="slds-text-heading_medium">
+                        {label.duplicateWarningTitle}
+                    </h2>
+                </header>
+
+                <!-- Duplicate records table -->
+                <div class="slds-modal__content slds-p-around_medium">
+                    <lightning-datatable
+                        key-field="Id"
+                        data={duplicateRecords}
+                        columns={duplicateColumns}
+                        hide-checkbox-column
+                        onrowaction={handleDuplicateRowAction}>
+                    </lightning-datatable>
+                </div>
+
+                <!-- Modal footer -->
+                <footer class="slds-modal__footer">
+                    <lightning-button
+                        label="Close"
+                        onclick={closeDuplicateModal}>
+                    </lightning-button>
+                </footer>
+
+            </div>
+        </section>
+
+        <!-- Modal backdrop -->
+        <div class="slds-backdrop slds-backdrop_open"></div>
+    </template>
+</template>

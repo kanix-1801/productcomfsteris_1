@@ -1,0 +1,35 @@
+<template>
+    <div class={formElementClass}>
+        <label class="slds-form-element__label" for={inputId}>
+            <abbr class="slds-required" title="required">*</abbr>
+            {label}
+        </label>
+        <div class="slds-form-element__control">
+            <input
+                lwc:ref="scanField"
+                id={inputId}
+                class="slds-input"
+                type="text"
+                name="workOrderScan"
+                autocomplete="off"
+                tabindex="0"
+                placeholder={placeholder}
+                disabled={disabled}
+                value={value}
+                oninput={handleChange}
+                onkeydown={handleKeyDown}
+            />
+        </div>
+        <template lwc:if={errorMessage}>
+            <div class="slds-form-element__help" role="alert">{errorMessage}</div>
+        </template>
+    </div>
+    <div class="slds-m-top_medium">
+        <lightning-button
+            variant="brand"
+            label={buttonLabel}
+            onclick={handleContinue}
+            disabled={disabled}
+        ></lightning-button>
+    </div>
+</template>

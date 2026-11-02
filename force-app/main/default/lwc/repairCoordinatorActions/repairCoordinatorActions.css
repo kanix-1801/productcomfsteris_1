@@ -1,0 +1,265 @@
+:host {
+    display: block;
+}
+
+.page-shell {
+    margin: 0 auto;
+    max-width: 64rem;
+    padding: 1rem;
+}
+
+.menu-panel,
+.scan-panel {
+    background: #fff;
+    border-radius: 0.25rem;
+    box-shadow: 0 0.125rem 0.5rem rgb(0 0 0 / 12%);
+    padding: 1.25rem;
+}
+
+.subtitle {
+    color: #5c5c5c;
+    font-size: 0.875rem;
+    margin-top: 0.125rem;
+}
+
+.action-grid {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(2, minmax(0, 19rem));
+    margin-top: 1rem;
+}
+
+.action-tile {
+    align-items: stretch;
+    background: #fff;
+    border: 0.0625rem solid #0176d3;
+    border-radius: 0.375rem;
+    color: #181818;
+    cursor: pointer;
+    display: flex;
+    min-height: 5rem;
+    padding: 0.75rem 1rem;
+    text-align: left;
+    transition:
+        box-shadow 120ms ease,
+        transform 120ms ease;
+}
+
+.action-tile:hover,
+.action-tile:focus-visible {
+    box-shadow: 0 0 0 0.1875rem rgb(1 118 211 / 18%);
+    outline: none;
+    transform: translateY(-0.0625rem);
+}
+
+.action-icon {
+    align-items: center;
+    border-right: 1px solid #dddbda;
+    display: flex;
+    justify-content: center;
+    min-width: 3.5rem;
+    padding-right: 0.75rem;
+}
+
+.action-icon__glyph {
+    --sds-c-icon-color-foreground: #0176d3;
+    --slds-c-icon-color-foreground: #0176d3;
+    --sds-c-icon-color-foreground-default: #0176d3;
+    --slds-c-icon-color-foreground-default: #0176d3;
+}
+
+.action-copy {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    justify-content: center;
+    padding-left: 0.75rem;
+}
+
+.action-title {
+    color: #0176d3;
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.action-description {
+    color: #444;
+    font-size: 0.8125rem;
+    line-height: 1.35;
+    margin-top: 0.125rem;
+}
+
+.scan-header {
+    align-items: flex-start;
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+}
+
+.instructions {
+    color: #444;
+    line-height: 1.6;
+    margin: 1.5rem 0;
+    padding-left: 1.25rem;
+}
+
+.scan-field {
+    max-width: 38rem;
+}
+
+.message {
+    border-radius: 0.25rem;
+    margin-top: 1rem;
+    padding: 0.75rem 1rem;
+}
+
+.message_error {
+    background: #fef1ee;
+    color: #ba0517;
+}
+
+.message_success {
+    background: #e3fcef;
+    color: #194e31;
+}
+
+.spinner-wrap {
+    min-height: 4rem;
+    position: relative;
+}
+
+.assignment-panel {
+    border-top: 1px solid #dddbda;
+    margin-top: 1.5rem;
+    max-width: 38rem;
+    padding-top: 1rem;
+}
+
+.assignment-panel__header {
+    display: flex;
+    flex-direction: column;
+}
+
+.assignment-panel__eyebrow {
+    color: #5c5c5c;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.assignment-panel__title {
+    font-size: 1.125rem;
+    font-weight: 700;
+    margin-top: 0.125rem;
+}
+
+.assignment-panel__status {
+    color: #5c5c5c;
+    font-size: 0.8125rem;
+    margin-top: 0.125rem;
+}
+
+.assignment-rows {
+    list-style: none;
+    margin-top: 0.75rem;
+    padding-left: 0;
+}
+
+.assignment-row {
+    align-items: center;
+    border-bottom: 1px solid #ecebea;
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+}
+
+.assignment-row:first-child {
+    border-top: 1px solid #ecebea;
+}
+
+.assignment-row__label {
+    color: #5c5c5c;
+    flex: 0 0 8rem;
+    font-size: 0.8125rem;
+}
+
+.assignment-row__value {
+    flex: 1;
+    font-weight: 700;
+}
+
+.assignment-row__value_empty {
+    color: #706e6b;
+    font-style: italic;
+    font-weight: 400;
+}
+
+.assignment-row__action {
+    flex: 0 0 5rem;
+    text-align: right;
+}
+
+.candidate-detail {
+    color: #5c5c5c;
+    margin-top: 0.25rem;
+}
+
+.candidate-list {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.candidate-button {
+    background: #fff;
+    border: 1px solid #c9c9c9;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    padding: 1rem;
+    text-align: left;
+    width: 100%;
+}
+
+.candidate-button:hover,
+.candidate-button:focus-visible {
+    border-color: #0176d3;
+    box-shadow: 0 0 0 1px #0176d3;
+    outline: none;
+}
+
+.candidate-button_selected {
+    background: #eef4ff;
+    border-color: #0176d3;
+    box-shadow: 0 0 0 2px #0176d3;
+}
+
+.candidate-label {
+    color: #0176d3;
+    font-weight: 700;
+}
+
+@media (max-width: 48rem) {
+    .page-shell {
+        padding: 0.75rem;
+    }
+
+    .menu-panel,
+    .scan-panel {
+        padding: 1rem;
+    }
+
+    .action-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .assignment-row__label {
+        flex: 0 0 6rem;
+    }
+
+    .scan-header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+}

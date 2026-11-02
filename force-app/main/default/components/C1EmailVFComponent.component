@@ -1,0 +1,105 @@
+<Apex:component controller="C1EmailController" access="global">
+    <Apex:attribute name="caseId1" description="" assignTo="{!caseId}" type="String" />  
+    
+	
+    <apex:image URL="{!C1OrderPreparationBanner}" alt="STERIS Banner" width="982" height="180"/>
+    
+	
+
+    
+    <p>Dear {!DepartmentManagerName},</p>
+    
+		<p style="max-width:982px;">
+            <apex:outputPanel rendered="{!CaseContactRoles.size > 0}" layout="none">
+                I wanted to confirm the below Receiving Department and Install contacts that we have on file are still correct for your STERIS order.
+            </apex:outputPanel>
+            <apex:outputPanel rendered="{!CaseContactRoles.size = 0}" layout="none">
+                To support a smooth delivery of your STERIS equipment, please provide a name, phone number, and email of the people at your facility that will be working with us on receiving and installation.
+            </apex:outputPanel>
+        </p>
+		
+
+    <table border="1" cellpadding="5" width="982" cellspacing="0" style="border-collapse:collapse;">
+        <thead style="background-color:#4A90E2; color:#fff;">
+            <tr>
+                <th style="width:230px;">Role Title</th>
+                <th>Name</th>
+                <th>Phone</th>
+                <th>Email</th>
+            </tr>
+        </thead>
+        <tbody>
+            <apex:repeat value="{!CaseContactRoles}" var="ccr">
+                <tr>
+                    <td style="width:230px;">
+                        <apex:outputText rendered="{!ccr.Role = 'Receiving Contact'}">
+                                Receiving Department Contact
+                        </apex:outputText>
+                        <apex:outputText rendered="{!ccr.Role = 'Install Contact'}">
+                                Install Contact
+                        </apex:outputText>
+                    </td>
+                    <td>{!ccr.Contact.Name}</td>
+                    <td>{!ccr.Contact.MobilePhone}</td>
+                    <td>{!ccr.Contact.Email}</td>
+                </tr>
+            </apex:repeat>
+            
+            <apex:outputPanel rendered="{!CaseContactRoles.size = 0}" layout="none">
+                <tr>
+                    <td style="width:230px;">Receiving Department Contact</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </tr>
+                <tr>
+                    <td style="width:230px;">Install Contact</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </tr>
+            </apex:outputPanel>
+            
+            <apex:outputPanel rendered="{!CaseContactRoles.size = 1}" layout="none">
+                <tr>
+                    <td style="width:230px;">
+                        <apex:outputText rendered="{!CaseContactRoles[0].Role = 'Receiving Contact'}">
+                            Install Contact
+                        </apex:outputText>
+                        <apex:outputText rendered="{!CaseContactRoles[0].Role = 'Install Contact'}">
+                            Receiving Department Contact
+                        </apex:outputText>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </tr>
+            </apex:outputPanel>
+
+        </tbody>
+    </table>
+
+    
+    
+        
+
+		
+ 	<p style="color:#004080; font-weight:bold;">What will we ask of these contacts?</p>
+	
+   
+    <p style="max-width:982px;"><strong>Receiving Department Contact:</strong> Person responsible for providing introduction to the appropriate resources to verify site requirements (e.g. dock hours, carrier requirements for final delivery). This will also be the person who gets a call from the carrier if a delivery notification pre-call is required. This person will help assist with information needed for our delivery carriers leading up to the time of and during the delivery process.</p>
+
+    <p style="max-width:982px;"><strong>Install Contact:</strong> Person responsible for establishing the final schedule for installation of the equipment, defining access requirements, and for providing introduction to the appropriate resources to verify site requirements (e.g. utilities, space, infection control, etc.).</p>
+
+    <p>Thank you,</p>
+    <apex:outputText value="{!EmailSignature}" escape="false"/><br/><br/>
+    
+   
+	
+    <c:ReplyThreadInternalExternal caseId1="{!caseId}"
+            threadType1="External"
+        />
+
+
+    
+</apex:component>

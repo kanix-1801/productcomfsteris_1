@@ -1,0 +1,31 @@
+.related-list-container {
+    background: var(--lwc-colorBackgroundAlt, #ffffff);
+    border: 1px solid var(--lwc-colorBorder, #dddbda);
+    border-radius: var(--lwc-borderRadiusMedium, 0.25rem);
+}
+
+.related-list-header {
+    padding: 0.75rem 1rem;
+}
+
+.spinner-container {
+    min-height: 6rem;
+    position: relative;
+}
+
+.datatable-container {
+    max-height: 32rem;
+    overflow-x: auto;
+    overflow-y: auto;
+    width: 100%;
+}
+
+.datatable-width {
+    min-width: 1550px;
+}
+
+.empty-state {
+    color: var(--lwc-colorTextWeak, #706e6b);
+    padding: 2rem 1rem;
+    text-align: center;
+}

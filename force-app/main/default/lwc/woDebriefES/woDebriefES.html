@@ -1,0 +1,1135 @@
+<template>
+
+    <template lwc:if={isOffline}>
+        <div class="offline-banner">
+            <lightning-icon icon-name="utility:offline" size="x-small"></lightning-icon>
+            Offline — internet connection is required to save changes.
+        </div>
+    </template>
+
+    <template lwc:if={isLoading}>
+        <div class="slds-align_absolute-center slds-p-around_large">
+            <lightning-spinner alternative-text="Loading work order…" size="medium"></lightning-spinner>
+        </div>
+    </template>
+
+    <template lwc:if={hasError}>
+        <div class="slds-box slds-box_x-small slds-theme_error slds-m-around_small">
+            <lightning-formatted-text value={errorMessage}></lightning-formatted-text>
+        </div>
+    </template>
+
+    <template lwc:if={_workOrder}>
+        <template lwc:if={hasValidEquipment}>
+
+        <div class="wo-header">
+            <div class="header-fields">
+                <div class="header-field">
+                    <div class="field-label">WO #</div>
+                    <div class="field-value field-value_strong">{woNumber}</div>
+                </div>
+                <div class="header-field">
+                    <div class="field-label">Status</div>
+                    <span class="status-badge">{woStatus}</span>
+                </div>
+                <div class="header-field">
+                    <div class="field-label">Account</div>
+                    <div class="field-value">{woAccountName}</div>
+                </div>
+                <div class="header-field">
+                    <div class="field-label">Asset</div>
+                    <div class="field-value">{woAssetName}</div>
+                </div>
+                <div class="header-field">
+                    <div class="field-label">Cycle Count</div>
+                    <lightning-input
+                        class="header-input"
+                        variant="label-hidden"
+                        type="text"
+                        value={woCycleCount}
+                        maxlength="10"
+                        onchange={handleCycleCountChange}>
+                    </lightning-input>
+                </div>
+                <div class="header-field">
+                    <div class="field-label">Cycle Count Date</div>
+                    <lightning-input
+                        class="header-input"
+                        variant="label-hidden"
+                        type="date"
+                        value={woCycleCountDate}
+                        onchange={handleCycleCountDateChange}>
+                    </lightning-input>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-bar">
+            <template for:each={tabs} for:item="tab">
+                <button key={tab.key} class="tab-btn" data-tab={tab.key} onclick={handleTabSelect}>
+                    <span class="tab-label">{tab.label}</span>
+                    <template lwc:if={tab.isActive}><span class="tab-indicator"></span></template>
+                </button>
+            </template>
+        </div>
+
+        <div class="scrollable-content">
+
+            <template lwc:if={activeTabModel}>
+                <div class="tab-panel slds-p-around_x-small">
+
+                    <div class="tab-search slds-m-bottom_small">
+                        <lightning-input
+                            type="search"
+                            label="Search"
+                            variant="label-hidden"
+                            placeholder={activeTabSearchPlaceholder}
+                            value={activeTabSearchTerm}
+                            onchange={handleTabSearchChange}>
+                        </lightning-input>
+                    </div>
+
+                    <template lwc:if={activeTabHasNoSearchResults}>
+                        <p class="no-search-results">No lines match your search.</p>
+                    </template>
+
+                    <template for:each={activeTabModel.lines} for:item="line">
+                        <div key={line.Id} class="slds-m-bottom_x-small">
+
+                            <div class="woli-card">
+                                <template lwc:if={line.isRequiredProductSchema}>
+                                    <div class="woli-info">
+                                        <div class="woli-description">{line.title}</div>
+                                        <div class="woli-meta">{line.metaLine}</div>
+                                    </div>
+                                </template>
+                                <template lwc:else>
+                                    <div class="woli-info" data-id={line.Id} onclick={handleEditToggle}>
+                                        <div class="woli-description">{line.title}</div>
+                                        <div class="woli-meta">{line.metaLine}</div>
+                                        <template lwc:if={line.isNew}>
+                                            <span class="new-badge">New</span>
+                                        </template>
+                                        <template lwc:if={line.isDirty}>
+                                            <span class="dirty-badge">Modified</span>
+                                        </template>
+                                    </div>
+                                    <div class="woli-actions">
+                                        <lightning-button-icon
+                                            icon-name="utility:edit"
+                                            alternative-text="Edit"
+                                            title="Edit"
+                                            variant="border-filled"
+                                            size="medium"
+                                            data-id={line.Id}
+                                            onclick={handleEditToggle}>
+                                        </lightning-button-icon>
+                                        <lightning-button-icon
+                                            icon-name="utility:delete"
+                                            alternative-text="Delete"
+                                            title="Delete"
+                                            variant="border-filled"
+                                            size="medium"
+                                            data-id={line.Id}
+                                            onclick={handleDelete}>
+                                        </lightning-button-icon>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <template lwc:if={line.isEditing}>
+                                <div class="edit-form">
+
+                                    <template lwc:if={line.isPartsSchema}>
+                                        <div class="field-grid">
+                                            <div class="field-full">
+                                                <lightning-combobox
+                                                    label="Part's Source"
+                                                    placeholder="Select part's source…"
+                                                    value={line.editPartsSource}
+                                                    options={partsSourceOptions}
+                                                    required
+                                                    data-id={line.Id}
+                                                    data-field="partsSource"
+                                                    onchange={handleEditFieldChange}>
+                                                </lightning-combobox>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-record-picker
+                                                    label="Resource"
+                                                    placeholder="Search active resources…"
+                                                    object-api-name="ServiceResource"
+                                                    value={line.editAssignedResId}
+                                                    filter={resourcePickerFilter}
+                                                    display-info={resourcePickerDisplayInfo}
+                                                    matching-info={resourcePickerMatchingInfo}
+                                                    required
+                                                    data-id={line.Id}
+                                                    data-field="assignedResourceId"
+                                                    onchange={handleLookupChange}>
+                                                </lightning-record-picker>
+                                            </div>
+                                            <template lwc:if={line.isTrunkStock}>
+                                                <div class="field-full">
+                                                    <div class="product-item-scan-row">
+                                                        <div class="product-item-picker">
+                                                            <lightning-record-picker
+                                                                label="Product Item"
+                                                                placeholder="Search product items from resource trunk stock…"
+                                                                object-api-name="ProductItem"
+                                                                value={line.editProductItemId}
+                                                                filter={line.productItemFilter}
+                                                                display-info={productItemPickerDisplayInfo}
+                                                                matching-info={productItemPickerMatchingInfo}
+                                                                required
+                                                                data-id={line.Id}
+                                                                data-field="productItemId"
+                                                                onchange={handleLookupChange}>
+                                                            </lightning-record-picker>
+                                                        </div>
+                                                        <lightning-button-icon
+                                                            class="product-item-scan"
+                                                            icon-name="utility:scan"
+                                                            alternative-text="Scan product barcode"
+                                                            title="Scan product barcode"
+                                                            variant="border-filled"
+                                                            disabled={line.productItemScanDisabled}
+                                                            data-id={line.Id}
+                                                            data-mode="edit"
+                                                            onclick={handleProductItemBarcodeScan}>
+                                                        </lightning-button-icon>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                            <template lwc:if={line.isCustomerStock}>
+                                                <div class="field-full">
+                                                    <div class="product-item-scan-row">
+                                                        <div class="product-item-picker">
+                                                            <lightning-record-picker
+                                                                label="Product"
+                                                                placeholder="Search products…"
+                                                                object-api-name="Product2"
+                                                                value={line.editProduct2Id}
+                                                                display-info={productPickerDisplayInfo}
+                                                                matching-info={productPickerMatchingInfo}
+                                                                filter={productPickerFilter}
+                                                                required
+                                                                data-id={line.Id}
+                                                                data-field="product2Id"
+                                                                onchange={handleLookupChange}>
+                                                            </lightning-record-picker>
+                                                        </div>
+                                                        <lightning-button-icon
+                                                            class="product-item-scan"
+                                                            icon-name="utility:scan"
+                                                            alternative-text="Scan product barcode"
+                                                            title="Scan product barcode"
+                                                            variant="border-filled"
+                                                            data-id={line.Id}
+                                                            data-mode="edit"
+                                                            onclick={handleProductBarcodeScan}>
+                                                        </lightning-button-icon>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                            <div class="field-full read-only-field">
+                                                <div class="read-only-label">Product Code</div>
+                                                <div class="read-only-value">{line.editProductCode}</div>
+                                            </div>
+                                            <div class="field-full read-only-field">
+                                                <div class="read-only-label">Part Description</div>
+                                                <div class="read-only-value">{line.editPartDescription}</div>
+                                            </div>
+                                            <lightning-input
+                                                label="Unit Qty"
+                                                type="number"
+                                                value={line.editQuantity}
+                                                min="1"
+                                                step="1"
+                                                required
+                                                data-id={line.Id}
+                                                data-field="quantity"
+                                                onchange={handleEditFieldChange}>
+                                            </lightning-input>
+                                            <div class="field-full">
+                                                <lightning-input
+                                                    label="Description"
+                                                    value={line.editDescription}
+                                                    data-id={line.Id}
+                                                    data-field="description"
+                                                    onchange={handleEditFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                            <div class="read-only-field">
+                                                <div class="read-only-label">Returnable</div>
+                                                <div class="read-only-value">{line.editReturnableLabel}</div>
+                                            </div>
+                                            <lightning-combobox
+                                                label="Removed Part"
+                                                placeholder="Select a removed part"
+                                                value={line.editRemovedPartId}
+                                                options={line.removedPartOptions}
+                                                required={line.isRemovedPartRequired}
+                                                disabled={line.removedPartDisabled}
+                                                data-id={line.Id}
+                                                data-field="removedPartId"
+                                                onchange={handleEditFieldChange}>
+                                            </lightning-combobox>
+                                            <div class="field-full read-only-field">
+                                                <div class="read-only-label">Allowed Part</div>
+                                                <div class="read-only-value">{line.editAllowedUnitLabel}</div>
+                                            </div>
+                                            <template lwc:if={line.showPartExceptionQuestion}>
+                                                <div class="field-full">
+                                                    <lightning-radio-group
+                                                        label={partExceptionPrompt}
+                                                        options={partExceptionDecisionOptions}
+                                                        value={line.editPartExceptionDecision}
+                                                        type="button"
+                                                        required
+                                                        data-id={line.Id}
+                                                        data-field="partExceptionDecision"
+                                                        onchange={handleEditFieldChange}>
+                                                    </lightning-radio-group>
+                                                </div>
+                                            </template>
+                                            <template lwc:if={line.showPartException}>
+                                                <div class="field-full">
+                                                    <lightning-textarea
+                                                        label="Non-Approved Part Response"
+                                                        value={line.editPartExceptionResponse}
+                                                        maxlength="255"
+                                                        required
+                                                        data-id={line.Id}
+                                                        data-field="partExceptionResponse"
+                                                        onchange={handleEditFieldChange}>
+                                                    </lightning-textarea>
+                                                </div>
+                                                <div class="field-full">
+                                                    <lightning-combobox
+                                                        label="Part Exception Reason"
+                                                        value={line.editPartExceptionReason}
+                                                        options={partExceptionReasonOptions}
+                                                        required
+                                                        data-id={line.Id}
+                                                        data-field="partExceptionReason"
+                                                        onchange={handleEditFieldChange}>
+                                                    </lightning-combobox>
+                                                </div>
+                                            </template>
+                                            <div class="field-full read-only-field">
+                                                <div class="read-only-label">Critical Part</div>
+                                                <div class="read-only-value">{line.editCriticalPartLabel}</div>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-input
+                                                    type="checkbox"
+                                                    label="Usage's Exception"
+                                                    checked={line.editUsagesException}
+                                                    data-id={line.Id}
+                                                    data-field="usagesException"
+                                                    onchange={handleEditFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                            <div class="field-full read-only-field">
+                                                <div class="read-only-label">Billing Type</div>
+                                                <div class="read-only-value">{line.editBillingTypeLabel}</div>
+                                            </div>
+                                        </div>
+                                    </template>
+
+                                    <template lwc:elseif={line.isTimeSchema}>
+                                        <div class="field-grid">
+                                            <div class="field-full">
+                                                <lightning-combobox
+                                                    label="Line Type"
+                                                    value={line.editLineType}
+                                                    options={timeLineTypeOptions}
+                                                    required
+                                                    data-id={line.Id}
+                                                    data-field="lineType"
+                                                    onchange={handleEditFieldChange}>
+                                                </lightning-combobox>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-record-picker
+                                                    label="Work Type"
+                                                    placeholder="Search work types…"
+                                                    object-api-name="WorkType"
+                                                    value={line.editWorkTypeId}
+                                                    data-id={line.Id}
+                                                    data-field="workTypeId"
+                                                    onchange={handleLookupChange}>
+                                                </lightning-record-picker>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-record-picker
+                                                    label="Resource"
+                                                    placeholder="Search active resources…"
+                                                    object-api-name="ServiceResource"
+                                                    value={line.editAssignedResId}
+                                                    filter={resourcePickerFilter}
+                                                    display-info={resourcePickerDisplayInfo}
+                                                    matching-info={resourcePickerMatchingInfo}
+                                                    data-id={line.Id}
+                                                    data-field="assignedResourceId"
+                                                    onchange={handleLookupChange}>
+                                                </lightning-record-picker>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-input
+                                                    label="Start Time"
+                                                    type="datetime"
+                                                    value={line.editStartDate}
+                                                    required
+                                                    data-id={line.Id}
+                                                    data-field="startDate"
+                                                    onchange={handleEditFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-input
+                                                    label="Duration (Hours)"
+                                                    type="number"
+                                                    step="0.01"
+                                                    min="0"
+                                                    value={line.editDurationHours}
+                                                    required
+                                                    data-id={line.Id}
+                                                    data-field="durationHours"
+                                                    onchange={handleEditFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-input
+                                                    label="End Time"
+                                                    type="datetime"
+                                                    value={line.editEndDate}
+                                                    required
+                                                    data-id={line.Id}
+                                                    data-field="endDate"
+                                                    onchange={handleEditFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                            <template lwc:if={line.isTravelLine}>
+                                                <div class="field-full">
+                                                    <lightning-combobox
+                                                        label="Travel Type"
+                                                        value={line.editTravelType}
+                                                        options={travelTypeOptions}
+                                                        required
+                                                        data-id={line.Id}
+                                                        data-field="travelType"
+                                                        onchange={handleEditFieldChange}>
+                                                    </lightning-combobox>
+                                                </div>
+                                            </template>
+                                            <template lwc:if={line.showRateField}>
+                                                <div class="field-full">
+                                                    <lightning-combobox
+                                                        label="Rate"
+                                                        value={line.editRate}
+                                                        options={line.editRateOptions}
+                                                        required={line.isRateRequired}
+                                                        data-id={line.Id}
+                                                        data-field="rate"
+                                                        onchange={handleEditFieldChange}>
+                                                    </lightning-combobox>
+                                                </div>
+                                            </template>
+                                            <template lwc:if={line.isTravelLine}>
+                                                <div class="field-full read-only-field">
+                                                    <div class="read-only-label">List Price</div>
+                                                    <div class="read-only-value">{line.editListPriceLabel}</div>
+                                                </div>
+                                                <div class="field-full read-only-field">
+                                                    <div class="read-only-label">Unit Price</div>
+                                                    <div class="read-only-value">{line.editUnitPriceLabel}</div>
+                                                </div>
+                                                <div class="field-full read-only-field">
+                                                    <div class="read-only-label">Total Price</div>
+                                                    <div class="read-only-value">{line.editTotalPriceLabel}</div>
+                                                </div>
+                                            </template>
+                                            <template lwc:if={line.isLaborLine}>
+                                                <div class="field-full read-only-field">
+                                                    <div class="read-only-label">List Price</div>
+                                                    <div class="read-only-value">{line.editListPriceLabel}</div>
+                                                </div>
+                                                <div class="field-full read-only-field">
+                                                    <div class="read-only-label">Unit Price</div>
+                                                    <div class="read-only-value">{line.editUnitPriceLabel}</div>
+                                                </div>
+                                                <div class="field-full read-only-field">
+                                                    <div class="read-only-label">Total Price</div>
+                                                    <div class="read-only-value">{line.editTotalPriceLabel}</div>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </template>
+
+                                    <template lwc:elseif={line.isCalibrationSchema}>
+                                        <div class="field-grid">
+                                            <div class="field-full">
+                                                <lightning-record-picker
+                                                    label="Resource"
+                                                    placeholder="Search active resources…"
+                                                    object-api-name="ServiceResource"
+                                                    value={line.editAssignedResId}
+                                                    filter={resourcePickerFilter}
+                                                    display-info={resourcePickerDisplayInfo}
+                                                    matching-info={resourcePickerMatchingInfo}
+                                                    data-id={line.Id}
+                                                    data-field="assignedResourceId"
+                                                    onchange={handleLookupChange}>
+                                                </lightning-record-picker>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-record-picker
+                                                    label="Asset"
+                                                    placeholder="Search by serial number or name…"
+                                                    object-api-name="Asset"
+                                                    value={line.editAssetId}
+                                                    filter={calibrationAssetPickerFilter}
+                                                    display-info={assetPickerDisplayInfo}
+                                                    matching-info={assetPickerMatchingInfo}
+                                                    data-id={line.Id}
+                                                    data-field="assetId"
+                                                    onchange={handleLookupChange}>
+                                                </lightning-record-picker>
+                                            </div>
+                                        </div>
+                                    </template>
+
+                                    <template lwc:elseif={line.isExpenseSchema}>
+                                        <div class="field-grid">
+                                            <div class="field-full">
+                                                <lightning-combobox
+                                                    label="Expense Type"
+                                                    placeholder="Select an expense type…"
+                                                    value={line.editExpenseType}
+                                                    options={expenseTypeOptions}
+                                                    data-id={line.Id}
+                                                    data-field="expenseType"
+                                                    onchange={handleEditFieldChange}>
+                                                </lightning-combobox>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-input
+                                                    label="Transaction Date"
+                                                    type="date"
+                                                    value={line.editTransactionDate}
+                                                    data-id={line.Id}
+                                                    data-field="transactionDate"
+                                                    onchange={handleEditFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-input
+                                                    label="Description"
+                                                    value={line.editDescription}
+                                                    data-id={line.Id}
+                                                    data-field="description"
+                                                    onchange={handleEditFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                            <lightning-input
+                                                label="Quantity"
+                                                type="number"
+                                                value={line.editQuantity}
+                                                min="0.01"
+                                                step="0.01"
+                                                data-id={line.Id}
+                                                data-field="quantity"
+                                                onchange={handleEditFieldChange}>
+                                            </lightning-input>
+                                            <lightning-input
+                                                label="Unit Price"
+                                                type="number"
+                                                value={line.editUnitPrice}
+                                                min="0"
+                                                step="0.01"
+                                                data-id={line.Id}
+                                                data-field="unitPrice"
+                                                onchange={handleEditFieldChange}>
+                                            </lightning-input>
+                                            <div class="field-full read-only-field">
+                                                <div class="read-only-label">Total Price</div>
+                                                <div class="read-only-value">${line.editTotalPrice}</div>
+                                            </div>
+                                            <div class="field-full expense-billable-divider"></div>
+                                            <template lwc:if={line.isBillableAmountReadOnly}>
+                                                <div class="field-full read-only-field">
+                                                    <div class="read-only-label">Billable Amount</div>
+                                                    <div class="read-only-value billable-locked-value">
+                                                        <span>${line.editBillableAmountDisplay}</span>
+                                                        <lightning-icon
+                                                            icon-name="utility:lock"
+                                                            size="x-small"
+                                                            alternative-text="Locked">
+                                                        </lightning-icon>
+                                                    </div>
+                                                    <div class="picker-helper">Auto-set from Amount</div>
+                                                </div>
+                                            </template>
+                                            <template lwc:else>
+                                                <div class="field-full">
+                                                    <lightning-input
+                                                        label="Billable Amount"
+                                                        type="number"
+                                                        value={line.editBillableAmount}
+                                                        min="0"
+                                                        step="0.01"
+                                                        formatter="currency"
+                                                        data-id={line.Id}
+                                                        data-field="billableAmount"
+                                                        onchange={handleEditFieldChange}>
+                                                    </lightning-input>
+                                                </div>
+                                            </template>
+                                            <div class="field-full">
+                                                <lightning-input
+                                                    type="toggle"
+                                                    label="Override Billable Amount"
+                                                    checked={line.editOverrideBillableAmount}
+                                                    message-toggle-active="On"
+                                                    message-toggle-inactive="Off"
+                                                    data-id={line.Id}
+                                                    data-field="overrideBillableAmount"
+                                                    onchange={handleEditFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-combobox
+                                                    label="Override Code"
+                                                    placeholder="Select an override code…"
+                                                    value={line.editOverrideCode}
+                                                    options={overrideCodeOptions}
+                                                    required={line.isOverrideCodeRequired}
+                                                    data-id={line.Id}
+                                                    data-field="overrideCode"
+                                                    onchange={handleEditFieldChange}>
+                                                </lightning-combobox>
+                                            </div>
+                                        </div>
+                                    </template>
+
+                                    <template lwc:if={line.editError}>
+                                        <p class="error-text">{line.editError}</p>
+                                    </template>
+                                    <div class="form-actions">
+                                        <lightning-button
+                                            label="Close"
+                                            data-id={line.Id}
+                                            onclick={handleEditClose}>
+                                        </lightning-button>
+                                    </div>
+                                </div>
+                            </template>
+
+                        </div>
+                    </template>
+
+                    <template lwc:if={activeTabModel.canAdd}>
+                        <template lwc:if={activeTabModel.showAddForm}>
+                            <div class="add-form-wrapper">
+
+                                <template lwc:if={isActiveTabParts}>
+                                    <div class="field-grid">
+                                        <div class="field-full">
+                                            <lightning-combobox
+                                                label="Part's Source"
+                                                placeholder="Select part's source…"
+                                                value={addFormState.partsSource}
+                                                options={partsSourceOptions}
+                                                required
+                                                data-field="partsSource"
+                                                onchange={handleAddFieldChange}>
+                                            </lightning-combobox>
+                                        </div>
+                                        <div class="field-full">
+                                            <lightning-record-picker
+                                                label="Resource"
+                                                placeholder="Search active resources…"
+                                                object-api-name="ServiceResource"
+                                                value={addFormState.assignedResourceId}
+                                                filter={resourcePickerFilter}
+                                                display-info={resourcePickerDisplayInfo}
+                                                matching-info={resourcePickerMatchingInfo}
+                                                required
+                                                data-tab={activeTabModel.key}
+                                                data-field="assignedResourceId"
+                                                onchange={handleLookupChange}>
+                                            </lightning-record-picker>
+                                        </div>
+                                        <template lwc:if={addFormIsTrunkStock}>
+                                            <div class="field-full">
+                                                <div class="product-item-scan-row">
+                                                    <div class="product-item-picker">
+                                                        <lightning-record-picker
+                                                            label="Product Item"
+                                                            placeholder="Search product items from resource trunk stock…"
+                                                            object-api-name="ProductItem"
+                                                            value={addFormState.productItemId}
+                                                            filter={addFormProductItemFilter}
+                                                            display-info={productItemPickerDisplayInfo}
+                                                            matching-info={productItemPickerMatchingInfo}
+                                                            required
+                                                            data-tab={activeTabModel.key}
+                                                            data-field="productItemId"
+                                                            onchange={handleLookupChange}>
+                                                        </lightning-record-picker>
+                                                    </div>
+                                                    <lightning-button-icon
+                                                        class="product-item-scan"
+                                                        icon-name="utility:scan"
+                                                        alternative-text="Scan product barcode"
+                                                        title="Scan product barcode"
+                                                        variant="border-filled"
+                                                        disabled={addFormProductItemScanDisabled}
+                                                        data-mode="add"
+                                                        onclick={handleProductItemBarcodeScan}>
+                                                    </lightning-button-icon>
+                                                </div>
+                                            </div>
+                                        </template>
+                                        <template lwc:if={addFormIsCustomerStock}>
+                                            <div class="field-full">
+                                                <div class="product-item-scan-row">
+                                                    <div class="product-item-picker">
+                                                        <lightning-record-picker
+                                                            label="Product"
+                                                            placeholder="Search products…"
+                                                            object-api-name="Product2"
+                                                            value={addFormState.product2Id}
+                                                            display-info={productPickerDisplayInfo}
+                                                            matching-info={productPickerMatchingInfo}
+                                                            filter={productPickerFilter}
+                                                            required
+                                                            data-tab={activeTabModel.key}
+                                                            data-field="product2Id"
+                                                            onchange={handleLookupChange}>
+                                                        </lightning-record-picker>
+                                                    </div>
+                                                    <lightning-button-icon
+                                                        class="product-item-scan"
+                                                        icon-name="utility:scan"
+                                                        alternative-text="Scan product barcode"
+                                                        title="Scan product barcode"
+                                                        variant="border-filled"
+                                                        data-mode="add"
+                                                        onclick={handleProductBarcodeScan}>
+                                                    </lightning-button-icon>
+                                                </div>
+                                            </div>
+                                        </template>
+                                        <div class="field-full read-only-field">
+                                            <div class="read-only-label">Product Code</div>
+                                            <div class="read-only-value">{addFormProductCode}</div>
+                                        </div>
+                                        <div class="field-full read-only-field">
+                                            <div class="read-only-label">Part Description</div>
+                                            <div class="read-only-value">{addFormPartDescription}</div>
+                                        </div>
+                                        <lightning-input
+                                            label="Unit Qty"
+                                            type="number"
+                                            value={addFormState.quantity}
+                                            min="1"
+                                            step="1"
+                                            required
+                                            data-field="quantity"
+                                            onchange={handleAddFieldChange}>
+                                        </lightning-input>
+                                        <div class="field-full">
+                                            <lightning-input
+                                                label="Description"
+                                                value={addFormState.description}
+                                                data-field="description"
+                                                onchange={handleAddFieldChange}>
+                                            </lightning-input>
+                                        </div>
+                                        <div class="read-only-field">
+                                            <div class="read-only-label">Returnable</div>
+                                            <div class="read-only-value">{addFormReturnableLabel}</div>
+                                        </div>
+                                        <lightning-combobox
+                                            label="Removed Part"
+                                            placeholder="Select a removed part"
+                                            value={addFormState.removedPartId}
+                                            options={addFormRemovedPartOptions}
+                                            required={addFormIsRemovedPartRequired}
+                                            disabled={addFormRemovedPartDisabled}
+                                            data-field="removedPartId"
+                                            onchange={handleAddFieldChange}>
+                                        </lightning-combobox>
+                                        <div class="field-full read-only-field">
+                                            <div class="read-only-label">Allowed Part</div>
+                                            <div class="read-only-value">{addFormAllowedUnitLabel}</div>
+                                        </div>
+                                        <template lwc:if={addFormShowPartExceptionQuestion}>
+                                            <div class="field-full">
+                                                <lightning-radio-group
+                                                    label={partExceptionPrompt}
+                                                    options={partExceptionDecisionOptions}
+                                                    value={addFormState.partExceptionDecision}
+                                                    type="button"
+                                                    required
+                                                    data-field="partExceptionDecision"
+                                                    onchange={handleAddFieldChange}>
+                                                </lightning-radio-group>
+                                            </div>
+                                        </template>
+                                        <template lwc:if={addFormShowPartException}>
+                                            <div class="field-full">
+                                                <lightning-textarea
+                                                    label="Non-Approved Part Response"
+                                                    value={addFormState.partExceptionResponse}
+                                                    maxlength="255"
+                                                    required
+                                                    data-field="partExceptionResponse"
+                                                    onchange={handleAddFieldChange}>
+                                                </lightning-textarea>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-combobox
+                                                    label="Part Exception Reason"
+                                                    value={addFormState.partExceptionReason}
+                                                    options={partExceptionReasonOptions}
+                                                    required
+                                                    data-field="partExceptionReason"
+                                                    onchange={handleAddFieldChange}>
+                                                </lightning-combobox>
+                                            </div>
+                                        </template>
+                                        <div class="field-full read-only-field">
+                                            <div class="read-only-label">Critical Part</div>
+                                            <div class="read-only-value">{addFormCriticalPartLabel}</div>
+                                        </div>
+                                        <div class="field-full">
+                                            <lightning-input
+                                                type="checkbox"
+                                                label="Usage's Exception"
+                                                checked={addFormState.usagesException}
+                                                data-field="usagesException"
+                                                onchange={handleAddFieldChange}>
+                                            </lightning-input>
+                                        </div>
+                                        <div class="field-full read-only-field">
+                                            <div class="read-only-label">Billing Type</div>
+                                            <div class="read-only-value">{addFormBillingTypeLabel}</div>
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <template lwc:elseif={isActiveTabTime}>
+                                    <div class="field-grid">
+                                        <div class="field-full">
+                                            <lightning-combobox
+                                                label="Line Type"
+                                                value={addFormState.lineType}
+                                                options={timeLineTypeOptions}
+                                                required
+                                                data-field="lineType"
+                                                onchange={handleAddFieldChange}>
+                                            </lightning-combobox>
+                                        </div>
+                                        <template lwc:if={addFormHasTimeLineType}>
+                                            <div class="field-full">
+                                                <lightning-record-picker
+                                                    label="Work Type"
+                                                    placeholder="Search work types…"
+                                                    object-api-name="WorkType"
+                                                    value={addFormState.workTypeId}
+                                                    data-tab={activeTabModel.key}
+                                                    data-field="workTypeId"
+                                                    onchange={handleLookupChange}>
+                                                </lightning-record-picker>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-record-picker
+                                                    label="Resource"
+                                                    placeholder="Search active resources…"
+                                                    object-api-name="ServiceResource"
+                                                    value={addFormState.assignedResourceId}
+                                                    filter={resourcePickerFilter}
+                                                    display-info={resourcePickerDisplayInfo}
+                                                    matching-info={resourcePickerMatchingInfo}
+                                                    data-tab={activeTabModel.key}
+                                                    data-field="assignedResourceId"
+                                                    onchange={handleLookupChange}>
+                                                </lightning-record-picker>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-input
+                                                    label="Start Time"
+                                                    type="datetime"
+                                                    value={addFormState.startDate}
+                                                    required
+                                                    data-field="startDate"
+                                                    onchange={handleAddFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-input
+                                                    label="Duration (Hours)"
+                                                    type="number"
+                                                    step="0.01"
+                                                    min="0"
+                                                    value={addFormState.durationHours}
+                                                    required
+                                                    data-field="durationHours"
+                                                    onchange={handleAddFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                            <div class="field-full">
+                                                <lightning-input
+                                                    label="End Time"
+                                                    type="datetime"
+                                                    value={addFormState.endDate}
+                                                    required
+                                                    data-field="endDate"
+                                                    onchange={handleAddFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                            <template lwc:if={addFormIsTravelLine}>
+                                                <div class="field-full">
+                                                    <lightning-combobox
+                                                        label="Travel Type"
+                                                        value={addFormState.travelType}
+                                                        options={travelTypeOptions}
+                                                        required
+                                                        data-field="travelType"
+                                                        onchange={handleAddFieldChange}>
+                                                    </lightning-combobox>
+                                                </div>
+                                            </template>
+                                            <template lwc:if={addFormShowRateField}>
+                                                <div class="field-full">
+                                                    <lightning-combobox
+                                                        label="Rate"
+                                                        value={addFormState.rate}
+                                                        options={addFormRateOptions}
+                                                        required={addFormIsRateRequired}
+                                                        data-field="rate"
+                                                        onchange={handleAddFieldChange}>
+                                                    </lightning-combobox>
+                                                </div>
+                                            </template>
+                                            <template lwc:if={addFormHasRatePricing}>
+                                                <div class="field-full read-only-field">
+                                                    <div class="read-only-label">List Price</div>
+                                                    <div class="read-only-value">{addFormListPriceLabel}</div>
+                                                </div>
+                                                <div class="field-full read-only-field">
+                                                    <div class="read-only-label">Unit Price</div>
+                                                    <div class="read-only-value">{addFormUnitPriceLabel}</div>
+                                                </div>
+                                                <div class="field-full read-only-field">
+                                                    <div class="read-only-label">Total Price</div>
+                                                    <div class="read-only-value">{addFormTotalPriceLabel}</div>
+                                                </div>
+                                            </template>
+                                        </template>
+                                    </div>
+                                </template>
+
+                                <template lwc:elseif={isActiveTabCalibration}>
+                                    <div class="field-grid">
+                                        <div class="field-full">
+                                            <lightning-record-picker
+                                                label="Resource"
+                                                placeholder="Search active resources…"
+                                                object-api-name="ServiceResource"
+                                                value={addFormState.assignedResourceId}
+                                                filter={resourcePickerFilter}
+                                                display-info={resourcePickerDisplayInfo}
+                                                matching-info={resourcePickerMatchingInfo}
+                                                data-tab={activeTabModel.key}
+                                                data-field="assignedResourceId"
+                                                onchange={handleLookupChange}>
+                                            </lightning-record-picker>
+                                        </div>
+                                        <div class="field-full">
+                                            <lightning-record-picker
+                                                label="Asset"
+                                                placeholder="Search by serial number or name…"
+                                                object-api-name="Asset"
+                                                value={addFormState.assetId}
+                                                filter={calibrationAssetPickerFilter}
+                                                display-info={assetPickerDisplayInfo}
+                                                matching-info={assetPickerMatchingInfo}
+                                                data-tab={activeTabModel.key}
+                                                data-field="assetId"
+                                                onchange={handleLookupChange}>
+                                            </lightning-record-picker>
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <template lwc:elseif={isActiveTabExpense}>
+                                    <div class="field-grid">
+                                        <div class="field-full">
+                                            <lightning-combobox
+                                                label="Expense Type"
+                                                placeholder="Select an expense type…"
+                                                value={addFormState.expenseType}
+                                                options={expenseTypeOptions}
+                                                data-field="expenseType"
+                                                onchange={handleAddFieldChange}>
+                                            </lightning-combobox>
+                                        </div>
+                                        <div class="field-full">
+                                            <lightning-input
+                                                label="Transaction Date"
+                                                type="date"
+                                                value={addFormState.transactionDate}
+                                                data-field="transactionDate"
+                                                onchange={handleAddFieldChange}>
+                                            </lightning-input>
+                                        </div>
+                                        <div class="field-full">
+                                            <lightning-input
+                                                label="Description"
+                                                value={addFormState.description}
+                                                data-field="description"
+                                                onchange={handleAddFieldChange}>
+                                            </lightning-input>
+                                        </div>
+                                        <lightning-input
+                                            label="Quantity"
+                                            type="number"
+                                            value={addFormState.quantity}
+                                            min="0.01"
+                                            step="0.01"
+                                            data-field="quantity"
+                                            onchange={handleAddFieldChange}>
+                                        </lightning-input>
+                                        <lightning-input
+                                            label="Unit Price"
+                                            type="number"
+                                            value={addFormState.unitPrice}
+                                            min="0"
+                                            step="0.01"
+                                            data-field="unitPrice"
+                                            onchange={handleAddFieldChange}>
+                                        </lightning-input>
+                                        <div class="field-full read-only-field">
+                                            <div class="read-only-label">Total Price</div>
+                                            <div class="read-only-value">${computedAddTotalPrice}</div>
+                                        </div>
+                                        <div class="field-full expense-billable-divider"></div>
+                                        <template lwc:if={isAddBillableAmountReadOnly}>
+                                            <div class="field-full read-only-field">
+                                                <div class="read-only-label">Billable Amount</div>
+                                                <div class="read-only-value billable-locked-value">
+                                                    <span>${formattedAddBillableAmount}</span>
+                                                    <lightning-icon
+                                                        icon-name="utility:lock"
+                                                        size="x-small"
+                                                        alternative-text="Locked">
+                                                    </lightning-icon>
+                                                </div>
+                                                <div class="picker-helper">Auto-set from Amount</div>
+                                            </div>
+                                        </template>
+                                        <template lwc:else>
+                                            <div class="field-full">
+                                                <lightning-input
+                                                    label="Billable Amount"
+                                                    type="number"
+                                                    value={addFormState.billableAmount}
+                                                    min="0"
+                                                    step="0.01"
+                                                    formatter="currency"
+                                                    data-field="billableAmount"
+                                                    onchange={handleAddFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                        </template>
+                                        <div class="field-full">
+                                            <lightning-input
+                                                type="toggle"
+                                                label="Override Billable Amount"
+                                                checked={addFormState.overrideBillableAmount}
+                                                message-toggle-active="On"
+                                                message-toggle-inactive="Off"
+                                                data-field="overrideBillableAmount"
+                                                onchange={handleAddFieldChange}>
+                                            </lightning-input>
+                                        </div>
+                                        <div class="field-full">
+                                            <lightning-combobox
+                                                label="Override Code"
+                                                placeholder="Select an override code…"
+                                                value={addFormState.overrideCode}
+                                                options={overrideCodeOptions}
+                                                required={isAddOverrideCodeRequired}
+                                                data-field="overrideCode"
+                                                onchange={handleAddFieldChange}>
+                                            </lightning-combobox>
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <template lwc:if={activeTabModel.addError}>
+                                    <p class="error-text">{activeTabModel.addError}</p>
+                                </template>
+                                <div class="form-actions">
+                                    <lightning-button
+                                        label="Cancel"
+                                        data-tab={activeTabModel.key}
+                                        onclick={handleAddCancel}>
+                                    </lightning-button>
+                                    <lightning-button
+                                        label="Add"
+                                        variant="brand"
+                                        data-tab={activeTabModel.key}
+                                        onclick={handleAddConfirm}>
+                                    </lightning-button>
+                                </div>
+                            </div>
+                        </template>
+                        <template lwc:else>
+                            <div class="add-btn-wrapper">
+                                <lightning-button
+                                    label={activeTabModel.addLabel}
+                                    variant="neutral"
+                                    data-tab={activeTabModel.key}
+                                    onclick={handleAddToggle}
+                                    class="slds-size_1-of-1">
+                                </lightning-button>
+                            </div>
+                        </template>
+                    </template>
+
+                </div>
+            </template>
+
+        </div>
+
+        </template>
+        <template lwc:else>
+            <div class="slds-box slds-box_x-small slds-theme_error slds-m-around_small">
+                <lightning-formatted-text value={missingEquipmentMessage}></lightning-formatted-text>
+            </div>
+        </template>
+    </template>
+
+    <template lwc:if={hasValidEquipment}>
+        <div class="footer-bar">
+            <lightning-button
+                label="Cancel"
+                disabled={cancelDisabled}
+                onclick={handleDiscardAll}>
+            </lightning-button>
+            <lightning-button
+                label="Save All"
+                variant="brand"
+                disabled={saveAllDisabled}
+                onclick={handleSaveAll}>
+            </lightning-button>
+        </div>
+    </template>
+
+</template>

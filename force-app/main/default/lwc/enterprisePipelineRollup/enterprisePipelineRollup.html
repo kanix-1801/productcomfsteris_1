@@ -1,0 +1,97 @@
+<template>
+    <lightning-card title="Enterprise Pipeline Roll-up" icon-name="standard:opportunity">
+        <div slot="actions">
+            <lightning-button
+                label="Refresh"
+                title="Refresh"
+                icon-name="utility:refresh"
+                onclick={handleRefresh}
+                disabled={isRefreshing}
+            ></lightning-button>
+        </div>
+
+        <template lwc:if={pipelineSummary}>
+            <template lwc:if={isEligible}>
+                <div class="summary-grid slds-p-horizontal_medium slds-p-bottom_medium">
+                    <article class="summary-tile">
+                        <p class="summary-label">Customer Locations</p>
+                        <p class="summary-value">{childAccountCount}</p>
+                    </article>
+                    <article class="summary-tile">
+                        <p class="summary-label">Open Opportunities</p>
+                        <p class="summary-value">{opportunityCount}</p>
+                    </article>
+                    <article class="summary-tile">
+                        <p class="summary-label">Total Pipeline</p>
+                        <p class="summary-value">
+                            <lightning-formatted-number
+                                value={totalPipelineAmount}
+                                format-style="currency"
+                                currency-code="USD"
+                            ></lightning-formatted-number>
+                        </p>
+                    </article>
+                </div>
+
+                <template lwc:if={hasChildAccounts}>
+                    <template lwc:if={hasOpportunities}>
+                        <div class="slds-p-horizontal_medium slds-p-bottom_medium">
+                            <h3 class="section-heading">Consolidated Pipeline</h3>
+                            <lightning-datatable
+                                key-field="opportunityId"
+                                data={opportunityRows}
+                                columns={opportunityColumns}
+                                sorted-by={sortedBy}
+                                sorted-direction={sortDirection}
+                                onsort={handleSort}
+                                hide-checkbox-column
+                            ></lightning-datatable>
+                        </div>
+
+                        <template lwc:if={hasStageSummaries}>
+                            <div class="slds-p-horizontal_medium slds-p-bottom_medium">
+                                <h3 class="section-heading">Pipeline by Stage</h3>
+                                <lightning-datatable
+                                    key-field="stageName"
+                                    data={stageRows}
+                                    columns={stageColumns}
+                                    hide-checkbox-column
+                                ></lightning-datatable>
+                            </div>
+                        </template>
+                    </template>
+                    <template lwc:else>
+                        <div class="empty-state slds-p-around_medium">
+                            <lightning-icon
+                                icon-name="utility:info"
+                                size="small"
+                                class="empty-state-icon"
+                            ></lightning-icon>
+                            <p>{emptyPipelineMessage}</p>
+                        </div>
+                    </template>
+                </template>
+                <template lwc:else>
+                    <div class="empty-state slds-p-around_medium">
+                        <lightning-icon
+                            icon-name="utility:info"
+                            size="small"
+                            class="empty-state-icon"
+                        ></lightning-icon>
+                        <p>{emptyRelationshipMessage}</p>
+                    </div>
+                </template>
+            </template>
+            <template lwc:else>
+                <div class="empty-state slds-p-around_medium">
+                    <lightning-icon
+                        icon-name="utility:info"
+                        size="small"
+                        class="empty-state-icon"
+                    ></lightning-icon>
+                    <p>{ineligibleMessage}</p>
+                </div>
+            </template>
+        </template>
+    </lightning-card>
+</template>

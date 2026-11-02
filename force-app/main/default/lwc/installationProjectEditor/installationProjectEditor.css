@@ -1,0 +1,101 @@
+/* Fixed height wrapper for all content (title + table + buttons) */
+.content-wrapper {
+    height: 500px;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Page content area fills remaining space and scrolls if needed */
+.page-content {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    scroll-behavior: auto; /* Prevent smooth scrolling that can cause jumps */
+}
+
+/* Prevent scroll jumping when modal opens */
+.page-content:focus-within {
+    scroll-behavior: auto;
+}
+
+/* Table container with horizontal scroll */
+.table-container {
+    overflow-x: auto;
+    overflow-y: auto;
+    max-height: 100%;
+}
+
+/* Table styling */
+.slds-table {
+    width: 100%;
+}
+
+/* Ensure input fields fit within table cells */
+.slds-table td lightning-input,
+.slds-table td lightning-combobox,
+.slds-table td lightning-input-field {
+    width: 100%;
+}
+
+/* Remove default margins from input fields in table */
+.slds-table td lightning-input .slds-form-element,
+.slds-table td lightning-combobox .slds-form-element,
+.slds-table td lightning-input-field .slds-form-element {
+    margin-bottom: 0;
+}
+
+/* Ensure proper spacing for table cells */
+.slds-table td {
+    vertical-align: middle;
+}
+
+.brandIcon {
+    --slds-c-icon-color-foreground-default: var(--lwc-brandAccessible);
+}
+
+/* Autocomplete container */
+.autocomplete-container {
+    position: relative;
+    width: 100%;
+}
+
+/* Autocomplete dropdown */
+.autocomplete-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    background: white;
+    border: 1px solid #dddbda;
+    border-radius: 0.25rem;
+    box-shadow: 0 2px 3px 0 rgba(0, 0, 0, 0.16);
+    max-height: 150px;
+    overflow-y: auto;
+    margin-top: 0.125rem;
+}
+
+/* Autocomplete option */
+.autocomplete-option {
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    border-bottom: 1px solid #f3f2f2;
+}
+
+.autocomplete-option:hover {
+    background-color: #f3f2f2;
+}
+
+.autocomplete-option:last-child {
+    border-bottom: none;
+}
+
+.autocomplete-no-results {
+    color: #706e6b;
+    font-style: italic;
+    cursor: default;
+}
+
+.autocomplete-no-results:hover {
+    background-color: transparent;
+}

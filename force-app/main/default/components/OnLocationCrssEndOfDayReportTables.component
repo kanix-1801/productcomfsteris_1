@@ -1,0 +1,50 @@
+<apex:component controller="OnLocationCrssEndOfDayReportController" access="global">
+    <apex:attribute name="siteVisitId" type="Id" assignTo="{!siteVisitWorkOrderId}"
+        description="CRSS site visit Work Order the report is about."/>
+
+    <apex:outputPanel layout="none" rendered="{!hasInspectedRows}">
+        <table cellpadding="4" cellspacing="0" border="1" style="border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; font-size: 12px; margin-bottom: 16px;">
+            <tr>
+                <th colspan="3" style="background-color: #000000; color: #ffffff; text-align: center;">Inspected Asset</th>
+            </tr>
+            <tr style="background-color: #ffff00;">
+                <th>Asset</th>
+                <th>Serial Number</th>
+                <th>Inspection Outcome</th>
+            </tr>
+            <apex:repeat value="{!inspectedRows}" var="row">
+                <tr>
+                    <td>{!row.assetName}</td>
+                    <td>{!row.serialNumber}</td>
+                    <td>{!row.inspectionOutcome}</td>
+                </tr>
+            </apex:repeat>
+        </table>
+    </apex:outputPanel>
+
+    <apex:outputPanel layout="none" rendered="{!hasDoNotUseRows}">
+        <table cellpadding="4" cellspacing="0" border="1" style="border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; font-size: 12px;">
+            <tr>
+                <th colspan="6" style="background-color: #ff0000; color: #ffffff; text-align: center;">Do Not Use Assets</th>
+            </tr>
+            <tr style="background-color: #ffff00;">
+                <th>Asset</th>
+                <th>Serial Number</th>
+                <th>Make</th>
+                <th>Model</th>
+                <th>Inspection Outcome</th>
+                <th>Reported Problem</th>
+            </tr>
+            <apex:repeat value="{!doNotUseRows}" var="row">
+                <tr>
+                    <td>{!row.assetName}</td>
+                    <td>{!row.serialNumber}</td>
+                    <td>{!row.make}</td>
+                    <td>{!row.model}</td>
+                    <td>{!row.inspectionOutcome}</td>
+                    <td>{!row.reportedProblem}</td>
+                </tr>
+            </apex:repeat>
+        </table>
+    </apex:outputPanel>
+</apex:component>

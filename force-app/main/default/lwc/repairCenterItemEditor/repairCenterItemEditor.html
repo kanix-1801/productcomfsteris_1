@@ -1,0 +1,47 @@
+<template>
+    <div class="item-editor">
+        <div class="item-editor__quantity">
+            <lightning-input
+                type="number"
+                label="Quantity"
+                value={quantityValue}
+                min="1"
+                step="1"
+                disabled={isQuantityDisabled}
+                onchange={handleQuantityChange}
+            ></lightning-input>
+            <template lwc:if={hasQuantityHint}>
+                <p class="item-editor__hint slds-text-body_small slds-m-top_xx-small">
+                    {quantityHint}
+                </p>
+            </template>
+        </div>
+        <div class="item-editor__actions">
+            <div class="item-editor__actions-start">
+                <slot name="toolbar"></slot>
+            </div>
+            <div class="item-editor__actions-end">
+                <slot name="actions-end"></slot>
+                <template lwc:if={showPrevious}>
+                    <lightning-button
+                        label={previousLabel}
+                        onclick={handlePrevious}
+                        disabled={disabled}
+                    ></lightning-button>
+                </template>
+                <lightning-button
+                    label={doneLabel}
+                    variant="brand"
+                    onclick={handleDone}
+                    disabled={disabled}
+                ></lightning-button>
+            </div>
+        </div>
+        <div class="item-editor__codes">
+            <slot></slot>
+        </div>
+        <div class="item-editor__photos slds-m-top_medium">
+            <slot name="photos"></slot>
+        </div>
+    </div>
+</template>

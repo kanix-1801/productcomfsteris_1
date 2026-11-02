@@ -1,0 +1,52 @@
+<template>
+    <h3 class="slds-text-heading_small">Customer Facing Notes</h3>
+    <div class="slds-form-element slds-m-bottom_medium">
+        <div class="eval-notes-field-label">Evaluation Notes</div>
+        <div class="slds-form-element__control">
+            <lightning-textarea
+                data-note-field="evaluationNotes"
+                variant="label-hidden"
+                label="Evaluation Notes"
+                value={evaluationNotes}
+                disabled={disabled}
+                onchange={handleEvaluationNotesChange}
+                onblur={handleEvaluationNotesChange}
+            ></lightning-textarea>
+        </div>
+    </div>
+    <h3 class="slds-text-heading_small">Internal Notes</h3>
+    <div class="slds-form-element slds-m-bottom_small">
+        <div class="eval-notes-field-label">Internal Evaluation Notes</div>
+        <div class="slds-form-element__control">
+            <lightning-textarea
+                data-note-field="internalEvaluationNotes"
+                variant="label-hidden"
+                label="Internal Evaluation Notes"
+                value={internalEvaluationNotes}
+                disabled={disabled}
+                onchange={handleInternalNotesChange}
+                onblur={handleInternalNotesChange}
+            ></lightning-textarea>
+        </div>
+    </div>
+    <div class="slds-form-element slds-m-bottom_small">
+        <div class="eval-notes-field-label">Internal Specialist Evaluation Notes</div>
+        <div class="slds-form-element__control">
+            <lightning-textarea
+                data-note-field="internalSpecialistEvaluationNotes"
+                variant="label-hidden"
+                label="Internal Specialist Evaluation Notes"
+                value={internalSpecialistEvaluationNotes}
+                disabled={disabled}
+                onchange={handleSpecialistNotesChange}
+                onblur={handleSpecialistNotesChange}
+            ></lightning-textarea>
+        </div>
+    </div>
+    <div class="slds-form-element">
+        <div class="eval-notes-field-label">QC Inspection Notes</div>
+        <div class="slds-form-element__control">
+            <div class="slds-textarea eval-notes-readonly-value" data-qc-notes>{qcInspectionNotes}</div>
+        </div>
+    </div>
+</template>

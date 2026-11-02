@@ -1,0 +1,35 @@
+<template>
+    <template lwc:if={isVisible}>
+        <div
+            class="slds-notify slds-notify_alert banner-container banner-warning"
+            role="alert"
+        >
+            <span class="slds-assistive-text">
+                {assistiveText}
+            </span>
+
+            <div class="banner-content">
+                <lightning-icon
+                    icon-name="utility:warning"
+                    alternative-text="Warning"
+                    size="small"
+                    class="banner-icon"
+                ></lightning-icon>
+
+                <div class="banner-text">
+                    <p class="banner-message">
+                        {bannerMessage}
+                    </p>
+                </div>
+
+                <lightning-button
+                    label="Dismiss"
+                    title="Dismiss"
+                    variant="neutral"
+                    onclick={handleDismiss}
+                    class="banner-dismiss"
+                ></lightning-button>
+            </div>
+        </div>
+    </template>
+</template>

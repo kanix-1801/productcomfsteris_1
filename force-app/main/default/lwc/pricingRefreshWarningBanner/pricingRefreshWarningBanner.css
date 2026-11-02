@@ -1,0 +1,31 @@
+.banner-container {
+    display: block;
+    margin-bottom: .75rem;
+    border-radius: .5rem;
+    border: 1px solid #f0997b;
+    padding: .75rem 1rem;
+    background: #fff3e0;
+    color: #712b13;
+}
+
+.banner-content {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+}
+
+.banner-message {
+    flex: 1;
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    font-weight: 700;
+}
+
+.banner-icon {
+    --slds-c-icon-color-foreground-default: #712b13;
+}
+
+.banner-dismiss {
+    flex-shrink: 0;
+}

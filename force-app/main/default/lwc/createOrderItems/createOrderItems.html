@@ -1,0 +1,492 @@
+<template>
+    <template if:true={hasItems}>
+        <lightning-accordion
+            active-section-name={activeSections}
+            allow-multiple-sections-open
+            onsectiontoggle={handleSectionToggle}>
+            <template for:each={itemDisplayRows} for:item="item">
+                <lightning-accordion-section
+                    key={item.key}
+                    name={item.key}
+                    label={item.sectionLabel}>
+                    <div class="item-section-actions">
+                        <lightning-button-icon
+                            icon-name="utility:delete"
+                            alternative-text="Remove item"
+                            title="Remove item"
+                            variant="border-filled"
+                            data-key={item.key}
+                            onclick={handleRemoveItem}>
+                        </lightning-button-icon>
+                    </div>
+
+                    <div class="slds-text-title_caps slds-m-bottom_x-small">ITEM INFORMATION</div>
+                    <div class="slds-grid slds-wrap slds-gutters_small slds-m-bottom_medium item-fields-row">
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                            <div class="field-stack">
+                                <div class={item.assetSearchLookupClass}>
+                                    <label class="slds-form-element__label">Account Assets</label>
+                                    <div
+                                        class="slds-form-element__control product-search-lookup__control"
+                                        data-asset-search-control={item.key}>
+                                        <lightning-input
+                                            type="search"
+                                            variant="label-hidden"
+                                            placeholder="Search by asset name, product name, or model"
+                                            value={item.assetSearchText}
+                                            disabled={item.isAssetSearchDisabled}
+                                            data-key={item.key}
+                                            onchange={handleAssetSearchInput}
+                                            onfocus={handleAssetSearchFocus}
+                                            onblur={handleAssetSearchBlur}>
+                                        </lightning-input>
+                                        <template if:true={item.showAssetResults}>
+                                            <div
+                                                class="product-search-results product-search-results--fixed"
+                                                style={item.assetSearchDropdownStyle}
+                                                role="listbox">
+                                                <ul class="slds-listbox slds-listbox_vertical" role="listbox">
+                                                    <template for:each={item.assetOptions} for:item="assetOption">
+                                                        <li key={assetOption.value} role="presentation" class="slds-listbox__item">
+                                                            <div
+                                                                class="slds-media slds-listbox__option slds-listbox__option_plain slds-media_small"
+                                                                role="option"
+                                                                data-key={item.key}
+                                                                data-value={assetOption.value}
+                                                                onmousedown={handleAssetOptionSelect}>
+                                                                <span class="product-search-option-label" title={assetOption.label}>
+                                                                    {assetOption.label}
+                                                                </span>
+                                                            </div>
+                                                        </li>
+                                                    </template>
+                                                    <template if:false={item.assetOptions.length}>
+                                                        <li class="slds-listbox__item slds-p-around_x-small slds-text-color_weak">
+                                                            No assets found
+                                                        </li>
+                                                    </template>
+                                                </ul>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+
+                                <div class={item.productSearchLookupClass}>
+                                    <label class="slds-form-element__label">
+                                        <abbr class="slds-required" title="required">*</abbr>
+                                        Product
+                                    </label>
+                                    <div
+                                        class="slds-form-element__control product-search-lookup__control"
+                                        data-product-search-control={item.key}>
+                                        <lightning-input
+                                            type="search"
+                                            variant="label-hidden"
+                                            placeholder="Search products..."
+                                            value={item.productSearchText}
+                                            disabled={item.isProductSearchDisabled}
+                                            data-key={item.key}
+                                            onchange={handleProductSearchInput}
+                                            onfocus={handleProductSearchFocus}
+                                            onblur={handleProductSearchBlur}>
+                                        </lightning-input>
+                                        <template if:true={item.showProductResults}>
+                                            <div
+                                                class="product-search-results product-search-results--fixed"
+                                                style={item.productSearchDropdownStyle}
+                                                role="listbox">
+                                                <ul class="slds-listbox slds-listbox_vertical" role="listbox">
+                                                    <template for:each={item.productOptions} for:item="option">
+                                                        <li key={option.value} role="presentation" class="slds-listbox__item">
+                                                            <div
+                                                                class="slds-media slds-listbox__option slds-listbox__option_plain slds-media_small"
+                                                                role="option"
+                                                                data-key={item.key}
+                                                                data-value={option.value}
+                                                                onmousedown={handleProductOptionSelect}>
+                                                                <span class="product-search-option-label" title={option.label}>
+                                                                    {option.label}
+                                                                </span>
+                                                            </div>
+                                                        </li>
+                                                    </template>
+                                                    <template if:false={item.productOptions.length}>
+                                                        <li class="slds-listbox__item slds-p-around_x-small slds-text-color_weak">
+                                                            No products found
+                                                        </li>
+                                                    </template>
+                                                </ul>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+
+                                <lightning-input
+                                    label="Product Line"
+                                    value={item.productLine}
+                                    maxlength="50"
+                                    required
+                                    readonly
+                                    data-key={item.key}
+                                    data-field="productLine">
+                                </lightning-input>
+                            </div>
+                        </div>
+
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                            <div class="field-stack">
+                                <lightning-input
+                                    label="Serial Number"
+                                    value={item.serialNumber}
+                                    placeholder="Enter serial number"
+                                    required
+                                    data-key={item.key}
+                                    data-field="serialNumber"
+                                    onchange={handleItemFieldChange}>
+                                </lightning-input>
+
+                                <lightning-input
+                                    label="Model"
+                                    value={item.model}
+                                    required
+                                    data-key={item.key}
+                                    data-field="model"
+                                    onchange={handleItemFieldChange}>
+                                </lightning-input>
+
+                                <lightning-combobox
+                                    label="Priority"
+                                    value={item.priority}
+                                    options={priorityOptions}
+                                    data-key={item.key}
+                                    data-field="priority"
+                                    onchange={handleItemFieldChange}>
+                                </lightning-combobox>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="slds-grid slds-wrap slds-gutters_small slds-m-top_small">
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                            <lightning-combobox
+                                label="Disinfected"
+                                value={item.disinfected}
+                                options={disinfectedOptions}
+                                required
+                                data-key={item.key}
+                                data-field="disinfected"
+                                onchange={handleItemFieldChange}>
+                            </lightning-combobox>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                            <div class="slds-grid slds-gutters_small loaner-checkbox-row">
+                                <div class="slds-col">
+                                    <lightning-input
+                                        type="checkbox"
+                                        label="Loaner Requested"
+                                        checked={item.loanerRequested}
+                                        data-key={item.key}
+                                        data-field="loanerRequested"
+                                        onchange={handleItemFieldChange}>
+                                    </lightning-input>
+                                </div>
+                                <div class="slds-col">
+                                    <lightning-input
+                                        type="checkbox"
+                                        label="Is Loaner Asset"
+                                        checked={item.isLoanerAsset}
+                                        data-key={item.key}
+                                        data-field="isLoanerAsset"
+                                        onchange={handleItemFieldChange}>
+                                    </lightning-input>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="slds-grid slds-wrap slds-gutters_small slds-m-top_small">
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                            <lightning-combobox
+                                label="Estimate Required"
+                                value={item.estimateRequired}
+                                options={estimateRequiredOptions}
+                                placeholder="Select estimate requirement"
+                                required
+                                data-key={item.key}
+                                data-field="estimateRequired"
+                                onchange={handleItemFieldChange}>
+                            </lightning-combobox>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                            <template if:true={item.showEstimateContact}>
+                                <div class="contact-field-row">
+                                    <lightning-record-picker
+                                        class="contact-field-row__combobox"
+                                        label="Estimate Contact"
+                                        placeholder="Search contacts..."
+                                        object-api-name="Contact"
+                                        value={item.estimateContactId}
+                                        filter={contactRecordFilter}
+                                        disabled={isContactSearchDisabled}
+                                        required
+                                        data-key={item.key}
+                                        data-contact-target="estimate"
+                                        onchange={handleItemEstimateContactChange}>
+                                    </lightning-record-picker>
+                                    <lightning-button
+                                        class="contact-field-row__button"
+                                        label="New"
+                                        title="Create new estimate contact for this account"
+                                        data-key={item.key}
+                                        data-contact-target="estimate"
+                                        onclick={handleOpenNewContact}>
+                                    </lightning-button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <div class="slds-grid slds-wrap slds-gutters_small slds-m-top_small">
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                            <lightning-textarea
+                                label="Reported Problem"
+                                value={item.reportedProblem}
+                                required
+                                data-key={item.key}
+                                data-field="reportedProblem"
+                                onchange={handleItemFieldChange}>
+                            </lightning-textarea>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                            <lightning-file-upload
+                                label="Add Picture or Video"
+                                name={item.key}
+                                accept={mediaAccept}
+                                multiple
+                                data-key={item.key}
+                                onuploadfinished={handleFileUploadFinished}>
+                            </lightning-file-upload>
+                            <template if:true={item.hasAttachments}>
+                                <ul class="line-item-attachment-list slds-m-top_x-small">
+                                    <template for:each={item.attachmentItems} for:item="attachment">
+                                        <li key={attachment.contentDocumentId} class="line-item-attachment-row">
+                                            <span class="line-item-attachment-name" title={attachment.name}>
+                                                {attachment.name}
+                                            </span>
+                                            <lightning-button-icon
+                                                icon-name="utility:close"
+                                                alternative-text="Remove attachment"
+                                                title="Remove attachment"
+                                                variant="bare"
+                                                data-key={item.key}
+                                                data-document-id={attachment.contentDocumentId}
+                                                onclick={handleRemoveAttachment}>
+                                            </lightning-button-icon>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </template>
+                        </div>
+                    </div>
+
+                    <div class="slds-grid slds-wrap slds-gutters_small slds-m-top_small">
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                            <lightning-combobox
+                                label="Repair Warranty"
+                                value={item.repairWarranty}
+                                options={yesNoOptions}
+                                placeholder="Optional"
+                                data-key={item.key}
+                                data-field="repairWarranty"
+                                onchange={handleItemFieldChange}>
+                            </lightning-combobox>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                            <template if:true={item.showWarrantyNotes}>
+                                <lightning-textarea
+                                    label="Warranty Notes"
+                                    value={item.warrantyNotes}
+                                    data-key={item.key}
+                                    data-field="warrantyNotes"
+                                    onchange={handleItemFieldChange}>
+                                </lightning-textarea>
+                            </template>
+                        </div>
+                    </div>
+
+                    <div class="slds-text-title_caps slds-m-bottom_x-small customer-information-heading">CUSTOMER INFORMATION</div>
+                    <div class="slds-grid slds-wrap slds-gutters_small slds-m-bottom_medium item-fields-row">
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                            <lightning-combobox
+                                label="Department"
+                                value={item.departmentId}
+                                options={departmentOptions}
+                                placeholder="Select department"
+                                required
+                                data-key={item.key}
+                                data-field="departmentId"
+                                onchange={handleItemFieldChange}>
+                            </lightning-combobox>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                            <div class="contact-field-row">
+                                <lightning-record-picker
+                                    class="contact-field-row__combobox"
+                                    label="Contact"
+                                    placeholder="Search contacts..."
+                                    object-api-name="Contact"
+                                    value={item.contactId}
+                                    filter={contactRecordFilter}
+                                    disabled={isContactSearchDisabled}
+                                    required
+                                    data-key={item.key}
+                                    data-contact-target="contact"
+                                    onchange={handleItemContactChange}>
+                                </lightning-record-picker>
+                                <lightning-button
+                                    class="contact-field-row__button"
+                                    label="New"
+                                    title="Create new contact for this account"
+                                    data-key={item.key}
+                                    data-contact-target="contact"
+                                    onclick={handleOpenNewContact}>
+                                </lightning-button>
+                            </div>
+                        </div>
+
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                            <lightning-input
+                                label="Customer PO"
+                                value={item.customerPo}
+                                data-key={item.key}
+                                data-field="customerPo"
+                                onchange={handleItemFieldChange}>
+                            </lightning-input>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                            <lightning-input
+                                label="Customer Reference #"
+                                value={item.customerReference}
+                                maxlength="255"
+                                data-key={item.key}
+                                data-field="customerReference"
+                                onchange={handleItemFieldChange}>
+                            </lightning-input>
+                        </div>
+
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                            <lightning-combobox
+                                label="Ship-To"
+                                value={item.shipToAccountId}
+                                options={shipToComboboxOptions}
+                                placeholder="Select Ship-To"
+                                required
+                                data-key={item.key}
+                                data-field="shipToAccountId"
+                                onchange={handleItemFieldChange}>
+                            </lightning-combobox>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                            <lightning-textarea
+                                label="Ship To Address"
+                                value={item.shipToAddressDisplay}
+                                disabled>
+                            </lightning-textarea>
+                        </div>
+                    </div>
+                </lightning-accordion-section>
+            </template>
+        </lightning-accordion>
+    </template>
+
+    <template if:true={showNewContactModal}>
+        <section
+            role="dialog"
+            tabindex="-1"
+            aria-modal="true"
+            aria-labelledby="new-contact-modal-heading"
+            class="slds-modal slds-fade-in-open">
+            <div class="slds-modal__container">
+                <header class="slds-modal__header">
+                    <button
+                        class="slds-button slds-button_icon slds-modal__close slds-button_icon-inverse"
+                        title="Close"
+                        onclick={handleCloseNewContactModal}>
+                        <lightning-icon icon-name="utility:close" alternative-text="Close" size="small"></lightning-icon>
+                        <span class="slds-assistive-text">Close</span>
+                    </button>
+                    <h2 id="new-contact-modal-heading" class="slds-modal__title slds-hyphenate">
+                        New Contact
+                    </h2>
+                    <p class="slds-text-body_small slds-m-top_x-small">
+                        {newContactModalDescription}
+                    </p>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium">
+                    <div class="slds-grid slds-wrap slds-gutters_small">
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                            <lightning-input
+                                label="First Name"
+                                value={newContactFirstName}
+                                data-field="newContactFirstName"
+                                data-form="new-contact"
+                                required
+                                onchange={handleNewContactFieldChange}>
+                            </lightning-input>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                            <lightning-input
+                                label="Last Name"
+                                value={newContactLastName}
+                                data-field="newContactLastName"
+                                data-form="new-contact"
+                                required
+                                onchange={handleNewContactFieldChange}>
+                            </lightning-input>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                            <lightning-input
+                                type="email"
+                                label="Email"
+                                value={newContactEmail}
+                                data-field="newContactEmail"
+                                data-form="new-contact"
+                                required={isNewContactEmailRequired}
+                                onchange={handleNewContactFieldChange}>
+                            </lightning-input>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                            <lightning-input
+                                type="tel"
+                                label="Phone Number"
+                                value={newContactPhone}
+                                data-field="newContactPhone"
+                                data-form="new-contact"
+                                onchange={handleNewContactFieldChange}>
+                            </lightning-input>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1">
+                            <lightning-input
+                                label="Title"
+                                value={newContactTitle}
+                                data-field="newContactTitle"
+                                data-form="new-contact"
+                                onchange={handleNewContactFieldChange}>
+                            </lightning-input>
+                        </div>
+                    </div>
+                </div>
+                <footer class="slds-modal__footer">
+                    <lightning-button label="Cancel" onclick={handleCloseNewContactModal}></lightning-button>
+                    <lightning-button
+                        variant="brand"
+                        label="Save"
+                        disabled={isCreatingContact}
+                        onclick={handleSaveNewContact}>
+                    </lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open"></div>
+    </template>
+</template>

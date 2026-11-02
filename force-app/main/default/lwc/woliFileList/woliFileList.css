@@ -1,0 +1,78 @@
+.files-card {
+    border: 1px solid #d8dde6;
+}
+
+.files-card__header {
+    align-items: center;
+    padding: 0.75rem 1rem;
+    margin: 0;
+    border-bottom: 1px solid #d8dde6;
+}
+
+.files-card__count {
+    display: block;
+    font-weight: normal;
+    margin-top: 0.125rem;
+}
+
+.files-table-wrapper {
+    overflow-x: auto;
+}
+
+.files-table {
+    min-width: 100%;
+}
+
+.files-table__col-icon {
+    width: 3.5rem;
+}
+
+.files-table__icon-slot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 2.25rem;
+}
+
+.files-table__col-title {
+    min-width: 10rem;
+    max-width: 14rem;
+}
+
+.files-table__col-category {
+    min-width: 11rem;
+    width: 11rem;
+}
+
+.files-table__file-card {
+    width: 3rem;
+    cursor: pointer;
+    border: none;
+    box-shadow: none;
+}
+
+.files-table__file-card .slds-file__crop {
+    width: 3rem;
+    height: 2.25rem;
+}
+
+.files-table__thumb {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border: 1px solid #d8dde6;
+    border-radius: 0.125rem;
+    background: #f3f3f3;
+}
+
+.files-table__title-link {
+    text-align: left;
+    white-space: normal;
+    word-break: break-word;
+}
+
+.files-table__row:hover {
+    background-color: #f3f2f2;
+}

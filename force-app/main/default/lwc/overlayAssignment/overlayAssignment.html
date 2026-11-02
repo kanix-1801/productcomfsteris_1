@@ -1,0 +1,433 @@
+<template>
+    <template if:true={showModal}>
+        <section role="dialog" tabindex="-1" class="custom-modal">
+            <div class="custom-modal-container">
+                <!-- Sales Overlay Popup Header-->
+                <header class="custom-modal-header">
+                    <lightning-button-icon icon-name="utility:close" alternative-text="Close" title="Close"
+                        onclick={closeModal} variant="bare" class="custom-close-icon">
+                    </lightning-button-icon>
+
+                    <h2 class="slds-text-heading_medium">Sales Overlay</h2>
+                </header>
+
+                <div class="custom-modal-body">
+                    <lightning-card title={cardTitle} icon-name="standard:team_member">
+                        <div class="slds-p-around_small">
+                            <!-- Step 1 - Search for Territories -->
+                            <template if:true={isStepOne}>
+                                <div class="slds-box slds-theme_default slds-m-bottom_medium">
+                                    <div class="section-header">
+                                        <lightning-button-icon icon-name={territorySearchIconName} variant="bare"
+                                            alternative-text="Toggle Territory Search" title="Toggle Territory Search"
+                                            onclick={toggleTerritorySearchSection}>
+                                        </lightning-button-icon>
+                                        <h3 class="slds-text-heading_small slds-m-left_x-small">Search Territories</h3>
+                                    </div>
+
+                                    <template if:false={isTerritorySearchCollapsed}>
+                                        <div class="territory-search-row">
+                                            <div class="territory-search-input">
+                                                <lightning-input type="search" variant="label-hidden"
+                                                    value={territorySearchKey} onchange={handleTerritorySearchChange}
+                                                    onkeypress={handleTerritoryEnterKey}
+                                                    placeholder="Search by Territory ID, Territory Name, or Description">
+                                                </lightning-input>
+                                            </div>
+                                            <lightning-button label="Search Territories" variant="brand"
+                                                onclick={handleSearchTerritories}
+                                                disabled={isSearchTerritoriesDisabled}>
+                                            </lightning-button>
+                                        </div>
+                                        <template if:true={hasTerritoryResults}>
+                                            <div class="slds-m-top_medium">
+                                                <lightning-datatable key-field="territoryId" data={territoryData}
+                                                    columns={territoryColumns} selected-rows={selectedTerritoryIds}
+                                                    onrowselection={handleTerritorySelection}>
+                                                </lightning-datatable>
+                                            </div>
+                                        </template>
+                                    </template>
+                                </div>
+
+                                <template if:true={hasSelectedTerritories}>
+                                    <div class="slds-box slds-theme_default slds-m-bottom_medium">
+                                        <div class="section-header">
+                                            <lightning-button-icon icon-name={selectedTerritoriesIconName}
+                                                variant="bare" alternative-text="Toggle Selected Territories"
+                                                title="Toggle Selected Territories"
+                                                onclick={toggleSelectedTerritoriesSection}>
+                                            </lightning-button-icon>
+                                            <h3 class="slds-text-heading_small slds-m-left_x-small">Selected Territories
+                                            </h3>
+                                        </div>
+
+                                        <template if:false={isSelectedTerritoriesCollapsed}>
+                                            <div class="pill-container slds-m-top_small">
+                                                <template for:each={selectedTerritoryRecords} for:item="territory">
+                                                    <lightning-pill key={territory.territoryId}
+                                                        label={territory.territoryId} name={territory.territoryId}
+                                                        onremove={handleRemoveSelectedTerritory}
+                                                        class="slds-m-right_x-small slds-m-bottom_x-small">
+                                                    </lightning-pill>
+                                                </template>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+                                <!-- Step 1 - Search for Accounts -->
+                                <div class="slds-box slds-theme_default slds-m-bottom_medium">
+                                    <div class="section-header">
+                                        <lightning-button-icon icon-name={accountSearchIconName} variant="bare"
+                                            alternative-text="Toggle Account Search" title="Toggle Account Search"
+                                            onclick={toggleAccountSearchSection}>
+                                        </lightning-button-icon>
+                                        <h3 class="slds-text-heading_small slds-m-left_x-small">Search Accounts</h3>
+                                    </div>
+
+                                    <template if:false={isAccountSearchCollapsed}>
+                                        <div class="account-search-section">
+                                            <div class="account-search-row">
+                                                <div class="account-search-field">
+                                                    <lightning-input type="search"
+                                                        label="Account Name or Account Number" value={accountSearchKey}
+                                                        onchange={handleAccountSearchChange}
+                                                        onkeypress={handleSearchAccountsEnter}
+                                                        placeholder="Search by Account Name or Account Number">
+                                                    </lightning-input>
+                                                </div>
+
+                                                <div class="account-type-field">
+                                                    <lightning-combobox label="Account Type" value={accountType}
+                                                        placeholder="Select Account Type" options={accountTypeOptions}
+                                                        onchange={handleAccountTypeChange}>
+                                                    </lightning-combobox>
+                                                </div>
+
+                                                <div class="account-search-button">
+                                                    <lightning-button label="Search Accounts" variant="brand"
+                                                        onclick={handleSearchAccounts}
+                                                        disabled={isSearchAccountsDisabled}>
+                                                    </lightning-button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <template if:true={accountSearchTotalRecords}>
+                                            <div class="slds-m-top_medium slds-m-bottom_small">
+                                                <strong>Total Search Accounts:</strong> {accountSearchTotalRecords}
+                                            </div>
+                                        </template>
+
+                                        <template if:true={hasAccountSearchResults}>
+                                            <div class="slds-m-top_medium">
+                                                <lightning-datatable key-field="accountId" data={accountSearchData}
+                                                    columns={accountSearchColumns}
+                                                    selected-rows={selectedSearchAccountIds}
+                                                    onrowselection={handleAccountSearchSelection}>
+                                                </lightning-datatable>
+                                            </div>
+
+                                            <div
+                                                class="slds-m-top_medium slds-grid slds-grid_vertical-align-center slds-grid_align-spread">
+                                                <lightning-button label="Previous"
+                                                    onclick={handlePreviousAccountSearchPage}
+                                                    disabled={disablePreviousAccountSearchPage}>
+                                                </lightning-button>
+
+                                                <div class="slds-grid slds-grid_vertical-align-center">
+                                                    <div class="slds-m-right_medium">Page {accountSearchPageNumber} of
+                                                        {accountSearchTotalPages}</div>
+                                                    <lightning-combobox label="Records Per Page" variant="label-hidden"
+                                                        value={accountSearchPageSizeValue} options={pageSizeOptions}
+                                                        onchange={handleAccountSearchPageSizeChange}>
+                                                    </lightning-combobox>
+                                                </div>
+
+                                                <lightning-button label="Next" onclick={handleNextAccountSearchPage}
+                                                    disabled={disableNextAccountSearchPage}>
+                                                </lightning-button>
+                                            </div>
+                                        </template>
+                                    </template>
+                                </div>
+
+                                <template if:true={hasSelectedSearchAccounts}>
+                                    <div class="slds-box slds-theme_default slds-m-bottom_medium">
+                                        <div class="section-header">
+                                            <lightning-button-icon icon-name={selectedAccountsIconName} variant="bare"
+                                                alternative-text="Toggle Selected Accounts"
+                                                title="Toggle Selected Accounts"
+                                                onclick={toggleSelectedAccountsSection}>
+                                            </lightning-button-icon>
+                                            <h3 class="slds-text-heading_small slds-m-left_x-small">Selected Accounts
+                                            </h3>
+                                        </div>
+
+                                        <template if:false={isSelectedAccountsCollapsed}>
+                                            <div class="pill-container slds-m-top_small">
+                                                <template for:each={selectedSearchAccountRecords} for:item="account">
+                                                    <lightning-pill key={account.accountId} label={account.accountName}
+                                                        name={account.accountId}
+                                                        onremove={handleRemoveSelectedSearchAccount}
+                                                        class="slds-m-right_x-small slds-m-bottom_x-small">
+                                                    </lightning-pill>
+                                                </template>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+
+                                <div class="slds-m-top_medium slds-m-bottom_medium button-group">
+                                    <lightning-button label="Next" variant="brand"
+                                        onclick={handleRetrieveAccountsClick} disabled={isRetrieveDisabled}>
+                                    </lightning-button>
+
+                                    <lightning-button label="Reset" variant="neutral" onclick={handleResetStepOne} class = "Reset-Button">
+                                    </lightning-button>
+                                </div>
+                            </template>
+
+                            <!-- Step 2 - Retrieve accounts based on search criteria -->
+                            <template if:true={isStepTwo}>
+                                <div class="slds-m-top_medium slds-m-bottom_medium">
+                                    <strong>Total Accounts:</strong> {accountTotalRecords}
+                                </div>
+                                <lightning-datatable key-field="accountId" key={accountTableKey} data={accountData}
+                                    columns={accountColumns} selected-rows={selectedAccountIds}
+                                    onrowselection={handleAccountSelection}>
+                                </lightning-datatable>
+
+                                <div
+                                    class="slds-m-top_medium slds-grid slds-grid_vertical-align-center slds-grid_align-spread">
+                                    <lightning-button label="Previous" onclick={handlePreviousAccountPage}
+                                        disabled={disablePreviousAccountPage}>
+                                    </lightning-button>
+
+                                    <div class="slds-grid slds-grid_vertical-align-center">
+                                        <div class="slds-m-right_medium">Page {accountPageNumber} of
+                                            {accountTotalPages}
+                                        </div>
+                                        <lightning-combobox label="Records Per Page" variant="label-hidden"
+                                            value={accountPageSizeValue} options={pageSizeOptions}
+                                            onchange={handleAccountPageSizeChange}>
+                                        </lightning-combobox>
+                                    </div>
+
+                                    <lightning-button label="Next" onclick={handleNextAccountPage}
+                                        disabled={disableNextAccountPage}>
+                                    </lightning-button>
+                                </div>
+                                <div class="slds-m-top_small slds-m-bottom_small">
+                                    <lightning-button label="Back" onclick={goToStepOne}></lightning-button>
+                                    <lightning-button label="Confirm Accounts" variant="brand" onclick={goToStepThree}
+                                        disabled={isNextDisabled} class="slds-m-left_small">
+                                    </lightning-button>
+                                </div>
+                            </template>
+
+                            <!-- Step 3 - Search for overlay users -->
+                            <template if:true={isStepThree}>
+                                <lightning-input label="Search Overlay User" type = "search" value={userSearchKey}
+                                    onchange={handleUserSearchChange} onkeypress={handleSearchUsersEnter} placeholder="Search user by name or email">
+                                </lightning-input>
+
+                                <div class="slds-m-top_medium slds-m-bottom_medium">
+                                    <lightning-button label="Search Users" variant="brand" onclick={handleSearchUsers}>
+                                    </lightning-button>
+                                </div>
+
+                                <template if:true={userData.length}>
+                                    <table
+                                        class="slds-table slds-table_cell-buffer slds-table_bordered slds-m-top_medium slds-m-bottom_medium">
+                                        <thead>
+                                            <tr>
+                                                <th>Select</th>
+                                                <th>Title</th>
+                                                <th>Name</th>
+                                                <th>Email</th>
+                                                <th>Country</th>
+                                                <th>Role</th>
+                                                <th>Manager</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <template for:each={userData} for:item="user">
+                                                <tr key={user.userId} data-userid={user.userId}
+                                                    onmouseover={handleUserMouseOver} onmouseout={handleUserMouseOut}>
+                                                    <td>
+                                                        <lightning-input type="checkbox" data-userid={user.userId}
+                                                            checked={user.isSelected}
+                                                            onchange={handleUserCheckboxChange}>
+                                                        </lightning-input>
+                                                    </td>
+                                                    <td>{user.title}</td>
+                                                    <td>
+                                                        <div class="user-hover-container">
+                                                            {user.userName}
+                                                            <template if:true={user.showTooltip}>
+                                                                <section
+                                                                    class="slds-popover slds-popover_tooltip slds-nubbin_bottom-left user-tooltip">
+                                                                    <div class="slds-popover__body">
+                                                                        <p><strong>Title:</strong> {user.title}</p>
+                                                                        <p><strong>Name:</strong> {user.userName}</p>
+                                                                        <p><strong>Email:</strong> {user.email}</p>
+                                                                        <p><strong>Role:</strong> {user.role}</p>
+                                                                        <p><strong>Country:</strong> {user.country}</p>
+                                                                        <p><strong>Manager:</strong> {user.managerName}
+                                                                        </p>
+                                                                    </div>
+                                                                </section>
+                                                            </template>
+                                                        </div>
+                                                    </td>
+                                                    <td>{user.email}</td>
+                                                    <td>{user.country}</td>
+                                                    <td>{user.role}</td>
+                                                    <td>{user.managerName}</td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </template>
+
+                                <div class="slds-m-top_medium">
+                                    <lightning-button label="Back" onclick={goToStepTwo}></lightning-button>
+                                    <lightning-button label="Review Summary" variant="brand" onclick={goToSummary}
+                                        disabled={isSubmitDisabled}
+                                        class="slds-m-left_medium slds-m-bottom_medium slds-m-top_medium">
+                                    </lightning-button>
+                                </div>
+
+                                <template if:true={selectedUserRecords.length}>
+                                    <div class="slds-m-top_medium slds-m-bottom_medium">
+                                        <strong>Selected Overlay Users:</strong>
+                                        <template for:each={selectedUserRecords} for:item="user">
+                                            <lightning-pill key={user.userId} label={user.userName} name={user.userId}
+                                                onremove={handleRemoveSelectedUser} class="slds-m-left_x-small">
+                                            </lightning-pill>
+                                        </template>
+                                    </div>
+                                </template>
+                            </template>
+
+                            <template if:true={isStepFour}>
+                                <div class="slds-m-bottom_medium">
+                                    <h2 class="slds-text-heading_small">Review Overlay Assignment Summary</h2>
+                                    <p class="slds-text-body_regular">
+                                        Please review the territory, account, and overlay user mappings before final
+                                        submission.
+                                    </p>
+                                </div>
+
+                                <!--  Show overlay assignment summary -->
+                                <template if:true={summaryData.length}>
+                                    <table
+                                        class="slds-table slds-table_cell-buffer slds-table_bordered slds-m-top_medium">
+                                        <thead>
+                                            <tr>
+                                                <th>Territory / Search Source</th>
+                                                <th>Description</th>
+                                                <th>Selected Account Count</th>
+                                                <th>Selected Overlay Users</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <template for:each={summaryData} for:item="row">
+                                                <tr key={row.territoryId}>
+                                                    <td>
+                                                        <a href="javascript:void(0);" data-territoryid={row.territoryId}
+                                                            onclick={handleTerritorySummaryClick}>
+                                                            {row.territoryId}
+                                                        </a>
+                                                    </td>
+                                                    <td>{row.territoryDescription}</td>
+                                                    <td>{row.accountCount}</td>
+                                                    <td>{row.selectedUsersText}</td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </template>
+
+                                <div class="slds-m-top_medium">
+                                    <lightning-button label="Back"
+                                        onclick={goBackToUsersFromSummary}></lightning-button>
+                                    <lightning-button label="Confirm & Submit" variant="brand"
+                                        onclick={handleConfirmSubmit} class="slds-m-left_small">
+                                    </lightning-button>
+                                </div>
+                            </template>
+
+                            <template if:true={isLoading}>
+                                <lightning-spinner alternative-text="Processing"></lightning-spinner>
+                            </template>
+                        </div>
+                    </lightning-card>
+
+                    <template if:true={showRetrievePrompt}>
+                        <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open">
+                            <div class="slds-modal__container">
+                                <header class="slds-modal__header">
+                                    <h2 class="slds-text-heading_medium">Confirm Selection</h2>
+                                </header>
+                                <div class="slds-modal__content slds-p-around_medium">
+                                    Do you want to continue with the current selection?
+                                </div>
+                                <footer class="slds-modal__footer">
+                                    <lightning-button label="Yes" variant="brand"
+                                        onclick={handleConfirmRetrieveAccounts}></lightning-button>
+                                    <lightning-button label="No" onclick={handleSelectMoreTerritories}
+                                        class="slds-m-left_small">
+                                    </lightning-button>
+                                </footer>
+                            </div>
+                        </section>
+                        <div class="slds-backdrop slds-backdrop_open"></div>
+                    </template>
+
+                    <template if:true={showTerritoryAccountsPopup}>
+                        <section role="dialog" tabindex="-1" class="summary-popup">
+                            <div class="summary-popup-container">
+                                <header class="summary-popup-header">
+                                    <h2>Selected Accounts - {selectedSummaryTerritory.territoryId}</h2>
+                                    <button class="summary-popup-close" onclick={closeTerritoryAccountsPopup}
+                                        title="Close">✕</button>
+                                </header>
+                                <div class="summary-popup-body">
+                                    <table class="slds-table slds-table_cell-buffer slds-table_bordered">
+                                        <thead>
+                                            <tr>
+                                                <th>Account Name</th>
+                                                <th>Account Number</th>
+                                                <th>Account Type</th>
+                                                <!-- <th>TAS Address ID</th> -->
+                                                <th>Territory</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <template for:each={selectedSummaryAccounts} for:item="acc">
+                                                <tr key={acc.accountId}>
+                                                    <td>{acc.accountName}</td>
+                                                    <td>{acc.accountNumber}</td>
+                                                    <td>{acc.accountType}</td>
+                                                    <!-- <td>{acc.tasAddressId}</td> -->
+                                                    <td>{acc.territoryId}</td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <footer class="summary-popup-footer">
+                                    <lightning-button label="Close"
+                                        onclick={closeTerritoryAccountsPopup}></lightning-button>
+                                </footer>
+                            </div>
+                        </section>
+                        <div class="summary-popup-backdrop"></div>
+                    </template>
+                </div>
+            </div>
+        </section>
+        <div class="custom-backdrop"></div>
+    </template>
+</template>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>66.0</apiVersion>
+    <isExposed>false</isExposed>
+    <masterLabel>Key Account Process Review History</masterLabel>
+    <description>GC-2615 - Displays direct or IDN AAR child Account Process Reviews on the metadata-driven Customer 360 page.</description>
+</LightningComponentBundle>

@@ -1,0 +1,111 @@
+<template>
+    <template lwc:if={isVisible}>
+        <div class={notificationClass} role="status">
+            <div class="slds-media slds-media_center">
+                <div class="slds-media__figure">
+                    <lightning-icon
+                        icon-name={bannerIcon}
+                        alternative-text={bannerTitle}
+                        size="x-small"
+                        variant={bannerIconVariant}>
+                    </lightning-icon>
+                </div>
+                <div class="slds-media__body">
+                    <p class="slds-text-body_small">
+                        <strong>{bannerTitle}.</strong> {bannerMessage}
+                    </p>
+                </div>
+                <div class="slds-media__figure slds-media__figure_reverse banner-actions">
+                    <template lwc:if={showDecideActions}>
+                        <lightning-button
+                            label="Approve"
+                            variant="brand"
+                            onclick={handleApproveClick}
+                            disabled={isBusy}
+                            is-loading={isApproving}>
+                        </lightning-button>
+                        <lightning-button
+                            label="Reject"
+                            variant="destructive"
+                            class="slds-m-left_x-small"
+                            onclick={handleOpenRejectModal}
+                            disabled={isBusy}>
+                        </lightning-button>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+        <template lwc:if={hasApprovers}>
+            <lightning-card title="Deal Approvers" class="slds-m-top_small">
+                <div class="slds-p-horizontal_medium slds-p-bottom_medium">
+                    <div class="approver-table-wrapper">
+                        <table class="slds-table slds-table_cell-buffer slds-table_bordered slds-table_fixed-layout">
+                            <thead>
+                                <tr class="slds-line-height_reset">
+                                    <th scope="col">Approver</th>
+                                    <th scope="col">Role</th>
+                                    <th scope="col">Required</th>
+                                    <th scope="col">Decision</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template for:each={approverRows} for:item="approver">
+                                    <tr key={approver.rowKey}>
+                                        <td>
+                                            <div class="truncate" title={approver.userName}>{approver.userName}</div>
+                                        </td>
+                                        <td>{approver.role}</td>
+                                        <td>{approver.requiredLabel}</td>
+                                        <td>{approver.decision}</td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                    <template lwc:if={submissionComments}>
+                        <p class="slds-m-top_small slds-text-body_small">
+                            <strong>Submission comments:</strong> {submissionComments}
+                        </p>
+                    </template>
+                    <template lwc:if={rejectionReason}>
+                        <p class="slds-m-top_small slds-text-body_small">
+                            <strong>Rejection reason:</strong> {rejectionReason}
+                        </p>
+                    </template>
+                </div>
+            </lightning-card>
+        </template>
+    </template>
+
+    <template lwc:if={showRejectModal}>
+        <section role="dialog" tabindex="-1" aria-modal="true" class="slds-modal slds-fade-in-open">
+            <div class="slds-modal__container">
+                <header class="slds-modal__header">
+                    <h2 class="slds-modal__title">Reject Deal</h2>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium">
+                    <lightning-textarea
+                        label="Rejection reason"
+                        required
+                        value={decisionComments}
+                        onchange={handleDecisionCommentsChange}
+                        disabled={isBusy}>
+                    </lightning-textarea>
+                </div>
+                <footer class="slds-modal__footer">
+                    <lightning-button label="Cancel" onclick={handleCloseRejectModal} disabled={isBusy}></lightning-button>
+                    <lightning-button
+                        class="slds-m-left_x-small"
+                        variant="destructive"
+                        label="Reject"
+                        onclick={handleReject}
+                        disabled={isRejectDisabled}
+                        is-loading={isRejecting}>
+                    </lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open"></div>
+    </template>
+</template>

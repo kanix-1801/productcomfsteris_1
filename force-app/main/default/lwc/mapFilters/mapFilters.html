@@ -1,0 +1,73 @@
+<template>
+  <div class="buttons-container">
+    <div class="button filter-button active-button type-button">
+      <div class="button-text">
+        <div class="button-text-title">Type</div>
+        <div class="button-text-main">{typeText}</div>
+      </div>
+      <div>
+        <lightning-icon
+          class="icon"
+          size="x-small"
+          icon-name="utility:chevrondown"
+        ></lightning-icon>
+      </div>
+    </div>
+    <button class={filterFieldButtonClass} onclick={handleTopFiltersFieldClick}>
+      <div class="button-text">
+        <div class="button-text-title">Filter By</div>
+        <div class="button-text-main">{filteredFieldText}</div>
+      </div>
+      <div>
+        <lightning-icon
+          class="icon"
+          size="x-small"
+          icon-name="utility:chevrondown"
+        ></lightning-icon>
+      </div>
+    </button>
+  </div>
+
+  <!-- product name filter bottom sheet -->
+  <div class="bottom-sheet field-filter-bottom-sheet">
+    <!-- header -->
+    <div class="header">
+      <div class="grabber">
+        <svg
+          width="375"
+          height="8"
+          viewBox="0 0 375 8"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <rect width="375" height="8" fill="white" />
+          <rect x="171.5" y="4" width="32" height="4" rx="2" fill="#BEBEC0" />
+        </svg>
+      </div>
+      <div class="sheet-title-and-buttons">
+        <button class="back"></button>
+        <div class="filters-sheet-title">Filter By Product Name</div>
+        <button class="x" onclick={handleCloseFieldFiltersClick}>
+          <lightning-icon
+            alternative-text="Close"
+            icon-name="utility:close"
+            size="x-small"
+            class="x-icon"
+          ></lightning-icon>
+        </button>
+      </div>
+      <lightning-menu-divider></lightning-menu-divider>
+    </div>
+
+    <!-- content -->
+    <div class="sheet-content">
+      <lightning-radio-group
+        options={radioOptions}
+        value={selectedValue}
+        onchange={onProductRadioChange}
+        type="radio"
+      >
+      </lightning-radio-group>
+    </div>
+  </div>
+</template>

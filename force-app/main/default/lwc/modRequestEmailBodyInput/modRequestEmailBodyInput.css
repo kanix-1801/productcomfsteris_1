@@ -1,0 +1,4 @@
+.email-body-textarea {
+    min-height: 420px;
+    resize: vertical;
+}

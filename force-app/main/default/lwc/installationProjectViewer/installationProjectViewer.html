@@ -1,0 +1,264 @@
+<template>
+    <lightning-card title="Project Activities" icon-name="standard:task">
+        <div slot="actions" class="slds-grid slds-grid_vertical-align-center slds-gutters_x-small filter-actions">
+            <lightning-input
+                type="checkbox"
+                label="Group by Sequence"
+                checked={groupBySequence}
+                onchange={handleGroupByChange}
+            ></lightning-input>
+            <lightning-button
+                label="Group All"
+                variant="neutral"
+                class="group-all-btn"
+                disabled={disableGroupAllButton}
+                onclick={handleGroupAll}
+            ></lightning-button>
+            <lightning-input
+                type="checkbox"
+                label="Hide Completed"
+                checked={hideCompleted}
+                onchange={handleHideCompletedChange}
+            ></lightning-input>
+            <lightning-input
+                type="checkbox"
+                label="Show Past Due Only"
+                checked={showPastDueOnly}
+                onchange={handleHidePastDueChange}
+            ></lightning-input>
+        </div>
+
+        <template if:true={error}>
+            <div class="slds-p-around_medium slds-text-color_error">{apexErrorMessage}</div>
+        </template>
+
+        <template if:false={error}>
+            <template if:false={readOnlyAccessResolved}>
+                <div class="slds-p-around_medium slds-align_absolute-center">
+                    <lightning-spinner alternative-text="Loading" size="small"></lightning-spinner>
+                </div>
+            </template>
+            <template if:true={readOnlyAccessResolved}>
+            <template if:true={hasRows}>
+                <div class="table-scroll-container">
+                    <table class="slds-table slds-table_cell-buffer slds-table_bordered slds-no-row-hover">
+                        <thead>
+                            <tr class="slds-line-height_reset">
+                                <th scope="col" class="seq-col-header">
+                                    <div class="seq-header-grid">
+                                        <span aria-hidden="true"></span>
+                                        <span aria-hidden="true"></span>
+                                        <div class="slds-truncate" title="#">#</div>
+                                    </div>
+                                </th>
+                                <th scope="col"><div class="slds-truncate" title="Type">Type</div></th>
+                                <th scope="col"><div class="slds-truncate" title="Details">Details</div></th>
+                                <th scope="col"><div class="slds-truncate" title="Due Date">Due Date</div></th>
+                                <th scope="col"><div class="slds-truncate" title="Assigned To">Assigned To</div></th>
+                                <th scope="col"><div class="slds-truncate" title="Status">Status</div></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template for:each={displayRows} for:item="row">
+                                <tr key={row.rowKey} class={row.rowClass}>
+                                    <td class="seq-td">
+                                        <div class="seq-row">
+                                            <div class="seq-line-actions">
+                                                <template if:true={row.showRootLineButtons}>
+                                                    <lightning-button-icon
+                                                        icon-name="utility:new"
+                                                        variant="border-filled"
+                                                        size="small"
+                                                        alternative-text="Add line"
+                                                        title="Add next root line (shift numbers at and below the new line)"
+                                                        disabled={row.actionsDisabled}
+                                                        data-seq={row.sequence}
+                                                        data-rec-id={row.recordId}
+                                                        data-obj={row.objectApiName}
+                                                        onclick={handleAddRootLine}
+                                                    ></lightning-button-icon>
+                                                    <lightning-button-icon
+                                                        icon-name="utility:hierarchy"
+                                                        variant="border-filled"
+                                                        size="small"
+                                                        alternative-text="Add subline"
+                                                        title="Add subline as a task (next number under this line)"
+                                                        disabled={row.actionsDisabled}
+                                                        data-seq={row.sequence}
+                                                        data-rec-id={row.recordId}
+                                                        data-obj={row.objectApiName}
+                                                        onclick={handleAddSubline}
+                                                    ></lightning-button-icon>
+                                                    <template if:true={row.showNewFirstLineButton}>
+                                                        <lightning-button-icon
+                                                            icon-name="utility:arrowup"
+                                                            variant="border-filled"
+                                                            size="small"
+                                                            alternative-text="New first line"
+                                                            title="New first line: insert a new line 1 and shift existing lines down"
+                                                            disabled={row.actionsDisabled}
+                                                            data-seq={row.sequence}
+                                                            data-rec-id={row.recordId}
+                                                            data-obj={row.objectApiName}
+                                                            onclick={handleInsertNewFirstLine}
+                                                        ></lightning-button-icon>
+                                                    </template>
+                                                </template>
+                                            </div>
+                                            <div class="seq-toggle-host" style={row.seqIndentStyle}>
+                                                <template if:true={row.showChevron}>
+                                                    <button
+                                                        type="button"
+                                                        class="seq-toggle"
+                                                        data-group-key={row.groupToggleKey}
+                                                        onclick={handleToggleGroup}
+                                                        title="Show or hide nested rows"
+                                                    >
+                                                        <lightning-icon
+                                                            icon-name={row.expandIconName}
+                                                            size="x-small"
+                                                            alternative-text=""
+                                                        ></lightning-icon>
+                                                    </button>
+                                                </template>
+                                                <template if:false={row.showChevron}>
+                                                    <div class="seq-toggle seq-toggle_placeholder" aria-hidden="true"></div>
+                                                </template>
+                                            </div>
+                                            <span class="seq-text slds-truncate" title={row.sequenceDisplay}>{row.sequenceDisplay}</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="type-cell">
+                                            <template if:true={row.showTypeIcon}>
+                                                <lightning-icon
+                                                    icon-name={row.typeIconName}
+                                                    size="small"
+                                                    alternative-text={row.typeLabel}
+                                                    class="type-col-icon"
+                                                ></lightning-icon>
+                                            </template>
+                                            <template if:true={row.recordId}>
+                                                <button
+                                                    type="button"
+                                                    class="type-icon-link"
+                                                    data-record-id={row.recordId}
+                                                    data-object-api-name={row.objectApiName}
+                                                    onclick={handleNavigate}
+                                                    title="Open record"
+                                                >
+                                                    <lightning-icon
+                                                        icon-name="utility:new_window"
+                                                        size="x-small"
+                                                        alternative-text="Open record"
+                                                        class="type-col-icon"
+                                                    ></lightning-icon>
+                                                </button>
+                                            </template>
+                                        </div>
+                                    </td>
+                                    <td class="details-col details-edit-cell">
+                                        <template if:true={row.canEditDetails}>
+                                            <div class="details-edit-row">
+                                                <lightning-input
+                                                    type="text"
+                                                    value={row.title}
+                                                    variant="label-hidden"
+                                                    placeholder="Details"
+                                                    data-rec-id={row.recordId}
+                                                    data-obj={row.objectApiName}
+                                                    disabled={row.isSaving}
+                                                    onblur={handleTitleBlur}
+                                                ></lightning-input>
+                                            </div>
+                                        </template>
+                                        <template if:false={row.canEditDetails}>
+                                            <template if:true={row.showReadonlyDetails}>
+                                                <div class="details-readonly-row">
+                                                    <span
+                                                        class="slds-truncate details-readonly-title"
+                                                        title={row.title}
+                                                    >{row.title}</span>
+                                                </div>
+                                            </template>
+                                            <template if:false={row.showReadonlyDetails}>
+                                                <span class="slds-truncate slds-text-color_weak" title={row.title}>{row.title}</span>
+                                            </template>
+                                        </template>
+                                    </td>
+                                    <td class="inline-field-cell">
+                                        <template if:true={row.canEditDueDate}>
+                                            <lightning-input
+                                                type="date"
+                                                value={row.dueDateIso}
+                                                variant="label-hidden"
+                                                data-rec-id={row.recordId}
+                                                data-obj={row.objectApiName}
+                                                disabled={row.isSaving}
+                                                onchange={handleDueDateChange}
+                                            ></lightning-input>
+                                        </template>
+                                        <template if:false={row.canEditDueDate}>
+                                            <div class="slds-truncate field-readonly-display" title={row.dueDateFormatted}>{row.dueDateFormatted}</div>
+                                        </template>
+                                    </td>
+                                    <td class="inline-field-cell">
+                                        <template if:true={row.canEditOwner}>
+                                            <lightning-record-picker
+                                                label="Assigned To"
+                                                variant="label-hidden"
+                                                object-api-name="User"
+                                                placeholder="Search users..."
+                                                value={row.ownerId}
+                                                filter={assignableUserFilter}
+                                                matching-info={assignableUserMatchingInfo}
+                                                display-info={assignableUserDisplayInfo}
+                                                data-rec-id={row.recordId}
+                                                data-obj={row.objectApiName}
+                                                disabled={row.isSaving}
+                                                onchange={handleOwnerChange}
+                                            ></lightning-record-picker>
+                                        </template>
+                                        <template if:false={row.canEditOwner}>
+                                            <div class="slds-truncate field-readonly-display" title={row.assignedToName}>{row.assignedToName}</div>
+                                        </template>
+                                    </td>
+                                    <td class={row.statusCellClass}>
+                                        <template if:true={row.showStatusCombobox}>
+                                            <lightning-combobox
+                                                value={row.status}
+                                                options={row.statusOptionsForRow}
+                                                variant="label-hidden"
+                                                placeholder="Status"
+                                                dropdown-alignment={row.dropdownAlignment}
+                                                data-rec-id={row.recordId}
+                                                data-obj={row.objectApiName}
+                                                disabled={row.isSaving}
+                                                onchange={handleStatusChange}
+                                            ></lightning-combobox>
+                                        </template>
+                                        <template if:false={row.showStatusCombobox}>
+                                            <template if:true={row.showReadonlyStatus}>
+                                                <div
+                                                    class="slds-truncate field-readonly-display"
+                                                    title={row.statusDisplayLabel}
+                                                >{row.statusDisplayLabel}</div>
+                                            </template>
+                                            <template if:false={row.showReadonlyStatus}>
+                                                <div class="slds-truncate" title={row.status}>{row.status}</div>
+                                            </template>
+                                        </template>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </template>
+            <template if:false={hasRows}>
+                <div class="slds-p-around_medium slds-text-color_weak">No tasks or events for this project.</div>
+            </template>
+            </template>
+        </template>
+    </lightning-card>
+</template>

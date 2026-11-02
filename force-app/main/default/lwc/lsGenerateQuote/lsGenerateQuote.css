@@ -1,0 +1,507 @@
+.quote-card-header {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.375rem;
+    padding-bottom: 0.75rem;
+}
+
+.quote-header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    width: 100%;
+}
+
+.header-title {
+    display: flex;
+    align-items: center;
+    margin: 0;
+    min-width: 0;
+}
+
+.header-actions {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+/* GC-3292 START: layout row wrapping grouping toggle + new Expand All/Collapse All controls */
+.controls-row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 0.75rem;
+    width: 100%;
+    flex-wrap: wrap;
+}
+
+.grouping-control {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.1875rem;
+    width: auto;
+    max-width: 100%;
+}
+
+.expand-collapse-control {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.expand-collapse-control .expand-collapse-btn {
+    font-size: 0.75rem;
+    line-height: 1.25rem;
+    padding: 0.1875rem 0.625rem;
+    min-height: 1.5rem;
+    height: auto;
+    white-space: nowrap;
+}
+/* GC-3292 END */
+
+.grouping-control__label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    line-height: 1.25;
+    color: #706e6b;
+}
+
+.grouping-control__buttons {
+    display: inline-flex;
+}
+
+.grouping-control__buttons .grouping-toggle-btn {
+    font-size: 0.75rem;
+    line-height: 1.25rem;
+    padding: 0.1875rem 0.625rem;
+    min-height: 1.5rem;
+    height: auto;
+    white-space: nowrap;
+}
+
+.custom-table {
+    width: 100%;
+    table-layout: fixed;
+}
+
+.quote-number-header {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    max-width: 100%;
+}
+
+.quote-pagination {
+    border-top: 1px solid #e5e5e5;
+}
+
+.quote-pagination-summary {
+    color: #706e6b;
+}
+
+.quote-table-body {
+    overflow-x: auto;
+    overflow-y: visible;
+    min-height: 8rem;
+}
+
+.quote-table-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 8rem;
+}
+
+.quote-table-scroll {
+    width: 100%;
+    min-width: 0;
+    overflow: visible;
+}
+
+.custom-table col.quote-table-col {
+    width: 14.2857%;
+}
+
+.col-forecast-confidence,
+.col-sync-confidence {
+    vertical-align: middle;
+}
+
+.col-forecast-confidence {
+    overflow: visible;
+    position: relative;
+    z-index: 2;
+}
+
+.forecast-confidence-select {
+    min-width: 7.5rem;
+    width: 100%;
+}
+
+.sync-action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.sync-action__buttons {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex-wrap: nowrap;
+}
+
+.sync-action .confidence-action-btn {
+    font-size: 0.75rem;
+    line-height: 1.25rem;
+    padding: 0.1875rem 0.625rem;
+    min-height: 1.5rem;
+    height: auto;
+    white-space: nowrap;
+}
+
+.sync-spinner {
+    position: relative;
+}
+
+.custom-table thead th {
+    white-space: normal;
+    word-wrap: break-word;
+    vertical-align: bottom;
+    line-height: 1.25;
+}
+
+.quote-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-width: 0;
+}
+
+.expand-icon {
+    flex-shrink: 0;
+}
+
+.quote-description-label {
+    font-weight: 700;
+    margin-right: 0.25rem;
+}
+
+.quote-description {
+    color: #444;
+}
+
+.child-row {
+    background-color: #fafaf9;
+}
+
+.custom-table tr.quote-row--forecast-ineligible > td,
+.custom-table tr.quote-row--forecast-ineligible > th,
+.existing-quotes-table tr.quote-row--forecast-ineligible > td,
+.existing-quotes-table tr.quote-row--forecast-ineligible > th {
+    background-color: #fef3e2;
+}
+
+.custom-table tr.quote-row--forecast-ineligible.child-row > td,
+.existing-quotes-table tr.quote-row--forecast-ineligible > td {
+    background-color: #fef3e2;
+}
+
+.custom-table tr.quote-row--forecast-ineligible:hover > td,
+.custom-table tr.quote-row--forecast-ineligible:hover > th,
+.existing-quotes-table tr.quote-row--forecast-ineligible:hover > td,
+.existing-quotes-table tr.quote-row--forecast-ineligible:hover > th {
+    background-color: #fde8c8;
+}
+
+.forecast-ineligible-helptext {
+    flex-shrink: 0;
+}
+
+.quote-row--forecast-ineligible .child-container {
+    background-color: transparent;
+}
+
+.quote-row--forecast-ineligible .line-item-row > td {
+    background-color: #fff8ef;
+}
+
+.child-cell {
+    padding-top: 0;
+    padding-bottom: 0.75rem;
+}
+
+.child-container {
+    margin-left: 2rem;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.child-table {
+    width: 100%;
+    max-width: 100%;
+    table-layout: fixed;
+    font-size: 0.8125rem;
+}
+
+.child-table .child-col-subgroup {
+    width: 62%;
+}
+
+.child-table .child-col-total {
+    width: 38%;
+    text-align: right;
+    vertical-align: middle;
+    padding-right: 0.75rem;
+}
+
+.child-col-total-label,
+.line-item-col-total-label {
+    display: inline-block;
+    white-space: nowrap;
+}
+
+.subgroup-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-width: 0;
+    max-width: 100%;
+    text-align: left;
+    color: #0176d3;
+}
+
+.subgroup-toggle:hover .subgroup-name {
+    text-decoration: underline;
+}
+
+.subgroup-expand-icon {
+    flex-shrink: 0;
+}
+
+.subgroup-name {
+    display: inline-block;
+    min-width: 0;
+}
+
+.line-item-row {
+    background-color: #fff;
+}
+
+.line-item-cell {
+    padding-top: 0;
+    padding-bottom: 0.5rem;
+    padding-left: 1rem;
+    padding-right: 0.5rem;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.line-item-table-wrapper {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    box-sizing: border-box;
+}
+
+.line-item-table {
+    width: 100%;
+    max-width: 100%;
+    table-layout: fixed;
+    font-size: 0.8125rem;
+    background-color: #fff;
+    box-sizing: border-box;
+}
+
+.line-item-table tbody td {
+    padding-left: 0.375rem;
+    padding-right: 0.375rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: middle;
+}
+
+.line-item-table thead th {
+    padding-left: 0.375rem;
+    padding-right: 0.375rem;
+    overflow: visible;
+    vertical-align: bottom;
+    line-height: 1.2;
+    font-weight: 700;
+}
+
+.line-item-table .line-item-col-product {
+    width: 33%;
+}
+
+.line-item-table .line-item-col-uom {
+    width: 7%;
+}
+
+.line-item-table .line-item-col-qty {
+    width: 9%;
+}
+
+.line-item-table .line-item-col-unit {
+    width: 14%;
+}
+
+.line-item-table .line-item-col-total {
+    width: 37%;
+}
+
+.line-item-table .line-item-col-uom,
+.line-item-table .line-item-col-qty {
+    text-align: center;
+    white-space: nowrap;
+}
+
+.line-item-table .line-item-col-unit,
+.line-item-table .line-item-col-total {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.line-item-table .line-item-col-total {
+    padding-right: 0.5rem;
+}
+
+.line-item-table .line-item-header-label {
+    display: inline-block;
+    white-space: nowrap;
+}
+
+.line-item-table .line-item-col-total .line-item-col-total-label {
+    display: inline-block;
+    white-space: nowrap;
+    line-height: 1.15;
+    text-align: right;
+}
+
+.line-item-header-label,
+.child-col-total-label,
+.line-item-col-total-label {
+    display: inline-block;
+    white-space: nowrap;
+}
+
+.truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.link-text {
+    color: #0176d3;
+    cursor: pointer;
+}
+.link-text:hover {
+    text-decoration: underline;
+}
+
+.existing-quotes-modal {
+    max-width: 52rem;
+    width: 90%;
+}
+
+.existing-quotes-warning-icon {
+    --slds-c-icon-color-foreground: var(--slds-g-color-warning-base-50, #fe9339);
+}
+
+.existing-quotes-heading {
+    font-weight: 700;
+}
+
+.existing-quotes-subtext {
+    color: #444;
+}
+
+.existing-quotes-modal-footer {
+    display: flex;
+    justify-content: center;
+}
+
+.existing-quotes-table {
+    width: 100%;
+    table-layout: fixed;
+}
+
+.existing-quotes-col-number { width: 16%; }
+.existing-quotes-col-status { width: 12%; }
+.existing-quotes-col-approval { width: 12%; }
+.existing-quotes-col-total { width: 14%; }
+.existing-quotes-col-modified { width: 18%; }
+
+.existing-quotes-link {
+    display: block;
+    max-width: 100%;
+    text-align: left;
+}
+
+.quick-action-content {
+    display: block;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+    box-sizing: border-box;
+}
+
+.quick-action-loading {
+    position: relative;
+    min-height: 6rem;
+}
+
+.qa-panel {
+    display: block;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+    box-sizing: border-box;
+}
+
+.qa-panel__container {
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    overflow: visible;
+    box-sizing: border-box;
+    box-shadow: 0 2px 3px 0 rgba(0, 0, 0, 0.16);
+    border-radius: 0.25rem;
+    background: #fff;
+}
+
+.qa-panel__container.existing-quotes-modal {
+    max-width: 100%;
+    width: 100%;
+}
+
+.qa-panel__header {
+    position: relative;
+    border-bottom: 1px solid #e5e5e5;
+    padding: 1rem 1.5rem;
+    text-align: center;
+    background: #fff;
+}
+
+.qa-panel__body {
+    overflow: visible;
+    max-height: none;
+    box-sizing: border-box;
+}
+
+.qa-panel__footer {
+    border-top: 1px solid #e5e5e5;
+    background: #fff;
+    padding: 0.75rem 1rem;
+    box-sizing: border-box;
+}

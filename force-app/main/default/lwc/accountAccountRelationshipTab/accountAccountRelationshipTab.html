@@ -1,0 +1,37 @@
+<template>
+    <lightning-card>
+        <template if:true={isAdmin}>
+            <div slot="actions">
+                <lightning-button
+                    label="New"
+                    variant="brand"
+                    onclick={handleNewRelationship}>
+                </lightning-button>
+            </div>
+        </template>
+
+        <div class="slds-is-relative">
+            <template if:true={isLoading}>
+                <lightning-spinner alternative-text="Loading Account Account Relationships" size="medium"></lightning-spinner>
+            </template>
+
+            <template if:false={isLoading}>
+                <template if:true={hasRecords}>
+                    <lightning-datatable
+                        key-field="id"
+                        data={records}
+                        columns={columns}
+                        onrowaction={handleRowAction}
+                        hide-checkbox-column>
+                    </lightning-datatable>
+                </template>
+
+                <template if:false={hasRecords}>
+                    <div class="slds-p-around_medium slds-text-color_weak">
+                        No Account-Account Relationships Found
+                    </div>
+                </template>
+            </template>
+        </div>
+    </lightning-card>
+</template>

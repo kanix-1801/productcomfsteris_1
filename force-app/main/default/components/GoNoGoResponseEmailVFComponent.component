@@ -1,0 +1,148 @@
+<Apex:component controller="GoNoGoEmailController" access="global">
+    <Apex:attribute name="caseId1" description="" assignTo="{!caseId}" type="String" /> 
+    
+    <apex:attribute name="FirstRequestedDateNonPreinstall" type="Datetime" description="First Date"/>
+    
+    <apex:image URL="{!BannerUrlGoNoGo}" alt="STERIS Banner" width="982" height="180"/>
+    
+    <p>Hello, <br/></p> <br/>
+    
+    <p style="font-weight:700; max-width:982px;">Reminder: We still require your response for the below shipment.  Please review and respond
+            <span style="color: green;max-width:982px">Specifically as instructed below.</span></p> <br/>
+    
+    
+ 	<p style="max-width:982px;">The above order  has equipment scheduled to ship on or within (60) days.
+                (Soonest capital equipment ship date is 
+                
+
+                <span style="font-weight:700; background:#f3f3f3; padding: 1px 4px;"><apex:outputText value="{0, date, MMM d, yyyy}">
+                    <apex:param value="{!FirstRequestedDateNonPreinstall}"/>
+                </apex:outputText></span>.)
+    <span style="font-weight:700;">Is the order a GO for shipment to Customer site?</span>
+    </p><br/>
+
+    
+    <!--apex:image URL="{!ReplyUrlGoNoGo}" alt="Reply Banner" width="982" height="170"/><br/-->
+    
+     <span style="max-width:982px;">{!EmailBreakpoint}</span>
+		
+    <apex:outputPanel layout="block" style="margin-top:18px; font-family:Arial, sans-serif; font-size:14px; line-height:20px; max-width:982px;">
+
+    <ol style="margin:0; padding-left:22px;">
+
+        <!-- YES -->
+        <li style="margin-bottom:10px;">
+            <span style="font-weight:700; color:#0a7d24;">YES</span>
+            – Customer is ready, willing, and able to receive the equipment as scheduled.
+
+            <div style="margin-top:6px; padding-left:18px;">
+                <span>a.</span><span style="font-weight:700; color:#0a7d24; text-decoration:underline;">If Yes</span>
+                – Reply to this email with 
+                <span style="font-weight:700;">“AM: Yes”</span> 
+                or 
+                <span style="font-weight:700;">“IPM: Yes”</span>
+            </div>
+        </li>
+
+        <!-- NO -->
+        <li style="margin-bottom:10px;">
+            <span style="font-weight:700; color:#b00020;max-width:982px;">NO</span>
+            – The Customer is not ready to receive. A call is required between the AM, IPM/PM, and me to discuss further. 
+            I will set up the call if I receive a No Go from one or both parties.
+
+            <div style="margin-top:6px; padding-left:18px;">
+                <span>a.</span><span style="font-weight:700; color:#b00020; text-decoration:underline;">If No</span>
+                – Reply to this email with 
+                <span style="font-weight:700;">“AM: No”</span>
+                or 
+                <span style="font-weight:700;">“IPM: No”</span>
+            </div>
+        </li>
+
+    </ol>
+
+</apex:outputPanel>
+		<span style="max-width:982px;">{!EmailBreakpointEndLine}</span>
+		
+    <!--div style="margin-top:18px;">
+            <ol style="margin:0; padding-left: 22px;">
+                <li style="margin-bottom:10px;">
+                    <span style="font-weight:700; color:#0a7d24;">YES</span> –
+                    Customer is ready, willing, and able to receive the equipment as scheduled.
+                </li>
+    
+                <li>
+                    <span style="font-weight:700; color:#b00020;">NO</span> –
+                    The Customer is not ready to receive. A call is required between the AM, IPM/PM, and me.
+                    I will set up the call if I receive a No Go from one or both parties.
+                </li>
+            </ol>
+        </div-->
+
+    
+    
+		<p style="margin-top:18px; font-family: Arial, Helvetica, sans-serif; font-size:14px; line-height:1.5; color:#d32f2f; font-weight:700; max-width:982px;">
+       			 A response is required within 48 hours from AM and PM. If a response is not received, we will begin our escalation process.
+    		</p>
+	
+ <table width="982" style="border-collapse: collapse; 
+                  font-family: Arial, sans-serif; margin-top:10px;">
+		
+    	
+<tr style="background-color:#89C3E6; color:black;">
+            <td colspan="2" 
+                style="padding:10px; text-align:center; font-weight:bold; 
+                       border:2px solid #4F4F4F;">
+                Hold Status
+            </td>
+        </tr>
+
+        
+        <tr>
+            <td style="width:40%; padding:10px; border:2px solid #4F4F4F; 
+                       background:#F2F2F2; font-weight:bold;">
+                Holds Remaining on Order
+            </td>
+            <td style="padding:10px; border:2px solid #4F4F4F;">
+                {!activeHolds}
+            </td>
+        </tr>
+
+       
+        <tr>
+            <td style="width:40%; padding:10px; border:2px solid #4F4F4F; 
+                       background:#F2F2F2; font-weight:bold;">
+                Does the order contain a Planning Hold?
+            </td>
+            <td style="padding:10px; border:2px solid #4F4F4F;">
+                <span style="color:red; font-weight:bold;">
+                    {!IsPlannigHold}
+                </span>
+            </td>
+        </tr>
+
+      
+        <tr>
+            <td style="width:40%; padding:10px; border:2px solid #4F4F4F; 
+                       background:#F2F2F2; font-weight:bold;">
+                If yes, provide the unit and associated lines
+            </td>
+            <td style="padding:10px; border:2px solid #4F4F4F; font-style:italic;">
+                {!PlanningHoldDetails}
+            </td>
+        </tr>
+    </table>
+		
+    
+	<p>
+        Thank you for your input.
+    </p>
+	
+    	<br/><br/>
+     
+    <c:ReplyThreadInternalExternal caseId1="{!caseId}"
+            threadType1="Internal"
+        />
+
+    
+</apex:component>

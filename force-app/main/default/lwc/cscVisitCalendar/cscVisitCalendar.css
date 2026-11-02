@@ -1,0 +1,89 @@
+/* Available days are a white circle with a light blue outline. Unavailable days are gray and cannot be clicked. */
+.slds-datepicker td:not(.slds-disabled-text):not(.slds-day_adjacent-month) > .slds-day {
+    background-color: #ffffff;
+    color: #181818;
+    border: 1px solid #1b96ff;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.slds-datepicker td.slds-disabled-text > .slds-day {
+    background-color: #ecebea;
+    color: #706e6b;
+    border: 1px solid #c9c7c5;
+    cursor: not-allowed;
+}
+
+/* Status color stays on the day circle. The cell itself stays clear. */
+.slds-datepicker td.slds-theme_warning,
+.slds-datepicker td.slds-theme_shade,
+.slds-datepicker td.slds-is-selected,
+.slds-datepicker td.slds-is-today {
+    background-color: transparent;
+}
+
+.slds-datepicker td.slds-theme_warning > .slds-day {
+    background-color: #f9e3b6;
+    color: #3e3e3c;
+    border: 1px solid #dd7a01;
+}
+
+/* A blocked day is a grey circle, still clickable, with no grey square behind it. */
+.slds-datepicker td.slds-theme_shade:not(.slds-is-selected):not(.slds-disabled-text) > .slds-day {
+    background-color: #ecebea;
+    color: #706e6b;
+    border: 1px solid #c9c7c5;
+    cursor: pointer;
+}
+
+/* Selected highlight is a filled light blue circle. This must beat the available-day rule. */
+.slds-datepicker td.slds-is-selected:not(.slds-disabled-text):not(.slds-day_adjacent-month) > .slds-day {
+    background-color: #b9ddff;
+    color: #181818;
+    border: 2px solid #1b96ff;
+    border-radius: 50%;
+    width: 2rem;
+    height: 2rem;
+    line-height: 1.75rem;
+    display: block;
+    margin: 0 auto;
+    box-sizing: border-box;
+    box-shadow: none;
+}
+
+.legend-row {
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+}
+
+.legend {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.75rem;
+    color: #181818;
+}
+
+.swatch {
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.swatch-available {
+    background-color: #ffffff;
+    border: 1px solid #1b96ff;
+}
+
+.swatch-pending {
+    background-color: #f9e3b6;
+    border: 1px solid #dd7a01;
+}
+
+.swatch-unavailable {
+    background-color: #ecebea;
+    border: 1px solid #c9c7c5;
+}

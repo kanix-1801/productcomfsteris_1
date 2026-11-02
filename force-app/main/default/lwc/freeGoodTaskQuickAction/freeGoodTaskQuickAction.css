@@ -1,0 +1,97 @@
+.free-good-task-container {
+    position: relative;
+    padding: 0.5rem 0.25rem;
+    min-height: 12rem;
+}
+
+.product-search-row {
+    display: flex;
+    align-items: end;
+    gap: 1rem;
+}
+
+.product-search-input {
+    flex: 1 1 auto;
+}
+
+.product-search-button {
+    flex: 0 0 auto;
+    padding-bottom: 0.1rem;
+}
+
+/* Horizontal scroll matches the standard Edit Selected Products screen once many line fields are present. */
+.selected-products-scroll {
+    overflow-x: auto;
+}
+
+.selected-products-table {
+    table-layout: fixed;
+    min-width: 85rem;
+    width: 100%;
+}
+
+.selected-products-table th,
+.selected-products-table td {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    vertical-align: top;
+}
+
+.product-name-cell {
+    width: 10rem;
+}
+
+.product-code-cell {
+    width: 7rem;
+}
+
+.line-description-cell {
+    width: 12rem;
+}
+
+.quantity-cell,
+.sales-price-cell,
+.contract-cell,
+.comments-cell {
+    width: 8rem;
+}
+
+.picklist-cell {
+    width: 10rem;
+}
+
+.date-cell {
+    width: 11rem;
+}
+
+.product-details-cell {
+    width: 12rem;
+}
+
+.line-description-cell lightning-input,
+.quantity-cell lightning-input,
+.sales-price-cell lightning-input,
+.date-cell lightning-input,
+.contract-cell lightning-input,
+.comments-cell lightning-input,
+.picklist-cell lightning-combobox,
+.product-details-cell lightning-textarea {
+    display: block;
+    width: 100%;
+}
+
+.remove-cell {
+    width: 4rem;
+    text-align: center;
+}
+
+/* Keeps Back and Save & Finish reachable without scrolling past a long product list. */
+.action-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    margin-top: 1rem;
+    padding: 0.75rem 1rem;
+    background-color: #ffffff;
+    border-top: 1px solid #c9c9c9;
+}

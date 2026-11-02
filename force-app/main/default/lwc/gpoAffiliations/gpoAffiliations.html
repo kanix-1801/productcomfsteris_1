@@ -1,0 +1,24 @@
+<template>
+    <lightning-card title="GPO Affiliations" icon-name="standard:relationship">
+        <template lwc:if={hasRecords}>
+            <lightning-datatable
+                key-field="id"
+                data={gpoAffiliations}
+                columns={columns}
+                hide-checkbox-column>
+            </lightning-datatable>
+        </template>
+
+        <template lwc:elseif={hasError}>
+            <div class="slds-p-around_medium slds-text-color_error">
+                Unable to load GPO Affiliations.
+            </div>
+        </template>
+
+        <template lwc:else>
+            <div class="slds-p-around_medium slds-text-color_weak">
+                No GPO Affiliations found.
+            </div>
+        </template>
+    </lightning-card>
+</template>

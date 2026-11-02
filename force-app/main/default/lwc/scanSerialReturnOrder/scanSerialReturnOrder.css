@@ -1,0 +1,15 @@
+.scan-page {
+    max-width: 48rem;
+}
+
+.table-container {
+    overflow-x: auto;
+}
+
+.asset-result-row {
+    cursor: pointer;
+}
+
+.asset-result-row:hover {
+    background-color: var(--lwc-colorBackgroundRowHover, #f3f3f3);
+}

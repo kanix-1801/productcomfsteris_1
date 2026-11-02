@@ -1,0 +1,189 @@
+<template>
+    <div class="page-shell">
+        <template lwc:if={isMenu}>
+            <section class="menu-panel">
+                <h1 class="slds-text-heading_large">Repair Coordinator Actions</h1>
+                <p class="subtitle">Select which action you’d like to perform.</p>
+
+                <div class="action-grid">
+                    <button class="action-tile" type="button" onclick={openAssignWorkOrder}>
+                        <span class="action-icon">
+                            <lightning-icon
+                                class="action-icon__glyph"
+                                icon-name="utility:groups"
+                                size="medium"
+                                alternative-text="Assign Work Order"
+                            ></lightning-icon>
+                        </span>
+                        <span class="action-copy">
+                            <span class="action-title">Assign Work Order</span>
+                            <span class="action-description">
+                                Select to assign Racks and Service Teams to Work Orders.
+                            </span>
+                        </span>
+                    </button>
+                </div>
+            </section>
+        </template>
+
+        <template lwc:else>
+            <section class="scan-panel">
+                <div class="scan-header">
+                    <div>
+                        <h1 class="slds-text-heading_large">Assign Work Order</h1>
+                        <p class="subtitle">Assign Racks and Service Teams to Work Orders</p>
+                    </div>
+                    <lightning-button
+                        label="Return to Actions Menu"
+                        onclick={returnToMenu}
+                        disabled={isBusy}
+                    ></lightning-button>
+                </div>
+
+                <ol class="instructions slds-list_ordered">
+                    <li>Scan in the work order (bin) tag.</li>
+                    <li>
+                        Scan in barcodes for the repair rack and/or service team you’d like
+                        to assign to the Work Order.
+                    </li>
+                </ol>
+
+                <div class="scan-field slds-form-element">
+                    <label class="slds-form-element__label" for="barcode-input">
+                        Scan Barcode
+                    </label>
+                    <div class="slds-form-element__control">
+                        <input
+                            id="barcode-input"
+                            data-id="barcode-input"
+                            class="slds-input"
+                            type="text"
+                            autocomplete="off"
+                            value={scanValue}
+                            disabled={isBusy}
+                            oninput={handleScanInput}
+                            onkeydown={handleScanKeyDown}
+                        />
+                    </div>
+                </div>
+
+                <template lwc:if={errorMessage}>
+                    <div class="message message_error" role="alert">{errorMessage}</div>
+                </template>
+                <template lwc:if={successMessage}>
+                    <div class="message message_success" role="status">{successMessage}</div>
+                </template>
+
+                <template lwc:if={isBusy}>
+                    <div class="spinner-wrap">
+                        <lightning-spinner
+                            size="small"
+                            alternative-text="Processing barcode"
+                        ></lightning-spinner>
+                    </div>
+                </template>
+
+                <template lwc:if={hasWorkOrder}>
+                    <section class="assignment-panel" aria-label="Current Work Order assignments">
+                        <div class="assignment-panel__header">
+                            <span class="assignment-panel__eyebrow">Currently assigning</span>
+                            <span class="assignment-panel__title">
+                                Work Order {workspace.workOrderNumber}
+                            </span>
+                            <span class="assignment-panel__status">
+                                Work Order Status: {workspace.workOrderStatus}
+                            </span>
+                        </div>
+
+                        <ul class="assignment-rows">
+                            <li class="assignment-row">
+                                <span class="assignment-row__label">Rack</span>
+                                <span class={rackValueClass}>{rackDisplay}</span>
+                                <span class="assignment-row__action">
+                                    <template lwc:if={hasRack}>
+                                        <lightning-button
+                                            variant="base"
+                                            label="Remove"
+                                            title="Remove Rack from this Work Order"
+                                            onclick={removeRackAssignment}
+                                            disabled={isBusy}
+                                        ></lightning-button>
+                                    </template>
+                                </span>
+                            </li>
+
+                            <li class="assignment-row">
+                                <span class="assignment-row__label">Service Team</span>
+                                <span class={serviceTeamValueClass}>{serviceTeamDisplay}</span>
+                                <span class="assignment-row__action">
+                                    <template lwc:if={hasServiceTeam}>
+                                        <lightning-button
+                                            variant="base"
+                                            label="Remove"
+                                            title="Remove Service Team from this Work Order"
+                                            onclick={removeServiceTeamAssignment}
+                                            disabled={isBusy}
+                                        ></lightning-button>
+                                    </template>
+                                </span>
+                            </li>
+                        </ul>
+                    </section>
+                </template>
+            </section>
+        </template>
+    </div>
+
+    <template lwc:if={showCandidateModal}>
+        <section
+            role="dialog"
+            tabindex="-1"
+            aria-modal="true"
+            aria-labelledby="candidate-modal-heading"
+            class="slds-modal slds-fade-in-open"
+        >
+            <div class="slds-modal__container">
+                <header class="slds-modal__header">
+                    <h2 id="candidate-modal-heading" class="slds-text-heading_medium">
+                        Which would you like to assign?
+                    </h2>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium">
+                    <div class="candidate-list">
+                        <template for:each={candidateRows} for:item="candidate">
+                            <button
+                                key={candidate.recordId}
+                                class={candidate.buttonClass}
+                                type="button"
+                                aria-pressed={candidate.isSelected}
+                                data-record-id={candidate.recordId}
+                                data-assignment-type={candidate.assignmentType}
+                                onclick={toggleCandidate}
+                            >
+                                <span class="candidate-label">{candidate.label}</span>
+                                <template lwc:if={candidate.detail}>
+                                    <span class="candidate-detail">{candidate.detail}</span>
+                                </template>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+                <footer class="slds-modal__footer">
+                    <lightning-button
+                        label="Cancel"
+                        onclick={closeCandidateModal}
+                        disabled={isBusy}
+                    ></lightning-button>
+                    <lightning-button
+                        class="slds-m-left_x-small"
+                        variant="brand"
+                        label="Assign"
+                        onclick={assignSelectedCandidates}
+                        disabled={isAssignDisabled}
+                    ></lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open" role="presentation"></div>
+    </template>
+</template>

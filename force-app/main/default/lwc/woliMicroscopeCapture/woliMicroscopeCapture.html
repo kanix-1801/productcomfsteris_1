@@ -1,0 +1,214 @@
+<template>
+    <lightning-card title="Microscope Capture" icon-name="utility:camera">
+        <div class="slds-p-around_medium">
+            <template if:false={hasRecordId}>
+                <div class="slds-text-color_error">Open a Work Order Line Item record to capture images.</div>
+            </template>
+
+            <template if:false={browserSupported}>
+                <div class="slds-text-color_error">{errorMessage}</div>
+            </template>
+
+            <template if:true={browserSupported}>
+                <p class="slds-text-body_small slds-m-bottom_small">{statusLabel}</p>
+
+                <template if:true={errorMessage}>
+                    <div class="slds-text-color_error slds-m-bottom_small">{errorMessage}</div>
+                </template>
+
+                <template if:true={showLiveCapture}>
+                <h3 class="slds-text-heading_small slds-m-bottom_x-small">Live capture</h3>
+                <div class="slds-grid slds-wrap slds-gutters_small slds-m-bottom_small">
+                    <div class="slds-col slds-size_1-of-1">
+                        <lightning-combobox
+                            name="camera"
+                            label="Camera"
+                            value={selectedDeviceId}
+                            options={cameraOptions}
+                            placeholder="Select microscope or camera"
+                            onchange={handleCameraChange}
+                            disabled={isInitializing}
+                        ></lightning-combobox>
+                    </div>
+                </div>
+
+                <div class="video-container slds-m-bottom_small">
+                    <video lwc:ref="videoElement" class="preview-video" playsinline autoplay muted></video>
+                    <canvas lwc:ref="canvasElement" class="hidden-canvas"></canvas>
+                </div>
+
+                <div class="slds-m-bottom_small">
+                    <lightning-combobox
+                        label="Category"
+                        value={pendingCaptureCategory}
+                        options={imageCategoryOptions}
+                        onchange={handlePendingCaptureCategoryChange}
+                    ></lightning-combobox>
+                </div>
+
+                <template if:true={showBeyondRepairReason}>
+                    <div class="slds-m-bottom_small">
+                        <lightning-combobox
+                            label="Beyond Repair Reason"
+                            value={pendingCaptureBeyondRepairReason}
+                            options={beyondRepairReasonOptions}
+                            onchange={handlePendingCaptureBeyondRepairReasonChange}
+                            required
+                        ></lightning-combobox>
+                    </div>
+                </template>
+
+                <div class="slds-m-bottom_small">
+                    <lightning-combobox
+                        label="Format"
+                        value={pendingCaptureFormat}
+                        options={imageFormatOptions}
+                        onchange={handlePendingCaptureFormatChange}
+                    ></lightning-combobox>
+                </div>
+
+                <div class="slds-button-group-row slds-m-bottom_small">
+                    <lightning-button
+                        label="Start camera"
+                        variant="brand"
+                        onclick={handleStartCamera}
+                        disabled={isStartCameraDisabled}
+                    ></lightning-button>
+                    <lightning-button
+                        label="Capture"
+                        variant="success"
+                        onclick={handleCaptureForReview}
+                        disabled={isCaptureDisabled}
+                    ></lightning-button>
+                    <lightning-button
+                        label="Stop camera"
+                        onclick={handleStopCamera}
+                        disabled={isStopCameraDisabled}
+                    ></lightning-button>
+                    <lightning-button
+                        label="Save as default camera"
+                        onclick={handleSetDefaultCamera}
+                        disabled={isInitializing}
+                    ></lightning-button>
+                </div>
+
+                </template>
+
+                <template if:true={sessionCaptureCount}>
+                    <p class="slds-text-body_small slds-m-bottom_small">
+                        {sessionCaptureCount} image(s) attached this session. See Files on this record.
+                    </p>
+                </template>
+
+                <template if:true={showPreview}>
+                    <div class="slds-m-top_medium review-capture-panel">
+                        <h3 class="slds-text-heading_small slds-m-bottom_x-small">Review capture</h3>
+                        <template if:false={isAnnotationOpen}>
+                            <img src={lastPreviewDataUrl} alt="Review microscope capture" class="preview-image" />
+                            <template if:true={isFabricLoading}>
+                                <p class="slds-text-body_small slds-m-top_small">Opening annotation editor…</p>
+                            </template>
+                        </template>
+                    </div>
+                </template>
+
+                <template if:true={showLiveCapture}>
+                <div class="slds-border_top slds-m-top_medium slds-m-bottom_medium"></div>
+
+                <div class="annotate-existing-section slds-m-bottom_medium">
+                    <h3 class="slds-text-heading_small slds-m-bottom_x-small">Annotate existing file</h3>
+                    <p class="slds-text-body_small slds-m-bottom_small">
+                        Open an image already on this line item (PNG, JPEG, GIF, WebP).
+                    </p>
+                    <lightning-combobox
+                        label="Image file"
+                        value={selectedContentDocumentId}
+                        options={annotatableFileOptions}
+                        placeholder="Select a file to annotate"
+                        onchange={handleExistingFileChange}
+                        disabled={isLoadingFileList}
+                    ></lightning-combobox>
+                    <template if:false={hasAnnotatableFiles}>
+                        <p class="slds-text-body_small slds-m-top_x-small">
+                            No image files yet — capture one above, then Refresh.
+                        </p>
+                    </template>
+                    <div class="slds-m-top_small">
+                        <lightning-button
+                            label="Refresh file list"
+                            icon-name="utility:refresh"
+                            onclick={handleRefreshFileList}
+                            disabled={isLoadingFileList}
+                        ></lightning-button>
+                        <lightning-button
+                            label="Annotate selected file"
+                            icon-name="utility:edit"
+                            variant="brand"
+                            class="slds-m-left_small"
+                            onclick={handleAnnotateSelectedFile}
+                            disabled={isAnnotateFileDisabled}
+                        ></lightning-button>
+                    </div>
+                </div>
+                </template>
+            </template>
+        </div>
+    </lightning-card>
+
+    <template if:true={isAnnotationOpen}>
+        <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open annotation-modal">
+            <div class="slds-modal__container annotation-modal__container">
+                <header class="slds-modal__header">
+                    <h2 class="slds-modal__title">{annotationModalTitle}</h2>
+                    <p class="slds-text-body_small slds-m-top_x-small">{annotationModalSubtitle}</p>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium">
+                    <div class="slds-grid slds-wrap slds-gutters_small slds-m-bottom_small annotation-toolbar">
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3">
+                            <lightning-combobox
+                                label="Tool"
+                                value={annotationTool}
+                                options={toolOptions}
+                                onchange={handleToolChange}
+                            ></lightning-combobox>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3">
+                            <lightning-input
+                                type="color"
+                                label="Color"
+                                value={strokeColor}
+                                onchange={handleColorChange}
+                            ></lightning-input>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3">
+                            <lightning-combobox
+                                label="Line width"
+                                value={strokeWidth}
+                                options={strokeWidthOptions}
+                                onchange={handleWidthChange}
+                            ></lightning-combobox>
+                        </div>
+                    </div>
+                    <div class="annotation-canvas-wrapper">
+                        <div lwc:dom="manual" data-id="annotationHost" class="annotation-host"></div>
+                    </div>
+                </div>
+                <footer class="slds-modal__footer">
+                    <lightning-button label="Undo" onclick={handleUndoAnnotation}></lightning-button>
+                    <lightning-button
+                        label="Clear markup"
+                        onclick={handleClearAnnotations}
+                    ></lightning-button>
+                    <lightning-button label="Cancel" onclick={handleCloseAnnotator}></lightning-button>
+                    <lightning-button
+                        label={annotationSaveButtonLabel}
+                        variant="brand"
+                        onclick={handleSaveAnnotated}
+                        disabled={isAnnotationSaveDisabled}
+                    ></lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open"></div>
+    </template>
+</template>

@@ -1,0 +1,18 @@
+<template>
+    <template lwc:if={isLoading}>
+        <lightning-spinner alternative-text="Printing bin tag" size="medium"></lightning-spinner>
+    </template>
+    <template lwc:else>
+        <div class="slds-p-around_medium">
+            <template lwc:if={hasSuccess}>
+                <p class="slds-text-color_success">{successMessage}</p>
+            </template>
+            <template lwc:if={hasError}>
+                <p class="slds-text-color_error">{errorMessage}</p>
+            </template>
+            <div class="slds-m-top_medium">
+                <lightning-button label="Close" onclick={handleClose}></lightning-button>
+            </div>
+        </div>
+    </template>
+</template>

@@ -1,0 +1,58 @@
+.video-container {
+    background: #f3f3f3;
+    border: 1px solid #d8dde6;
+    border-radius: 0.25rem;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.preview-video {
+    display: block;
+    max-width: 100%;
+    width: 640px;
+    height: auto;
+}
+
+.preview-image {
+    display: block;
+    max-width: 100%;
+    border: 1px solid #d8dde6;
+    border-radius: 0.25rem;
+}
+
+.hidden-canvas {
+    display: none;
+}
+
+.annotation-modal {
+    z-index: 9001;
+}
+
+.annotation-modal__container {
+    max-width: 95vw;
+    width: 64rem;
+}
+
+.annotation-canvas-wrapper {
+    border: 1px solid #d8dde6;
+    border-radius: 0.25rem;
+    background: #f3f3f3;
+    overflow: auto;
+    max-height: 70vh;
+}
+
+.annotation-host {
+    display: inline-block;
+    min-height: 200px;
+}
+
+.annotation-toolbar {
+    align-items: flex-end;
+}
+
+.annotate-existing-section {
+    background: #f3f2f2;
+    border: 1px solid #d8dde6;
+    border-radius: 0.25rem;
+    padding: 0.75rem;
+}

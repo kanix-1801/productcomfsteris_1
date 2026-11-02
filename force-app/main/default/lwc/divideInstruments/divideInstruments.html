@@ -1,0 +1,198 @@
+<template>
+    <div class={rootClass}>
+        <template lwc:if={isScanMode}>
+            <lightning-card title="Divide Instruments" icon-name="custom:custom19">
+                <div class="slds-p-around_medium">
+                    <p class="slds-text-heading_small slds-m-bottom_small">Scan Work Order</p>
+                    <c-repair-center-scan-input
+                        label={scanFieldLabel}
+                        placeholder={scanFieldPlaceholder}
+                        value={workOrderIdInput}
+                        disabled={isBusy}
+                        onvaluechange={handleScanValueChange}
+                        oncontinue={handleScanContinue}
+                    ></c-repair-center-scan-input>
+                    <template lwc:if={errorMessage}>
+                        <div class="slds-text-color_error slds-m-top_small" role="alert">
+                            {errorMessage}
+                        </div>
+                    </template>
+                    <template lwc:if={isBusy}>
+                        <div class="slds-m-top_medium slds-is-relative slds-p-around_large">
+                            <lightning-spinner alternative-text="Loading" size="small">
+                            </lightning-spinner>
+                        </div>
+                    </template>
+                </div>
+            </lightning-card>
+        </template>
+
+        <template lwc:elseif={isWorkspaceMode}>
+            <div class="divide-workspace">
+                <template lwc:if={workspaceError}>
+                    <div
+                        class="slds-notify slds-notify_alert slds-theme_error slds-m-bottom_small workspace-error-banner"
+                        role="alert"
+                    >
+                        <span class="slds-assistive-text">Error</span>
+                        <h2 class="slds-text-heading_small">{workspaceError}</h2>
+                    </div>
+                </template>
+
+                <header class="workspace-header">
+                    <div class="workspace-header__title-row">
+                        <h3 class="slds-text-heading_small">
+                            {workspace.workOrderNumber}
+                        </h3>
+                        <c-repair-center-cio-indicator
+                            lwc:if={showCioIndicator}
+                        ></c-repair-center-cio-indicator>
+                    </div>
+                </header>
+
+                <section class="workspace-panel">
+                    <h3 class="slds-text-heading_small slds-m-bottom_small">Work Order Information</h3>
+                    <div class="wo-info-grid">
+                        <div class="sticky-field">
+                            <span class="sticky-field__label">Estimate Required</span>
+                            <div class="sticky-field__static">{estimateRequiredDisplay}</div>
+                        </div>
+                        <div class="sticky-field">
+                            <span class="sticky-field__label">Repair Warranty</span>
+                            <div class="sticky-field__static">{repairWarrantyDisplay}</div>
+                        </div>
+                        <div class="sticky-field">
+                            <span class="sticky-field__label">Customer PO Required</span>
+                            <div class="sticky-field__value sticky-field__value_checkbox">
+                                <lightning-input
+                                    type="checkbox"
+                                    variant="label-hidden"
+                                    label="Customer PO Required"
+                                    checked={workspace.customerPoRequired}
+                                    disabled
+                                ></lightning-input>
+                            </div>
+                        </div>
+                        <div class="sticky-field">
+                            <span class="sticky-field__label">Continuous Improvement Opportunity</span>
+                            <div class="sticky-field__value sticky-field__value_checkbox">
+                                <lightning-input
+                                    type="checkbox"
+                                    variant="label-hidden"
+                                    label="Continuous Improvement Opportunity"
+                                    checked={workspace.continuousImprovementOpportunity}
+                                    disabled
+                                ></lightning-input>
+                            </div>
+                        </div>
+                        <div class="sticky-field">
+                            <span class="sticky-field__label">Customer PO</span>
+                            <div class="sticky-field__static">{customerPoDisplay}</div>
+                        </div>
+                        <div class="sticky-field">
+                            <label class="sticky-field__label" for="quantity-received-input">
+                                <abbr class="slds-required" title="required">*</abbr>
+                                Quantity Received
+                            </label>
+                            <div class="sticky-field__value">
+                                <input
+                                    id="quantity-received-input"
+                                    class="sticky-field__control"
+                                    type="text"
+                                    inputmode="numeric"
+                                    value={quantityReceivedInputValue}
+                                    onchange={handleQuantityReceivedChange}
+                                    oninput={handleQuantityReceivedChange}
+                                    disabled={isBusy}
+                                    required
+                                    aria-required="true"
+                                    aria-label="Quantity Received"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div
+                        class="slds-m-top_medium slds-m-bottom_small slds-grid slds-grid_align-spread"
+                    >
+                        <h3 class="slds-text-heading_small">Bins</h3>
+                        <lightning-button
+                            label="+ Add"
+                            onclick={addBin}
+                            disabled={isBusy}
+                        ></lightning-button>
+                    </div>
+                    <template for:each={bins} for:item="bin">
+                        <div
+                            key={bin.key}
+                            class="slds-box slds-m-bottom_small"
+                            data-key={bin.key}
+                            onfocusout={handleBinFocusOut}
+                        >
+                            <div class="slds-grid slds-gutters_large slds-wrap bin-fields">
+                                <div class="slds-col slds-size_1-of-3">
+                                    <lightning-combobox
+                                        label="Repair Category"
+                                        value={bin.repairCategory}
+                                        options={repairCategoryOptions}
+                                        required
+                                        data-key={bin.key}
+                                        data-field="repairCategory"
+                                        onchange={handleBinCategoryChange}
+                                    ></lightning-combobox>
+                                </div>
+                                <div class="slds-col slds-size_1-of-3">
+                                    <lightning-input
+                                        type="number"
+                                        label="Qty"
+                                        value={bin.quantity}
+                                        required
+                                        data-key={bin.key}
+                                        data-field="quantity"
+                                        step="1"
+                                        onchange={handleBinQtyChange}
+                                    ></lightning-input>
+                                </div>
+                                <div class="slds-col slds-size_1-of-3">
+                                    <lightning-input
+                                        type="number"
+                                        label="Turn Time"
+                                        value={bin.turnTime}
+                                        required
+                                        data-key={bin.key}
+                                        data-field="turnTime"
+                                        step="1"
+                                        onchange={handleBinTurnTimeChange}
+                                    ></lightning-input>
+                                </div>
+                            </div>
+                            <div class="slds-m-top_small">
+                                <lightning-button
+                                    label="Remove"
+                                    variant="destructive-text"
+                                    data-key={bin.key}
+                                    onclick={handleRemoveBin}
+                                ></lightning-button>
+                            </div>
+                        </div>
+                    </template>
+
+                    <div class="slds-m-top_medium">
+                        <lightning-button
+                            variant="brand"
+                            label="Complete"
+                            onclick={handleComplete}
+                            disabled={isBusy}
+                        ></lightning-button>
+                    </div>
+                    <template lwc:if={isBusy}>
+                        <div class="slds-m-top_medium slds-is-relative slds-p-around_large">
+                            <lightning-spinner alternative-text="Saving" size="small">
+                            </lightning-spinner>
+                        </div>
+                    </template>
+                </section>
+            </div>
+        </template>
+    </div>
+</template>

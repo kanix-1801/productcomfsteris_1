@@ -1,0 +1,58 @@
+<template>
+    <template lwc:if={hasPreferences}>
+        <template lwc:if={isCardVariant}>
+            <ul class="preferences-cards">
+                <template for:each={preferences} for:item="pref">
+                    <li key={pref.preferenceId} class="preference-card">
+                        <div class="preference-card__meta">
+                            <span class="preference-card__label">Preference Type</span>
+                            <span class="preference-card__value">{pref.preferenceType}</span>
+                        </div>
+                        <div class="preference-card__meta">
+                            <span class="preference-card__label">Product Line</span>
+                            <span class="preference-card__value">{pref.productLine}</span>
+                        </div>
+                        <div class="preference-card__meta">
+                            <span class="preference-card__label">Start Date</span>
+                            <span class="preference-card__value">{pref.startDate}</span>
+                        </div>
+                        <div class="preference-card__meta">
+                            <span class="preference-card__label">End Date</span>
+                            <span class="preference-card__value">{pref.endDate}</span>
+                        </div>
+                    </li>
+                </template>
+            </ul>
+        </template>
+
+        <template lwc:else>
+            <div class="preferences-table-wrap">
+                <table
+                    class="slds-table slds-table_cell-buffer slds-table_bordered preferences-table"
+                >
+                    <thead>
+                        <tr>
+                            <th scope="col">Preference Type</th>
+                            <th scope="col">Product Line</th>
+                            <th scope="col">Start Date</th>
+                            <th scope="col">End Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template for:each={preferences} for:item="pref">
+                            <tr key={pref.preferenceId}>
+                                <td>{pref.preferenceType}</td>
+                                <td>{pref.productLine}</td>
+                                <td>{pref.startDate}</td>
+                                <td>{pref.endDate}</td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </template>
+    </template>
+    <template lwc:else>
+        <p class="slds-text-body_regular">No active IMS customer preferences found.</p>
+    </template>
+</template>

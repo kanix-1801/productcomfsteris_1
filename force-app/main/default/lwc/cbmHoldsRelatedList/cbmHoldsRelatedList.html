@@ -1,0 +1,47 @@
+<template>
+    <div class="slds-box slds-p-around_none">
+        <div class="slds-p-around_small slds-grid slds-grid_vertical-align-center">
+            <lightning-icon icon-name="standard:record" size="small"> </lightning-icon>
+                <h2 class="slds-media__body slds-card__header-title slds-truncate slds-p-left_small">
+                    Line Hold Information&nbsp;<span>({recordSize})</span>
+                </h2>
+        </div>
+        <div>
+            <!-- Loading Spinner -->
+            <template lwc:if={isLoading}>
+                <lightning-spinner
+                    alternative-text="Loading hold records"
+                    size="small">
+                </lightning-spinner>
+            </template>
+
+            <!-- Main Content -->
+            <template lwc:if={hasRecords}>
+                <lightning-datatable
+                    key-field="rowKey"
+                    data={records}
+                    columns={columns}
+                    sorted-by={sortedBy}
+                    sorted-direction={sortDirection}
+                    onsort={handleSort}
+                    hide-checkbox-column
+                    show-row-number-column>
+                </lightning-datatable>
+            </template>
+
+            <!-- Error Content -->
+            <template lwc:elseif={hasError}>
+                <div class="slds-text-color_error" role="alert">
+                    {errorMessage}
+                </div>
+            </template>
+
+            <!-- Records not Present 
+            <template lwc:else>
+                <div class="slds-text-color_weak slds-p-vertical_medium">
+                    No records found.
+                </div>
+            </template>-->
+        </div>
+    </div>
+</template>

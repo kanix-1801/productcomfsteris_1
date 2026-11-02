@@ -1,0 +1,141 @@
+<template>
+    <lightning-modal-body class="picker-body">
+        <!-- Header (launcher style) -->
+        <header class="picker-header">
+            <lightning-icon icon-name="standard:asset_object" size="small"></lightning-icon>
+            <div class="picker-title">
+                <h2>Choose Assets</h2>
+                <p>{bundleName} · applies to every service product in this bundle</p>
+            </div>
+        </header>
+
+        <template lwc:if={loading}>
+            <div class="loading"><lightning-spinner alternative-text="Loading assets" size="medium"></lightning-spinner></div>
+        </template>
+        <template lwc:elseif={loadError}>
+            <div class="slds-notify slds-notify_alert slds-alert_error notice" role="alert">{loadError}</div>
+        </template>
+        <template lwc:else>
+            <!-- Step 1: search bar and criteria -->
+            <section class="search-panel" aria-label="Search assets">
+                <div class="search">
+                    <lightning-icon icon-name="utility:search" size="x-small" class="search-icon"></lightning-icon>
+                    <input type="search" aria-label="Search all columns" value={searchText} oninput={handleSearch}
+                        placeholder="Search all columns…" />
+                </div>
+                <div class="criteria">
+                    <template for:each={criteriaFields} for:item="c">
+                        <div key={c.field} class="criteria-field">
+                            <label for={c.inputId}>{c.label}</label>
+                            <input id={c.inputId} type="search" data-field={c.field} value={c.value}
+                                oninput={handleCriteria} placeholder="Any" />
+                        </div>
+                    </template>
+                </div>
+                <template lwc:if={hasSearch}>
+                    <button class="link-button clear-search" onclick={handleClearSearch}>Clear search</button>
+                </template>
+            </section>
+
+            <!-- Selection tools -->
+            <div class="toolbar">
+                <span class="count-pill">{selectedCount} selected</span>
+                <label class="inline-check">
+                    <input type="checkbox" checked={showSelectedOnly} onchange={handleShowSelectedOnly} />
+                    Show selected only
+                </label>
+                <div class="toolbar-right">
+                    <template lwc:if={hasColumnFilters}>
+                        <button class="link-button" onclick={handleClearColumnFilters}>Clear column filters</button>
+                    </template>
+                    <template lwc:if={isCustomSort}>
+                        <button class="link-button" onclick={handleDefaultSort}>Default order</button>
+                    </template>
+                    <button class="link-button" onclick={handleClearAll}>Clear selection</button>
+                </div>
+            </div>
+
+            <template lwc:if={truncated}>
+                <div class="notice notice-info" role="status">
+                    Showing the first {maxRows} assets. Use search to find others.
+                </div>
+            </template>
+
+            <template lwc:if={showWarning}>
+                <div class="notice notice-warning" role="alert">
+                    <lightning-icon icon-name="utility:warning" size="x-small" variant="warning"></lightning-icon>
+                    <span><b>{selectedCount} assets are selected, including {hiddenSelectedCount} not shown on screen.</b>
+                        Scroll through the list to review every selection before saving, or use the search to narrow it down.</span>
+                </div>
+            </template>
+
+            <!-- Step 2: table with column filters -->
+            <div class="table-wrap" onscroll={handleScroll}>
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="check-col" scope="col">
+                                <input type="checkbox" data-id="select-all" aria-label="Select all matching assets"
+                                    checked={allFilteredSelected} onchange={handleSelectAll} />
+                            </th>
+                            <template for:each={columns} for:item="col">
+                                <th key={col.field} scope="col" style={col.style} aria-sort={col.ariaSort}>
+                                    <button class="sort-button" data-field={col.field} onclick={handleSort}>
+                                        <span class="col-label">{col.label}</span>
+                                        <lightning-icon icon-name={col.iconName} size="xx-small" class={col.iconClass}></lightning-icon>
+                                    </button>
+                                </th>
+                            </template>
+                        </tr>
+                        <tr class="filter-row">
+                            <th class="check-col" scope="col"><span class="slds-assistive-text">Column filters</span></th>
+                            <template for:each={columns} for:item="col">
+                                <th key={col.filterKey} scope="col">
+                                    <input type="search" class={col.filterClass} data-field={col.field} value={col.filterValue}
+                                        aria-label={col.filterLabel} placeholder="Filter" oninput={handleColumnFilter} />
+                                </th>
+                            </template>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template for:each={displayRows} for:item="row">
+                            <template lwc:if={row.dividerBefore}>
+                                <tr key={row.dividerKey} class="divider-row"><td colspan={columnCount}>All assets</td></tr>
+                            </template>
+                            <tr key={row.id} class={row.rowClass}>
+                                <td class="check-col">
+                                    <input type="checkbox" data-id={row.id} aria-label={row.checkboxLabel}
+                                        checked={row.isSelected} onchange={handleRowToggle} />
+                                </td>
+                                <td title={row.serialNumber}>{row.serialNumber}</td>
+                                <td title={row.name}>{row.name}</td>
+                                <td title={row.pfcl}>{row.pfcl}</td>
+                                <td title={row.status}>{row.status}</td>
+                                <td title={row.accountName}>{row.accountName}</td>
+                                <td title={row.address}>{row.address}</td>
+                                <td>{row.installDateLabel}</td>
+                                <td title={row.productLine}>{row.productLine}</td>
+                                <td title={row.subProductLine}>{row.subProductLine}</td>
+                                <td title={row.productType}>{row.productType}</td>
+                                <td title={row.manufacturer}>{row.manufacturer}</td>
+                                <td title={row.model}>{row.model}</td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+                <template lwc:if={showEmpty}>
+                    <p class="empty">{emptyMessage}</p>
+                </template>
+            </div>
+
+            <div class="status-line">
+                Showing {shownCount} of {filteredCount} matching assets ({totalCount} total for {scopeDescription}) · scroll to load more · {sortDescription}
+            </div>
+        </template>
+    </lightning-modal-body>
+
+    <lightning-modal-footer>
+        <lightning-button label="Cancel" onclick={handleCancel}></lightning-button>
+        <lightning-button variant="brand" label={saveLabel} class="slds-m-left_x-small" onclick={handleSave} disabled={loading}></lightning-button>
+    </lightning-modal-footer>
+</template>

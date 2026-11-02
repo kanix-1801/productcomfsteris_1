@@ -1,0 +1,323 @@
+<template>
+  <lightning-quick-action-panel header="Microscopic Camera Picture Capture">
+    <div class="capture-panel">
+      <template lwc:if={isAnnotationOpen}>
+        <section class="panel-section">
+          <h3 class="slds-text-heading_small">{annotationModalTitle}</h3>
+          <p
+            class="slds-text-body_small slds-text-color_weak slds-m-bottom_small"
+          >
+            {annotationModalSubtitle}
+          </p>
+          <div class="annotation-toolbar slds-m-bottom_small">
+            <lightning-combobox
+              class="toolbar-tool"
+              label="Tool"
+              value={annotationTool}
+              options={toolOptions}
+              onchange={handleToolChange}
+            ></lightning-combobox>
+            <lightning-combobox
+              label="Line width"
+              value={strokeWidth}
+              options={strokeWidthOptions}
+              onchange={handleWidthChange}
+            ></lightning-combobox>
+            <lightning-input
+              type="color"
+              label="Color"
+              value={strokeColor}
+              onchange={handleColorChange}
+            ></lightning-input>
+            <lightning-button-group class="toolbar-actions">
+              <lightning-button-icon
+                icon-name="utility:undo"
+                alternative-text="Undo"
+                title="Undo"
+                onclick={handleUndoAnnotation}
+              ></lightning-button-icon>
+              <lightning-button-icon
+                icon-name="utility:clear"
+                alternative-text="Clear markup"
+                title="Clear markup"
+                onclick={handleClearAnnotations}
+              ></lightning-button-icon>
+            </lightning-button-group>
+          </div>
+          <div class="annotation-canvas-wrapper">
+            <div
+              lwc:dom="manual"
+              data-id="annotationHost"
+              class="annotation-host"
+            ></div>
+          </div>
+        </section>
+      </template>
+      <template lwc:else>
+        <template lwc:if={hasRecordId}>
+          <template lwc:if={metadataError}>
+            <div
+              class="slds-notify slds-notify_alert slds-alert_warning slds-m-bottom_small"
+              role="alert"
+            >
+              {metadataError}
+            </div>
+          </template>
+
+          <template lwc:if={errorMessage}>
+            <div
+              class="slds-notify slds-notify_alert slds-alert_error slds-m-bottom_small"
+              role="alert"
+            >
+              {errorMessage}
+            </div>
+          </template>
+
+          <template lwc:if={cameraError}>
+            <div
+              class="slds-notify slds-notify_alert slds-alert_error slds-m-bottom_small"
+              role="alert"
+            >
+              {cameraError}
+            </div>
+          </template>
+
+          <template lwc:if={showLiveCapture}>
+            <section class="panel-section">
+              <template lwc:if={showCameraSelector}>
+                <lightning-combobox
+                  class="slds-m-bottom_small"
+                  label="Camera"
+                  value={selectedDeviceId}
+                  options={cameraOptions}
+                  onchange={handleCameraChange}
+                  disabled={isInitializing}
+                ></lightning-combobox>
+              </template>
+
+              <div class="video-container">
+                <video
+                  lwc:ref="videoElement"
+                  class="preview-video"
+                  playsinline
+                  autoplay
+                  muted
+                ></video>
+                <canvas lwc:ref="canvasElement" class="hidden-canvas"></canvas>
+              </div>
+              <p
+                class="slds-text-body_small slds-text-color_weak slds-m-top_x-small"
+              >
+                {statusLabel}
+              </p>
+
+              <div class="button-row slds-m-top_small">
+                <lightning-button
+                  label="Capture"
+                  icon-name="utility:photo"
+                  variant="brand"
+                  onclick={handleCaptureForReview}
+                  disabled={isCaptureDisabled}
+                  stretch
+                ></lightning-button>
+              </div>
+
+              <template lwc:if={limitReached}>
+                <p
+                  class="slds-text-body_small slds-text-color_error slds-m-top_x-small"
+                >
+                  Photo limit for this session reached. Close and reopen the
+                  action to add more.
+                </p>
+              </template>
+            </section>
+          </template>
+
+          <template lwc:if={showPreview}>
+            <section class="panel-section">
+              <h3 class="slds-text-heading_small slds-m-bottom_x-small">
+                Review capture
+              </h3>
+              <template lwc:if={showReviewImage}>
+                <img
+                  src={lastPreviewDataUrl}
+                  alt="Review capture"
+                  class="preview-image"
+                />
+              </template>
+              <p
+                class="slds-text-body_small slds-text-color_weak slds-m-top_x-small"
+              >
+                {statusLabel}
+              </p>
+            </section>
+          </template>
+
+          <template lwc:if={hasItems}>
+            <section class="panel-section">
+              <h3 class="slds-text-heading_small">Photos this session</h3>
+              <p
+                class="slds-text-body_small slds-text-color_weak slds-m-bottom_x-small"
+              >
+                Photos are saved to this device first and upload automatically
+                when you have signal. Upload problems appear in the app's
+                pending changes list.
+              </p>
+              <p class="slds-text-title slds-m-bottom_x-small">
+                {summaryLabel}
+              </p>
+              <ul class="photo-list">
+                <template for:each={items} for:item="item">
+                  <li key={item.key} class="photo-row">
+                    <img
+                      class="thumb"
+                      src={item.thumbnailUrl}
+                      alt={item.title}
+                    />
+                    <div class="meta">
+                      <div class="slds-truncate title">{item.title}</div>
+                      <div class="slds-text-body_small slds-text-color_weak">
+                        {item.sizeLabel}
+                      </div>
+                      <div
+                        class="slds-text-body_small status"
+                        data-status={item.status}
+                      >
+                        {item.statusLabel}
+                      </div>
+                      <template lwc:if={item.isError}>
+                        <div class="slds-text-body_small slds-text-color_error">
+                          {item.error}
+                        </div>
+                        <lightning-button
+                          label="Retry"
+                          variant="base"
+                          data-key={item.key}
+                          onclick={handleRetry}
+                          disabled={isUploading}
+                        ></lightning-button>
+                      </template>
+                    </div>
+                  </li>
+                </template>
+              </ul>
+            </section>
+          </template>
+
+          <template lwc:if={showLiveCapture}>
+            <section class="panel-section annotate-existing-section">
+              <h3 class="slds-text-heading_small slds-m-bottom_x-small">
+                Annotate existing file
+              </h3>
+              <template lwc:if={fileListAvailable}>
+                <p
+                  class="slds-text-body_small slds-text-color_weak slds-m-bottom_small"
+                >
+                  Open an image already on this line item (PNG, JPEG, GIF,
+                  WebP). The marked-up copy is saved as a new PNG file.
+                </p>
+                <lightning-combobox
+                  label="Image file"
+                  value={selectedContentDocumentId}
+                  options={annotatableFileOptions}
+                  placeholder="Select a file to annotate"
+                  onchange={handleExistingFileChange}
+                  disabled={isLoadingFileList}
+                ></lightning-combobox>
+                <template lwc:if={showNoFilesMessage}>
+                  <p
+                    class="slds-text-body_small slds-text-color_weak slds-m-top_x-small"
+                  >
+                    No image files on this line item yet. Photos taken offline
+                    appear after they sync.
+                  </p>
+                </template>
+                <div class="button-row slds-m-top_small">
+                  <lightning-button
+                    label="Refresh"
+                    icon-name="utility:refresh"
+                    onclick={handleRefreshFileList}
+                    disabled={isLoadingFileList}
+                    stretch
+                  ></lightning-button>
+                  <lightning-button
+                    label="Annotate"
+                    icon-name="utility:edit"
+                    variant="brand"
+                    onclick={handleAnnotateSelectedFile}
+                    disabled={isAnnotateFileDisabled}
+                    stretch
+                  ></lightning-button>
+                </div>
+              </template>
+              <template lwc:elseif={fileListError}>
+                <p
+                  class="slds-text-body_small slds-text-color_weak slds-m-bottom_small"
+                >
+                  {fileListError}
+                </p>
+                <div class="button-row">
+                  <lightning-button
+                    label="Try again"
+                    icon-name="utility:refresh"
+                    onclick={handleRefreshFileList}
+                    disabled={isLoadingFileList}
+                    stretch
+                  ></lightning-button>
+                </div>
+              </template>
+              <template lwc:else>
+                <p class="slds-text-body_small slds-text-color_weak">
+                  Loading files…
+                </p>
+              </template>
+            </section>
+          </template>
+        </template>
+        <template lwc:else>
+          <div
+            class="slds-notify slds-notify_alert slds-alert_error"
+            role="alert"
+          >
+            No Work Order Line Item context.
+          </div>
+        </template>
+      </template>
+    </div>
+
+    <template lwc:if={showFooterActions}>
+      <div slot="footer" class="button-row">
+        <template lwc:if={isAnnotationOpen}>
+          <lightning-button
+            label="Cancel"
+            onclick={handleCancelAnnotation}
+            disabled={isUploading}
+            stretch
+          ></lightning-button>
+          <lightning-button
+            label={annotationSaveButtonLabel}
+            variant="brand"
+            onclick={handleSaveAnnotated}
+            disabled={isAnnotationSaveDisabled}
+            stretch
+          ></lightning-button>
+        </template>
+        <template lwc:elseif={showSaveWithoutMarkup}>
+          <lightning-button
+            label="Discard"
+            onclick={handleDiscardCapture}
+            disabled={isUploading}
+            stretch
+          ></lightning-button>
+          <lightning-button
+            label="Save photo"
+            variant="brand"
+            onclick={handleSaveWithoutMarkup}
+            disabled={isUploading}
+            stretch
+          ></lightning-button>
+        </template>
+      </div>
+    </template>
+  </lightning-quick-action-panel>
+</template>

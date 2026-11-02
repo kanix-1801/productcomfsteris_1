@@ -1,0 +1,5 @@
+<aura:component implements="lightning:actionOverride,lightning:isUrlAddressable" access="global">
+    <aura:attribute name="recordTypeId" type="String" />
+    <aura:handler name="init" value="{!this}" action="{!c.doInit}" />
+    <c:leadCreateWithProducts recordTypeId="{!v.recordTypeId}"></c:leadCreateWithProducts>
+</aura:component>

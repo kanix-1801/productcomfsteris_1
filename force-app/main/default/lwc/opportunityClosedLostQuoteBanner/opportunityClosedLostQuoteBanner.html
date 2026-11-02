@@ -1,0 +1,107 @@
+<template>
+    <template lwc:if={isVisible}>
+        <div class="slds-scoped-notification slds-scoped-notification_warning slds-m-bottom_small" role="status">
+            <div class="slds-media slds-media_center">
+                <div class="slds-media__figure">
+                    <lightning-icon
+                        icon-name="utility:warning"
+                        alternative-text="Warning"
+                        size="x-small"
+                        variant="warning">
+                    </lightning-icon>
+                </div>
+                <div class="slds-media__body">
+                    <p class="slds-text-body_small">
+                        <strong>{bannerTitle}.</strong> {bannerMessage}
+                    </p>
+                </div>
+                <div class="slds-media__figure slds-media__figure_reverse banner-actions">
+                    <lightning-button
+                        label="Yes"
+                        title="Close all related open quotes"
+                        variant="brand"
+                        onclick={handleYesClick}
+                        disabled={isBusy}>
+                    </lightning-button>
+                    <lightning-button
+                        label="No"
+                        title="Do not close related quotes"
+                        variant="neutral"
+                        class="slds-m-left_x-small"
+                        onclick={handleNoClick}
+                        disabled={isBusy}
+                        is-loading={isDismissing}>
+                    </lightning-button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <template lwc:if={showConfirmModal}>
+        <section
+            role="dialog"
+            tabindex="-1"
+            aria-modal="true"
+            aria-labelledby="closed-lost-confirm-modal-heading"
+            class="slds-modal slds-fade-in-open"
+            onkeydown={handleModalKeyDown}>
+            <div class="slds-modal__container closed-lost-modal-container">
+                <header class="slds-modal__header">
+                    <h2 id="closed-lost-confirm-modal-heading" class="slds-modal__title slds-hyphenate">
+                        Confirm Quote Closure
+                    </h2>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium modal-content">
+                    <template lwc:if={isClosing}>
+                        <lightning-spinner
+                            alternative-text="Closing quotes"
+                            size="small"
+                            class="modal-spinner">
+                        </lightning-spinner>
+                    </template>
+                    <p class={modalMessageClass}>{confirmMessage}</p>
+                    <template lwc:if={hasQuoteRows}>
+                        <div class="quote-table-wrapper slds-m-top_small">
+                            <table class="slds-table slds-table_cell-buffer slds-table_bordered slds-table_fixed-layout quote-table">
+                                <thead>
+                                    <tr class="slds-line-height_reset">
+                                        <th scope="col">Quote Number</th>
+                                        <th scope="col">Status</th>
+                                        <th scope="col">Forecast Eligible</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={quoteRows} for:item="quote">
+                                        <tr key={quote.id}>
+                                            <td>
+                                                <div class="truncate" title={quote.quoteNumber}>{quote.quoteNumber}</div>
+                                            </td>
+                                            <td>{quote.status}</td>
+                                            <td>{quote.forecastEligibleLabel}</td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </template>
+                </div>
+                <footer class="slds-modal__footer">
+                    <lightning-button
+                        label="Cancel"
+                        onclick={handleConfirmCancel}
+                        disabled={isBusy}>
+                    </lightning-button>
+                    <lightning-button
+                        variant="brand"
+                        label="Confirm"
+                        class="slds-m-left_x-small"
+                        onclick={handleConfirmCloseQuotes}
+                        disabled={isBusy}
+                        is-loading={isClosing}>
+                    </lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open"></div>
+    </template>
+</template>

@@ -1,0 +1,106 @@
+.loss-guidance-primary {
+    margin: 0 0 0.25rem;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.loss-guidance-secondary {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 400;
+}
+
+.lost-business-products {
+    position: relative;
+    padding: 0.5rem 0.25rem;
+    min-height: 12rem;
+}
+
+.product-search-row {
+    display: flex;
+    align-items: end;
+    gap: 1rem;
+}
+
+.product-search-input {
+    flex: 1 1 auto;
+}
+
+.product-search-button {
+    flex: 0 0 auto;
+    padding-bottom: 0.1rem;
+}
+
+.selected-products-scroll {
+    overflow-x: auto;
+}
+
+.selected-products-table {
+    table-layout: fixed;
+    min-width: 52rem;
+    width: 100%;
+}
+
+.catalog-products-table {
+    table-layout: fixed;
+    min-width: 88rem;
+    width: 100%;
+}
+
+.selected-products-table th,
+.selected-products-table td,
+.catalog-products-table th,
+.catalog-products-table td {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    vertical-align: top;
+}
+
+.product-name-cell {
+    width: 10rem;
+}
+
+.product-code-cell {
+    width: 8rem;
+}
+
+.quantity-cell,
+.sales-price-cell,
+.contract-cell,
+.comments-cell {
+    width: 8rem;
+}
+
+.picklist-cell {
+    width: 10rem;
+}
+
+.date-cell {
+    width: 11rem;
+}
+
+.quantity-cell lightning-input,
+.sales-price-cell lightning-input,
+.date-cell lightning-input,
+.contract-cell lightning-input,
+.comments-cell lightning-input,
+.picklist-cell .slds-select_container,
+.picklist-cell .slds-select {
+    display: block;
+    width: 100%;
+}
+
+.remove-cell {
+    width: 4rem;
+    text-align: center;
+}
+
+.action-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    margin-top: 1rem;
+    padding: 0.75rem 1rem;
+    background-color: #ffffff;
+    border-top: 1px solid #c9c9c9;
+}

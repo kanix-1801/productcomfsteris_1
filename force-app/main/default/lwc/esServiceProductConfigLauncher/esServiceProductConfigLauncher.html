@@ -1,0 +1,24 @@
+<template>
+    <template lwc:if={showButton}>
+        <section class="card" aria-label={cardTitle}>
+            <header class="card-header">
+                <lightning-icon icon-name="standard:asset_object" size="small"></lightning-icon>
+                <h2 class="card-title">{cardTitle}</h2>
+                <lightning-button
+                    class="edit"
+                    label="Edit"
+                    icon-name="utility:edit"
+                    onclick={handleClick}>
+                </lightning-button>
+            </header>
+            <dl class="card-body">
+                <template for:each={summaryItems} for:item="item">
+                    <div key={item.key} class="field">
+                        <dt class="field-label">{item.label}</dt>
+                        <dd class="field-value">{item.value}</dd>
+                    </div>
+                </template>
+            </dl>
+        </section>
+    </template>
+</template>

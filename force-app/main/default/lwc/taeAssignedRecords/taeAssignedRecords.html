@@ -1,0 +1,171 @@
+<template>
+    <div class={pageWrapperClass}>
+        <template lwc:if={isFullPage}>
+            <div class="full-page__header slds-p-around_medium">
+                <nav class="breadcrumb" aria-label="Breadcrumbs">
+                    <ol class="breadcrumb__list">
+                        <li class="breadcrumb__item">
+                            <span class="breadcrumb__plain">{taeObjectLabel}</span>
+                        </li>
+                        <li class="breadcrumb__item" aria-hidden="true">
+                            <span class="breadcrumb__separator">&gt;</span>
+                        </li>
+                        <li class="breadcrumb__item">
+                            <a
+                                class="breadcrumb__link"
+                                href={taeRecordUrl}
+                                onclick={handleBackToTae}
+                            >
+                                {taeBreadcrumbLabel}
+                            </a>
+                        </li>
+                    </ol>
+                </nav>
+            </div>
+        </template>
+
+        <div class={bodyWrapperClass}>
+            <section class="related-list-container">
+        <div class="related-list-header">
+            <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-center">
+                <div class="slds-grid slds-grid_vertical-align-center">
+                    <lightning-icon
+                        icon-name={listIconName}
+                        size="small"
+                        alternative-text={listLabel}
+                    ></lightning-icon>
+                    <h2 class="slds-text-heading_small slds-m-left_small">
+                        {listTitle}
+                    </h2>
+                </div>
+
+                <div class="slds-grid slds-grid_vertical-align-center header-actions">
+                    <lightning-button-icon
+                        icon-name="utility:refresh"
+                        alternative-text="Refresh"
+                        title="Refresh"
+                        onclick={handleRefresh}
+                        disabled={isLoading}
+                    ></lightning-button-icon>
+                </div>
+            </div>
+
+            <template lwc:if={showSearchBar}>
+                <div class="list-toolbar slds-grid slds-grid_align-end">
+                    <div class="search-input-container">
+                        <lightning-input
+                            type="search"
+                            label="Search by name"
+                            variant="label-hidden"
+                            placeholder={searchPlaceholder}
+                            value={searchTerm}
+                            oninput={handleSearchInput}
+                            onchange={handleSearchChange}
+                        ></lightning-input>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <template lwc:if={isLoading}>
+            <div class="spinner-container">
+                <lightning-spinner
+                    alternative-text="Loading assigned records"
+                    size="medium"
+                ></lightning-spinner>
+            </div>
+        </template>
+
+        <template lwc:elseif={hasError}>
+            <div class="slds-p-around_medium slds-text-color_error" role="alert">
+                {errorMessage}
+            </div>
+        </template>
+
+        <template lwc:elseif={hasRecords}>
+            <div class="record-list">
+                <table
+                    class="slds-table slds-table_fixed-layout slds-table_cell-buffer slds-table_header-fixed"
+                    aria-label={listLabel}
+                >
+                    <thead>
+                        <tr class="slds-line-height_reset">
+                            <th class="record-list-header-cell" scope="col">
+                                <div class="slds-grid slds-grid_vertical-align-center slds-has-flexi-truncate">
+                                    <span class="slds-truncate" title={columnLabel}>
+                                        {columnLabel}
+                                    </span>
+                                    <template lwc:if={isFullPage}>
+                                        <lightning-button-icon
+                                            icon-name={sortIconName}
+                                            alternative-text="Sort by name"
+                                            title="Sort by name"
+                                            variant="bare"
+                                            class="slds-m-left_xx-small"
+                                            onclick={handleToggleSort}
+                                            disabled={isLoading}
+                                        ></lightning-button-icon>
+                                    </template>
+                                </div>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template for:each={records} for:item="record">
+                            <tr key={record.rowKey} class="record-list-row">
+                                <td class="record-list-cell">
+                                    <a
+                                        href={record.recordUrl}
+                                        class="record-link slds-truncate"
+                                        title={record.name}
+                                        data-id={record.id}
+                                        onclick={handleRecordClick}
+                                    >
+                                        {record.name}
+                                    </a>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </template>
+
+        <template lwc:else>
+            <div class="empty-state">
+                No {listLabel} found.
+            </div>
+        </template>
+
+        <template lwc:if={showViewAll}>
+            <div class="related-list-footer">
+                <a href="javascript:void(0);" onclick={handleViewAll}>View All</a>
+            </div>
+        </template>
+
+        <template lwc:if={showPagination}>
+            <div class="related-list-footer pagination-footer">
+                <span class="pagination-summary">{paginationSummary}</span>
+                <div class="pagination-controls">
+                    <lightning-button
+                        label="Previous"
+                        title="Previous page"
+                        onclick={handlePreviousPage}
+                        disabled={disablePreviousPage}
+                    ></lightning-button>
+                    <span class="pagination-page">
+                        Page {pageNumber} of {totalPages}
+                    </span>
+                    <lightning-button
+                        label="Next"
+                        title="Next page"
+                        onclick={handleNextPage}
+                        disabled={disableNextPage}
+                    ></lightning-button>
+                </div>
+            </div>
+        </template>
+            </section>
+        </div>
+    </div>
+</template>

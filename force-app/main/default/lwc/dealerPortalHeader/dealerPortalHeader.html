@@ -1,0 +1,12 @@
+<template>
+    <div class="bar">
+        <img class="logo" src={logoUrl} alt="STERIS Dealer Portal" />
+        <nav class="tabs" aria-label="Dealer portal">
+            <template for:each={tabs} for:item="tab">
+                <button key={tab.key} type="button" class={tab.className} data-page={tab.name} onclick={openPage}>
+                    {tab.label}
+                </button>
+            </template>
+        </nav>
+    </div>
+</template>

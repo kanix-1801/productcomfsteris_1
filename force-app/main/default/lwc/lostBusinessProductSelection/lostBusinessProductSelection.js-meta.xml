@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>66.0</apiVersion>
+    <isExposed>true</isExposed>
+    <masterLabel>Lost Business Product Selection</masterLabel>
+    <description>GC-3574 - Selects products for a Consumables Lost Business Opportunity. Products from the originating opportunity are preselected. When that opportunity has no products, the rep can search the active catalogue.</description>
+    <targets>
+        <target>lightning__FlowScreen</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightning__FlowScreen">
+            <property name="lostBusinessOpportunityId" type="String" label="Lost Business Opportunity Id"
+                description="GC-3574 - Id of the Lost Business Opportunity created earlier in the flow."
+                role="inputOnly"/>
+            <property name="originatingOpportunityId" type="String" label="Originating Opportunity Id"
+                description="GC-3574 - Id of the originating opportunity whose products are offered for copy."
+                role="inputOnly"/>
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

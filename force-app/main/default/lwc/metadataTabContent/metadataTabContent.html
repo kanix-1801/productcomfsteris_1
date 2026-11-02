@@ -1,0 +1,33 @@
+<template>
+    <template lwc:if={hasContent}>
+        <template for:each={orderedContentWithGroupedElements} for:item="item">
+            <template lwc:if={item.isSection}>
+                <c-metadata-section-renderer
+                    key={item.key}
+                    section={item.data}
+                    record-id={recordId}
+                    access-level={accessLevel}>
+                </c-metadata-section-renderer>
+            </template>
+
+            <template lwc:if={item.isFieldList}>
+                <c-metadata-field-list-layout
+                    key={item.key}
+                    field-list={item.data}
+                    record-id={recordId}
+                    access-level={accessLevel}>
+                </c-metadata-field-list-layout>
+            </template>
+
+            <template lwc:if={item.isElement}>
+                <c-metadata-column-layout
+                    key={item.key}
+                    elements={item.elementList}
+                    record-id={recordId}
+                    access-level={accessLevel}
+                    is-editable={directFieldsEditable}>
+                </c-metadata-column-layout>
+            </template>
+        </template>
+    </template>
+</template>

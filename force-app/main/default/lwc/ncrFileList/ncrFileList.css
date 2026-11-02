@@ -1,0 +1,82 @@
+.ncr-files {
+    margin-top: 1.25rem;
+}
+
+.ncr-files__title {
+    color: #032d60;
+    font-size: 1rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.ncr-files__table-wrap {
+    overflow-x: auto;
+}
+
+table.files-table th,
+table.files-table td {
+    text-align: left;
+    vertical-align: middle;
+}
+
+.files-table__col-ncr {
+    width: 10rem;
+    white-space: nowrap;
+}
+
+.files-table__col-icon {
+    width: 3.5rem;
+}
+
+.files-table__col-actions {
+    width: 4rem;
+    text-align: center;
+}
+
+.files-table__icon-slot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 2.25rem;
+}
+
+.files-table__thumb {
+    display: block;
+    width: 3rem;
+    height: 2.25rem;
+    object-fit: cover;
+    border: 1px solid #d8dde6;
+    border-radius: 0.125rem;
+    background: #f3f3f3;
+}
+
+.photo-title-input_dirty {
+    --slds-c-input-color-border: #0176d3;
+    --slds-c-input-shadow: 0 0 0 1px #0176d3;
+}
+
+.photo-title-save {
+    display: inline-flex;
+}
+
+.photo-title-save_clean {
+    opacity: 0.4;
+}
+
+.camera-preview {
+    width: 100%;
+    max-width: 100%;
+    min-height: 14rem;
+    background: #080707;
+    border-radius: 0.25rem;
+    object-fit: contain;
+}
+
+.slds-modal {
+    z-index: 9001;
+}
+
+.slds-backdrop {
+    z-index: 9000;
+}

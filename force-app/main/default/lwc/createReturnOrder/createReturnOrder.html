@@ -1,0 +1,1448 @@
+<template>
+    <lightning-card title={cardTitle} icon-name="standard:return_order">
+        <template if:true={isLoading}>
+            <lightning-spinner alternative-text="Loading" size="medium"></lightning-spinner>
+        </template>
+
+        <template if:false={isLoading}>
+            <template if:false={isCreatedPage}>
+            <div class="slds-m-around_medium">
+                <lightning-progress-indicator current-step={currentStepValue} type="base" variant="base">
+                    <template for:each={progressSteps} for:item="step">
+                        <lightning-progress-step
+                            key={step.value}
+                            label={step.label}
+                            value={step.value}>
+                        </lightning-progress-step>
+                    </template>
+                </lightning-progress-indicator>
+            </div>
+
+            <template if:true={isHeaderPage}>
+                <div class="slds-m-horizontal_medium slds-m-bottom_medium">
+                    <template if:true={showAssetLaunchHeaderPrompt}>
+                        <div class="slds-box slds-theme_info slds-m-bottom_small" role="status">
+                            Complete the required header information below to continue to the scanned item.
+                        </div>
+                    </template>
+                    <template if:true={showManualSiteVisitEntryNotice}>
+                        <div class="slds-box slds-theme_info slds-m-bottom_small" role="status">
+                            No child work order lines are marked Send to Repair Center. Enter the return order items manually.
+                        </div>
+                    </template>
+                    <h2 class="slds-text-heading_small slds-m-bottom_small">Return Order Header Information</h2>
+                    <div class="slds-grid slds-wrap slds-gutters">
+                        <div class="slds-col slds-size_1-of-2">
+                            <template if:true={showLockedAccount}>
+                                <lightning-input
+                                    type="text"
+                                    label="Account"
+                                    value={accountName}
+                                    disabled>
+                                </lightning-input>
+                            </template>
+                            <template if:true={showAccountPicker}>
+                                <lightning-record-picker
+                                    key={accountPickerKey}
+                                    label="Account"
+                                    placeholder="Search Accounts..."
+                                    object-api-name="Account"
+                                    value={accountId}
+                                    required
+                                    onchange={handleAccountChange}>
+                                </lightning-record-picker>
+                            </template>
+
+                            <lightning-input
+                                class="slds-m-top_small"
+                                type="text"
+                                label="Legacy Customer ID"
+                                value={legacyCustomerId}
+                                disabled>
+                            </lightning-input>
+
+                        </div>
+
+                        <div class="slds-col slds-size_1-of-2">
+                            <lightning-combobox
+                                label="Sales Rep"
+                                value={salesRepId}
+                                options={salesRepOptions}
+                                required
+                                data-field="salesRepId"
+                                onchange={handleFieldChange}>
+                            </lightning-combobox>
+
+                            <lightning-combobox
+                                class="slds-m-top_small"
+                                label="Operating Unit"
+                                value={operatingUnit}
+                                options={operatingUnitOptions}
+                                required
+                                data-field="operatingUnit"
+                                onchange={handleFieldChange}>
+                            </lightning-combobox>
+
+                            <template if:true={lockWorkOrder}>
+                                <lightning-input
+                                    class="slds-m-top_small"
+                                    type="text"
+                                    label="Work Order"
+                                    value={workOrderLabel}
+                                    disabled>
+                                </lightning-input>
+                            </template>
+
+                        </div>
+                    </div>
+                </div>
+            </template>
+
+            <template if:true={isLinesPage}>
+                <div class="slds-m-horizontal_medium slds-m-bottom_medium return-order-lines">
+                    <div class="slds-grid slds-grid_align-spread slds-m-bottom_small">
+                        <div>
+                            <h2 class="slds-text-heading_small">Return Order Items</h2>
+                            <p class="slds-text-body_small slds-text-color_weak slds-m-top_xx-small">
+                                Expand each item to enter asset, contact, and return details. Contacts are limited to the selected account.
+                            </p>
+                        </div>
+                        <lightning-button
+                            label="Add Item"
+                            icon-name="utility:add"
+                            onclick={handleAddLine}>
+                        </lightning-button>
+                    </div>
+
+                    <template if:true={showLineTypePickerOnLinesPage}>
+                        <div class="line-type-add-panel slds-box slds-theme_shade slds-m-bottom_medium">
+                            <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-center slds-m-bottom_small">
+                                <h3 class="slds-text-heading_small">Add Return Order Item</h3>
+                                <template if:true={showLineTypePickerCancel}>
+                                    <lightning-button
+                                        label="Cancel"
+                                        variant="neutral"
+                                        onclick={handleCloseLineTypeModal}>
+                                    </lightning-button>
+                                </template>
+                            </div>
+                            <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_small">
+                                Click a type to add that item.
+                            </p>
+                            <div class="line-type-add-table-wrapper">
+                                <table class="slds-table slds-table_cell-buffer slds-table_bordered line-type-add-table">
+                                    <thead>
+                                        <tr class="slds-line-height_reset">
+                                            <th scope="col" class="line-type-add-table__type-col">Type</th>
+                                            <th scope="col" class="line-type-add-table__details-col">Details</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template for:each={lineTypeAddOptions} for:item="option">
+                                            <tr key={option.key} class="slds-hint-parent line-type-add-table__row">
+                                                <th scope="row" class="line-type-add-table__type-col" data-label="Type">
+                                                    <a
+                                                        href="javascript:void(0);"
+                                                        role="button"
+                                                        class="line-type-add-table__type-link slds-text-link"
+                                                        title={option.description}
+                                                        data-line-type={option.lineType}
+                                                        onclick={handleSelectLineType}>
+                                                        {option.typeLabel}
+                                                    </a>
+                                                </th>
+                                                <td class="line-type-add-table__details-col" data-label="Details">
+                                                    <div class="line-type-add-table__details-text" title={option.description}>
+                                                        {option.description}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </template>
+
+                    <template if:true={hasLineItems}>
+                        <lightning-accordion
+                            active-section-name={activeSections}
+                            allow-multiple-sections-open
+                            onsectiontoggle={handleSectionToggle}>
+                            <template for:each={lineDisplayItems} for:item="line">
+                                <lightning-accordion-section
+                                    key={line.key}
+                                    name={line.key}
+                                    label={line.sectionLabel}>
+                                    <div class="line-section-actions">
+                                        <lightning-button-icon
+                                            icon-name="utility:delete"
+                                            alternative-text="Remove item"
+                                            title="Remove item"
+                                            variant="border-filled"
+                                            data-key={line.key}
+                                            onclick={handleRemoveLine}>
+                                        </lightning-button-icon>
+                                    </div>
+
+
+                                    <div class="slds-text-title_caps slds-m-bottom_x-small">Details</div>
+                                    <div class="slds-grid slds-wrap slds-gutters_small slds-m-bottom_medium line-fields-row">
+                                        <template if:true={line.isOther}>
+                                            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                                <lightning-combobox
+                                                    label="Item Type"
+                                                    value={line.itemType}
+                                                    options={line.itemTypeOptions}
+                                                    placeholder="Select item type"
+                                                    required
+                                                    data-key={line.key}
+                                                    data-field="itemType"
+                                                    onchange={handleLineFieldChange}>
+                                                </lightning-combobox>
+                                            </div>
+                                            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                                <div class={line.productSearchLookupClass}>
+                                                    <label class="slds-form-element__label">
+                                                        <abbr class="slds-required" title="required">*</abbr>
+                                                        Product
+                                                    </label>
+                                                    <div
+                                                        class="slds-form-element__control product-search-lookup__control"
+                                                        data-product-search-control={line.key}>
+                                                        <lightning-input
+                                                            type="search"
+                                                            variant="label-hidden"
+                                                            placeholder={line.productPickerPlaceholder}
+                                                            value={line.productSearchText}
+                                                            disabled={line.isProductSearchDisabled}
+                                                            data-key={line.key}
+                                                            onchange={handleProductSearchInput}
+                                                            onfocus={handleProductSearchFocus}
+                                                            onblur={handleProductSearchBlur}>
+                                                        </lightning-input>
+                                                        <template if:true={line.showProductResults}>
+                                                            <div
+                                                                class="slds-dropdown slds-dropdown_length-5 product-search-results product-search-results--fixed"
+                                                                style={line.productSearchDropdownStyle}
+                                                                role="listbox">
+                                                                <ul class="slds-listbox slds-listbox_vertical" role="listbox">
+                                                                    <template for:each={line.productOptions} for:item="option">
+                                                                        <li key={option.value} role="presentation" class="slds-listbox__item">
+                                                                            <div
+                                                                                class="slds-media slds-listbox__option slds-listbox__option_plain slds-media_small"
+                                                                                role="option"
+                                                                                data-key={line.key}
+                                                                                data-value={option.value}
+                                                                                onmousedown={handleProductOptionSelect}>
+                                                                                <span class="product-search-option-label" title={option.label}>{option.label}</span>
+                                                                            </div>
+                                                                        </li>
+                                                                    </template>
+                                                                    <template if:false={line.productOptions.length}>
+                                                                        <li class="slds-listbox__item slds-p-around_x-small slds-text-color_weak">
+                                                                            No products found
+                                                                        </li>
+                                                                    </template>
+                                                                </ul>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </template>
+                                        <template if:true={line.isSerialized}>
+                                            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                                <div class={line.assetSearchLookupClass}>
+                                                    <label class="slds-form-element__label">
+                                                        Select from account assets
+                                                    </label>
+                                                    <div
+                                                        class="slds-form-element__control product-search-lookup__control"
+                                                        data-asset-search-control={line.key}>
+                                                        <lightning-input
+                                                            type="search"
+                                                            variant="label-hidden"
+                                                            placeholder="Search by asset name, product name, or model"
+                                                            value={line.assetSearchText}
+                                                            disabled={line.isAssetSearchDisabled}
+                                                            data-key={line.key}
+                                                            onchange={handleAssetSearchInput}
+                                                            onfocus={handleAssetSearchFocus}
+                                                            onblur={handleAssetSearchBlur}>
+                                                        </lightning-input>
+                                                        <template if:true={line.showAssetResults}>
+                                                            <div
+                                                                class="slds-dropdown slds-dropdown_length-5 product-search-results product-search-results--fixed"
+                                                                style={line.assetSearchDropdownStyle}
+                                                                role="listbox">
+                                                                <ul class="slds-listbox slds-listbox_vertical" role="listbox">
+                                                                    <template for:each={line.assetOptions} for:item="assetOption">
+                                                                        <li key={assetOption.value} role="presentation" class="slds-listbox__item">
+                                                                            <div
+                                                                                class="slds-media slds-listbox__option slds-listbox__option_plain slds-media_small"
+                                                                                role="option"
+                                                                                data-key={line.key}
+                                                                                data-value={assetOption.value}
+                                                                                onmousedown={handleAssetOptionSelect}>
+                                                                                <span class="product-search-option-label" title={assetOption.label}>{assetOption.label}</span>
+                                                                            </div>
+                                                                        </li>
+                                                                    </template>
+                                                                    <template if:false={line.assetOptions.length}>
+                                                                        <li class="slds-listbox__item slds-p-around_x-small slds-text-color_weak">
+                                                                            No assets found
+                                                                        </li>
+                                                                    </template>
+                                                                </ul>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </template>
+                                        <template if:false={line.isOther}>
+                                            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                                <lightning-input
+                                                    label="Serial Number"
+                                                    value={line.serialNumber}
+                                                    placeholder={line.serialNumberPlaceholder}
+                                                    required={line.serialNumberRequired}
+                                                    data-key={line.key}
+                                                    data-field="serialNumber"
+                                                    onchange={handleLineFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                                <div class={line.productSearchLookupClass}>
+                                                    <label class="slds-form-element__label">
+                                                        <abbr class="slds-required" title="required">*</abbr>
+                                                        Product
+                                                    </label>
+                                                    <div
+                                                        class="slds-form-element__control product-search-lookup__control"
+                                                        data-product-search-control={line.key}>
+                                                        <lightning-input
+                                                            type="search"
+                                                            variant="label-hidden"
+                                                            placeholder={line.productPickerPlaceholder}
+                                                            value={line.productSearchText}
+                                                            disabled={line.isProductSearchDisabled}
+                                                            data-key={line.key}
+                                                            onchange={handleProductSearchInput}
+                                                            onfocus={handleProductSearchFocus}
+                                                            onblur={handleProductSearchBlur}>
+                                                        </lightning-input>
+                                                        <template if:true={line.showProductResults}>
+                                                            <div
+                                                                class="slds-dropdown slds-dropdown_length-5 product-search-results product-search-results--fixed"
+                                                                style={line.productSearchDropdownStyle}
+                                                                role="listbox">
+                                                                <ul class="slds-listbox slds-listbox_vertical" role="listbox">
+                                                                    <template for:each={line.productOptions} for:item="option">
+                                                                        <li key={option.value} role="presentation" class="slds-listbox__item">
+                                                                            <div
+                                                                                class="slds-media slds-listbox__option slds-listbox__option_plain slds-media_small"
+                                                                                role="option"
+                                                                                data-key={line.key}
+                                                                                data-value={option.value}
+                                                                                onmousedown={handleProductOptionSelect}>
+                                                                                <span class="product-search-option-label" title={option.label}>{option.label}</span>
+                                                                            </div>
+                                                                        </li>
+                                                                    </template>
+                                                                    <template if:false={line.productOptions.length}>
+                                                                        <li class="slds-listbox__item slds-p-around_x-small slds-text-color_weak">
+                                                                            No products found
+                                                                        </li>
+                                                                    </template>
+                                                                </ul>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </template>
+                                        <template if:true={line.showOtherSerialNumber}>
+                                            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                                <lightning-input
+                                                    label="Serial Number"
+                                                    value={line.serialNumber}
+                                                    placeholder={line.serialNumberPlaceholder}
+                                                    required={line.serialNumberRequired}
+                                                    data-key={line.key}
+                                                    data-field="serialNumber"
+                                                    onchange={handleLineFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                        </template>
+                                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                            <lightning-input
+                                                label="Model"
+                                                value={line.model}
+                                                required={line.modelRequired}
+                                                readonly={line.modelReadOnly}
+                                                data-key={line.key}
+                                                data-field="model"
+                                                onchange={handleLineFieldChange}>
+                                            </lightning-input>
+                                        </div>
+                                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                            <lightning-input
+                                                label="Product Line"
+                                                value={line.productLine}
+                                                maxlength="50"
+                                                required
+                                                readonly
+                                                data-key={line.key}
+                                                data-field="productLine"
+                                                onchange={handleLineFieldChange}>
+                                            </lightning-input>
+                                        </div>
+                                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                            <lightning-combobox
+                                                label="Department"
+                                                value={line.departmentId}
+                                                options={departmentOptions}
+                                                placeholder="Select department"
+                                                required
+                                                data-key={line.key}
+                                                data-field="departmentId"
+                                                onchange={handleLineFieldChange}>
+                                            </lightning-combobox>
+                                        </div>
+                                        <template if:true={line.showQuantity}>
+                                            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                                <lightning-input
+                                                    type="number"
+                                                    label="Quantity"
+                                                    value={line.quantityReturned}
+                                                    min="1"
+                                                    step="1"
+                                                    required
+                                                    readonly={line.quantityReadOnly}
+                                                    data-key={line.key}
+                                                    data-field="quantityReturned"
+                                                    onchange={handleLineFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                        </template>
+                                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                            <lightning-combobox
+                                                label="Disinfected"
+                                                value={line.disinfected}
+                                                options={disinfectedOptions}
+                                                required
+                                                data-key={line.key}
+                                                data-field="disinfected"
+                                                onchange={handleLineFieldChange}>
+                                            </lightning-combobox>
+                                        </div>
+                                        <template if:true={line.showItemDescription}>
+                                            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                                <lightning-textarea
+                                                    label="Item Description"
+                                                    value={line.itemDescription}
+                                                    data-key={line.key}
+                                                    data-field="itemDescription"
+                                                    onchange={handleLineFieldChange}>
+                                                </lightning-textarea>
+                                            </div>
+                                        </template>
+                                        <template if:true={line.showHospitalTrayName}>
+                                            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                                <lightning-input
+                                                    label="Hospital Referenced Tray Name"
+                                                    value={line.hospitalReferencedTrayName}
+                                                    maxlength="255"
+                                                    data-key={line.key}
+                                                    data-field="hospitalReferencedTrayName"
+                                                    onchange={handleLineFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                        </template>
+                                        <template if:true={line.showModRequest}>
+                                            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                                <lightning-input
+                                                    type="checkbox"
+                                                    label="Mod Request"
+                                                    checked={line.modRequest}
+                                                    data-key={line.key}
+                                                    data-field="modRequest"
+                                                    onchange={handleLineFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                        </template>
+                                    </div>
+
+                                    <template if:false={line.isInstruments}>
+                                    <div class="slds-text-title_caps slds-m-bottom_x-small">Contact &amp; service</div>
+                                    <div class="slds-grid slds-wrap slds-gutters_small slds-m-bottom_medium">
+                                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                            <div class="contact-field-row">
+                                                <lightning-record-picker
+                                                    class="contact-field-row__combobox"
+                                                    label="Contact"
+                                                    placeholder="Search contacts..."
+                                                    object-api-name="Contact"
+                                                    value={line.contactId}
+                                                    filter={contactRecordFilter}
+                                                    disabled={isContactSearchDisabled}
+                                                    required
+                                                    data-key={line.key}
+                                                    onchange={handleLineContactChange}>
+                                                </lightning-record-picker>
+                                                <lightning-button
+                                                    class="contact-field-row__button"
+                                                    label="New"
+                                                    title="Create new contact for this account"
+                                                    data-key={line.key}
+                                                    onclick={handleOpenNewContact}>
+                                                </lightning-button>
+                                            </div>
+                                        </div>
+                                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                            <lightning-combobox
+                                                label="Estimate Required"
+                                                value={line.estimateRequired}
+                                                options={estimateRequiredOptions}
+                                                placeholder="Select estimate requirement"
+                                                required
+                                                data-key={line.key}
+                                                data-field="estimateRequired"
+                                                onchange={handleLineFieldChange}>
+                                            </lightning-combobox>
+                                        </div>
+                                    </div>
+
+                                    <template if:true={line.showEstimateContact}>
+                                        <div class="slds-grid slds-wrap slds-gutters_small slds-m-bottom_medium">
+                                            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                                <div class="contact-field-row">
+                                                    <lightning-record-picker
+                                                        class="contact-field-row__combobox"
+                                                        label="Estimate Contact"
+                                                        placeholder="Search contacts..."
+                                                        object-api-name="Contact"
+                                                        value={line.estimateContactId}
+                                                        filter={contactRecordFilter}
+                                                        disabled={isContactSearchDisabled}
+                                                        required
+                                                        data-key={line.key}
+                                                        onchange={handleLineEstimateContactChange}>
+                                                    </lightning-record-picker>
+                                                    <lightning-button
+                                                        class="contact-field-row__button"
+                                                        label="New"
+                                                        title="Create new estimate contact for this account"
+                                                        data-key={line.key}
+                                                        onclick={handleOpenNewContactForLineEstimateContact}>
+                                                    </lightning-button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
+
+                                    <div class="slds-grid slds-wrap slds-gutters_small slds-m-bottom_medium">
+                                        <template if:true={line.showRepairWarrantyYes}>
+                                            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                                <lightning-combobox
+                                                    label="Repair Warranty"
+                                                    value={line.repairWarranty}
+                                                    options={yesNoOptions}
+                                                    placeholder="Optional"
+                                                    data-key={line.key}
+                                                    data-field="repairWarranty"
+                                                    onchange={handleLineFieldChange}>
+                                                </lightning-combobox>
+                                            </div>
+                                            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                                <lightning-textarea
+                                                    label="Warranty Notes"
+                                                    value={line.warrantyNotes}
+                                                    field-level-help={line.warrantyNotesHelpText}
+                                                    data-key={line.key}
+                                                    data-field="warrantyNotes"
+                                                    data-conditionally-required={line.warrantyNotesRequired}
+                                                    onchange={handleLineFieldChange}>
+                                                </lightning-textarea>
+                                            </div>
+                                            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                                <lightning-input
+                                                    label="Previous Return Order"
+                                                    value={line.previousReturnOrder}
+                                                    data-key={line.key}
+                                                    data-field="previousReturnOrder"
+                                                    onchange={handleLineFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                        </template>
+                                        <template if:false={line.showRepairWarrantyYes}>
+                                            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                                <lightning-combobox
+                                                    label="Repair Warranty"
+                                                    value={line.repairWarranty}
+                                                    options={yesNoOptions}
+                                                    placeholder="Optional"
+                                                    data-key={line.key}
+                                                    data-field="repairWarranty"
+                                                    onchange={handleLineFieldChange}>
+                                                </lightning-combobox>
+                                            </div>
+                                        </template>
+                                    </div>
+
+                                    <div class="slds-text-title_caps slds-m-bottom_x-small">Customer references</div>
+                                    <div class="slds-grid slds-wrap slds-gutters_small slds-m-bottom_medium">
+                                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                            <lightning-input
+                                                label="Customer PO"
+                                                value={line.customerPo}
+                                                data-key={line.key}
+                                                data-field="customerPo"
+                                                onchange={handleLineFieldChange}>
+                                            </lightning-input>
+                                        </div>
+                                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                            <template if:true={line.showCustomerReference}>
+                                                <lightning-input
+                                                    label="Customer Reference #"
+                                                    value={line.customerReference}
+                                                    maxlength="255"
+                                                    data-key={line.key}
+                                                    data-field="customerReference"
+                                                    onchange={handleLineFieldChange}>
+                                                </lightning-input>
+                                            </template>
+                                        </div>
+                                    </div>
+                                    </template>
+
+                                    <div class="slds-text-title_caps slds-m-bottom_x-small">Problem details</div>
+                                    <div class="slds-grid slds-wrap slds-gutters_small slds-m-bottom_medium">
+                                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                            <lightning-textarea
+                                                label="Reported Problem"
+                                                value={line.reportedProblem}
+                                                required
+                                                data-key={line.key}
+                                                data-field="reportedProblem"
+                                                onchange={handleLineFieldChange}>
+                                            </lightning-textarea>
+                                        </div>
+                                    </div>
+
+                                    <template if:true={line.showLoanerSection}>
+                                        <div class="slds-text-title_caps slds-m-bottom_x-small">Loaner</div>
+                                        <div class="slds-grid slds-wrap slds-gutters_small slds-m-bottom_medium">
+                                            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                                <lightning-input
+                                                    type="checkbox"
+                                                    label="Is Loaner Asset"
+                                                    checked={line.isLoanerAsset}
+                                                    data-key={line.key}
+                                                    data-field="isLoanerAsset"
+                                                    onchange={handleLineFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                                <lightning-input
+                                                    type="checkbox"
+                                                    label="Loaner Requested"
+                                                    checked={line.loanerRequested}
+                                                    data-key={line.key}
+                                                    data-field="loanerRequested"
+                                                    onchange={handleLineFieldChange}>
+                                                </lightning-input>
+                                            </div>
+                                        </div>
+                                    </template>
+
+                                    <template if:true={line.showAdditionalServicesCheckbox}>
+                                        <div class="slds-m-bottom_medium">
+                                            <lightning-input
+                                                type="checkbox"
+                                                label="Additional Services"
+                                                checked={line.additionalServices}
+                                                data-key={line.key}
+                                                data-field="additionalServices"
+                                                onchange={handleLineFieldChange}>
+                                            </lightning-input>
+                                        </div>
+                                    </template>
+                                    <template if:true={line.showAdditionalServicesSection}>
+                                        <div class="slds-text-title_caps slds-m-bottom_x-small">
+                                            Additional Services
+                                        </div>
+                                        <div class="slds-grid slds-wrap slds-gutters_small slds-m-bottom_medium">
+                                            <template if:true={line.showInsulationPowderCoating}>
+                                                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                                    <lightning-combobox
+                                                        label="Insulation / Powder Coating"
+                                                        value={line.insulationPowderCoating}
+                                                        options={insulationPowderCoatingOptions}
+                                                        placeholder="Select color"
+                                                        data-key={line.key}
+                                                        data-field="insulationPowderCoating"
+                                                        onchange={handleLineFieldChange}>
+                                                    </lightning-combobox>
+                                                </div>
+                                            </template>
+                                            <template if:true={line.showLegPositionersStirrup}>
+                                                <div class="slds-col slds-size_1-of-1">
+                                                    <lightning-dual-listbox
+                                                        label="Leg Positioners/Stirrup"
+                                                        source-label="Available"
+                                                        selected-label="Selected"
+                                                        options={legPositionersStirrupOptions}
+                                                        value={line.legPositionersStirrup}
+                                                        size="4"
+                                                        data-key={line.key}
+                                                        data-field="legPositionersStirrup"
+                                                        onchange={handleLineFieldChange}>
+                                                    </lightning-dual-listbox>
+                                                </div>
+                                            </template>
+                                            <template if:true={line.showNoSerialAdditionalServices}>
+                                                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                                    <lightning-input
+                                                        type="checkbox"
+                                                        label="Repair"
+                                                        checked={line.additionalServiceRepair}
+                                                        data-key={line.key}
+                                                        data-field="additionalServiceRepair"
+                                                        onchange={handleLineFieldChange}>
+                                                    </lightning-input>
+                                                </div>
+                                                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                                    <lightning-input
+                                                        label="Laser Marking"
+                                                        value={line.laserMarking}
+                                                        maxlength="100"
+                                                        data-key={line.key}
+                                                        data-field="laserMarking"
+                                                        onchange={handleLineFieldChange}>
+                                                    </lightning-input>
+                                                </div>
+                                                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                                    <lightning-dual-listbox
+                                                        label="Color Dipping"
+                                                        source-label="Available"
+                                                        selected-label="Selected"
+                                                        options={colorDippingOptions}
+                                                        value={line.colorDipping}
+                                                        size="4"
+                                                        data-key={line.key}
+                                                        data-field="colorDipping"
+                                                        onchange={handleLineFieldChange}>
+                                                    </lightning-dual-listbox>
+                                                </div>
+                                                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                                    <lightning-combobox
+                                                        label="Number of Rings"
+                                                        value={line.numberOfRings}
+                                                        options={numberOfRingsOptions}
+                                                        data-key={line.key}
+                                                        data-field="numberOfRings"
+                                                        onchange={handleLineFieldChange}>
+                                                    </lightning-combobox>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </template>
+
+                                    <div class="slds-text-title_caps slds-m-top_medium slds-m-bottom_x-small">
+                                        Pictures &amp; videos
+                                    </div>
+                                    <div class="line-item-attachments slds-m-bottom_medium">
+                                        <lightning-file-upload
+                                            label="Add Picture or Video"
+                                            name={line.key}
+                                            accept={acceptedMediaTypes}
+                                            multiple
+                                            data-key={line.key}
+                                            onuploadfinished={handleLineFileUploadFinished}>
+                                        </lightning-file-upload>
+                                        <template if:true={line.hasAttachments}>
+                                            <ul class="line-item-attachment-list slds-m-top_x-small">
+                                                <template for:each={line.attachmentItems} for:item="attachment">
+                                                    <li
+                                                        key={attachment.contentDocumentId}
+                                                        class="line-item-attachment-row">
+                                                        <span class="line-item-attachment-name" title={attachment.name}>
+                                                            {attachment.name}
+                                                        </span>
+                                                        <lightning-button-icon
+                                                            icon-name="utility:close"
+                                                            alternative-text="Remove attachment"
+                                                            title="Remove attachment"
+                                                            variant="bare"
+                                                            data-key={line.key}
+                                                            data-document-id={attachment.contentDocumentId}
+                                                            onclick={handleRemoveLineAttachment}>
+                                                        </lightning-button-icon>
+                                                    </li>
+                                                </template>
+                                            </ul>
+                                        </template>
+                                    </div>
+                                </lightning-accordion-section>
+                            </template>
+                        </lightning-accordion>
+                    </template>
+                    <template if:false={hasLineItems}>
+                        <template if:false={showLineTypePickerOnLinesPage}>
+                            <p class="slds-text-body_regular slds-p-vertical_medium">
+                                No items yet. Use Add Item to include assets for return.
+                            </p>
+                        </template>
+                    </template>
+                </div>
+            </template>
+
+            <template if:true={isSummaryPage}>
+                <div class="slds-m-horizontal_medium slds-m-bottom_medium">
+                    <div class="slds-grid slds-grid_align-spread slds-m-bottom_small">
+                        <div>
+                            <h2 class="slds-text-heading_small">Review Return Orders</h2>
+                            <p class="slds-text-body_small slds-text-color_weak slds-m-top_xx-small">
+                                Items are grouped by repair center from routing rules. Select a repair center for any group without a match, then approve to create all return orders.
+                            </p>
+                        </div>
+                        <lightning-button
+                            label="Add Item"
+                            icon-name="utility:add"
+                            onclick={handleAddLineFromSummary}>
+                        </lightning-button>
+                    </div>
+
+                    <template if:true={showLineTypeModal}>
+                        <div class="line-type-add-panel slds-box slds-theme_shade slds-m-bottom_medium">
+                            <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-center slds-m-bottom_small">
+                                <h3 class="slds-text-heading_small">Add Return Order Item</h3>
+                                <lightning-button
+                                    label="Cancel"
+                                    variant="neutral"
+                                    onclick={handleCloseLineTypeModal}>
+                                </lightning-button>
+                            </div>
+                            <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_small">
+                                Click a type to add that item.
+                            </p>
+                            <div class="line-type-add-table-wrapper">
+                                <table class="slds-table slds-table_cell-buffer slds-table_bordered line-type-add-table">
+                                    <thead>
+                                        <tr class="slds-line-height_reset">
+                                            <th scope="col" class="line-type-add-table__type-col">Type</th>
+                                            <th scope="col" class="line-type-add-table__details-col">Details</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template for:each={lineTypeAddOptions} for:item="option">
+                                            <tr key={option.key} class="slds-hint-parent line-type-add-table__row">
+                                                <th scope="row" class="line-type-add-table__type-col" data-label="Type">
+                                                    <a
+                                                        href="javascript:void(0);"
+                                                        role="button"
+                                                        class="line-type-add-table__type-link slds-text-link"
+                                                        title={option.description}
+                                                        data-line-type={option.lineType}
+                                                        onclick={handleSelectLineType}>
+                                                        {option.typeLabel}
+                                                    </a>
+                                                </th>
+                                                <td class="line-type-add-table__details-col" data-label="Details">
+                                                    <div class="line-type-add-table__details-text" title={option.description}>
+                                                        {option.description}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </template>
+
+                    <template for:each={summaryGroups} for:item="group">
+                        <article key={group.groupKey} class="slds-box slds-m-bottom_medium">
+                            <div class="slds-grid slds-grid_align-spread slds-m-bottom_small">
+                                <div>
+                                    <h3 class="slds-text-heading_small">
+                                        Return Order {group.displayIndex}
+                                    </h3>
+                                    <p class="slds-text-body_small slds-text-color_weak">
+                                        {group.lineCount} item(s)
+                                    </p>
+                                </div>
+                                <template if:false={group.showRepairCenterPicker}>
+                                    <p class="slds-text-body_regular">
+                                        <strong>Repair Center:</strong> {group.repairCenterName}
+                                    </p>
+                                </template>
+                            </div>
+
+                            <template if:true={group.showRepairCenterPicker}>
+                                <lightning-combobox
+                                    label="Repair Center"
+                                    value={group.selectedRepairCenterId}
+                                    options={repairCenterOptions}
+                                    placeholder="Select a repair center"
+                                    required
+                                    data-group-key={group.groupKey}
+                                    onchange={handleSummaryRepairCenterChange}>
+                                </lightning-combobox>
+                            </template>
+
+                            <table class="slds-table slds-table_cell-buffer slds-table_bordered slds-m-top_small">
+                                <template if:true={group.isInstruments}>
+                                    <thead>
+                                        <tr class="slds-line-height_reset">
+                                            <th scope="col"><div class="slds-truncate" title="Item Description">Item Description</div></th>
+                                            <th scope="col"><div class="slds-truncate" title="Product Line">Product Line</div></th>
+                                            <th scope="col"><div class="slds-truncate" title="Qty">Qty</div></th>
+                                            <th scope="col"><div class="slds-truncate" title="Department">Department</div></th>
+                                            <th scope="col"><div class="slds-truncate" title="Serial">Serial</div></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template for:each={group.lines} for:item="line">
+                                            <tr key={line.rowKey}>
+                                                <td><div class="slds-truncate" title={line.itemDescription}>{line.itemDescription}</div></td>
+                                                <td><div class="slds-truncate">{line.productLine}</div></td>
+                                                <td><div class="slds-truncate">{line.quantityLabel}</div></td>
+                                                <td><div class="slds-truncate">{line.departmentName}</div></td>
+                                                <td><div class="slds-truncate">{line.serialNumber}</div></td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </template>
+                                <template if:false={group.isInstruments}>
+                                    <thead>
+                                        <tr class="slds-line-height_reset">
+                                            <th scope="col"><div class="slds-truncate" title="Serial">Serial</div></th>
+                                            <th scope="col"><div class="slds-truncate" title="Model">Model</div></th>
+                                            <th scope="col"><div class="slds-truncate" title="Product Line">Product Line</div></th>
+                                            <th scope="col"><div class="slds-truncate" title="Qty">Qty</div></th>
+                                            <th scope="col"><div class="slds-truncate" title="Contact">Contact</div></th>
+                                            <th scope="col"><div class="slds-truncate" title="Department">Department</div></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template for:each={group.lines} for:item="line">
+                                            <tr key={line.rowKey}>
+                                                <td><div class="slds-truncate">{line.serialNumber}</div></td>
+                                                <td><div class="slds-truncate">{line.model}</div></td>
+                                                <td><div class="slds-truncate">{line.productLine}</div></td>
+                                                <td><div class="slds-truncate">{line.quantityLabel}</div></td>
+                                                <td><div class="slds-truncate">{line.contactName}</div></td>
+                                                <td><div class="slds-truncate">{line.departmentName}</div></td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </template>
+                            </table>
+                        </article>
+                    </template>
+                </div>
+            </template>
+
+            <template if:true={isOrderHeadersPage}>
+                <div class="slds-m-horizontal_medium slds-m-bottom_medium">
+                    <div class="slds-m-bottom_small">
+                        <h2 class="slds-text-heading_small">Instrument Return Order Details</h2>
+                        <p class="slds-text-body_small slds-text-color_weak slds-m-top_xx-small">
+                            Enter header details for each instrument return order that will be created.
+                        </p>
+                    </div>
+
+                    <template for:each={orderHeaderGroups} for:item="group">
+                        <article key={group.groupKey} class="slds-box slds-m-bottom_medium">
+                            <div class="slds-m-bottom_small">
+                                <h3 class="slds-text-heading_small">
+                                    Return Order {group.displayIndex}
+                                </h3>
+                                <div class="order-header-meta slds-text-body_small slds-text-color_weak">
+                                    <span class="order-header-meta__segment">
+                                        {group.lineCount} item(s)
+                                    </span>
+                                    <span class="order-header-meta__segment">
+                                        Repair Center: {group.repairCenterName}
+                                    </span>
+                                    <template if:true={group.reportedProblemsSummary}>
+                                        <span
+                                            class="order-header-meta__segment order-header-meta__reported-problem"
+                                            title={group.reportedProblemsSummary}>
+                                            Reported Problem(s): {group.reportedProblemsDisplay}
+                                        </span>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <div class="slds-text-title_caps slds-m-bottom_x-small">Contact &amp; service</div>
+                            <div class="slds-grid slds-wrap slds-gutters_small slds-m-bottom_medium">
+                                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                    <div class="contact-field-row">
+                                        <lightning-record-picker
+                                            class="contact-field-row__combobox"
+                                            label="Contact"
+                                            placeholder="Search contacts..."
+                                            object-api-name="Contact"
+                                            value={group.contactId}
+                                            filter={contactRecordFilter}
+                                            disabled={isContactSearchDisabled}
+                                            required
+                                            data-group-key={group.groupKey}
+                                            onchange={handleOrderHeaderContactChange}>
+                                        </lightning-record-picker>
+                                        <lightning-button
+                                            class="contact-field-row__button"
+                                            label="New"
+                                            title="Create new contact for this account"
+                                            data-group-key={group.groupKey}
+                                            onclick={handleOpenNewContactForOrderHeader}>
+                                        </lightning-button>
+                                    </div>
+                                </div>
+                                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                    <lightning-combobox
+                                        label="Estimate Required"
+                                        value={group.estimateRequired}
+                                        options={estimateRequiredOptions}
+                                        placeholder="Select estimate requirement"
+                                        required
+                                        data-group-key={group.groupKey}
+                                        data-field="estimateRequired"
+                                        onchange={handleOrderHeaderFieldChange}>
+                                    </lightning-combobox>
+                                </div>
+                            </div>
+
+                            <template if:true={group.showEstimateContact}>
+                                <div class="slds-grid slds-wrap slds-gutters_small slds-m-bottom_medium">
+                                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                        <div class="contact-field-row">
+                                            <lightning-record-picker
+                                                class="contact-field-row__combobox"
+                                                label="Estimate Contact"
+                                                placeholder="Search contacts..."
+                                                object-api-name="Contact"
+                                                value={group.estimateContactId}
+                                                filter={contactRecordFilter}
+                                                disabled={isContactSearchDisabled}
+                                                required
+                                                data-group-key={group.groupKey}
+                                                onchange={handleOrderHeaderEstimateContactChange}>
+                                            </lightning-record-picker>
+                                            <lightning-button
+                                                class="contact-field-row__button"
+                                                label="New"
+                                                title="Create new estimate contact for this account"
+                                                data-group-key={group.groupKey}
+                                                onclick={handleOpenNewContactForEstimateContact}>
+                                            </lightning-button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <div class="slds-grid slds-wrap slds-gutters_small slds-m-bottom_medium">
+                                <template if:true={group.showRepairWarrantyYes}>
+                                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                        <lightning-combobox
+                                            label="Repair Warranty"
+                                            value={group.repairWarranty}
+                                            options={yesNoOptions}
+                                            placeholder="Optional"
+                                            data-group-key={group.groupKey}
+                                            data-field="repairWarranty"
+                                            onchange={handleOrderHeaderFieldChange}>
+                                        </lightning-combobox>
+                                    </div>
+                                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                        <lightning-textarea
+                                            label="Warranty Notes"
+                                            value={group.warrantyNotes}
+                                            field-level-help={group.warrantyNotesHelpText}
+                                            data-group-key={group.groupKey}
+                                            data-field="warrantyNotes"
+                                            data-conditionally-required={group.warrantyNotesRequired}
+                                            onchange={handleOrderHeaderFieldChange}>
+                                        </lightning-textarea>
+                                    </div>
+                                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                        <lightning-input
+                                            label="Previous Return Order"
+                                            value={group.previousReturnOrder}
+                                            data-group-key={group.groupKey}
+                                            data-field="previousReturnOrder"
+                                            onchange={handleOrderHeaderFieldChange}>
+                                        </lightning-input>
+                                    </div>
+                                </template>
+                                <template if:false={group.showRepairWarrantyYes}>
+                                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                        <lightning-combobox
+                                            label="Repair Warranty"
+                                            value={group.repairWarranty}
+                                            options={yesNoOptions}
+                                            placeholder="Optional"
+                                            data-group-key={group.groupKey}
+                                            data-field="repairWarranty"
+                                            onchange={handleOrderHeaderFieldChange}>
+                                        </lightning-combobox>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <div class="slds-text-title_caps slds-m-bottom_x-small">Customer references</div>
+                            <div class="slds-grid slds-wrap slds-gutters_small slds-m-bottom_medium">
+                                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                    <lightning-input
+                                        label="Customer PO"
+                                        value={group.customerPo}
+                                        data-group-key={group.groupKey}
+                                        data-field="customerPo"
+                                        onchange={handleOrderHeaderFieldChange}>
+                                    </lightning-input>
+                                </div>
+                                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                    <lightning-input
+                                        label="Customer Reference #"
+                                        value={group.customerReference}
+                                        maxlength="255"
+                                        data-group-key={group.groupKey}
+                                        data-field="customerReference"
+                                        onchange={handleOrderHeaderFieldChange}>
+                                    </lightning-input>
+                                </div>
+                                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                    <lightning-input
+                                        label="Hospital Referenced Tray Name"
+                                        value={group.hospitalReferencedTrayName}
+                                        maxlength="255"
+                                        data-group-key={group.groupKey}
+                                        data-field="hospitalReferencedTrayName"
+                                        onchange={handleOrderHeaderFieldChange}>
+                                    </lightning-input>
+                                </div>
+                            </div>
+                        </article>
+                    </template>
+                </div>
+            </template>
+
+            <div class="slds-m-horizontal_medium slds-m-bottom_medium slds-grid slds-grid_align-end">
+                <lightning-button label="Cancel" onclick={handleCancel}></lightning-button>
+                <template if:true={isSummaryPage}>
+                    <lightning-button
+                        class="slds-m-left_x-small"
+                        label="Back"
+                        onclick={handleBackFromSummary}>
+                    </lightning-button>
+                    <lightning-button
+                        class="slds-m-left_x-small"
+                        variant="brand"
+                        label={summaryContinueLabel}
+                        onclick={handleSummaryContinue}
+                        disabled={disableApprove}>
+                    </lightning-button>
+                </template>
+                <template if:true={isOrderHeadersPage}>
+                    <lightning-button
+                        class="slds-m-left_x-small"
+                        label="Back"
+                        onclick={handleBackFromOrderHeaders}>
+                    </lightning-button>
+                    <lightning-button
+                        class="slds-m-left_x-small"
+                        variant="brand"
+                        label="Approve and Create"
+                        onclick={handleApproveAndCreate}
+                        disabled={disableApprove}>
+                    </lightning-button>
+                </template>
+                <template if:true={isLinesPage}>
+                    <lightning-button
+                        class="slds-m-left_x-small"
+                        label="Back"
+                        onclick={handleBack}>
+                    </lightning-button>
+                    <lightning-button
+                        class="slds-m-left_x-small"
+                        variant="brand"
+                        label="Next"
+                        onclick={handleContinueToSummary}
+                        disabled={disableContinueToSummary}>
+                    </lightning-button>
+                </template>
+                <template if:true={isHeaderPage}>
+                    <lightning-button
+                        class="slds-m-left_x-small"
+                        variant="brand"
+                        label="Next"
+                        onclick={handleNext}
+                        disabled={disableNext}>
+                    </lightning-button>
+                </template>
+            </div>
+            </template>
+
+            <template if:true={isCreatedPage}>
+                <div class="slds-m-horizontal_medium slds-m-bottom_medium created-orders-section">
+                    <div class="slds-box slds-theme_success slds-m-bottom_medium">
+                        <p class="slds-text-heading_small slds-m-bottom_x-small">Success</p>
+                        <p class="slds-text-body_regular">
+                            <template if:true={hasCreatedReturnOrders}>
+                                The following return orders were created. Select a return order to open it, or close this screen to return to where you started.
+                            </template>
+                        </p>
+                    </div>
+
+                    <template if:true={hasCreatedReturnOrders}>
+                        <table class="slds-table slds-table_cell-buffer slds-table_bordered created-orders-table">
+                            <thead>
+                                <tr class="slds-line-height_reset">
+                                    <th scope="col">Return Order Number</th>
+                                    <th scope="col">Type</th>
+                                    <th scope="col">Repair Center</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template for:each={createdReturnOrdersDisplay} for:item="order">
+                                    <tr key={order.rowKey}>
+                                        <td>
+                                            <a
+                                                href="#"
+                                                class="created-order-link"
+                                                data-id={order.returnOrderId}
+                                                onclick={handleOpenCreatedReturnOrder}
+                                            >
+                                                {order.returnOrderNumberLabel}
+                                            </a>
+                                        </td>
+                                        <td>{order.returnOrderType}</td>
+                                        <td>{order.repairCenterName}</td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </template>
+                </div>
+
+                <div class="slds-m-horizontal_medium slds-m-bottom_medium slds-grid slds-grid_align-end">
+                    <lightning-button
+                        label="Close"
+                        variant="brand"
+                        onclick={handleCloseCreatedOrdersScreen}>
+                    </lightning-button>
+                </div>
+            </template>
+        </template>
+
+        <template if:true={isSaving}>
+            <lightning-spinner alternative-text="Saving" size="medium"></lightning-spinner>
+        </template>
+    </lightning-card>
+
+    <template if:true={showDuplicateWarningModal}>
+        <section
+            role="dialog"
+            tabindex="-1"
+            aria-modal="true"
+            aria-labelledby="duplicate-warning-modal-heading"
+            class="slds-modal slds-fade-in-open">
+            <div class="slds-modal__container">
+                <header class="slds-modal__header slds-theme_warning">
+                    <button
+                        class="slds-button slds-button_icon slds-modal__close slds-button_icon-inverse"
+                        title="Close"
+                        onclick={handleCloseDuplicateWarningModal}>
+                        <lightning-icon icon-name="utility:close" alternative-text="Close" size="small"></lightning-icon>
+                        <span class="slds-assistive-text">Close</span>
+                    </button>
+                    <h2 id="duplicate-warning-modal-heading" class="slds-modal__title slds-hyphenate">
+                        Open Return Order Warning
+                    </h2>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium">
+                    <p class="slds-text-body_regular slds-m-bottom_small">
+                        Asset <strong>{duplicateWarningAssetLabel}</strong> is already on an open Return Order.
+                        You may continue, but this may create a duplicate return for the same asset.
+                    </p>
+                    <ul class="slds-list_dotted">
+                        <template for:each={duplicateReturnOrders} for:item="returnOrder">
+                            <li key={returnOrder.returnOrderId} class="slds-m-bottom_x-small">
+                                Return Order
+                                <strong>{returnOrder.returnOrderNumber}</strong>
+                                (Status: {returnOrder.status})
+                            </li>
+                        </template>
+                    </ul>
+                </div>
+                <footer class="slds-modal__footer">
+                    <lightning-button
+                        variant="brand"
+                        label="OK"
+                        onclick={handleCloseDuplicateWarningModal}>
+                    </lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open"></div>
+    </template>
+
+    <template if:true={showNewContactModal}>
+        <section
+            role="dialog"
+            tabindex="-1"
+            aria-modal="true"
+            aria-labelledby="new-contact-modal-heading"
+            class="slds-modal slds-fade-in-open">
+            <div class="slds-modal__container">
+                <header class="slds-modal__header">
+                    <button
+                        class="slds-button slds-button_icon slds-modal__close slds-button_icon-inverse"
+                        title="Close"
+                        onclick={handleCloseNewContactModal}>
+                        <lightning-icon icon-name="utility:close" alternative-text="Close" size="small"></lightning-icon>
+                        <span class="slds-assistive-text">Close</span>
+                    </button>
+                    <h2 id="new-contact-modal-heading" class="slds-modal__title slds-hyphenate">
+                        New Contact
+                    </h2>
+                    <p class="slds-text-body_small slds-m-top_x-small">
+                        {newContactModalDescription}
+                    </p>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium">
+                    <div class="slds-grid slds-wrap slds-gutters_small">
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                            <lightning-input
+                                label="First Name"
+                                value={newContactFirstName}
+                                data-field="newContactFirstName"
+                                data-form="new-contact"
+                                required
+                                onchange={handleNewContactFieldChange}>
+                            </lightning-input>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                            <lightning-input
+                                label="Last Name"
+                                value={newContactLastName}
+                                data-field="newContactLastName"
+                                data-form="new-contact"
+                                required
+                                onchange={handleNewContactFieldChange}>
+                            </lightning-input>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                            <lightning-input
+                                type="email"
+                                label="Email"
+                                value={newContactEmail}
+                                data-field="newContactEmail"
+                                data-form="new-contact"
+                                required={isNewContactEmailRequired}
+                                onchange={handleNewContactFieldChange}>
+                            </lightning-input>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                            <lightning-input
+                                type="tel"
+                                label="Phone Number"
+                                value={newContactPhone}
+                                data-field="newContactPhone"
+                                data-form="new-contact"
+                                onchange={handleNewContactFieldChange}>
+                            </lightning-input>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1">
+                            <lightning-input
+                                label="Title"
+                                value={newContactTitle}
+                                data-field="newContactTitle"
+                                data-form="new-contact"
+                                onchange={handleNewContactFieldChange}>
+                            </lightning-input>
+                        </div>
+                    </div>
+                </div>
+                <footer class="slds-modal__footer">
+                    <lightning-button
+                        label="Cancel"
+                        onclick={handleCloseNewContactModal}
+                        disabled={isCreatingContact}>
+                    </lightning-button>
+                    <lightning-button
+                        variant="brand"
+                        label="Save Contact"
+                        class="slds-m-left_x-small"
+                        onclick={handleSaveNewContact}
+                        disabled={isCreatingContact}>
+                    </lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open"></div>
+        <template if:true={isCreatingContact}>
+            <lightning-spinner alternative-text="Creating contact" size="medium"></lightning-spinner>
+        </template>
+    </template>
+
+    <template if:true={showUpdateContactEmailModal}>
+        <section
+            role="dialog"
+            tabindex="-1"
+            aria-modal="true"
+            aria-labelledby="update-contact-email-modal-heading"
+            class="slds-modal slds-fade-in-open">
+            <div class="slds-modal__container">
+                <header class="slds-modal__header">
+                    <button
+                        class="slds-button slds-button_icon slds-modal__close slds-button_icon-inverse"
+                        title="Close"
+                        onclick={handleCloseUpdateContactEmailModal}>
+                        <lightning-icon icon-name="utility:close" alternative-text="Close" size="small"></lightning-icon>
+                        <span class="slds-assistive-text">Close</span>
+                    </button>
+                    <h2 id="update-contact-email-modal-heading" class="slds-modal__title slds-hyphenate">
+                        Update Contact Email
+                    </h2>
+                    <p class="slds-text-body_small slds-m-top_x-small">
+                        {updateEmailContactName} is set as Estimate Contact and must have an email address.
+                    </p>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium">
+                    <lightning-input
+                        type="email"
+                        label="Email"
+                        value={updateEmailValue}
+                        data-form="update-contact-email"
+                        required
+                        onchange={handleUpdateContactEmailFieldChange}>
+                    </lightning-input>
+                </div>
+                <footer class="slds-modal__footer">
+                    <lightning-button
+                        label="Cancel"
+                        onclick={handleCloseUpdateContactEmailModal}
+                        disabled={isUpdatingContactEmail}>
+                    </lightning-button>
+                    <lightning-button
+                        variant="brand"
+                        label="Save Email"
+                        class="slds-m-left_x-small"
+                        onclick={handleSaveContactEmailUpdate}
+                        disabled={isUpdatingContactEmail}>
+                    </lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open"></div>
+        <template if:true={isUpdatingContactEmail}>
+            <lightning-spinner alternative-text="Updating contact email" size="medium"></lightning-spinner>
+        </template>
+    </template>
+</template>

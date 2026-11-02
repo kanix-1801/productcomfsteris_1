@@ -1,0 +1,22 @@
+.ship-complete-badge {
+    align-items: center;
+    background-color: #d8edff;
+    border-radius: 1rem;
+    color: #0176d3;
+    display: inline-flex;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    gap: 0.25rem;
+    line-height: 1.25;
+    padding: 0.125rem 0.625rem;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+.ship-complete-badge lightning-icon {
+    --slds-c-icon-color-foreground-default: #0176d3;
+}
+
+.ship-complete-badge__label {
+    display: inline-block;
+}

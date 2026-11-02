@@ -1,0 +1,41 @@
+<!-- <template>
+    <lightning-card title="Addresses" icon-name="standard:address">
+        <template lwc:if={hasRecords}>
+            <lightning-datatable
+                key-field="id"
+                data={addresses}
+                columns={columns}
+                hide-checkbox-column>
+            </lightning-datatable>
+        </template>
+
+        <template lwc:elseif={hasError}>
+            <div class="slds-p-around_medium slds-text-color_error">
+                Unable to load Addresses.
+            </div>
+        </template>
+
+        <template lwc:else>
+            <div class="slds-p-around_medium slds-text-color_weak">
+                No Addresses found.
+            </div>
+        </template>
+    </lightning-card>
+</template> -->
+<template>
+    <template if:true={hasRecords}>
+        <lightning-datatable
+            key-field="id"
+            data={addresses}
+            columns={columns}
+            onrowaction={handleRowAction}
+            hide-checkbox-column>
+        </lightning-datatable>
+    </template>
+
+    <template if:false={hasRecords}>
+        <div class="slds-p-around_medium">
+            No Addresses Found
+        </div>
+    </template>
+</template>

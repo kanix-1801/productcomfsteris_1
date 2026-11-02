@@ -1,0 +1,141 @@
+:host {
+    display: block;
+}
+
+.divide-root {
+    position: relative;
+}
+
+/* Match Assign Technician / Assign Rack scan card width (Hadar). */
+.divide-root_scan {
+    max-width: 40rem;
+}
+
+.divide-root_workspace,
+.divide-workspace {
+    background: #ffffff;
+}
+
+.workspace-error-banner {
+    margin: 0.5rem 0.75rem 0;
+}
+
+.workspace-header,
+.workspace-panel {
+    padding-left: 1rem;
+    padding-right: 1rem;
+    box-sizing: border-box;
+}
+
+.workspace-header {
+    padding-top: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #706e6b;
+    background: #ffffff;
+}
+
+.workspace-header__title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.workspace-header .slds-text-heading_small,
+.workspace-panel .slds-text-heading_small {
+    margin: 0;
+    color: #181818;
+    font-size: 1rem !important;
+    font-weight: 700 !important;
+    line-height: 1.25;
+}
+
+.workspace-panel {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+    background: #ffffff;
+}
+
+.wo-info-grid {
+    --di-sticky-label-width: 14rem;
+    --di-sticky-control-height: 24px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 2rem;
+    row-gap: 0;
+    width: 100%;
+    align-items: stretch;
+}
+
+.sticky-field {
+    display: grid;
+    grid-template-columns: var(--di-sticky-label-width) minmax(0, 1fr);
+    align-items: center;
+    column-gap: 0.75rem;
+    min-height: 2.25rem;
+    margin: 0;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid #e5e5e5;
+    box-sizing: border-box;
+}
+
+.sticky-field__label {
+    margin: 0;
+    padding: 0;
+    color: #181818;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.sticky-field__static,
+.sticky-field__value {
+    min-width: 0;
+    min-height: var(--di-sticky-control-height);
+    display: flex;
+    align-items: center;
+    color: #181818;
+    font-size: 0.8125rem;
+    font-weight: 400;
+    line-height: 22px;
+}
+
+.sticky-field__value_checkbox {
+    min-height: var(--di-sticky-control-height);
+}
+
+.sticky-field__control {
+    display: block;
+    width: 100%;
+    max-width: 12rem;
+    height: var(--di-sticky-control-height);
+    margin: 0;
+    padding: 0 8px;
+    border: 1px solid #747474;
+    border-radius: 4px;
+    background-color: #ffffff;
+    color: #181818;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 22px;
+    box-sizing: border-box;
+}
+
+.sticky-field__control:focus {
+    outline: none;
+    border-color: #0176d3;
+    box-shadow: 0 0 0 1px #0176d3;
+}
+
+.bin-fields > .slds-col {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+}
+
+@media (max-width: 768px) {
+    .wo-info-grid {
+        grid-template-columns: 1fr;
+        --di-sticky-label-width: 11rem;
+    }
+}

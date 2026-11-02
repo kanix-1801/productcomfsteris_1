@@ -1,0 +1,458 @@
+<template>
+    <div class="wre-panel">
+        <template lwc:if={showStandaloneNewButton}>
+            <div class="wre-panel__empty-actions">
+                <lightning-button
+                    label="New Warranty Repair Evaluation"
+                    variant="neutral"
+                    onclick={handleNewClick}
+                    disabled={isBusy}
+                ></lightning-button>
+            </div>
+        </template>
+
+        <template lwc:if={showListSection}>
+            <div class={listHeaderClassName}>
+                <template lwc:if={showListHeaderTitle}>
+                    <h3 class="slds-text-heading_small wre-panel__title">Warranty Repair Evaluation</h3>
+                </template>
+                <template lwc:if={showNewButtonInListHeader}>
+                    <lightning-button
+                        label="New Warranty Repair Evaluation"
+                        variant="neutral"
+                        onclick={handleNewClick}
+                        disabled={isBusy}
+                    ></lightning-button>
+                </template>
+            </div>
+
+            <template lwc:if={listError}>
+                <div class="slds-text-color_error slds-m-bottom_small" role="alert">{listError}</div>
+            </template>
+
+            <template lwc:if={isLoadingList}>
+                <div class="slds-is-relative slds-p-around_medium">
+                    <lightning-spinner alternative-text="Loading" size="small"></lightning-spinner>
+                </div>
+            </template>
+            <template lwc:else>
+                <table class="slds-table slds-table_cell-buffer slds-table_bordered">
+                    <thead>
+                        <tr class="slds-line-height_reset">
+                            <th scope="col">Name</th>
+                            <th scope="col">Disposition</th>
+                            <th scope="col">Technician</th>
+                            <th scope="col">Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template for:each={displayedRows} for:item="row">
+                            <tr key={row.id}>
+                                <td>
+                                    <a
+                                        href="#"
+                                        class="wre-name-link"
+                                        data-id={row.id}
+                                        onclick={handleNameClick}
+                                    >
+                                        {row.name}
+                                    </a>
+                                </td>
+                                <td>{row.disposition}</td>
+                                <td>{row.technicianName}</td>
+                                <td>{row.evaluationDateDisplay}</td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </template>
+        </template>
+
+        <template lwc:elseif={listError}>
+            <div class="slds-text-color_error slds-m-bottom_small" role="alert">{listError}</div>
+        </template>
+        <template lwc:elseif={isLoadingList}>
+            <div class="slds-is-relative slds-p-around_medium">
+                <lightning-spinner alternative-text="Loading" size="small"></lightning-spinner>
+            </div>
+        </template>
+
+        <template lwc:if={showInstrumentEvaluationSwitcher}>
+            <div class="wre-panel__ie-switcher">
+                <lightning-combobox
+                    label="Warranty Repair Evaluation"
+                    value={instrumentEvaluationSwitcherValue}
+                    options={instrumentEvaluationSwitcherOptions}
+                    onchange={handleInstrumentEvaluationSwitcherChange}
+                    disabled={isBusy}
+                ></lightning-combobox>
+            </div>
+        </template>
+
+        <template lwc:if={showForm}>
+            <div class={wreFormClassName}>
+                <h3 class="slds-text-heading_small slds-m-bottom_small">{formTitle}</h3>
+
+                <template lwc:if={formError}>
+                    <div class="slds-text-color_error slds-m-bottom_small" role="alert">
+                        {formError}
+                    </div>
+                </template>
+
+                <template lwc:if={isLoadingForm}>
+                    <div class="slds-is-relative slds-p-around_large">
+                        <lightning-spinner alternative-text="Loading" size="small"></lightning-spinner>
+                    </div>
+                </template>
+                <template lwc:elseif={form}>
+                    <div class="wre-form__actions wre-form__actions--top">
+                        <lightning-button
+                            label="Cancel"
+                            onclick={handleCancelForm}
+                            disabled={isBusy}
+                        ></lightning-button>
+                        <lightning-button
+                            label="Save"
+                            variant="brand"
+                            onclick={handleSave}
+                            disabled={isBusy}
+                        ></lightning-button>
+                    </div>
+
+                    <h4 class="slds-text-title_caps wre-form__section-title">Information</h4>
+                    <div class="slds-grid slds-wrap slds-gutters">
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                            <div class="slds-form-element wre-form__readonly">
+                                <span class="slds-form-element__label">Work Order</span>
+                                <div class="slds-form-element__control">
+                                    <div class="slds-form-element__static">{workOrderDisplay}</div>
+                                </div>
+                            </div>
+                            <div class="slds-form-element wre-form__readonly">
+                                <span class="slds-form-element__label">Parent Work Order</span>
+                                <div class="slds-form-element__control">
+                                    <div class="slds-form-element__static">{parentWorkOrderDisplay}</div>
+                                </div>
+                            </div>
+                            <div class="slds-form-element wre-form__readonly">
+                                <span class="slds-form-element__label">Related Return Order</span>
+                                <div class="slds-form-element__control">
+                                    <div class="slds-form-element__static">{relatedReturnOrderDisplay}</div>
+                                </div>
+                            </div>
+                            <div class="slds-form-element wre-form__readonly">
+                                <span class="slds-form-element__label">Customer Number</span>
+                                <div class="slds-form-element__control">
+                                    <div class="slds-form-element__static">{customerNumberDisplay}</div>
+                                </div>
+                            </div>
+                            <div class="slds-form-element wre-form__readonly">
+                                <span class="slds-form-element__label">Date Received</span>
+                                <div class="slds-form-element__control">
+                                    <div class="slds-form-element__static">{dateReceivedDisplay}</div>
+                                </div>
+                            </div>
+                            <div class="slds-form-element wre-form__readonly">
+                                <span class="slds-form-element__label">Item Count</span>
+                                <div class="slds-form-element__control">
+                                    <div class="slds-form-element__static">{itemCountDisplay}</div>
+                                </div>
+                            </div>
+                            <lightning-input
+                                label="Original Return Order"
+                                value={form.originalReturnOrder}
+                                data-field="originalReturnOrder"
+                                required={isAssetBasedPreviousRepairFieldRequired}
+                                disabled={isBusy}
+                                onchange={handleFieldChange}
+                            ></lightning-input>
+                            <lightning-record-picker
+                                label="Previous Repair/QC Technician"
+                                placeholder="Search users..."
+                                object-api-name="User"
+                                value={form.previousRepairQcTechnicianId}
+                                data-field="previousRepairQcTechnicianId"
+                                required={isAssetBasedPreviousRepairFieldRequired}
+                                disabled={isBusy}
+                                onchange={handleUserPickerChange}
+                            ></lightning-record-picker>
+                            <lightning-input
+                                type="date"
+                                label="Previous Repair Date"
+                                value={form.previousRepairDate}
+                                data-field="previousRepairDate"
+                                required={isAssetBasedPreviousRepairFieldRequired}
+                                disabled={isBusy}
+                                onchange={handleFieldChange}
+                            ></lightning-input>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                            <div class="slds-form-element wre-form__long-text">
+                                <label class="slds-form-element__label" for="wre-reason-for-return">
+                                    <abbr class="slds-required" title="required">* </abbr>
+                                    {labelDescribeReasonForReturn}
+                                </label>
+                                <div class="slds-form-element__control">
+                                    <textarea
+                                        id="wre-reason-for-return"
+                                        class="slds-textarea"
+                                        rows="5"
+                                        data-field="reasonForReturn"
+                                        required
+                                        disabled={isBusy}
+                                        onchange={handleFieldChange}
+                                    ></textarea>
+                                </div>
+                            </div>
+                            <lightning-combobox
+                                label={labelSignsOfDamageWearFailure}
+                                value={form.signsOfDamageWearFailure}
+                                options={form.signsOfDamageOptions}
+                                data-field="signsOfDamageWearFailure"
+                                required
+                                disabled={isBusy}
+                                onchange={handleFieldChange}
+                            ></lightning-combobox>
+                            <lightning-input
+                                label={labelDeviceOrInstrumentType}
+                                value={form.deviceType}
+                                data-field="deviceType"
+                                required
+                                disabled={isBusy}
+                                onchange={handleFieldChange}
+                            ></lightning-input>
+                            <lightning-input
+                                label="Manufacturer of the Device/Instrument"
+                                value={form.manufacturerOfTheDeviceInstrument}
+                                data-field="manufacturerOfTheDeviceInstrument"
+                                required
+                                disabled={isBusy}
+                                onchange={handleFieldChange}
+                            ></lightning-input>
+                            <lightning-input
+                                label="Model Number of the Device/Instrument"
+                                value={form.modelNumberOfTheDeviceInstrument}
+                                data-field="modelNumberOfTheDeviceInstrument"
+                                required
+                                disabled={isBusy}
+                                onchange={handleFieldChange}
+                            ></lightning-input>
+                            <lightning-input
+                                label="Serial Number of the Device/Instrument"
+                                value={form.serialNumberOfTheDeviceInstrument}
+                                data-field="serialNumberOfTheDeviceInstrument"
+                                required={isSerialNumberRequired}
+                                disabled={isBusy}
+                                onchange={handleFieldChange}
+                            ></lightning-input>
+                        </div>
+                    </div>
+
+                    <h4 class="slds-text-title_caps wre-form__section-title">Disposition Information</h4>
+                    <div class="slds-grid slds-wrap slds-gutters">
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                            <lightning-combobox
+                                label="Disposition"
+                                value={form.disposition}
+                                options={form.dispositionOptions}
+                                data-field="disposition"
+                                required
+                                disabled={isBusy}
+                                onchange={handleFieldChange}
+                            ></lightning-combobox>
+                            <lightning-combobox
+                                label={labelConfirmedCustomerReportedIssue}
+                                value={form.confirmedCustomerReportedIssue}
+                                options={form.yesNoOptions}
+                                data-field="confirmedCustomerReportedIssue"
+                                required
+                                disabled={isBusy}
+                                onchange={handleFieldChange}
+                            ></lightning-combobox>
+                            <lightning-combobox
+                                label={labelIssueRelatedToPreviousRepair}
+                                value={form.issueRelatedToPreviousRepair}
+                                options={form.yesNoOptions}
+                                data-field="issueRelatedToPreviousRepair"
+                                required
+                                disabled={isBusy}
+                                onchange={handleFieldChange}
+                            ></lightning-combobox>
+                            <div class="slds-form-element wre-form__long-text">
+                                <label class="slds-form-element__label" for="wre-previous-work-performed">
+                                    <template lwc:if={isAssetBasedPreviousRepairFieldRequired}>
+                                        <abbr class="slds-required" title="required">* </abbr>
+                                    </template>
+                                    {labelPreviousWorkPerformed}
+                                </label>
+                                <div class="slds-form-element__control">
+                                    <textarea
+                                        id="wre-previous-work-performed"
+                                        class="slds-textarea"
+                                        rows="5"
+                                        data-field="previousWorkPerformed"
+                                        required={isAssetBasedPreviousRepairFieldRequired}
+                                        disabled={isBusy}
+                                        onchange={handleFieldChange}
+                                    ></textarea>
+                                </div>
+                            </div>
+                            <div class="slds-form-element wre-form__long-text">
+                                <label class="slds-form-element__label" for="wre-work-performed">
+                                    <abbr class="slds-required" title="required">* </abbr>
+                                    {labelWorkPerformedAndRecommendation}
+                                </label>
+                                <div class="slds-form-element__control">
+                                    <textarea
+                                        id="wre-work-performed"
+                                        class="slds-textarea"
+                                        rows="5"
+                                        data-field="workPerformedAndRecommendation"
+                                        required
+                                        disabled={isBusy}
+                                        onchange={handleFieldChange}
+                                    ></textarea>
+                                </div>
+                            </div>
+                            <lightning-record-picker
+                                label="Technician Performing Work"
+                                placeholder="Search users..."
+                                object-api-name="User"
+                                value={form.technicianPerformingWorkId}
+                                data-field="technicianPerformingWorkId"
+                                required
+                                disabled={isBusy}
+                                onchange={handleUserPickerChange}
+                            ></lightning-record-picker>
+                            <lightning-input
+                                type="date"
+                                label="Technician Sign-Off Date"
+                                value={form.technicianSignOffDate}
+                                data-field="technicianSignOffDate"
+                                required
+                                disabled={isBusy}
+                                onchange={handleFieldChange}
+                            ></lightning-input>
+                            <lightning-record-picker
+                                label="Team Leader (if applicable)"
+                                placeholder="Search users..."
+                                object-api-name="User"
+                                value={form.teamLeaderId}
+                                data-field="teamLeaderId"
+                                disabled={isBusy}
+                                onchange={handleUserPickerChange}
+                            ></lightning-record-picker>
+                            <lightning-input
+                                type="date"
+                                label="Team Leader Sign-Off Date"
+                                value={form.teamLeaderSignOffDate}
+                                data-field="teamLeaderSignOffDate"
+                                disabled={isBusy}
+                                onchange={handleFieldChange}
+                            ></lightning-input>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                            <lightning-combobox
+                                label="Autoclaved"
+                                value={form.autoclaved}
+                                options={form.autoclavedOptions}
+                                data-field="autoclaved"
+                                required
+                                disabled={isBusy}
+                                onchange={handleFieldChange}
+                            ></lightning-combobox>
+                            <lightning-combobox
+                                label={labelCorrectiveActionTaken}
+                                value={form.correctiveActionTaken}
+                                options={form.yesNoOptions}
+                                data-field="correctiveActionTaken"
+                                required
+                                disabled={isBusy}
+                                onchange={handleFieldChange}
+                            ></lightning-combobox>
+                            <div class="slds-form-element wre-form__long-text">
+                                <label class="slds-form-element__label" for="wre-corrective-action-details">
+                                    <template lwc:if={isCorrectiveActionDetailsRequired}>
+                                        <abbr class="slds-required" title="required">* </abbr>
+                                    </template>
+                                    {labelCorrectiveActionAdditionalDetails}
+                                </label>
+                                <div class="slds-form-element__control">
+                                    <textarea
+                                        id="wre-corrective-action-details"
+                                        class="slds-textarea"
+                                        rows="5"
+                                        data-field="correctiveActionAdditionalDetails"
+                                        required={isCorrectiveActionDetailsRequired}
+                                        disabled={isBusy}
+                                        onchange={handleFieldChange}
+                                    ></textarea>
+                                </div>
+                            </div>
+                            <lightning-combobox
+                                label="Select one of the following as a contributing factor"
+                                value={form.contributingFactor}
+                                options={form.contributingFactorOptions}
+                                data-field="contributingFactor"
+                                required
+                                disabled={isBusy}
+                                onchange={handleFieldChange}
+                            ></lightning-combobox>
+                            <lightning-combobox
+                                label="Component NCR Created"
+                                value={form.componentNcrCreated}
+                                options={form.yesNoOptions}
+                                data-field="componentNcrCreated"
+                                required
+                                disabled={isBusy}
+                                onchange={handleFieldChange}
+                            ></lightning-combobox>
+                            <template lwc:if={showNcrDetails}>
+                                <p class="wre-form__ncr-help">
+                                    If a Component NCR was created, please list the following:
+                                </p>
+                                <lightning-input
+                                    label="NCR Number"
+                                    value={form.ncrNumber}
+                                    data-field="ncrNumber"
+                                    required={isNcrFieldsRequired}
+                                    disabled={isBusy}
+                                    onchange={handleFieldChange}
+                                ></lightning-input>
+                                <lightning-input
+                                    label="Part Number"
+                                    value={form.partNumber}
+                                    data-field="partNumber"
+                                    required={isNcrFieldsRequired}
+                                    disabled={isBusy}
+                                    onchange={handleFieldChange}
+                                ></lightning-input>
+                                <lightning-input
+                                    label={labelLotNumber}
+                                    value={form.lotNumber}
+                                    data-field="lotNumber"
+                                    disabled={isBusy}
+                                    onchange={handleFieldChange}
+                                ></lightning-input>
+                            </template>
+                        </div>
+                    </div>
+
+                    <div class="wre-form__actions wre-form__actions--bottom">
+                        <lightning-button
+                            label="Cancel"
+                            onclick={handleCancelForm}
+                            disabled={isBusy}
+                        ></lightning-button>
+                        <lightning-button
+                            label="Save"
+                            variant="brand"
+                            onclick={handleSave}
+                            disabled={isBusy}
+                        ></lightning-button>
+                    </div>
+                </template>
+            </div>
+        </template>
+    </div>
+</template>

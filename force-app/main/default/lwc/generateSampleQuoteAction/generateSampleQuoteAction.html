@@ -1,0 +1,21 @@
+<template>
+    <div class="quick-action-shell">
+        <template lwc:if={hasError}>
+            <div class="slds-p-around_medium slds-text-color_error">
+                Unable to load the related Opportunity for this Sample.
+            </div>
+        </template>
+        <template lwc:elseif={isReady}>
+            <lwc:component
+                lwc:is={quoteComponent}
+                record-id={recordId}
+                opportunity-record-id={opportunityRecordId}
+                launch-mode="generate_sample"
+                onclosequickaction={handleCloseQuickAction}>
+            </lwc:component>
+        </template>
+        <template lwc:else>
+            <lightning-spinner alternative-text="Loading" size="medium"></lightning-spinner>
+        </template>
+    </div>
+</template>

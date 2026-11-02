@@ -1,0 +1,66 @@
+<apex:component controller="ThankyouEmail_InspecEmailController" access="global">
+    
+    <apex:attribute name="projectId" description="Project Record Id" assignTo="{!targetId}" type="String" />
+    <apex:attribute name="contactId" description="Recipient Contact Id" assignTo="{!targetContactId}" type="String" />
+    
+    <style>
+        .email-text { font-family: Arial, sans-serif; font-size: 14px; color: #333; line-height: 1.5; }
+        .bold-text { font-weight: bold; }
+        p { margin-bottom: 15px; }
+        a { color: #0000EE; text-decoration: underline; }
+    </style>
+
+    <apex:image url="{!SterisBannerURL}" alt="STERIS Banner" />
+    <br/>
+
+    <div class="email-text">
+        
+        <p>Hello {!recipientRec.Name},</p>
+
+        <p>
+            At STERIS, we strive to make a difference for our Customers and their patients. 
+            In keeping with that goal, we feel it is important for us to follow-up on the recent 
+            installation at your facility to ensure that the equipment is operating to your expectations.
+        </p>
+
+        <p>
+            If you have any equipment related issues whatsoever please call our service center at 
+            <span class="bold-text">1-800-333-8828</span> and a technician will be dispatched to your 
+            facility as soon as is possible.
+        </p>
+
+        <p>
+            STERIS’s top priority is providing our Customers with consistent and memorable World Class Service. 
+            If you feel that there was anything we could have done better, we ask that you please let us know.
+        </p>
+
+        <p>
+            Please feel free to reply or contact me, and/or my Manager, 
+            <span class="bold-text">{!currentUser.Manager.Name}</span>, 
+            via email <a href="mailto:{!currentUser.Manager.Email}">{!currentUser.Manager.Email}</a>, 
+            or phone {!currentUser.Manager.Phone}, who is copied on this message, with any suggestions or feedback.
+        </p>
+
+        <p>
+            In the near future you will be receiving a phone call from our survey department. 
+            They will be asking for your feedback on your installation experience. I sincerely hope that 
+            you can find the time to take this short survey. I am also hopeful that you will be able to 
+            report that your installation experience was what you would expect from a World Class Service Organization.
+        </p>
+
+        <p>
+            Again, I would like to express my appreciation for using STERIS Installation Services and 
+            look forward to working with you in the future.
+        </p>
+
+        <p>Best Regards,</p>
+
+        <p>
+            {!currentUser.FirstName} {!currentUser.LastName}<br/>
+            {!currentUser.Title}<br/>
+            {!currentUser.CompanyName}<br/>
+            {!currentUser.Phone}
+        </p>
+    </div>
+
+</apex:component>

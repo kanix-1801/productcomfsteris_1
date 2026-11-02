@@ -1,0 +1,187 @@
+<template>
+    <template if:false={showWizard}>
+        <template if:true={showLeadForm}>
+            <lightning-record-form
+                key={formToken}
+                object-api-name="Lead"
+                record-type-id={leadRecordTypeId}
+                layout-type="Full"
+                mode="edit"
+                onsuccess={handleStandardSuccess}
+                oncancel={handleCancel}>
+            </lightning-record-form>
+        </template>
+    </template>
+
+    <template if:true={showWizard}>
+        <lightning-card title="New Lead" icon-name="standard:lead">
+            <div class="slds-p-horizontal_medium slds-p-bottom_medium">
+                <template if:true={collectProducts}>
+                    <lightning-progress-indicator current-step={step} type="path" class="slds-m-bottom_medium">
+                        <lightning-progress-step label="Lead Details" value="lead"></lightning-progress-step>
+                        <lightning-progress-step label="Products" value="products"></lightning-progress-step>
+                    </lightning-progress-indicator>
+                </template>
+                <div class={leadStepClass}>
+                    <template if:true={showLeadForm}>
+                    <lightning-record-edit-form
+                        key={formToken}
+                        object-api-name="Lead"
+                        record-type-id={leadRecordTypeId}
+                        onsubmit={handleLeadNext}>
+                        <div class="lead-columns">
+                            <div class="lead-column">
+                                <lightning-input-field field-name="Name" required></lightning-input-field>
+                                <lightning-input-field field-name="Email"></lightning-input-field>
+                                <lightning-input-field field-name="Status"></lightning-input-field>
+                                <lightning-input-field field-name="LeadSourceDetail__c"></lightning-input-field>
+                                <lightning-input-field field-name="Class_Code__c"></lightning-input-field>
+                            </div>
+                            <div class="lead-column">
+                                <lightning-input-field field-name="Company" required></lightning-input-field>
+                                <lightning-input-field field-name="Phone"></lightning-input-field>
+                                <lightning-input-field field-name="LeadSource" required></lightning-input-field>
+                                <lightning-input-field field-name="Org_ID__c"></lightning-input-field>
+                                <lightning-input-field class="address-fields" field-name="Address"></lightning-input-field>
+                            </div>
+                        </div>
+                        <div class="slds-m-top_medium slds-text-align_right">
+                            <lightning-button label="Cancel" onclick={handleCancel}></lightning-button>
+                            <lightning-button
+                                class="slds-m-left_x-small"
+                                type="submit"
+                                variant="brand"
+                                label={leadActionLabel}
+                                disabled={saving}>
+                            </lightning-button>
+                        </div>
+                    </lightning-record-edit-form>
+                    </template>
+                </div>
+
+                <div class={productStepClass} if:true={collectProducts}>
+                    <div class="slds-grid slds-gutters_x-small slds-p-bottom_x-small slds-border_bottom slds-text-title_caps">
+                        <div class="slds-col slds-size_5-of-12"><abbr class="slds-required" title="required">*</abbr>Product</div>
+                        <div class="slds-col slds-size_3-of-12">Parent Category</div>
+                        <div class="slds-col slds-size_3-of-12">Product Category</div>
+                        <div class="slds-col slds-size_1-of-12"></div>
+                    </div>
+                    <template for:each={products} for:item="product">
+                        <lightning-record-edit-form key={product.key} object-api-name="LeadProduct__c">
+                        <div class="slds-grid slds-gutters_x-small slds-grid_vertical-align-center slds-p-vertical_x-small slds-border_bottom">
+                            <div class="slds-col slds-size_5-of-12">
+                                <lightning-input-field
+                                    field-name="Product__c"
+                                    variant="label-hidden"
+                                    value={product.productId}
+                                    data-key={product.key}
+                                    data-field="productId"
+                                    onchange={handleProductSelected}>
+                                </lightning-input-field>
+                            </div>
+                            <div class="slds-col slds-size_3-of-12">
+                                <lightning-input-field
+                                    field-name="ParentCategory__c"
+                                    variant="label-hidden"
+                                    value={product.parentCategory}
+                                    data-field="parentCategory">
+                                </lightning-input-field>
+                            </div>
+                            <div class="slds-col slds-size_3-of-12">
+                                <lightning-input-field
+                                    field-name="ProductCategory__c"
+                                    variant="label-hidden"
+                                    value={product.productCategory}
+                                    data-field="productCategory">
+                                </lightning-input-field>
+                            </div>
+                            <div class="slds-col slds-size_1-of-12 slds-text-align_center">
+                                <lightning-button-icon
+                                    icon-name="utility:delete"
+                                    variant="border-filled"
+                                    alternative-text="Remove Product"
+                                    title="Remove Product"
+                                    data-key={product.key}
+                                    disabled={canRemoveProduct}
+                                    onclick={handleRemoveProduct}>
+                                </lightning-button-icon>
+                            </div>
+                        </div>
+                        </lightning-record-edit-form>
+                    </template>
+                    <div class="slds-m-top_small">
+                        <lightning-button label="Add Product" icon-name="utility:add" variant="base" onclick={handleAddProduct}></lightning-button>
+                    </div>
+                    <div class="slds-m-top_medium slds-text-align_right">
+                        <lightning-button label="Back" onclick={handleBack}></lightning-button>
+                        <lightning-button class="slds-m-left_x-small" label="Cancel" onclick={handleCancel}></lightning-button>
+                        <lightning-button
+                            class="slds-m-left_x-small"
+                            variant="brand"
+                            label="Save"
+                            disabled={saving}
+                            onclick={handleSave}>
+                        </lightning-button>
+                    </div>
+                </div>
+            </div>
+        </lightning-card>
+        <template if:true={showDuplicateWarning}>
+            <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open slds-modal_medium" aria-modal="true" aria-labelledby="duplicate-warning-heading">
+                <div class="slds-modal__container">
+                    <header class="slds-modal__header">
+                        <h2 id="duplicate-warning-heading" class="slds-text-heading_medium">{duplicateHeading}</h2>
+                    </header>
+                    <div class="slds-modal__content slds-p-around_medium">
+                        <template if:true={duplicateUseLayout}>
+                            <p class="slds-m-bottom_small"><strong>{duplicateStatus}</strong> - {duplicateReason}</p>
+                            <p class="slds-m-bottom_x-small"><strong>Matched records</strong></p>
+                            <table class="slds-table slds-table_cell-buffer slds-table_bordered">
+                                <thead>
+                                    <tr class="slds-line-height_reset">
+                                        <th scope="col">Name</th>
+                                        <th scope="col">Type</th>
+                                        <th scope="col">Email</th>
+                                        <th if:true={showPhoneColumn} scope="col">Phone</th>
+                                        <th scope="col">{companyColumnLabel}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={duplicateMatches} for:item="match">
+                                        <tr key={match.key}>
+                                            <td>
+                                                <template if:true={match.recordId}>
+                                                    <lightning-button variant="base" label={match.name} data-id={match.recordId} data-type={match.recordType} onclick={openMatchedRecord}></lightning-button>
+                                                </template>
+                                                <template if:false={match.recordId}>{match.name}</template>
+                                            </td>
+                                            <td>{match.recordType}</td>
+                                            <td>{match.email}</td>
+                                            <td if:true={showPhoneColumn}>{match.phone}</td>
+                                            <td>
+                                                <template if:true={match.accountId}>
+                                                    <lightning-button variant="base" label={match.accountName} data-id={match.accountId} data-type="Account" onclick={openMatchedRecord}></lightning-button>
+                                                </template>
+                                                <template if:false={match.accountId}>{match.accountName}</template>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </template>
+                        <template if:false={duplicateUseLayout}>
+                            <p>{duplicateMessage}</p>
+                        </template>
+                    </div>
+                    <footer class="slds-modal__footer">
+                        <lightning-button label={duplicateCloseLabel} onclick={handleDuplicateCancel}></lightning-button>
+                        <template if:true={duplicateCanContinue}>
+                            <lightning-button class="slds-m-left_x-small" variant="brand" label="Continue and Create Lead" onclick={handleContinueDuplicate}></lightning-button>
+                        </template>
+                    </footer>
+                </div>
+            </section>
+            <div class="slds-backdrop slds-backdrop_open"></div>
+        </template>
+    </template>
+</template>

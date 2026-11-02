@@ -1,0 +1,79 @@
+<template>
+    <div class="slds-form-element">
+        <label class="slds-form-element__label" for="asset-search">
+            <template lwc:if={required}><abbr class="slds-required" title="required">*</abbr></template>{label}
+        </label>
+        <div class="slds-form-element__control">
+            <div class="slds-combobox_container">
+                <div class={comboboxClass}>
+
+                    <template lwc:if={hasSelection}>
+                        <div class="slds-combobox__form-element slds-input-has-icon slds-input-has-icon_left-right" role="none">
+                            <span class="slds-icon_container slds-combobox__input-entity-icon">
+                                <lightning-icon icon-name="standard:asset_object" size="x-small" alternative-text="Asset"></lightning-icon>
+                            </span>
+                            <input id="asset-selected" class="slds-input slds-combobox__input slds-combobox__input-value"
+                                type="text" value={selectedName} readonly aria-label={label} />
+                            <button class="slds-button slds-button_icon slds-input__icon slds-input__icon_right"
+                                title="Remove selected asset" onclick={handleClear}>
+                                <lightning-icon icon-name="utility:close" size="x-small" alternative-text="Remove selected asset"></lightning-icon>
+                            </button>
+                        </div>
+                    </template>
+
+                    <template lwc:else>
+                        <div class="slds-combobox__form-element slds-input-has-icon slds-input-has-icon_right" role="none">
+                            <input id="asset-search" data-id="search" class="slds-input slds-combobox__input"
+                                type="text" role="combobox" autocomplete="off"
+                                placeholder="Search by name, serial number, or PFCL"
+                                aria-autocomplete="list" aria-controls="asset-listbox"
+                                aria-expanded={ariaExpanded} aria-activedescendant={activeOptionId}
+                                value={searchText}
+                                oninput={handleInput} onkeydown={handleKeyDown}
+                                onfocus={handleFocus} onblur={handleBlur} />
+                            <span class="slds-input__icon-group slds-input__icon-group_right">
+                                <template lwc:if={isSearching}>
+                                    <div role="status" class="slds-spinner slds-spinner_brand slds-spinner_x-small slds-input__spinner">
+                                        <span class="slds-assistive-text">Searching</span>
+                                        <div class="slds-spinner__dot-a"></div>
+                                        <div class="slds-spinner__dot-b"></div>
+                                    </div>
+                                </template>
+                                <lightning-icon class="slds-input__icon slds-input__icon_right" icon-name="utility:search" size="x-small"></lightning-icon>
+                            </span>
+                        </div>
+
+                        <div id="asset-listbox" class="slds-dropdown slds-dropdown_length-with-icon-7 slds-dropdown_fluid" role="listbox" aria-label="Asset results">
+                            <ul class="slds-listbox slds-listbox_vertical" role="presentation">
+                                <template for:each={options} for:item="option">
+                                    <li key={option.id} role="presentation" class="slds-listbox__item">
+                                        <div id={option.optionId} class={option.cssClass} role="option" aria-selected={option.isActive}
+                                            data-id={option.id} onmousedown={handleOptionMouseDown}>
+                                            <span class="slds-media__figure slds-listbox__option-icon">
+                                                <lightning-icon icon-name="standard:asset_object" size="small"></lightning-icon>
+                                            </span>
+                                            <span class="slds-media__body">
+                                                <span class="slds-listbox__option-text slds-listbox__option-text_entity">{option.name}</span>
+                                                <span class="slds-listbox__option-meta slds-listbox__option-meta_entity">{option.meta}</span>
+                                            </span>
+                                        </div>
+                                    </li>
+                                </template>
+                            </ul>
+                            <template lwc:if={showHint}>
+                                <p class="message">Type at least 2 characters to search.</p>
+                            </template>
+                            <template lwc:if={showNoResults}>
+                                <p class="message">No assets found for this account.</p>
+                            </template>
+                            <template lwc:if={searchError}>
+                                <p class="message error" role="alert">{searchError}</p>
+                            </template>
+                        </div>
+                    </template>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</template>

@@ -1,0 +1,126 @@
+<template>
+    <article class="slds-card slds-card_boundary">
+        <!-- Header -->
+        <div class="slds-card__header slds-grid slds-p-horizontal_small">
+            <header class="slds-media slds-media_center slds-has-flexi-truncate">
+                <div class="slds-media__figure">
+                    <lightning-icon icon-name="standard:case" size="small"></lightning-icon>
+                </div>
+                <div class="slds-media__body slds-grid slds-grid_align-spread slds-has-flexi-truncate">
+                    <h2 class="slds-card__header-title slds-truncate" title={title}>
+                        <span class="slds-text-heading_small">{title}</span>
+                    </h2>
+                    <div class="slds-card__header-actions">
+                        <lightning-button-icon
+                            icon-name={chevronIcon}
+                            variant="bare"
+                            alternative-text="Toggle"
+                            onclick={toggleCollapse}>
+                        </lightning-button-icon>
+                    </div>
+                </div>
+            </header>
+        </div>
+
+        <!-- Body (card list) -->
+        <template if:false={collapsed}>
+            <div class="slds-card__body slds-card__body_inner">
+                <template if:true={loading}>
+                    <lightning-spinner size="small" alternative-text="Loading"></lightning-spinner>
+                </template>
+
+                <template if:true={hasRows}>
+                    <ul class="slds-has-dividers_around-space">
+                        <template for:each={rows} for:item="row">
+                            <li key={row.Id} class="slds-item slds-p-around_small">
+                                <div class="slds-grid slds-grid_align-spread slds-m-bottom_xx-small">
+                                    <a href={row.url}
+                                       target="_blank"
+                                       class="slds-text-link slds-truncate slds-text-heading_small"
+                                       title={row.CaseNumber}>
+                                        {row.CaseNumber}
+                                    </a>
+                                </div>
+
+                                <div class="kv">
+                                    <div class="pair">
+                                        <span class="label">Subject:</span>
+                                        <span class="value slds-truncate" title={row.Subject}>{row.Subject}</span>
+                                    </div>
+                                    <div class="pair">
+                                        <span class="label">Want Date:</span>
+                                        <span class="value">{row.Customer_Want_Date__c}</span>
+                                    </div>
+                                    <div class="pair">
+                                        <span class="label">First Scheduled Ship Date:</span>
+                                        <span class="value">{row.FirstNonPreInstallScheduledShipDate__c}</span>
+                                    </div>
+                                    <div class="pair">
+                                        <span class="label">Stage:</span>
+                                        <span class="value">{row.Status}</span>
+                                    </div>
+                                </div>
+                            </li>
+                        </template>
+                    </ul>
+                </template>
+
+                <template if:false={hasRows}>
+                    <div class="slds-p-vertical_medium slds-align_absolute-center slds-text-color_weak">
+                        No related orders found.
+                    </div>
+                </template>
+            </div>
+
+            <!-- Footer -->
+            <footer class="slds-card__footer">
+                <a href="javascript:void(0);" onclick={openViewAll}>
+                    View All
+                </a>
+            </footer>
+        </template>
+    </article>
+
+    <!-- Modal: View All (datatable) -->
+    <template if:true={showModal}>
+        <section role="dialog" tabindex="-1" aria-modal="true" class="slds-modal slds-fade-in-open modal-full">
+          <div class="slds-modal__container">
+            <header class="slds-modal__header">
+                <h2 class="slds-text-heading_large">Related Orders with Same Registration Number — All</h2>
+              <button class="slds-button slds-button_icon slds-modal__close"
+                      onclick={closeModal}
+                      title="Close">
+                <lightning-icon icon-name="utility:close" alternative-text="Close" size="small"></lightning-icon>
+              </button>
+            </header>
+      
+            <div class="slds-modal__content slds-p-around_medium">
+              <template if:true={loadingAll}>
+                <lightning-spinner size="small" alternative-text="Loading all"></lightning-spinner>
+              </template>
+      
+              <template if:true={hasAllRows}>
+                <lightning-datatable
+                  key-field="Id"
+                  data={allRows}
+                  columns={columns}
+                  hide-checkbox-column
+                  show-row-number-column>
+                </lightning-datatable>
+              </template>
+      
+              <template if:false={hasAllRows}>
+                <div class="slds-align_absolute-center slds-text-color_weak">
+                  No cases found.
+                </div>
+              </template>
+            </div>
+      
+            <footer class="slds-modal__footer">
+              <lightning-button variant="neutral" label="Close" onclick={closeModal}></lightning-button>
+            </footer>
+          </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open"></div>
+      </template>
+</template>

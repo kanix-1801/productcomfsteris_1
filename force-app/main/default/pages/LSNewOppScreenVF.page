@@ -1,0 +1,16 @@
+<apex:page standardController="Opportunity" recordSetVar="opportunities">
+    <apex:includeLightning />
+    <div id="lightningContainer"></div>
+    <script>
+        $Lightning.use("c:lsNewOppScreenWrapper", function() {
+            $Lightning.createComponent(
+                "c:lsNewOppScreenWrapper",
+                { recordIds: "{!$CurrentPage.parameters.ids}" },
+                "lightningContainer",
+                function(cmp) {
+                    console.log("Aura component loaded successfully");
+                }
+            );
+        });
+    </script>
+</apex:page>

@@ -1,0 +1,43 @@
+<template>
+    <div class="workspace-shell">
+        <template lwc:if={showNav}>
+            <aside class="workspace-nav" aria-label="Evaluation sections">
+                <nav class="slds-nav-vertical">
+                    <ul>
+                        <template for:each={navItems} for:item="item">
+                            <li key={item.value} class={item.itemClass}>
+                                <button
+                                    type="button"
+                                    class="slds-nav-vertical__action workspace-nav__action"
+                                    data-tab={item.value}
+                                    onclick={handleNavClick}
+                                    aria-current={item.ariaCurrent}
+                                >
+                                    {item.label}
+                                </button>
+                            </li>
+                        </template>
+                    </ul>
+                </nav>
+            </aside>
+        </template>
+        <div class="workspace-main">
+            <header class="workspace-header">
+                <slot name="header"></slot>
+                <div
+                    class="slds-grid slds-grid_align-spread slds-grid_vertical-align-center workspace-action-row"
+                >
+                    <div class="workspace-header-actions workspace-header-actions_left">
+                        <slot name="actions-left"></slot>
+                    </div>
+                    <div class="workspace-header-actions">
+                        <slot name="actions-right"></slot>
+                    </div>
+                </div>
+            </header>
+            <section class="workspace-panel" aria-live="polite">
+                <slot></slot>
+            </section>
+        </div>
+    </div>
+</template>

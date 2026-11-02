@@ -1,0 +1,88 @@
+<template>
+    <h3 class="slds-text-heading_small slds-m-top_medium slds-m-bottom_small">
+        Repair History
+    </h3>
+    <template lwc:if={hasVisibleRows}>
+        <div class="slds-scrollable_x">
+            <table class="slds-table slds-table_cell-buffer slds-table_bordered">
+                <thead>
+                    <tr class="slds-line-height_reset">
+                        <th scope="col">Work Order Number</th>
+                        <th scope="col">Lab</th>
+                        <th scope="col">Reported Problem</th>
+                        <th scope="col">Repair Date</th>
+                        <th scope="col">Repair Codes</th>
+                        <th scope="col">Evaluation Notes</th>
+                        <th scope="col">Internal Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template for:each={displayedRows} for:item="row">
+                        <tr key={row.workOrderId}>
+                            <td>
+                                <a href={row.recordUrl} target="_blank" rel="noopener noreferrer">
+                                    {row.workOrderNumber}
+                                </a>
+                            </td>
+                            <td>{row.labNameDisplay}</td>
+                            <td class="notes-cell" title={row.reportedProblemDisplay}>
+                                {row.reportedProblemDisplay}
+                            </td>
+                            <td>
+                                <template lwc:if={row.repairDate}>
+                                    <lightning-formatted-date-time
+                                        value={row.repairDate}
+                                        year="numeric"
+                                        month="2-digit"
+                                        day="2-digit"
+                                    ></lightning-formatted-date-time>
+                                </template>
+                                <template lwc:else>—</template>
+                            </td>
+                            <td>
+                                <template lwc:if={row.hasRepairCodes}>
+                                    <template for:each={row.repairCodeLines} for:item="codeLine">
+                                        <span key={codeLine.key} class="repair-code-chip">
+                                            {codeLine.label}
+                                        </span>
+                                    </template>
+                                </template>
+                                <template lwc:else>—</template>
+                            </td>
+                            <td class="notes-cell" title={row.evaluationNotesDisplay}>
+                                {row.evaluationNotesDisplay}
+                            </td>
+                            <td class="notes-cell" title={row.internalNotesDisplay}>
+                                {row.internalNotesDisplay}
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+    </template>
+    <template lwc:elseif={hasAnyRows}>
+        <p class="slds-text-body_regular">No repairs in the past 12 months.</p>
+    </template>
+    <template lwc:else>
+        <p class="slds-text-body_regular">No prior repairs found.</p>
+    </template>
+    <template lwc:if={showViewAll}>
+        <div class="slds-m-top_x-small">
+            <lightning-button
+                label="View All"
+                variant="base"
+                onclick={handleViewAll}
+            ></lightning-button>
+        </div>
+    </template>
+    <template lwc:elseif={showCollapse}>
+        <div class="slds-m-top_x-small">
+            <lightning-button
+                label="Show Less"
+                variant="base"
+                onclick={handleShowLess}
+            ></lightning-button>
+        </div>
+    </template>
+</template>

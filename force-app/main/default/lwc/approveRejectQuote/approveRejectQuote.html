@@ -1,0 +1,189 @@
+<template>
+    <div class="page-shell">
+        <template lwc:if={isLoading}>
+            <lightning-spinner alternative-text="Loading Approve/Reject Quote" size="medium">
+            </lightning-spinner>
+        </template>
+
+        <template lwc:elseif={errorMessage}>
+            <div class="slds-notify slds-notify_alert slds-alert_error" role="alert">
+                {errorMessage}
+            </div>
+            <div class="footer-actions">
+                <lightning-button label="Close" onclick={handleCancel}></lightning-button>
+            </div>
+        </template>
+
+        <template lwc:elseif={hasWorkspace}>
+            <header class="header-panel">
+                <div>
+                    <h1 class="slds-text-heading_medium">Approve/Reject Quote</h1>
+                    <p class="subtitle">
+                        Work Order {workspace.workOrderNumber}
+                        <span class="subtitle-divider">|</span>
+                        Quote Version {workspace.quoteVersion}
+                    </p>
+                </div>
+            </header>
+
+            <div class="table-wrap">
+                <table class="slds-table slds-table_cell-buffer slds-table_bordered quote-table">
+                    <colgroup>
+                        <col class="col-work-order" />
+                        <col class="col-line-item" />
+                        <col class="col-description" />
+                        <col class="col-quantity" />
+                        <col class="col-price" />
+                        <col class="col-status" />
+                        <col class="col-turn-time" />
+                        <col class="col-ship-date" />
+                        <col class="col-comment" />
+                        <col class="col-decision" />
+                        <col class="col-decision" />
+                    </colgroup>
+                    <thead>
+                        <tr class="slds-line-height_reset">
+                            <th scope="col">Work Order</th>
+                            <th scope="col">Line Item</th>
+                            <th scope="col">Description</th>
+                            <th scope="col" class="center-cell">Quantity</th>
+                            <th scope="col" class="numeric-cell">Estimate Price</th>
+                            <th scope="col">Status</th>
+                            <th scope="col" class="center-cell">Turn Time</th>
+                            <th scope="col">Scheduled Ship Date</th>
+                            <th scope="col">Comment</th>
+                            <th scope="col" class="decision-header">Approve</th>
+                            <th scope="col" class="decision-header">Reject</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template for:each={displayLines} for:item="line">
+                            <tr key={line.quoteLineItemId}>
+                                <td>{line.workOrderNumber}</td>
+                                <td>{line.lineItemNumber}</td>
+                                <td class="description-cell">{line.description}</td>
+                                <td class="center-cell">{line.quantity}</td>
+                                <td class="numeric-cell">{line.estimatePriceDisplay}</td>
+                                <td>{line.status}</td>
+                                <td class="center-cell">{line.turnTimeDisplay}</td>
+                                <td>{line.scheduledShipDateDisplay}</td>
+                                <td>
+                                    <lightning-button-icon
+                                        icon-name="utility:chat"
+                                        alternative-text="Quote Comments"
+                                        title="Quote Comments"
+                                        variant="bare"
+                                        data-id={line.quoteLineItemId}
+                                        onclick={openCommentModal}
+                                        disabled={isBusy}
+                                    ></lightning-button-icon>
+                                </td>
+                                <td class={line.approveCellClass}>
+                                    <input
+                                        type="checkbox"
+                                        class="decision-checkbox"
+                                        aria-label="Approve this line"
+                                        checked={line.isApproved}
+                                        data-id={line.quoteLineItemId}
+                                        onchange={handleApproveRow}
+                                        disabled={isBusy}
+                                    />
+                                </td>
+                                <td class={line.rejectCellClass}>
+                                    <input
+                                        type="checkbox"
+                                        class="decision-checkbox"
+                                        aria-label="Reject this line"
+                                        checked={line.isRejected}
+                                        data-id={line.quoteLineItemId}
+                                        onchange={handleRejectRow}
+                                        disabled={isBusy}
+                                    />
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                    <tfoot>
+                        <tr class="total-row">
+                            <td colspan="4"><strong>Total</strong></td>
+                            <td class="numeric-cell"><strong>{estimateTotalDisplay}</strong></td>
+                            <td colspan="6"></td>
+                        </tr>
+                    </tfoot>
+                </table>
+                <template lwc:if={hasNoLines}>
+                    <p class="slds-m-around_medium">No Product Serviced quote lines were found.</p>
+                </template>
+            </div>
+
+            <div class="footer-actions">
+                <lightning-button
+                    class="approve-all"
+                    label="Approve All"
+                    onclick={handleApproveAll}
+                    disabled={isBusy}
+                ></lightning-button>
+                <lightning-button
+                    class="reject-all"
+                    label="Reject All"
+                    onclick={handleRejectAll}
+                    disabled={isBusy}
+                ></lightning-button>
+                <lightning-button
+                    variant="brand"
+                    label="Save"
+                    onclick={handleSave}
+                    disabled={isBusy}
+                ></lightning-button>
+                <lightning-button label="Cancel" onclick={handleCancel} disabled={isBusy}></lightning-button>
+            </div>
+        </template>
+    </div>
+
+    <template lwc:if={showCommentModal}>
+        <section
+            role="dialog"
+            tabindex="-1"
+            class="slds-modal slds-fade-in-open slds-modal_small"
+            onkeydown={handleCommentKeyDown}
+        >
+            <div class="slds-modal__container">
+                <header class="slds-modal__header">
+                    <lightning-button-icon
+                        class="comment-modal-close"
+                        icon-name="utility:close"
+                        alternative-text="Close without saving"
+                        title="Close without saving"
+                        variant="bare"
+                        size="small"
+                        onclick={closeCommentModal}
+                    ></lightning-button-icon>
+                    <h2 class="slds-modal__title">Quote Comments</h2>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium">
+                    <lightning-textarea
+                        label="Quote Comments"
+                        value={commentDraft}
+                        onchange={handleCommentChange}
+                        max-length="4000"
+                    ></lightning-textarea>
+                </div>
+                <footer class="slds-modal__footer">
+                    <lightning-button
+                        class="slds-m-right_x-small"
+                        label="Cancel"
+                        onclick={closeCommentModal}
+                        disabled={isBusy}
+                    ></lightning-button>
+                    <lightning-button
+                        label="Save"
+                        variant="brand"
+                        onclick={handleCommentSave}
+                        disabled={isBusy}
+                    ></lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open"></div>
+    </template>
+</template>

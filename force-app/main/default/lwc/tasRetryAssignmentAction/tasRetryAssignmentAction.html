@@ -1,0 +1,15 @@
+<!-- GC-3091: Launches the Retry TAS Assignment Flow for a Prospect Account and displays a spinner while processing. -->
+ <template>
+    <lightning-spinner
+        alternative-text="Processing TAS assignment"
+        size="medium">
+    </lightning-spinner>
+
+    <template if:true={isReady}>
+        <lightning-flow
+            flow-api-name={flowApiName}
+            flow-input-variables={flowInputVariables}
+            onstatuschange={handleStatusChange}>
+        </lightning-flow>
+    </template>
+</template>

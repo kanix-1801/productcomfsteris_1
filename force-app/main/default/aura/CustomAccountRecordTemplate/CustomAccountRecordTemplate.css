@@ -1,0 +1,38 @@
+/*
+ * @description       : Styling for Custom Account Workspace Layout.
+ *                      Controls header spacing and three-column region widths.
+ * @author            : Suraj Thapliyal
+ * @last modified on  : 06-02-2026
+ */
+
+/* Main wrapper for the custom Account record page template. */
+.THIS.workspace-container {
+    width: 100%;
+}
+
+/* Adds spacing between header and body content. */
+.THIS .header-region {
+    margin-bottom: 1rem;
+}
+
+/* Controls left, main, and right region widths. */
+.THIS .content-grid {
+    display: grid;
+    grid-template-columns: 15% 70% 15%;
+    gap: 1rem;
+    align-items: start;
+}
+
+/* Ensures empty regions remain visible enough during page configuration. */
+.THIS .left-region,
+.THIS .main-region,
+.THIS .right-region {
+    min-height: 100px;
+}
+
+/* Stacks regions vertically on smaller screens. */
+@media only screen and (max-width: 768px) {
+    .THIS .content-grid {
+        grid-template-columns: 1fr;
+    }
+}

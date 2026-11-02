@@ -1,0 +1,259 @@
+.calendar {
+    background: #fff;
+    border: 1px solid #dddbda;
+    border-radius: 0.25rem;
+}
+
+.toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #dddbda;
+}
+
+.toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.nav-btn,
+.today,
+.clear {
+    background: #fff;
+    border: 1px solid #dddbda;
+    border-radius: 0.25rem;
+    cursor: pointer;
+}
+
+.nav-btn {
+    width: 1.75rem;
+    height: 1.75rem;
+    font-size: 1.1rem;
+    line-height: 1;
+}
+
+.nav-btn.next {
+    background: #0176d3;
+    border-color: #0176d3;
+    color: #fff;
+}
+
+.month {
+    margin-left: 0.35rem;
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.today,
+.clear {
+    padding: 0.2rem 0.65rem;
+    color: #0176d3;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.weekday {
+    padding: 0.45rem 0.35rem;
+    border-bottom: 1px solid #dddbda;
+    border-right: 1px solid #f3f3f3;
+    color: #444;
+    font-size: 0.8rem;
+}
+
+.day {
+    min-height: 5.5rem;
+    padding: 0.2rem 0.15rem 0.35rem;
+    border-top: 1px solid #ecebea;
+    border-right: 1px solid #ecebea;
+    background: #fff;
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.day:hover {
+    background: #f8f8f8;
+}
+
+.day.selected {
+    box-shadow: inset 0 0 0 2px #0176d3;
+}
+
+.day.past {
+    background: #f3f3f3;
+    cursor: not-allowed;
+}
+
+.day.past:hover {
+    background: #f3f3f3;
+}
+
+.day.past .number,
+.day.past .outside-number {
+    color: #b0adab;
+}
+
+.day.is-today {
+    background: #eef4ff;
+}
+
+.day.is-today:hover {
+    background: #e3eefc;
+}
+
+.number.today-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    margin: 0.1rem 0.15rem;
+    padding: 0;
+    border-radius: 50%;
+    background: #0176d3;
+    color: #fff;
+    font-weight: 700;
+}
+
+.day.today-focus {
+    animation: today-flash 0.8s ease;
+}
+
+@keyframes today-flash {
+    0% {
+        box-shadow: inset 0 0 0 3px #0176d3;
+    }
+    100% {
+        box-shadow: inset 0 0 0 0 #0176d3;
+    }
+}
+
+.number {
+    display: block;
+    padding: 0.1rem 0.25rem 0.15rem;
+    color: #181818;
+    font-size: 0.8rem;
+}
+
+.outside-number {
+    color: #b0adab;
+}
+
+.selection {
+    display: block;
+    margin: 0 0.15rem 0.15rem;
+    color: #0176d3;
+    font-size: 0.65rem;
+    font-weight: 700;
+}
+
+.bar {
+    display: block;
+    margin-top: 0.15rem;
+    padding: 0.05rem 0.3rem;
+    overflow: hidden;
+    color: #181818;
+    font-size: 0.68rem;
+    line-height: 1.35;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.pending {
+    background: #c9c7c5;
+}
+
+.confirmed {
+    min-height: 0.85rem;
+    background: #7cc4f8;
+}
+
+.blocked {
+    min-height: 0.85rem;
+    background: #f7c1cb;
+}
+
+.span-single {
+    margin-right: 0.15rem;
+    margin-left: 0.15rem;
+    border-radius: 0.15rem;
+}
+
+.span-start {
+    margin-right: 0;
+    margin-left: 0.15rem;
+    border-radius: 0.15rem 0 0 0.15rem;
+}
+
+.span-middle {
+    margin-right: 0;
+    margin-left: 0;
+}
+
+.span-end {
+    margin-right: 0.15rem;
+    margin-left: 0;
+    border-radius: 0 0.15rem 0.15rem 0;
+}
+
+.legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding: 0.55rem 0.75rem;
+    border-top: 1px solid #dddbda;
+    font-size: 0.8rem;
+}
+
+.legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.key {
+    display: inline-block;
+    width: 0.85rem;
+    height: 0.85rem;
+    border: 1px solid #dddbda;
+}
+
+.key.free {
+    background: #fff;
+}
+
+.key.confirmed {
+    background: #7cc4f8;
+    border-color: #7cc4f8;
+}
+
+.key.pending {
+    background: #c9c7c5;
+    border-color: #c9c7c5;
+}
+
+.key.blocked {
+    background: #f7c1cb;
+    border-color: #f7c1cb;
+}
+
+.message {
+    margin: 0.5rem 0.75rem;
+}
+
+.error {
+    color: #ba0517;
+}
+
+.clear {
+    margin: 0 0.75rem 0.75rem;
+}
+
+.justification {
+    display: block;
+    margin: 0 0.75rem 0.75rem;
+}

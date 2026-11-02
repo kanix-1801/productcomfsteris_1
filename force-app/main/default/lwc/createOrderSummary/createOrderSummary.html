@@ -1,0 +1,62 @@
+<template>
+    <div class="create-order-summary">
+        <template lwc:if={hasGroups}>
+            <template for:each={groups} for:item="group">
+                <article key={group.groupKey} class="order-summary-card slds-m-bottom_medium">
+                    <div class="order-summary-card__header">
+                        <div>
+                            <div class="order-summary-card__title">{group.displayTitle}</div>
+                            <div class="order-summary-card__subtitle">{group.productLine}</div>
+                        </div>
+                        <div class="order-summary-card__repair-center">
+                            Repair Center: {group.repairCenterName}
+                        </div>
+                    </div>
+
+                    <table class="slds-table slds-table_cell-buffer slds-table_bordered slds-table_fixed-layout">
+                        <thead>
+                            <tr class="slds-line-height_reset">
+                                <th scope="col">
+                                    <div class="slds-truncate" title="Serial">Serial</div>
+                                </th>
+                                <th scope="col">
+                                    <div class="slds-truncate" title="Model">Model</div>
+                                </th>
+                                <th scope="col">
+                                    <div class="slds-truncate" title="Quantity">Quantity</div>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template for:each={group.lines} for:item="line">
+                                <tr key={line.lineKey}>
+                                    <td>
+                                        <div class="slds-truncate" title={line.serialNumber}>
+                                            {line.serialNumber}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="slds-truncate" title={line.model}>
+                                            {line.model}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="slds-truncate" title={line.quantityLabel}>
+                                            {line.quantityLabel}
+                                        </div>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </article>
+            </template>
+        </template>
+
+        <template lwc:else>
+            <p class="order-summary-empty slds-text-body_regular">
+                No items to review. Go back and add at least one serialized item.
+            </p>
+        </template>
+    </div>
+</template>

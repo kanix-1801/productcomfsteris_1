@@ -1,0 +1,34 @@
+<template>
+    <lightning-card title="External Camera Capture" icon-name="utility:camera">
+        <!-- Status banner -->
+        <template if:true={statusMessage}>
+            <div>
+                <lightning-icon
+                    size="x-small"
+                    class="slds-m-right_x-small">
+                </lightning-icon>
+                <span>{statusMessage}</span>
+            </div>
+        </template>
+
+        <div class="slds-p-around_medium">
+            <div class="slds-m-bottom_medium">
+                <video lwc:ref="videoElement" width="640" height="480" autoplay></video>
+                <canvas lwc:ref="canvasElement" style="display:none;"></canvas>
+            </div>
+
+            <div class="slds-m-bottom_medium">
+                <lightning-button label="Start Camera" onclick={startCamera} variant="brand"></lightning-button>
+                <lightning-button label="Capture Image" onclick={captureImage} class="slds-m-left_small"></lightning-button>
+                <lightning-button label="Stop Camera" onclick={stopCamera} class="slds-m-left_small"></lightning-button>
+            </div>
+
+            <template if:true={hasCapturedImage}>
+                <div class="slds-m-top_medium">
+                    <h3 class="slds-text-heading_small slds-m-bottom_small">Captured Image:</h3>
+                    <img lwc:ref="imageElement" width="640" alt="Captured" />
+                </div>
+            </template>
+        </div>
+    </lightning-card>
+</template>

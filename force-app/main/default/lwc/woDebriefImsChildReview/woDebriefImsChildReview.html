@@ -1,0 +1,19 @@
+<template>
+    <template lwc:if={isPending}>
+        <div class="slds-align_absolute-center slds-p-around_large">
+            <lightning-spinner alternative-text="Checking Parent Work Order…" size="medium"></lightning-spinner>
+        </div>
+    </template>
+
+    <template lwc:if={isDenied}>
+        <div class="site-visit-block" role="alert">
+            <lightning-icon icon-name="utility:info" size="small" alternative-text="Info"></lightning-icon>
+            <p class="site-visit-block_message">{deniedMessage}</p>
+            <lightning-button label="Close" variant="brand" onclick={handleClose}></lightning-button>
+        </div>
+    </template>
+
+    <template lwc:if={isAllowed}>
+        <c-wo-debrief-i-m-schild-wo record-id={recordId}></c-wo-debrief-i-m-schild-wo>
+    </template>
+</template>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>67.0</apiVersion>
+    <isExposed>true</isExposed>
+    <masterLabel>IMS Product Configurator</masterLabel>
+    <description>GW-4777 / GW-5676 - IMS Product Configurator: Contract Adjustments (Inclusions / Exclusions, Model Quantity; Pricing Programs to follow) for the RCA product configurator (IMS Service Agreement).</description>
+    <targets>
+        <target>lightning__FlowScreen</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightning__FlowScreen">
+            <property name="rootTransactionLineId" type="String" label="Root Transaction Line Id"/>
+            <property name="transactionId" type="String" label="Transaction (Quote) Id"/>
+            <property name="currentProductId" type="String" label="Current Product Id"/>
+            <property name="currentTransactionLineId" type="String" label="Current Transaction Line Id"/>
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

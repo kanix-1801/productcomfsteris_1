@@ -1,0 +1,168 @@
+<template>
+    <template lwc:if={isLoading}>
+        <lightning-spinner alternative-text="Loading account details" size="medium"></lightning-spinner>
+    </template>
+
+    <template lwc:elseif={hasError}>
+        <div class="slds-p-around_medium slds-text-color_error">
+            {errorMessage}
+        </div>
+    </template>
+
+    <template lwc:elseif={hasAccount}>
+        <section class="account-card">
+            <div class="hero"></div>
+
+            <div class="slds-p-horizontal_large slds-p-bottom_large">
+                <div class="avatar">
+                    <lightning-icon icon-name="standard:account" size="large"></lightning-icon>
+                </div>
+                <template if:true={isHouseAccount}>
+                    <div class="house-account-pill"> House Account</div>
+                </template>
+
+                <div class="account-name-row slds-grid slds-grid_align-spread slds-grid_vertical-align-center slds-m-top_medium">
+                    <h1 class="slds-text-heading_large slds-truncate account-name">
+                        {accountName}
+                    </h1>
+                    <lightning-button-icon
+                        icon-name="utility:hierarchy"
+                        alternative-text="View Account Hierarchy"
+                        title="View Account Hierarchy"
+                        variant="border-filled"
+                        onclick={handleViewAccountHierarchy}
+                        class="hierarchy-button"
+                    ></lightning-button-icon>
+                </div>
+
+                <p class="slds-text-heading_small slds-m-top_xx-small slds-truncate">
+                    {country}
+                </p>
+
+                <div class="slds-grid slds-wrap slds-gutters slds-m-top_large">
+                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2 slds-m-bottom_medium">
+                        <div class="slds-text-color_weak">Customer Number</div>
+                        <div>{customerNumber}</div>
+                    </div>
+
+                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2 slds-m-bottom_medium">
+                        <div class="slds-text-color_weak">Parent Account</div>
+                        <a>{parentAccountName}</a>
+                    </div>
+
+                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2 slds-m-bottom_medium">
+                        <div class="slds-text-color_weak">GPO Affiliation</div>
+                        <div>{gpoAffiliation}</div>
+                    </div>
+
+                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2 slds-m-bottom_medium">
+                        <div class="slds-text-color_weak">Customer Class</div>
+                        <div>{customerClassCode}</div>
+                    </div>
+
+                    <div class="slds-col slds-size_1-of-1 slds-m-bottom_medium website-wrapper">
+                        <div class="slds-text-color_weak">Website</div>
+                        <template lwc:if={hasWebsite}>
+                            <a href={websiteUrl} target="_blank" class="website-link">
+                                {website}
+                            </a>
+                        </template>
+                    </div>
+
+                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2 slds-m-bottom_medium">
+                        <div class="slds-text-color_weak">Address Line 1</div>
+                        <div>{billingStreet}</div>
+                    </div>
+
+                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2 slds-m-bottom_medium">
+                        <div class="slds-text-color_weak">Billing City</div>
+                        <div>{billingCity}</div>
+                    </div>
+
+                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2 slds-m-bottom_medium">
+                        <div class="slds-text-color_weak">Billing State/Province</div>
+                        <div>{billingState}</div>
+                    </div>
+
+                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2 slds-m-bottom_medium">
+                        <div class="slds-text-color_weak">Billing Postal Code</div>
+                        <div>{billingPostalCode}</div>
+                    </div>
+
+                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2 slds-m-bottom_medium">
+                        <div class="slds-text-color_weak">Billing Country</div>
+                        <div>{country}</div>
+                    </div>
+                </div>
+
+                <template if:true={showAccountHeader}>
+                    <div class="slds-border_top slds-m-vertical_large"></div>
+
+                    <div class="slds-grid slds-grid_vertical-align-center slds-m-vertical_medium">
+                        <span class="icon-circle slds-m-right_medium">💰</span>
+                        <span class="slds-grow slds-text-color_weak">Won Opportunities</span>
+                        <strong>$400k</strong>
+                    </div>
+
+                    <div class="slds-grid slds-grid_vertical-align-center slds-m-vertical_medium">
+                        <span class="icon-circle slds-m-right_medium">📋</span>
+                        <span class="slds-grow slds-text-color_weak">Install Base</span>
+                        <strong>8</strong>
+                    </div>
+
+                    <div class="slds-border_top slds-m-vertical_large"></div>
+
+                    <div class="slds-grid slds-grid_vertical-align-center slds-m-bottom_medium">
+                        <span class="trend slds-m-right_small">↗</span>
+                        <span>Recent Cases Trend</span>
+                        <lightning-icon icon-name="utility:info" size="xx-small" class="slds-m-left_x-small"></lightning-icon>
+                    </div>
+
+                    <div class="slds-grid slds-grid_vertical-align-center slds-m-vertical_small">
+                        <span class="slds-m-right_medium">⚠️</span>
+                        <span>2 Overdue Service Cases</span>
+                    </div>
+
+                    <div class="slds-grid slds-grid_vertical-align-center slds-m-vertical_small">
+                        <span class="slds-m-right_medium">⚠️</span>
+                        <span>3 Stalled Opportunities</span>
+                    </div>
+
+                    <div class="slds-grid slds-grid_vertical-align-center slds-m-vertical_small">
+                        <span class="slds-m-right_medium">⚠️</span>
+                        <span>5 Orders on Backorder</span>
+                    </div>
+
+                    <div class="slds-grid slds-grid_vertical-align-center slds-m-vertical_small">
+                        <span class="slds-m-right_medium">⚠️</span>
+                        <span>5 Orders on Backlog</span>
+                    </div>
+
+                    <div class="slds-border_top slds-m-vertical_large"></div>
+
+                    <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-center">
+                        <div class="slds-grid slds-grid_vertical-align-center">
+                            <span class="icon-circle slds-m-right_medium">♥</span>
+                            <span>Customer Satisfaction (NPS)</span>
+                        </div>
+                        <strong class="nps-score">+42</strong>
+                    </div>
+
+                    <div class="nps-bar slds-m-top_small">
+                        <div class="nps-green"></div>
+                        <div class="nps-yellow"></div>
+                        <div class="nps-red"></div>
+                    </div>
+
+                    <p class="slds-text-body_small slds-m-top_small">
+                        <strong>60%</strong> Promoters | <strong>22%</strong> Passives | <strong>18%</strong> Detractors
+                    </p>
+
+                    <p class="slds-text-body_small slds-text-align_right slds-m-top_x-small last-quarter">
+                        ▼ -5 vs Last Quarter
+                    </p>
+                </template>
+            </div>
+        </section>
+    </template>
+</template>

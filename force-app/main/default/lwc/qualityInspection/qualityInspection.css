@@ -1,0 +1,336 @@
+:host {
+    display: block;
+}
+
+.quality-inspection-root {
+    position: relative;
+}
+
+/* Match Assign Technician / Assign Rack scan card width (Hadar). */
+.quality-inspection-root_scan {
+    max-width: 40rem;
+}
+
+.section {
+    border-bottom: 1px solid #dddbda;
+    padding: 0.75rem 0 1.25rem;
+}
+
+.section:last-child {
+    border-bottom: 0;
+}
+
+.section-title {
+    color: #032d60;
+    font-size: 1.125rem;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+}
+
+.section-title_inline {
+    margin-bottom: 0;
+}
+
+.section-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.section-title-row__start {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.section-title-row .section-title {
+    margin-bottom: 0;
+}
+
+/* Keeps Reported Problem under Sub Status when the pressure gauge field is hidden. */
+.column-spacer {
+    display: none;
+}
+
+@media (min-width: 64em) {
+    .column-spacer {
+        display: block;
+    }
+}
+
+.asset-grid {
+    display: grid;
+    gap: 0.75rem 1.5rem;
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+}
+
+.asset-grid dt {
+    color: #444;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.asset-grid dd {
+    margin: 0.15rem 0 0;
+}
+
+.table-wrap {
+    overflow-x: auto;
+}
+
+.instrument-table,
+.ncr-header-table {
+    width: 100%;
+}
+
+.codes-cell {
+    white-space: normal;
+}
+
+.ncr-row-actions {
+    display: flex;
+    gap: 0.125rem;
+    justify-content: flex-start;
+}
+
+.ncr-header-table-wrap {
+    margin-bottom: 0.5rem;
+}
+
+.woli-picker-field.slds-has-error .slds-form-element__help {
+    display: block;
+}
+
+.woli-picker-select {
+    align-items: flex-end;
+    display: flex;
+    gap: 0.5rem;
+}
+
+.woli-picker-select lightning-input {
+    flex: 1;
+}
+
+.woli-picker-modal {
+    z-index: 9003;
+}
+
+.woli-picker-backdrop {
+    z-index: 9002;
+}
+
+.woli-picker-table tbody tr {
+    cursor: pointer;
+}
+
+.woli-picker-table tbody tr:hover > td {
+    background-color: #f3f3f3;
+}
+
+.woli-picker-table tbody tr.slds-is-selected > td {
+    background-color: #eef4ff;
+}
+
+.ncr-line-col-ncr {
+    width: 10rem;
+}
+
+.ncr-line-table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+.ncr-line-table th,
+.ncr-line-table td {
+    vertical-align: top;
+    white-space: normal;
+}
+
+.ncr-line-col-item {
+    width: 11rem;
+}
+
+.ncr-line-col-source {
+    width: 8rem;
+}
+
+.ncr-line-col-date {
+    width: 6.5rem;
+}
+
+.ncr-line-col-inspector {
+    width: 9rem;
+}
+
+/* Equal widths; still the largest columns, but capped so others are not scrunched. */
+.ncr-line-col-reason,
+.ncr-line-col-location {
+    width: 14rem;
+}
+
+.ncr-line-col-status {
+    width: 8rem;
+}
+
+.ncr-line-col-risk {
+    width: 4.5rem;
+}
+
+.ncr-line-col-action {
+    width: 4rem;
+}
+
+.ncr-line-wrap {
+    overflow-wrap: anywhere;
+}
+
+.footer-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+}
+
+.section-actions {
+    margin: 0.75rem 0 0.25rem;
+}
+
+.card-footer-actions {
+    width: 100%;
+    flex: 1 1 auto;
+}
+
+.modal-close {
+    position: absolute;
+    right: 1rem;
+    top: 1rem;
+}
+
+.modal-section + .modal-section {
+    border-top: 1px solid #dddbda;
+    margin-top: 1rem;
+    padding-top: 1rem;
+}
+
+.modal-section-title {
+    color: #032d60;
+    font-size: 1rem;
+    font-weight: 700;
+    margin: 0 0 0.75rem;
+}
+
+.modal-section-title.ncr-line-items-heading,
+.ncr-line-items-heading {
+    margin-top: 2.5rem;
+}
+
+.risk-justification {
+    min-height: 0;
+    overflow: hidden;
+    resize: none;
+}
+
+.risk-field {
+    align-items: flex-end;
+    display: flex;
+    gap: 0.25rem;
+}
+
+.risk-field lightning-combobox {
+    flex: 1;
+}
+
+.risk-help-modal {
+    z-index: 9003;
+}
+
+.risk-help-modal .slds-modal__container {
+    max-width: 90vw;
+    min-width: 0;
+    width: fit-content;
+}
+
+.risk-help-modal .slds-modal__content {
+    text-align: center;
+}
+
+.risk-help-content {
+    border-top-left-radius: 0.25rem;
+    border-top-right-radius: 0.25rem;
+}
+
+.risk-help-backdrop {
+    z-index: 9002;
+}
+
+.risk-help-image {
+    display: block;
+    height: auto;
+    margin: 0 auto;
+    max-height: 70vh;
+    max-width: min(90vw, 513px);
+    width: auto;
+}
+
+.risk-help {
+    margin-bottom: 0.2rem;
+}
+
+.risk-rating-input {
+    width: 100%;
+    height: 2rem;
+    padding: 0 0.75rem;
+    border: 1px solid #c9c9c9;
+    border-radius: 0.25rem;
+    background-color: #f3f3f3;
+    font-size: 0.8125rem;
+    font-weight: 700;
+}
+
+.risk-rating-input_low {
+    color: #2e844a;
+}
+
+.risk-rating-input_medium {
+    color: #8c4b02;
+}
+
+.risk-rating-input_high {
+    color: #ba0517;
+}
+
+.risk-low {
+    background-color: #2e844a;
+    color: #ffffff;
+    --slds-c-input-color-background: #2e844a;
+    --slds-c-input-color-background-disabled: #2e844a;
+    --slds-c-input-text-color: #ffffff;
+    --slds-c-input-text-color-disabled: #ffffff;
+}
+
+.risk-medium {
+    background-color: #fcc003;
+    color: #181818;
+    --slds-c-input-color-background: #fcc003;
+    --slds-c-input-color-background-disabled: #fcc003;
+    --slds-c-input-text-color: #181818;
+    --slds-c-input-text-color-disabled: #181818;
+}
+
+.risk-high {
+    background-color: #ba0517;
+    color: #ffffff;
+    --slds-c-input-color-background: #ba0517;
+    --slds-c-input-color-background-disabled: #ba0517;
+    --slds-c-input-text-color: #ffffff;
+    --slds-c-input-text-color-disabled: #ffffff;
+}
+
+@media (max-width: 48rem) {
+    .footer-actions {
+        flex-wrap: wrap;
+    }
+}

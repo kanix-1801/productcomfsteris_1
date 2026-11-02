@@ -1,0 +1,68 @@
+:host {
+    display: block;
+    width: 100%;
+
+    /* Matches the org brand colour used by the standard Action Launcher and brand buttons. */
+    --action-launcher-brand-color: #54779d;
+    --action-launcher-brand-color-hover: #3e5c7d;
+}
+
+.action-launcher lightning-card {
+    --slds-c-card-color-border: #dddbda;
+}
+
+/* Circular lightning icon sized to match the standard Action Launcher header */
+.action-launcher__header-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    flex-shrink: 0;
+    color: var(--action-launcher-brand-color);
+}
+
+.action-launcher__header-icon-svg {
+    display: block;
+    width: 1.5rem;
+    height: 1.5rem;
+}
+
+/* Pill button row */
+.action-launcher__pills {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.action-launcher__pill {
+    border-radius: 1.25rem;
+    padding: 0.35rem 0.85rem;
+    font-size: 0.8125rem;
+    line-height: 1.25;
+    white-space: nowrap;
+    min-height: auto;
+    border: none;
+    /* Long labels truncate instead of forcing the pill past the card edge. */
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.action-launcher__pill:hover,
+.action-launcher__pill:focus {
+    background-color: var(--action-launcher-brand-color-hover);
+}
+
+/* Round overflow trigger that sits inline with the pills */
+.action-launcher__overflow {
+    display: inline-flex;
+    align-items: center;
+    --slds-c-button-radius-border: 50%;
+}
+
+/* Tighter card body padding to match the standard launcher */
+.action-launcher .slds-card__body {
+    padding-top: 0;
+}

@@ -1,0 +1,843 @@
+:host {
+    display: block;
+}
+
+:host(.is-evaluation) {
+    display: flex;
+    flex-direction: column;
+    height: var(--eval-available-height, 70vh);
+    max-height: var(--eval-available-height, 70vh);
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+.instrument-evaluation-root {
+    position: relative;
+}
+
+/* Match Assign Technician / Assign Rack scan card width (Hadar). */
+.instrument-evaluation-root_scan {
+    max-width: 40rem;
+}
+
+.instrument-evaluation-root_eval {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    max-height: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+}
+
+.evaluation-content {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    max-height: 100%;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    overflow: hidden;
+    background: #ffffff;
+}
+
+.workspace-error-banner {
+    flex: 0 0 auto;
+    margin: 0.5rem 0.75rem 0;
+}
+
+.workspace-busy {
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.55);
+    z-index: 5;
+}
+
+.workspace-header__title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.workspace-header__title-text {
+    min-width: 0;
+}
+
+.workspace-header__title-heading {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.workspace-header__title-heading h3 {
+    margin-bottom: 0;
+}
+
+.workspace-header__subtitle {
+    margin: 0;
+    padding: 0;
+    color: #181818;
+    font-size: 0.8125rem;
+    font-weight: 400 !important;
+    line-height: 1.35;
+}
+
+.header-edit-scroll {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    /* Match DE scrollport so space-between gutters calculate the same way. */
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    padding-bottom: 0.65rem;
+    margin-bottom: 0.15rem;
+    scrollbar-width: thin;
+    scrollbar-color: #706e6b #e5e5e5;
+}
+
+.header-edit-scroll-inner {
+    display: block;
+    width: max-content;
+    min-width: 100%;
+    max-width: none;
+    box-sizing: border-box;
+}
+
+.header-edit-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 1.5rem;
+    row-gap: 0;
+    margin-bottom: 0.25rem;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.header-edit-grid_3col {
+    /* Same field widths as DE; three equal tracks so RC/Qty can stay middle. */
+    --eval-sticky-label-width: 10rem;
+    --eval-sticky-control-width: 22rem;
+    grid-template-columns:
+        calc(var(--eval-sticky-label-width) + 0.5rem + var(--eval-sticky-control-width))
+        calc(var(--eval-sticky-label-width) + 0.5rem + var(--eval-sticky-control-width))
+        calc(var(--eval-sticky-label-width) + 0.5rem + var(--eval-sticky-control-width));
+    justify-content: space-between;
+    column-gap: 2rem;
+    margin-bottom: 0.5rem;
+    width: max-content;
+    min-width: 100%;
+    max-width: none;
+    box-sizing: border-box;
+    align-items: start;
+}
+
+.header-edit-column {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.sticky-field {
+    --eval-sticky-control-height: 24px;
+    /* Same as Device Eval — longest Sub Status value. */
+    --eval-sticky-control-width: 22rem;
+    --eval-sticky-label-width: 10rem;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.5rem;
+    width: max-content;
+    min-width: max-content;
+    max-width: max-content;
+    margin: 0;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid #e5e5e5;
+    box-sizing: border-box;
+}
+
+.sticky-field__label {
+    flex: 0 0 var(--eval-sticky-label-width);
+    width: var(--eval-sticky-label-width);
+    min-width: var(--eval-sticky-label-width);
+    margin: 0;
+    padding: 0;
+    color: #181818;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sticky-field__value {
+    position: static;
+    flex: 0 0 var(--eval-sticky-control-width);
+    width: var(--eval-sticky-control-width);
+    min-width: var(--eval-sticky-control-width);
+    max-width: var(--eval-sticky-control-width);
+    height: var(--eval-sticky-control-height);
+    min-height: var(--eval-sticky-control-height);
+    max-height: var(--eval-sticky-control-height);
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.sticky-field__value_checkbox {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    width: auto;
+    min-width: 1.5rem;
+    max-width: none;
+    height: var(--eval-sticky-control-height);
+    min-height: var(--eval-sticky-control-height);
+    max-height: none;
+    overflow: visible;
+}
+
+.sticky-field__static {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    padding: 0 8px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    font-size: 0.8125rem;
+    font-weight: 400;
+    line-height: 22px;
+    color: #181818;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sticky-field__control {
+    display: block;
+    position: static;
+    width: 100% !important;
+    height: var(--eval-sticky-control-height) !important;
+    min-height: var(--eval-sticky-control-height) !important;
+    max-height: var(--eval-sticky-control-height) !important;
+    margin: 0 !important;
+    padding: 0 8px !important;
+    border: 1px solid #747474 !important;
+    border-radius: 4px !important;
+    background-color: #ffffff !important;
+    color: #181818 !important;
+    font-family: inherit !important;
+    font-size: 13px !important;
+    font-weight: 400 !important;
+    line-height: 22px !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    box-sizing: border-box !important;
+}
+
+.sticky-field__control_select {
+    padding-right: 28px !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23706e6b' d='M1 1l5 5 5-5'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 8px center !important;
+    background-size: 10px !important;
+    background-color: #ffffff !important;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.sticky-field__control:focus {
+    outline: none !important;
+    border-color: #0176d3 !important;
+    box-shadow: 0 0 0 1px #0176d3 !important;
+}
+
+.sticky-field__control:disabled {
+    background-color: #f3f3f3 !important;
+    color: #444444 !important;
+}
+
+.header-edit-cell {
+    min-height: 2rem;
+    min-width: 0;
+    width: max-content;
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
+}
+
+.standard-detail-form {
+    width: 100%;
+}
+
+.standard-detail-form lightning-output-field {
+    display: block;
+    --slds-c-form-element-label-font-weight: 700;
+}
+
+.wo-detail-form lightning-output-field {
+    display: block;
+    --slds-c-form-element-label-font-weight: 700;
+    --slds-c-form-element-label-color: #181818;
+}
+
+/*
+ * Work Order Information detail rows (canonical IE style also used by Contamination).
+ */
+.detail-grid {
+    width: 100%;
+}
+
+.detail-grid__col {
+    width: 50%;
+    max-width: 50%;
+    flex: 0 0 50%;
+    box-sizing: border-box;
+}
+
+.detail-row {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    width: 100%;
+    min-height: 2rem;
+    margin: 0;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid #e5e5e5;
+    box-sizing: border-box;
+}
+
+.detail-row__label {
+    flex: 0 1 auto;
+    margin: 0;
+    padding: 0;
+    color: #181818;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.detail-row__value {
+    flex: 0 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-width: 0;
+    font-size: 0.8125rem;
+    font-weight: 400;
+    line-height: 1.25;
+    color: #181818;
+    text-align: right;
+}
+
+.asset-detail-form__col {
+    width: 50%;
+    max-width: 50%;
+    flex: 0 0 50%;
+    box-sizing: border-box;
+}
+
+.wizard-actions {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 0.75rem;
+}
+
+.wizard-actions_start {
+    justify-content: flex-start;
+    padding-top: 0;
+}
+
+.step-hint {
+    font-size: 0.75rem;
+    color: #706e6b;
+    margin: 0 0 0.5rem;
+}
+
+.summary-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.summary-toolbar__spacer {
+    flex: 1 1 auto;
+}
+
+.summary-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+}
+
+.summary-table th,
+.summary-table td {
+    border-bottom: 1px solid #e5e5e5;
+    padding: 0.5rem 0.4rem;
+    text-align: left;
+    vertical-align: top;
+    /* Honor column widths instead of content min-width. */
+    max-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.summary-table th.summary-table__col-repair-desc,
+.summary-table td.summary-table__col-repair-desc {
+    max-width: none;
+}
+
+.summary-table th {
+    font-weight: 700;
+    color: #181818;
+}
+
+/*
+ * Shared Item Summary / Evaluation Summary / Work Performed column sizes.
+ * Fixed columns keep the same width on every table. Repair Description
+ * takes the leftover space, including when Warranty Repair is shown.
+ */
+.summary-table__col-item-number {
+    width: 8.5rem;
+}
+
+.summary-table__col-product-name {
+    width: 12rem;
+}
+
+.summary-table__col-qty {
+    width: 3.5rem;
+}
+
+.summary-table__col-repair-desc {
+    width: 100%;
+}
+
+.summary-table__col-photos {
+    width: 4.5rem;
+}
+
+.summary-table__col-ro-lines {
+    width: 6.75rem;
+    white-space: normal;
+    vertical-align: top;
+}
+
+.summary-table__col-vendor {
+    width: 9rem;
+    white-space: normal;
+    line-height: 1.25;
+    vertical-align: top;
+}
+
+.summary-vendor-label {
+    line-height: 1.25;
+}
+
+.summary-vendor-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+}
+
+.summary-vendor-link {
+    appearance: none;
+    background: none;
+    border: 0;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    line-height: 1.25;
+    color: var(--lwc-brandAccessible, #0176d3);
+    cursor: pointer;
+    text-align: left;
+}
+
+.summary-vendor-link:hover:not(:disabled),
+.summary-vendor-link:focus:not(:disabled) {
+    text-decoration: underline;
+}
+
+.summary-vendor-link:disabled {
+    color: var(--lwc-colorTextWeak, #706e6b);
+    cursor: default;
+}
+
+.summary-table__col-warranty {
+    width: 8.5rem;
+    white-space: normal;
+    line-height: 1.25;
+    vertical-align: top;
+}
+
+.summary-wre-links {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+}
+
+.summary-wre-links__item {
+    display: block;
+    line-height: 1.25;
+}
+
+.summary-wre-links__item a {
+    color: var(--lwc-brandAccessible, #0176d3);
+    text-decoration: none;
+    line-height: 1.25;
+}
+
+.summary-wre-links__item a:hover,
+.summary-wre-links__item a:focus {
+    text-decoration: underline;
+}
+
+.summary-table__col-actions {
+    width: 11rem;
+    max-width: none;
+}
+
+.summary-table th.summary-table__col-actions,
+.summary-table td.summary-table__col-actions {
+    max-width: none;
+    overflow: visible;
+}
+
+.actions-cell__delete-confirm {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem;
+    min-width: 10.5rem;
+}
+
+.actions-cell__delete-label {
+    margin-right: 0.15rem;
+}
+
+.summary-table__col-status {
+    width: 6.5rem;
+}
+
+.summary-table__col-signature {
+    width: 11rem;
+    max-width: none;
+}
+
+.files-table__col-icon {
+    width: 3.5rem;
+}
+
+.files-table__icon-slot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 2.25rem;
+}
+
+.files-table__thumb {
+    display: block;
+    width: 3rem;
+    height: 2.25rem;
+    object-fit: cover;
+    border: 1px solid #d8dde6;
+    border-radius: 0.125rem;
+    background: #f3f3f3;
+}
+
+.summary-scroll-spacer {
+    height: 3rem;
+    width: 100%;
+}
+
+.codes-cell {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.codes-cell div {
+    padding: 0.05rem 0;
+}
+
+.signature-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+}
+
+.signature-line {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.actions-cell {
+    white-space: nowrap;
+    max-width: none;
+}
+
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 9000;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 2rem 1rem;
+    overflow: auto;
+}
+
+.modal-backdrop_large {
+    align-items: center;
+    padding: 0.75rem;
+    overflow: hidden;
+}
+
+.item-modal {
+    width: min(720px, 100%);
+    background: #ffffff;
+    border-radius: 0.25rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* Add / Edit Item Entry — nearly full viewport. */
+.item-modal_large {
+    width: calc(100vw - 1.5rem);
+    height: calc(100vh - 1.5rem);
+    max-width: none;
+    max-height: none;
+    display: flex;
+    flex-direction: column;
+}
+
+.wre-modal {
+    width: min(960px, 100%);
+}
+
+.wre-modal__body {
+    padding-top: 1.1rem;
+}
+
+.item-modal__head {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.9rem 1.1rem;
+    border-bottom: 1px solid #e5e5e5;
+    flex-shrink: 0;
+}
+
+.item-modal__body {
+    padding: 0.9rem 1.1rem 1.1rem;
+    max-height: 70vh;
+    overflow: auto;
+}
+
+.item-modal_large .item-modal__body {
+    max-height: none;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+}
+
+.item-modal__cancel {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.9rem 1.1rem 1.1rem;
+    border-top: 1px solid #e5e5e5;
+    margin-top: 0;
+}
+
+.mode-chip {
+    align-self: flex-start;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.2rem 0.45rem;
+    border-radius: 0.25rem;
+    white-space: nowrap;
+}
+
+.mode-chip_add {
+    background: #eef4ff;
+    color: #0176d3;
+}
+
+.mode-chip_edit {
+    background: #fbf3e0;
+    color: #8c4b02;
+}
+
+.files-table__col-icon {
+    width: 3.5rem;
+}
+
+.files-table__col-actions {
+    width: 4rem;
+    text-align: center;
+}
+
+.files-table__icon-slot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 2.25rem;
+}
+
+.files-table__thumb {
+    display: block;
+    width: 3rem;
+    height: 2.25rem;
+    object-fit: cover;
+    border: 1px solid #d8dde6;
+    border-radius: 0.125rem;
+    background: #f3f3f3;
+}
+
+.photo-title-input_dirty {
+    --slds-c-input-color-border: #0176d3;
+    --slds-c-input-shadow: 0 0 0 1px #0176d3;
+}
+
+.photo-title-save {
+    display: inline-flex;
+}
+
+.photo-title-save_clean {
+    opacity: 0.4;
+}
+
+.photo-title-save_dirty {
+    opacity: 1;
+}
+
+.camera-modal {
+    z-index: 9101;
+}
+
+.camera-modal-backdrop {
+    z-index: 9100;
+}
+
+.camera-preview {
+    width: 100%;
+    max-width: 100%;
+    min-height: 14rem;
+    background: #080707;
+    border-radius: 0.25rem;
+    object-fit: contain;
+}
+
+/* Match Device Evaluation summary notes layout. */
+.summary-notes-form .summary-notes-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 0;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid #e5e5e5;
+}
+
+.summary-notes-form .slds-form-element__label {
+    flex: 0 0 14rem;
+    width: 14rem;
+    max-width: 14rem;
+    margin: 0;
+    padding-top: 0.125rem;
+    font-weight: 700;
+    color: #181818;
+    font-size: 0.75rem;
+    line-height: 1.25;
+}
+
+.summary-notes-form .slds-form-element__control {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding-left: 0;
+}
+
+.summary-notes-value {
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: #181818;
+    font-size: 0.8125rem;
+    font-weight: 400;
+    line-height: 1.35;
+}
+
+/*
+ * Tablet / phone: same breakpoints and sizes as Device Eval.
+ */
+@media (max-width: 1200px) {
+    .header-edit-scroll-inner {
+        width: max-content;
+        min-width: max-content;
+    }
+
+    .header-edit-grid_3col {
+        --eval-sticky-label-width: 7rem;
+        --eval-sticky-control-width: 12rem;
+        grid-template-columns:
+            calc(7rem + 0.5rem + 12rem)
+            calc(7rem + 0.5rem + 12rem)
+            calc(7rem + 0.5rem + 12rem);
+        justify-content: start;
+        column-gap: 1.25rem;
+        width: max-content;
+        min-width: max-content;
+    }
+
+    .sticky-field {
+        --eval-sticky-label-width: 7rem;
+        --eval-sticky-control-width: 12rem;
+    }
+}
+
+@media (max-width: 540px) {
+    .header-edit-scroll-inner {
+        width: max-content;
+        min-width: max-content;
+    }
+
+    .header-edit-grid_3col {
+        --eval-sticky-label-width: 6.5rem;
+        --eval-sticky-control-width: 11rem;
+        grid-template-columns:
+            calc(6.5rem + 0.5rem + 11rem)
+            calc(6.5rem + 0.5rem + 11rem)
+            calc(6.5rem + 0.5rem + 11rem);
+        justify-content: start;
+        column-gap: 1rem;
+        width: max-content;
+        min-width: max-content;
+    }
+
+    .sticky-field {
+        --eval-sticky-label-width: 6.5rem;
+        --eval-sticky-control-width: 11rem;
+    }
+}

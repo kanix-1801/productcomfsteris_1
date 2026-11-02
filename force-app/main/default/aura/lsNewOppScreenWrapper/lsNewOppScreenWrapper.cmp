@@ -1,0 +1,11 @@
+<!--
+  @description       : This component is used to wrap the new opportunity screen LWC
+  @author            : Sarthak Pani
+  @last modified on  : 01-10-2026
+  @last modified by  : Sarthak Pani
+  @Change log        : Initial Version
+-->
+
+<aura:component implements="lightning:actionOverride,flexipage:availableForAllPageTypes" access="global">
+    <c:lSNewOppScreen />
+</aura:component>

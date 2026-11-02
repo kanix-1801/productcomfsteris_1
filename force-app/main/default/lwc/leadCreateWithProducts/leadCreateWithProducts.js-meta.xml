@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>66.0</apiVersion>
+    <description>GC-3447 Creates a Lead with Products for users who have the project permission.</description>
+    <isExposed>true</isExposed>
+    <masterLabel>Lead Create With Products</masterLabel>
+</LightningComponentBundle>

@@ -1,0 +1,31 @@
+<template>
+    <!-- Display an error message when required documents are missing. -->
+    <template if:true={message}>
+        <div class="slds-p-around_medium">
+            <div class="slds-box slds-theme_warning">
+                <h2 class="slds-text-heading_medium slds-text-title_bold slds-text-align_center slds-m-bottom_medium">
+                    Missing Required Documents
+                </h2>
+                <p class="slds-text-body_regular slds-text-align_center">
+                    {message}
+                </p>
+            </div>
+            <div class="slds-m-top_medium slds-text-align_right">
+                <lightning-button
+                    label="Close"
+                    variant="brand"
+                    onclick={handleClose}>
+                </lightning-button>
+            </div>
+        </div>
+    </template>
+
+    <!-- Display while the Return Order documents are being prepared. -->
+    <template if:false={message}>
+        <div class="slds-p-around_medium slds-text-align_center">
+            <p class="slds-text-body_regular">
+                Preparing the Return Order documents for printing...
+            </p>
+        </div>
+    </template>
+</template>

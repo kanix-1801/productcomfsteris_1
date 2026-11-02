@@ -1,0 +1,51 @@
+<Apex:component controller="COAEmailController"  access="global">
+    <Apex:attribute name="caseId1" description="" assignTo="{!caseId}" type="String" />  
+    
+	<apex:attribute name="accountName" type="String" description="Account Name"/>
+    <apex:attribute name="poNumber" type="String" description="Po Number"/>
+    <apex:attribute name="orderNumber" type="string" description="Order Number"/>
+    <apex:attribute name="taxAmount" type="Decimal" description="Tax Amount"/>
+    <apex:attribute name="orderCountry" type="string" description="Order Country"/>
+    <apex:attribute name="CurrencyIsoCode" type="string" description="Currency"/>
+
+    
+    <apex:image URL="{!BannerUrlCOAFrench}" alt="STERIS Banner" width="982" height="180"/>
+	
+ <p>Bonjour {!PurchasingContactPO},</p>
+        <p style="max-width:982px;">
+           <span style="display:block; width:982px; max-width:982px; margin:0 0 12px 0;"> Nous vous remercions d'avoir choisi STERIS. Nous avons procédé à la saisie de votre bon de commande numéro # {!poNumber}. 
+            Votre numéro de confirmation STERIS est le # {!orderNumber}. Si vous avez des questions, n'hésitez pas à contacter votre coordinateur/coordinatrice des ventes STERIS
+ {!RegionalSalesCoOrdinatorBlUserFrnch} ou votre représentant des ventes, {!AccountManagerCapLineSalesRepFrnch}.
+       </span> </p>
+		       
+
+<div class="section">
+            <div class="blue">Prochaines étapes :</div>
+            <ul class="list">
+                <li style="max-width:982px;">
+                    Nous allons être en contact avec votre représentant des ventes pour coordonner les détails de l’installation.
+                </li>
+            </ul>
+        </div>
+
+        <div class="section" style="max-width:982px;">
+            Nous vous remercions encore d’avoir choisi STERIS. Notre mission est de fournir à nos clients une expérience supérieure.
+            N’hésitez pas à nous contacter si vous avez besoin d’assistance supplémentaire.
+        </div><br/>
+
+
+	<div class="section">
+        Cordialement,
+    </div><br/><br/>
+
+    <div class="footer">
+        L'Équipe de Vente de Commande<br/>
+        STERIS Corporation | Healthcare<br/>
+        5960 Heisley Road | Mentor, OH 44060-1834 USA<br/>
+        IPT Direct: 440.392.7399<br/>
+        Surgical Direct: 440.392.8859
+       
+    </div>
+
+    
+</apex:component>

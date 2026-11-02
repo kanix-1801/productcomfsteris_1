@@ -1,0 +1,59 @@
+<template>
+    <div class="stage-class-registry" aria-hidden="true">
+        <span class="stage-pill stage-discovery"></span>
+        <span class="stage-pill stage-evaluation"></span>
+        <span class="stage-pill stage-proposal"></span>
+        <span class="stage-pill stage-commit"></span>
+        <span class="stage-pill stage-closed-won"></span>
+        <span class="stage-pill stage-closed-lost"></span>
+        <span class="stage-pill stage-cancelled"></span>
+    </div>
+    <template if:true={hasRows}>
+        <div class="table-scroll">
+            <table class={tableClass}>
+                <thead>
+                    <tr>
+                        <template for:each={columns} for:item="column">
+                            <th key={column.field} class={column.headerClass}>
+                                <template if:true={column.sortable}>
+                                    <button type="button" class="sort-button" data-field={column.field} onclick={requestSort}>
+                                        <span>{column.label}</span>
+                                        <span class="sort-mark">{column.sortLabel}</span>
+                                    </button>
+                                </template>
+                                <template if:false={column.sortable}>{column.label}</template>
+                            </th>
+                        </template>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template for:each={displayRows} for:item="row">
+                        <tr key={row.opportunityId}>
+                            <td>
+                                <button type="button" class="name-button" data-id={row.opportunityId} onclick={openOpportunity} title={row.name}>
+                                    {row.name}
+                                </button>
+                            </td>
+                            <td title={row.endCustomerName}>{row.endCustomerName}</td>
+                            <td title={row.dealerAccountName}>{row.dealerAccountName}</td>
+                            <td><span class={row.stageClass}>{row.stageName}</span></td>
+                            <template if:true={showShipDate}>
+                                <td>{row.shipLabel}</td>
+                            </template>
+                            <template if:true={showCreatedDate}>
+                                <td>{row.createdLabel}</td>
+                            </template>
+                            <template if:true={showCloseDate}>
+                                <td>{row.closeLabel}</td>
+                            </template>
+                            <td class="amount-column">{row.amountLabel}</td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+    </template>
+    <template if:false={hasRows}>
+        <p class="empty-message">{emptyMessage}</p>
+    </template>
+</template>

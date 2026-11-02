@@ -1,0 +1,195 @@
+.created-orders-section {
+    max-width: 56rem;
+}
+
+:host {
+    display: block;
+}
+
+.return-order-lines {
+    max-width: 56rem;
+}
+
+.return-order-lines lightning-accordion-section .slds-accordion__section,
+.return-order-lines lightning-accordion-section .slds-accordion__content {
+    overflow: visible;
+}
+
+.created-order-link {
+    font-weight: 600;
+}
+
+.line-section-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: -2.25rem;
+    margin-bottom: 0.5rem;
+}
+
+lightning-accordion-section .slds-accordion__summary-action {
+    padding-right: 3rem;
+}
+
+lightning-accordion-section .slds-accordion__content,
+lightning-accordion-section .slds-accordion__section {
+    overflow: visible;
+}
+
+.line-fields-row {
+    overflow: visible;
+}
+
+.line-fields-column {
+    overflow: visible;
+    position: relative;
+}
+
+.line-fields-grid {
+    overflow: visible;
+}
+
+.contact-field-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.5rem;
+}
+
+.contact-field-row__combobox {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.contact-field-row__button {
+    flex: 0 0 auto;
+    margin-bottom: 0.125rem;
+}
+
+.order-header-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem 1rem;
+    min-width: 0;
+}
+
+.order-header-meta__segment {
+    flex: 0 1 auto;
+    min-width: 0;
+}
+
+.order-header-meta__reported-problem {
+    flex: 1 1 12rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.line-item-attachment-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.line-item-attachment-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.25rem 0;
+}
+
+.line-item-attachment-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.line-type-add-panel {
+    max-width: 52rem;
+}
+
+.line-type-add-table-wrapper {
+    width: 100%;
+}
+
+.line-type-add-table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+.line-type-add-table__type-col {
+    width: 11rem;
+    min-width: 11rem;
+    vertical-align: top;
+    white-space: nowrap;
+}
+
+.line-type-add-table__details-col {
+    width: auto;
+    vertical-align: top;
+}
+
+.line-type-add-table__details-text {
+    white-space: normal;
+    word-break: break-word;
+    line-height: 1.4;
+}
+
+.line-type-add-table__type-link {
+    font-weight: 600;
+}
+
+.line-type-add-table__row:hover {
+    background-color: #f3f3f3;
+}
+
+.product-search-lookup {
+    position: relative;
+    overflow: visible;
+    z-index: 1;
+}
+
+.product-search-lookup--open {
+    z-index: 9001;
+}
+
+.product-search-lookup__control {
+    position: relative;
+    overflow: visible;
+}
+
+.product-search-results--fixed {
+    position: fixed;
+    display: block;
+    z-index: 100000;
+    margin-top: 0;
+    max-height: 15rem;
+    overflow-y: auto;
+    overflow-x: hidden;
+    box-sizing: border-box;
+    background: var(--slds-g-color-neutral-base-100, #fff);
+    border: 1px solid var(--slds-g-color-border-base-1, #e5e5e5);
+    border-radius: 0.25rem;
+    box-shadow: var(--slds-shadow-2, 0 2px 3px rgba(0, 0, 0, 0.16));
+}
+
+.product-search-results .slds-listbox__item {
+    padding: 0;
+}
+
+.product-search-results .slds-listbox__option {
+    cursor: pointer;
+    padding: 0.5rem 0.75rem;
+    white-space: normal;
+}
+
+.product-search-option-label {
+    display: block;
+    white-space: normal;
+    word-break: break-word;
+    line-height: 1.35;
+}
+
+.product-search-results .slds-listbox__option:hover {
+    background-color: var(--slds-g-color-neutral-base-95, #f3f3f3);
+}

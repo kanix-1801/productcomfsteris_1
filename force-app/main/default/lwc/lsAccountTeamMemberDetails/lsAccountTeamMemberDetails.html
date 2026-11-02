@@ -1,0 +1,35 @@
+<template>
+    <lightning-card title="Coverage Panel">
+        <template lwc:if={isLoading}>
+            <div class="slds-p-around_medium">
+                <lightning-spinner
+                    alternative-text="Loading"
+                    size="small">
+                </lightning-spinner>
+            </div>
+        </template>
+
+        <template lwc:if={hasRecords}>
+            <div class="slds-var-m-horizontal_x-small">
+                <lightning-datatable
+                    key-field="id"
+                    data={accountTeamMembers}
+                    columns={columns}
+                    hide-checkbox-column>
+                </lightning-datatable>
+            </div>
+        </template>
+
+        <template lwc:elseif={hasError}>
+            <div class="slds-p-around_medium slds-text-color_error">
+                Unable to load Account Team Member details.
+            </div>
+        </template>
+
+        <template lwc:else>
+            <div class="slds-p-around_medium slds-text-color_weak">
+                No Account Team Members found.
+            </div>
+        </template>
+    </lightning-card>
+</template>

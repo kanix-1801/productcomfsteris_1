@@ -1,0 +1,55 @@
+:host {
+    display: block;
+    max-width: 100%;
+}
+
+.preferences-table-wrap {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.preferences-table {
+    width: max-content;
+    min-width: 100%;
+}
+
+.preferences-table th,
+.preferences-table td {
+    white-space: nowrap;
+}
+
+.preferences-table th {
+    font-weight: 700;
+}
+
+.preferences-cards {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.preference-card {
+    padding: 0.5rem 0;
+}
+
+.preference-card__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    font-size: 0.75rem;
+    line-height: 1.25;
+}
+
+.preference-card__label {
+    color: #706e6b;
+    font-weight: 700;
+}
+
+.preference-card__label::after {
+    content: ':';
+}
+
+.preference-card__value {
+    color: #181818;
+}

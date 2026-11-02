@@ -1,0 +1,135 @@
+.item-section-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: -2.25rem;
+    margin-bottom: 0.5rem;
+}
+
+lightning-accordion-section .slds-accordion__summary-action {
+    padding-right: 3rem;
+}
+
+lightning-accordion-section .slds-accordion__content,
+lightning-accordion-section .slds-accordion__section {
+    overflow: visible;
+}
+
+.item-fields-row {
+    overflow: visible;
+}
+
+.field-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.loaner-checkbox-row {
+    align-items: flex-end;
+    min-height: 2rem;
+    padding-top: 1.35rem;
+}
+
+.customer-information-heading {
+    margin-top: 1.5rem;
+}
+
+.contact-field-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.5rem;
+}
+
+.contact-field-row__combobox {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.contact-field-row__button {
+    flex: 0 0 auto;
+    margin-bottom: 0.125rem;
+}
+
+.product-search-lookup {
+    position: relative;
+    overflow: visible;
+    z-index: 1;
+}
+
+.product-search-lookup--open {
+    z-index: 10;
+}
+
+.product-search-lookup__control {
+    position: relative;
+    overflow: visible;
+}
+
+.product-search-results {
+    display: block;
+    margin: 0;
+    padding: 0.25rem 0;
+    max-height: 15rem;
+    overflow-x: visible;
+    overflow-y: auto;
+    box-sizing: border-box;
+    background: var(--slds-g-color-neutral-base-100, #fff);
+    border: 1px solid var(--slds-g-color-border-base-1, #e5e5e5);
+    border-radius: 0.25rem;
+    box-shadow: var(--slds-shadow-2, 0 2px 3px rgba(0, 0, 0, 0.16));
+}
+
+/*
+ * Fixed to the viewport so accordion overflow cannot clip results.
+ * Do not use slds-dropdown here — it applies translateX(-50%) and shifts the menu left.
+ */
+.product-search-results--fixed {
+    position: fixed;
+    z-index: 100000;
+    float: none;
+    transform: none;
+    inset: auto;
+}
+
+.product-search-results .slds-listbox__item {
+    padding: 0;
+}
+
+.product-search-results .slds-listbox__option {
+    cursor: pointer;
+    padding: 0.5rem 0.75rem;
+    white-space: normal;
+}
+
+.product-search-option-label {
+    display: block;
+    white-space: normal;
+    word-break: break-word;
+    line-height: 1.35;
+}
+
+.product-search-results .slds-listbox__option:hover {
+    background-color: var(--slds-g-color-neutral-base-95, #f3f3f3);
+}
+
+.line-item-attachment-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.line-item-attachment-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.25rem 0;
+}
+
+.line-item-attachment-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1 1 auto;
+    min-width: 0;
+}

@@ -1,0 +1,334 @@
+:host {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    max-height: 100%;
+    overflow: hidden;
+}
+
+.workspace-shell {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+    gap: 0;
+    background: #ffffff;
+}
+
+.workspace-nav {
+    flex: 0 0 14rem;
+    width: 14rem;
+    max-width: 16rem;
+    height: 100%;
+    max-height: 100%;
+    min-height: 0;
+    border-right: 1px solid #dddbda;
+    background: #ffffff;
+    padding: 0.75rem 0.5rem;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    box-sizing: border-box;
+}
+
+.workspace-main {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    max-height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #ffffff;
+}
+
+.workspace-header,
+.workspace-panel {
+    padding-left: 1rem;
+    padding-right: 1rem;
+    box-sizing: border-box;
+}
+
+.workspace-header {
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    padding-top: 0.75rem;
+    padding-bottom: 0.5rem;
+    overflow-x: hidden;
+    overflow-y: visible;
+    position: relative;
+    z-index: 3;
+    border-bottom: 2px solid #706e6b;
+    background: #ffffff;
+}
+
+.workspace-header .slds-text-heading_small {
+    margin: 0;
+    color: #181818;
+    font-size: 1rem !important;
+    font-weight: 700 !important;
+    line-height: 1.25;
+}
+
+.workspace-header__subtitle {
+    margin: 0;
+    padding: 0;
+    color: #181818;
+    font-size: 0.8125rem;
+    font-weight: 400 !important;
+    line-height: 1.35;
+}
+
+.header-edit-scroll {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: scroll;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    touch-action: pan-x pinch-zoom;
+    padding-bottom: 0.65rem;
+    margin-bottom: 0.15rem;
+    scrollbar-width: auto;
+    scrollbar-color: #706e6b #e5e5e5;
+}
+
+.header-edit-scroll::-webkit-scrollbar {
+    height: 0.75rem;
+    -webkit-appearance: none;
+    display: block;
+}
+
+.header-edit-scroll::-webkit-scrollbar-track {
+    background: #e5e5e5;
+    border-radius: 0.25rem;
+}
+
+.header-edit-scroll::-webkit-scrollbar-thumb {
+    background: #706e6b;
+    border-radius: 0.25rem;
+}
+
+.header-edit-scroll-inner {
+    display: block;
+    width: max-content;
+    min-width: 100%;
+    max-width: none;
+    box-sizing: border-box;
+}
+
+.workspace-nav__action {
+    display: block;
+    width: 100%;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.workspace-nav .slds-nav-vertical__item:not(.slds-is-active) .workspace-nav__action:hover,
+.workspace-nav .slds-nav-vertical__item:not(.slds-is-active) .workspace-nav__action:focus,
+.workspace-nav .slds-nav-vertical__item:not(.slds-is-active) .workspace-nav__action:focus-visible,
+.workspace-nav .slds-nav-vertical__item:not(.slds-is-active) .workspace-nav__action:active {
+    background-color: transparent;
+    color: inherit;
+    box-shadow: none;
+    outline: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .workspace-nav .slds-nav-vertical__item:not(.slds-is-active) .workspace-nav__action:hover {
+        background-color: #f3f3f3;
+    }
+}
+
+.workspace-action-row {
+    position: relative;
+    z-index: 1;
+    margin-top: 0.75rem;
+    padding-top: 0.25rem;
+}
+
+.workspace-header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.workspace-header-actions_left {
+    justify-content: flex-start;
+}
+
+.workspace-panel {
+    position: relative;
+    z-index: 1;
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 0;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    background: #ffffff;
+}
+
+.header-edit-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 1.5rem;
+    row-gap: 0;
+    margin-bottom: 0.25rem;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.header-edit-grid_2col {
+    --eval-sticky-label-width: 10rem;
+    --eval-sticky-control-width: 22rem;
+    grid-template-columns:
+        calc(var(--eval-sticky-label-width) + 0.5rem + var(--eval-sticky-control-width))
+        calc(var(--eval-sticky-label-width) + 0.5rem + var(--eval-sticky-control-width));
+    justify-content: space-between;
+    column-gap: 2rem;
+    margin-bottom: 0.5rem;
+    width: max-content;
+    min-width: 100%;
+    max-width: none;
+    box-sizing: border-box;
+}
+
+.sticky-field {
+    --eval-sticky-control-height: 24px;
+    --eval-sticky-control-width: 22rem;
+    --eval-sticky-label-width: 10rem;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.5rem;
+    width: max-content;
+    min-width: max-content;
+    max-width: max-content;
+    margin: 0;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid #e5e5e5;
+    box-sizing: border-box;
+}
+
+.sticky-field__label {
+    flex: 0 0 var(--eval-sticky-label-width);
+    width: var(--eval-sticky-label-width);
+    min-width: var(--eval-sticky-label-width);
+    margin: 0;
+    padding: 0;
+    color: #181818;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sticky-field__value {
+    position: static;
+    flex: 0 0 var(--eval-sticky-control-width);
+    width: var(--eval-sticky-control-width);
+    min-width: var(--eval-sticky-control-width);
+    max-width: var(--eval-sticky-control-width);
+    height: var(--eval-sticky-control-height);
+    min-height: var(--eval-sticky-control-height);
+    max-height: var(--eval-sticky-control-height);
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.sticky-field__value_checkbox {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    width: auto;
+    min-width: 1.5rem;
+    max-width: none;
+    height: var(--eval-sticky-control-height);
+    min-height: var(--eval-sticky-control-height);
+    max-height: none;
+    overflow: visible;
+}
+
+.sticky-field__control {
+    display: block;
+    position: static;
+    width: 100% !important;
+    height: var(--eval-sticky-control-height) !important;
+    min-height: var(--eval-sticky-control-height) !important;
+    max-height: var(--eval-sticky-control-height) !important;
+    margin: 0 !important;
+    padding: 0 8px !important;
+    border: 1px solid #747474 !important;
+    border-radius: 4px !important;
+    background-color: #ffffff !important;
+    color: #181818 !important;
+    font-family: inherit !important;
+    font-size: 13px !important;
+    font-weight: 400 !important;
+    line-height: 22px !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    box-sizing: border-box !important;
+}
+
+.sticky-field__control_select {
+    padding-right: 28px !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23706e6b' d='M1 1l5 5 5-5'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 8px center !important;
+    background-size: 10px !important;
+    background-color: #ffffff !important;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.sticky-field__control:focus {
+    outline: none !important;
+    border-color: #0176d3 !important;
+    box-shadow: 0 0 0 1px #0176d3 !important;
+}
+
+.sticky-field__control:disabled {
+    background-color: #f3f3f3 !important;
+    color: #444444 !important;
+}
+
+.header-edit-cell {
+    min-height: 2rem;
+    min-width: max-content;
+    width: max-content;
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
+}

@@ -1,0 +1,20 @@
+<template>
+    <lightning-card title="Email Type" icon-name="standard:case">
+        <div class="slds-p-around_medium">
+            <lightning-combobox
+                name="emailType"
+                label="Select Email Template"
+                value={selectedValue}
+                placeholder="-- Select --"
+                options={options}
+                onchange={handleChange}>
+            </lightning-combobox>
+        </div>
+
+        <template if:true={isSaving}>
+            <div class="slds-p-horizontal_medium slds-p-bottom_medium">
+                <lightning-spinner size="small" alternative-text="Saving"></lightning-spinner>
+            </div>
+        </template>
+    </lightning-card>
+</template>

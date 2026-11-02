@@ -1,0 +1,19 @@
+<template>
+    <template lwc:if={showBanner}>
+        <div class="slds-scoped-notification slds-scoped-notification_warning slds-m-bottom_small" role="status">
+            <div class="slds-media slds-media_center">
+                <div class="slds-media__figure">
+                    <lightning-icon
+                        icon-name="utility:warning"
+                        alternative-text="Warning"
+                        size="x-small"
+                        variant="warning"
+                    ></lightning-icon>
+                </div>
+                <div class="slds-media__body">
+                    <p class="slds-text-body_small">{bannerMessage}</p>
+                </div>
+            </div>
+        </div>
+    </template>
+</template>

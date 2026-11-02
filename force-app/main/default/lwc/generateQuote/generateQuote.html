@@ -1,0 +1,577 @@
+<template>
+    <div class={quickActionRootClass}>
+    <template if:false={isQuickAction}>
+    <template if:true={showRecordPageContextLoading}>
+        <div class="slds-p-around_medium slds-align_absolute-center">
+            <lightning-spinner alternative-text="Loading quotes" size="medium"></lightning-spinner>
+        </div>
+    </template>
+    <template if:true={showRecordPageContextError}>
+        <div class="slds-p-around_medium slds-text-color_error">
+            {recordPageContextErrorMessage}
+        </div>
+    </template>
+    <template if:false={showRecordPageContextLoading}>
+    <template if:false={showRecordPageContextError}>
+    <div class="slds-card">
+
+        <!-- Header -->
+        <div class="slds-card__header quote-card-header">
+            <div class="quote-header-top">
+                <h3 class="slds-text-heading_medium header-title">
+                    <lightning-icon
+                        icon-name="standard:quotes"
+                        size="small"
+                        class="slds-m-right_xx-small">
+                    </lightning-icon>
+                    Quotes ({quoteCount})
+                </h3>
+
+                <div class="header-actions">
+                    <lightning-button
+                        label={generateActionLabel}
+                        onclick={handleGenerateQuote}
+                        disabled={isLoading}>
+                    </lightning-button>
+
+                    <template if:true={showRefreshQuoteButton}>
+                        <lightning-button
+                            class="slds-m-left_xx-small"
+                            label="Refresh Quote"
+                            onclick={handleRefreshQuote}
+                            disabled={isLoading}>
+                        </lightning-button>
+                    </template>
+                </div>
+            </div>
+
+            <!-- GC-3292 START: wrapped grouping toggle + new Expand All/Collapse All controls in one row -->
+            <div class="controls-row">
+                <div class="grouping-control" role="group" aria-label="Quote line item grouping">
+                    <span class="grouping-control__label">Group Quote Line Items by</span>
+                    <div class="grouping-control__buttons slds-button-group" role="group">
+                        <button
+                            type="button"
+                            class={psamGroupingButtonClass}
+                            title="Group quote lines by PSAM product subgroup detail name"
+                            onclick={handleSelectPsamGrouping}
+                            disabled={isLoading}>
+                            Product Subgroup
+                        </button>
+                        <button
+                            type="button"
+                            class={salesCategoryGroupingButtonClass}
+                            title="Group quote lines by TAS sales category"
+                            onclick={handleSelectSalesCategoryGrouping}
+                            disabled={isLoading}>
+                            Sales Category
+                        </button>
+                    </div>
+                </div>
+
+                <!-- GC-3292: Expand All / Collapse All buttons -->
+                <div class="expand-collapse-control" role="group" aria-label="Expand or collapse all quotes">
+                    <button
+                        type="button"
+                        class="slds-button slds-button_neutral expand-collapse-btn"
+                        title="Expand all quotes and their subgroup details"
+                        onclick={handleExpandAll}
+                        disabled={disableExpandAll}>
+                        Expand All
+                    </button>
+                    <button
+                        type="button"
+                        class="slds-button slds-button_neutral expand-collapse-btn slds-m-left_xx-small"
+                        title="Collapse all quotes and their subgroup details"
+                        onclick={handleCollapseAll}
+                        disabled={disableCollapseAll}>
+                        Collapse All
+                    </button>
+                </div>
+            </div>
+            <!-- GC-3292 END -->
+        </div>
+
+        <!-- Table -->
+        <div class="slds-card__body quote-table-body">
+            <template if:true={isLoading}>
+                <div class="quote-table-loading">
+                    <lightning-spinner alternative-text="Loading quotes" size="medium"></lightning-spinner>
+                </div>
+            </template>
+
+            <template if:false={isLoading}>
+            <div class="quote-table-scroll">
+                <table class="slds-table slds-table_bordered slds-table_cell-buffer custom-table">
+                    <colgroup>
+                        <col class="quote-table-col" />
+                        <col class="quote-table-col" />
+                        <col class="quote-table-col" />
+                        <col class="quote-table-col" />
+                        <col class="quote-table-col" />
+                        <col class="quote-table-col" />
+                        <col class="quote-table-col" />
+                    </colgroup>
+
+                    <thead>
+                        <tr>
+                            <th class="col-quote">
+                                <div class="quote-number-header">
+                                    <span>Quote Number</span>
+                                    <lightning-helptext content={quoteIdHelpText}></lightning-helptext>
+                                </div>
+                            </th>
+                            <th class="col-status">Status</th>
+                            <th class="col-approval">Approval Status</th>
+                            <th class="col-forecast-confidence">Quote Forecast Confidence</th>
+                            <th class="col-total">Total w/o Freight</th>
+                            <th class="col-modified">Last Modified Date</th>
+                            <th class="col-sync-confidence"></th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        <template if:true={hasQuotes}>
+                            <template for:each={paginatedQuotes} for:item="quote">
+
+                                <!-- Parent Row -->
+                                <tr key={quote.id} class={quote.rowClass}>
+                                    <td>
+                                        <div class="quote-cell">
+                                            <lightning-button-icon
+                                                icon-name={quote.icon}
+                                                variant="bare"
+                                                data-id={quote.id}
+                                                onclick={toggleRow}
+                                                class="expand-icon"
+                                                alternative-text="Toggle product subgroup summary">
+                                            </lightning-button-icon>
+
+                                            <template if:true={quote.hasSalesConnectionUrl}>
+                                                <a
+                                                    class="link-text truncate"
+                                                    href={quote.salesConnectionUrl}
+                                                    data-url={quote.salesConnectionUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    title={quote.quoteId}
+                                                    onclick={handleSalesConnectionLinkClick}>
+                                                    {quote.quoteId}
+                                                </a>
+                                            </template>
+                                            <template if:false={quote.hasSalesConnectionUrl}>
+                                                <span class="truncate" title={quote.quoteId}>
+                                                    {quote.quoteId}
+                                                </span>
+                                            </template>
+
+                                            <template if:true={quote.isForecastIneligible}>
+                                                <lightning-helptext
+                                                    content={forecastIneligibleHelpText}
+                                                    class="forecast-ineligible-helptext">
+                                                </lightning-helptext>
+                                            </template>
+                                        </div>
+                                    </td>
+
+                                    <td>
+                                        <div class="truncate" title={quote.status}>{quote.status}</div>
+                                    </td>
+
+                                    <td>
+                                        <div class="truncate" title={quote.approvalStatus}>{quote.approvalStatus}</div>
+                                    </td>
+
+                                    <td class="col-forecast-confidence">
+                                        <select
+                                            key={quote.forecastConfidenceSelectKey}
+                                            class="slds-select forecast-confidence-select"
+                                            data-id={quote.id}
+                                            onchange={handleForecastConfidenceChange}
+                                            aria-label="Quote Forecast Confidence">
+                                            <option value="">Select confidence</option>
+                                            <template for:each={quote.forecastConfidenceSelectOptions} for:item="option">
+                                                <option
+                                                    key={option.value}
+                                                    value={option.value}
+                                                    selected={option.isSelected}>
+                                                    {option.label}
+                                                </option>
+                                            </template>
+                                        </select>
+                                    </td>
+
+                                    <td>
+                                        <div class="truncate" title={quote.totalWithoutFreight}>
+                                            {quote.totalWithoutFreight}
+                                        </div>
+                                    </td>
+
+                                    <td>
+                                        <div class="truncate" title={quote.lastModifiedDate}>
+                                            {quote.lastModifiedDate}
+                                        </div>
+                                    </td>
+
+                                    <td class="col-sync-confidence">
+                                        <div class="sync-action">
+                                            <template if:true={quote.isSyncingForecastConfidence}>
+                                                <lightning-spinner
+                                                    alternative-text="Saving quote forecast confidence"
+                                                    size="small"
+                                                    class="sync-spinner">
+                                                </lightning-spinner>
+                                            </template>
+                                            <template if:false={quote.isSyncingForecastConfidence}>
+                                                <template if:true={quote.forecastConfidenceDirty}>
+                                                    <div class="sync-action__buttons">
+                                                        <button
+                                                            type="button"
+                                                            class="slds-button slds-button_brand confidence-action-btn"
+                                                            title="Save Quote Forecast Confidence"
+                                                            data-id={quote.id}
+                                                            disabled={quote.saveForecastConfidenceDisabled}
+                                                            onclick={handleSaveForecastConfidence}>
+                                                            Save
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            class="slds-button slds-button_neutral confidence-action-btn"
+                                                            title="Cancel changes to Quote Forecast Confidence"
+                                                            data-id={quote.id}
+                                                            onclick={handleCancelForecastConfidence}>
+                                                            Cancel
+                                                        </button>
+                                                    </div>
+                                                </template>
+                                            </template>
+                                        </div>
+                                    </td>
+                                </tr>
+
+                                <!-- Child Row: Product Subgroup summary accordion -->
+                                <template if:true={quote.isExpanded}>
+                                    <tr key={quote.childKey} class={quote.childRowClass}>
+                                        <td colspan="7" class="child-cell">
+                                            <div class="child-container">
+                                                <template if:true={quote.description}>
+                                                    <p class="quote-description slds-m-bottom_small">
+                                                        <span class="quote-description-label">Description:</span>
+                                                        {quote.description}
+                                                    </p>
+                                                </template>
+                                                <table class="slds-table slds-table_bordered slds-table_cell-buffer child-table">
+                                                    <colgroup>
+                                                        <col class="child-col-subgroup" />
+                                                        <col class="child-col-total" />
+                                                    </colgroup>
+                                                    <thead>
+                                                        <tr>
+                                                            <th scope="col" class="child-col-subgroup">
+                                                                {groupColumnLabel}
+                                                            </th>
+                                                            <th scope="col" class="child-col-total">
+                                                                <span class="child-col-total-label">Total Extended Unit Price</span>
+                                                            </th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <template for:each={quote.productSubgroupSummary} for:item="subgroup">
+                                                            <tr key={subgroup.id}>
+                                                                <td class="child-col-subgroup">
+                                                                    <button
+                                                                        type="button"
+                                                                        class="slds-button slds-button_reset subgroup-toggle"
+                                                                        data-quote-id={quote.id}
+                                                                        data-subgroup-id={subgroup.id}
+                                                                        title={subgroup.productSubgroupDetailName}
+                                                                        onclick={toggleSubgroup}>
+                                                                        <lightning-icon
+                                                                            icon-name={subgroup.lineIcon}
+                                                                            size="x-small"
+                                                                            class="subgroup-expand-icon"
+                                                                            alternative-text="Toggle quote line items">
+                                                                        </lightning-icon>
+                                                                        <span class="subgroup-name truncate">
+                                                                            {subgroup.productSubgroupDetailName}
+                                                                        </span>
+                                                                    </button>
+                                                                </td>
+                                                                <td class="child-col-total">
+                                                                    {subgroup.totalUnitPriceFormatted}
+                                                                </td>
+                                                            </tr>
+
+                                                            <template if:true={subgroup.isExpanded}>
+                                                                <tr key={subgroup.linesKey} class="line-item-row">
+                                                                    <td colspan="2" class="line-item-cell">
+                                                                        <div class="line-item-table-wrapper">
+                                                                        <table class="slds-table slds-table_bordered slds-table_cell-buffer line-item-table">
+                                                                            <colgroup>
+                                                                                <col class="line-item-col-product" />
+                                                                                <col class="line-item-col-uom" />
+                                                                                <col class="line-item-col-qty" />
+                                                                                <col class="line-item-col-unit" />
+                                                                                <col class="line-item-col-total" />
+                                                                            </colgroup>
+                                                                            <thead>
+                                                                                <tr>
+                                                                                    <th scope="col">
+                                                                                        <span class="line-item-header-label">Product Name</span>
+                                                                                    </th>
+                                                                                    <th scope="col" class="line-item-col-uom">
+                                                                                        <span class="line-item-header-label">UOM</span>
+                                                                                    </th>
+                                                                                    <th scope="col" class="line-item-col-qty">
+                                                                                        <span class="line-item-header-label">Quantity</span>
+                                                                                    </th>
+                                                                                    <th scope="col" class="line-item-col-unit">
+                                                                                        <span class="line-item-header-label">Unit Price</span>
+                                                                                    </th>
+                                                                                    <th scope="col" class="line-item-col-total">
+                                                                                        <span class="line-item-col-total-label">Extended Unit Price</span>
+                                                                                    </th>
+                                                                                </tr>
+                                                                            </thead>
+                                                                            <tbody>
+                                                                                <template for:each={subgroup.quoteLines} for:item="line">
+                                                                                    <tr key={line.rowKey}>
+                                                                                        <td class="truncate" title={line.productName}>
+                                                                                            <template if:true={line.hasRecordLink}>
+                                                                                                <a
+                                                                                                    class="link-text truncate"
+                                                                                                    href={line.recordUrl}
+                                                                                                    title={line.productName}
+                                                                                                    target="_blank"
+                                                                                                    rel="noopener noreferrer">
+                                                                                                    {line.productName}
+                                                                                                </a>
+                                                                                            </template>
+                                                                                            <template if:false={line.hasRecordLink}>
+                                                                                                {line.productName}
+                                                                                            </template>
+                                                                                        </td>
+                                                                                        <td class="line-item-col-uom">
+                                                                                            {line.uomDisplay}
+                                                                                        </td>
+                                                                                        <td class="line-item-col-qty">
+                                                                                            {line.quantityFormatted}
+                                                                                        </td>
+                                                                                        <td class="line-item-col-unit">
+                                                                                            {line.unitPriceFormatted}
+                                                                                        </td>
+                                                                                        <td class="line-item-col-total">
+                                                                                            {line.lineTotalFormatted}
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                </template>
+                                                                            </tbody>
+                                                                        </table>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            </template>
+                                                        </template>
+
+                                                        <template if:true={quote.hasNoProductSubgroupSummary}>
+                                                            <tr>
+                                                                <td colspan="2" class="slds-text-align_center slds-p-around_small">
+                                                                    No product subgroup summary available
+                                                                </td>
+                                                            </tr>
+                                                        </template>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </template>
+
+                            </template>
+                        </template>
+
+                        <template if:false={hasQuotes}>
+                            <tr>
+                                <td colspan="7" class="slds-text-align_center slds-p-around_medium">
+                                    No quotes available
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+            <template if:true={showPagination}>
+                <div class="quote-pagination slds-p-horizontal_medium slds-p-vertical_small slds-grid slds-grid_align-spread slds-grid_vertical-align-center">
+                    <p class="slds-text-body_small quote-pagination-summary">{paginationSummary}</p>
+                    <div class="slds-button-group" role="group" aria-label="Quote table pagination">
+                        <lightning-button
+                            label="Previous"
+                            onclick={handlePreviousPage}
+                            disabled={disablePreviousPage}>
+                        </lightning-button>
+                        <lightning-button
+                            class="slds-m-left_xx-small"
+                            label="Next"
+                            onclick={handleNextPage}
+                            disabled={disableNextPage}>
+                        </lightning-button>
+                    </div>
+                </div>
+            </template>
+            </template>
+        </div>
+    </div>
+    </template>
+    </template>
+    </template>
+
+    <template if:true={showQuickActionLoading}>
+        <div class="quick-action-loading">
+            <lightning-spinner alternative-text="Loading quotes" size="medium"></lightning-spinner>
+        </div>
+    </template>
+
+    <!-- Existing Quotes Modal -->
+    <template if:true={showExistingQuotesModal}>
+        <section
+            role="dialog"
+            tabindex="-1"
+            aria-modal="true"
+            aria-labelledby="existing-quotes-modal-heading"
+            class={modalShellClass}>
+            <div class={existingQuotesContainerClass}>
+
+                <header class={modalHeaderClass}>
+                    <template if:false={isQuickAction}>
+                        <button
+                            class="slds-button slds-button_icon slds-modal__close slds-button_icon"
+                            title="Close"
+                            onclick={closeExistingQuotesModal}>
+                            <lightning-icon icon-name="utility:close" alternative-text="Close" size="small"></lightning-icon>
+                            <span class="slds-assistive-text">Close</span>
+                        </button>
+                    </template>
+                    <h2 id="existing-quotes-modal-heading" class="slds-modal__title slds-hyphenate slds-text-align_center">
+                        {existingQuotesModalHeading}
+                    </h2>
+                </header>
+
+                <div class={existingQuotesBodyClass}>
+                    <div class="slds-text-align_center slds-m-bottom_medium">
+                        <lightning-icon
+                            icon-name="utility:warning"
+                            size="large"
+                            variant="warning"
+                            class="existing-quotes-warning-icon">
+                        </lightning-icon>
+                    </div>
+
+                    <p class="slds-text-heading_small slds-text-align_center slds-m-bottom_small existing-quotes-heading">
+                        {existingQuotesModalIntro}
+                    </p>
+
+                    <p class="slds-text-body_regular slds-text-align_center slds-m-bottom_large existing-quotes-subtext">
+                        {existingQuotesModalSubtext}
+                    </p>
+
+                    <table class="slds-table slds-table_bordered slds-table_cell-buffer existing-quotes-table">
+                        <thead>
+                            <tr class="slds-line-height_reset">
+                                <th scope="col" class="existing-quotes-col-number">
+                                    <div class="quote-number-header">
+                                        <div class="slds-truncate" title="Quote Number">Quote Number</div>
+                                        <lightning-helptext content={quoteIdHelpText}></lightning-helptext>
+                                    </div>
+                                </th>
+                                <th scope="col" class="existing-quotes-col-status">
+                                    <div class="slds-truncate" title="Status">Status</div>
+                                </th>
+                                <th scope="col" class="existing-quotes-col-approval">
+                                    <div class="slds-truncate" title="Approval Status">Approval Status</div>
+                                </th>
+                                <th scope="col" class="existing-quotes-col-total">
+                                    <div class="slds-truncate" title="Total w/o Freight">Total w/o Freight</div>
+                                </th>
+                                <th scope="col" class="existing-quotes-col-modified">
+                                    <div class="slds-truncate" title="Last Modified Date">Last Modified Date</div>
+                                </th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            <template for:each={modalQuotes} for:item="q">
+                                <tr key={q.id} class={q.rowClass}>
+                                    <td>
+                                        <div class="quote-cell">
+                                            <template if:true={q.hasSalesConnectionUrl}>
+                                                <a
+                                                    class="link-text truncate existing-quotes-link"
+                                                    href={q.salesConnectionUrl}
+                                                    data-url={q.salesConnectionUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    title={q.quoteId}
+                                                    onclick={handleSalesConnectionLinkClick}>
+                                                    {q.quoteId}
+                                                </a>
+                                            </template>
+                                            <template if:false={q.hasSalesConnectionUrl}>
+                                                <button
+                                                    type="button"
+                                                    class="slds-button slds-button_reset link-text truncate existing-quotes-link"
+                                                    data-id={q.id}
+                                                    title={q.quoteId}
+                                                    onclick={handleQuoteLinkClick}>
+                                                    {q.quoteId}
+                                                </button>
+                                            </template>
+
+                                            <template if:true={q.isForecastIneligible}>
+                                                <lightning-helptext
+                                                    content={forecastIneligibleHelpText}
+                                                    class="forecast-ineligible-helptext">
+                                                </lightning-helptext>
+                                            </template>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="truncate" title={q.status}>{q.status}</div>
+                                    </td>
+                                    <td>
+                                        <div class="truncate" title={q.approvalStatus}>{q.approvalStatus}</div>
+                                    </td>
+                                    <td>
+                                        <div class="truncate" title={q.totalWithoutFreight}>{q.totalWithoutFreight}</div>
+                                    </td>
+                                    <td>
+                                        <div class="truncate" title={q.lastModifiedDate}>{q.lastModifiedDate}</div>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+
+                <footer class={existingQuotesFooterClass}>
+                    <lightning-button
+                        label="Cancel"
+                        onclick={closeExistingQuotesModal}>
+                    </lightning-button>
+
+                    <lightning-button
+                        variant="brand"
+                        label={generateNewQuoteButtonLabel}
+                        class="slds-m-left_small"
+                        onclick={handleGenerateNewQuote}>
+                    </lightning-button>
+                </footer>
+            </div>
+        </section>
+
+        <template if:false={isQuickAction}>
+            <div class="slds-backdrop slds-backdrop_open"></div>
+        </template>
+    </template>
+    </div>
+
+</template>

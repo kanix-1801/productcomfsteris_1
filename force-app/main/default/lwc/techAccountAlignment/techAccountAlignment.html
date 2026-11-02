@@ -1,0 +1,60 @@
+<template>
+    <lightning-card title="Tech Account Alignment" icon-name="standard:service_resource">
+        <div class="slds-p-around_medium">
+            <p class="slds-m-bottom_small">
+                Upload the Tech Account Alignment file, then start processing. Each valid row creates an
+                AddressResourcePreference record for the Address account that matches Oracle Address Id.
+            </p>
+            <p class="slds-text-body_small slds-m-bottom_medium">
+                Required columns: Address ID, User ID. Optional: Territory Type, Work Type, Preference Level
+                (defaults to Preferred).
+            </p>
+
+            <div class="slds-m-bottom_medium">
+                <lightning-file-upload
+                    label="Upload assignment file"
+                    name="techAccountAlignmentUpload"
+                    accept={acceptedFormats}
+                    onuploadfinished={handleUploadFinished}
+                    disabled={isBusy}
+                ></lightning-file-upload>
+                <template lwc:if={uploadedFileName}>
+                    <p class="slds-m-top_x-small slds-text-body_small">Selected file: {uploadedFileName}</p>
+                </template>
+            </div>
+
+            <div class="slds-m-bottom_medium">
+                <lightning-button
+                    variant="brand"
+                    label="Start Upload"
+                    onclick={handleStartUpload}
+                    disabled={isStartDisabled}
+                    class="slds-m-right_small"
+                ></lightning-button>
+                <lightning-button
+                    variant="neutral"
+                    label="Download Template"
+                    onclick={handleDownloadTemplate}
+                    disabled={isBusy}
+                ></lightning-button>
+            </div>
+
+            <template lwc:if={isBusy}>
+                <lightning-spinner alternative-text="Processing" size="small"></lightning-spinner>
+            </template>
+
+            <template lwc:if={resultSummary}>
+                <div class="slds-box slds-theme_shade slds-m-top_small">
+                    <p>{resultSummary}</p>
+                    <template lwc:if={hasErrors}>
+                        <ul class="slds-m-top_small">
+                            <template for:each={visibleErrors} for:item="errorItem">
+                                <li key={errorItem.key}>{errorItem.message}</li>
+                            </template>
+                        </ul>
+                    </template>
+                </div>
+            </template>
+        </div>
+    </lightning-card>
+</template>

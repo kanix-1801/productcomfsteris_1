@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>65.0</apiVersion>
+    <isExposed>false</isExposed>
+    <description>
+        Warranty Repair Evaluation related list and create/edit form for Device Evaluation (GW-3913).
+    </description>
+</LightningComponentBundle>

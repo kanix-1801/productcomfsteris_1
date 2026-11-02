@@ -1,0 +1,152 @@
+<template>
+    <div class="slds-is-relative">
+        <template if:true={isBusy}>
+            <lightning-spinner
+                alternative-text="Loading"
+                size="medium"
+                variant="brand">
+            </lightning-spinner>
+        </template>
+
+        <header class="slds-modal__header">
+            <h2 class="slds-text-heading_medium slds-hyphenate">Request Customer Sample</h2>
+        </header>
+
+        <template if:true={isLoading}>
+            <div class="slds-p-vertical_xx-large"></div>
+        </template>
+
+        <template if:false={isLoading}>
+            <template if:true={loadError}>
+                <div class="slds-p-around_medium">
+                    <div class="slds-notify slds-notify_alert slds-theme_error" role="alert">
+                        <span class="slds-assistive-text">Error</span>
+                        {loadError}
+                    </div>
+                </div>
+                <footer class="slds-modal__footer">
+                    <lightning-button label="Close" onclick={handleCancel}></lightning-button>
+                </footer>
+            </template>
+
+            <template if:true={showForm}>
+                <lightning-record-edit-form
+                    object-api-name="Sample__c"
+                    density="comfy"
+                    onsubmit={handleSubmit}
+                    onsuccess={handleSuccess}
+                    onerror={handleError}>
+
+                    <div class="slds-modal__content slds-p-around_medium">
+                        <lightning-messages></lightning-messages>
+
+                        <h3 class="slds-section__title slds-theme_shade slds-p-horizontal_small slds-p-vertical_xx-small slds-m-bottom_small">
+                            <span class="slds-truncate">Sample Information</span>
+                        </h3>
+
+                        <lightning-layout multiple-rows horizontal-align="spread">
+                            <lightning-layout-item size="12" medium-device-size="6" padding="horizontal-small">
+                                <lightning-input-field
+                                    class="slds-m-bottom_x-small"
+                                    field-name="RelatedOpportunity__c"
+                                    value={opportunityId}
+                                    disabled>
+                                </lightning-input-field>
+
+                                <lightning-combobox
+                                    class="slds-m-bottom_x-small"
+                                    label="Customer Contact"
+                                    placeholder={contactPlaceholder}
+                                    options={contactOptions}
+                                    value={customerContactId}
+                                    required
+                                    disabled={isContactLookupDisabled}
+                                    onchange={handleContactChange}>
+                                </lightning-combobox>
+
+                                <template if:true={hasNoAccountContacts}>
+                                    <p class="slds-text-color_error slds-text-body_small slds-m-bottom_x-small">
+                                        This Account has no related Contacts. Add a Contact to the Account first.
+                                    </p>
+                                </template>
+
+                                <lightning-input-field
+                                    class="slds-m-bottom_x-small"
+                                    field-name="RequestedDeliveryDate__c"
+                                    required>
+                                </lightning-input-field>
+                            </lightning-layout-item>
+
+                            <lightning-layout-item size="12" medium-device-size="6" padding="horizontal-small">
+                                <lightning-input-field
+                                    class="slds-m-bottom_x-small"
+                                    field-name="CustomerAccount__c"
+                                    value={accountId}
+                                    disabled>
+                                </lightning-input-field>
+
+                                <lightning-input-field
+                                    class="slds-m-bottom_x-small"
+                                    field-name="SamplePurpose__c"
+                                    required
+                                    onchange={handleSamplePurposeChange}>
+                                </lightning-input-field>
+
+                                <template if:true={showOtherPurpose}>
+                                    <lightning-input-field
+                                        class="slds-m-bottom_x-small"
+                                        field-name="SamplePurposeOther__c"
+                                        required>
+                                    </lightning-input-field>
+                                </template>
+                            </lightning-layout-item>
+
+                            <lightning-layout-item size="12" padding="horizontal-small">
+                                <lightning-input-field
+                                    class="slds-m-bottom_x-small"
+                                    field-name="BusinessJustification__c"
+                                    required>
+                                </lightning-input-field>
+                            </lightning-layout-item>
+                        </lightning-layout>
+
+                        <h3 class="slds-section__title slds-theme_shade slds-p-horizontal_small slds-p-vertical_xx-small slds-m-top_medium slds-m-bottom_small">
+                            <span class="slds-truncate">Follow-up</span>
+                        </h3>
+
+                        <lightning-layout multiple-rows>
+                            <lightning-layout-item size="12" medium-device-size="6" padding="horizontal-small">
+                                <lightning-input-field
+                                    class="slds-m-bottom_x-small"
+                                    field-name="FollowUpDate__c">
+                                </lightning-input-field>
+                            </lightning-layout-item>
+
+                            <lightning-layout-item size="12" medium-device-size="6" padding="horizontal-small">
+                                <lightning-input-field
+                                    class="slds-m-bottom_x-small"
+                                    field-name="FollowUpReminder__c">
+                                </lightning-input-field>
+                            </lightning-layout-item>
+                        </lightning-layout>
+                    </div>
+
+                    <footer class="slds-modal__footer">
+                        <lightning-button
+                            label="Cancel"
+                            onclick={handleCancel}
+                            disabled={isSaving}>
+                        </lightning-button>
+                        <lightning-button
+                            class="slds-m-left_x-small"
+                            variant="brand"
+                            type="submit"
+                            label="Save"
+                            disabled={isSaving}>
+                        </lightning-button>
+                    </footer>
+                </lightning-record-edit-form>
+            </template>
+        </template>
+    </div>
+</template>

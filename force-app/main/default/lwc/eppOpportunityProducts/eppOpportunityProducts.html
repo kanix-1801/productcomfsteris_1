@@ -1,0 +1,434 @@
+<template>
+    <lightning-card title={sectionTitle} icon-name="standard:product">
+        <div slot="actions" class="slds-grid slds-grid_vertical-align-center">
+            <lightning-button-icon
+                class="slds-m-right_x-small"
+                icon-name="utility:refresh"
+                variant="border-filled"
+                alternative-text="Refresh"
+                title="Refresh"
+                onclick={loadExistingProducts}>
+            </lightning-button-icon>
+            <lightning-button
+                label={addButtonLabel}
+                variant="brand"
+                onclick={openModal}>
+            </lightning-button>
+        </div>
+
+        <template if:true={hasExistingProducts}>
+            <div class="existing-products-scroll">
+                <lightning-datatable
+                    key-field="opportunityLineItemId"
+                    data={existingProducts}
+                    columns={existingColumns}
+                    onrowaction={handleRowAction}
+                    column-widths-mode="fixed"
+                    min-column-width="90"
+                    hide-checkbox-column>
+                </lightning-datatable>
+            </div>
+        </template>
+        <template if:false={hasExistingProducts}>
+            <div class="slds-p-around_medium slds-text-color_weak">
+                No products have been added to this section.
+            </div>
+        </template>
+
+        <template if:true={isLoading}>
+            <lightning-spinner alternative-text="Loading"></lightning-spinner>
+        </template>
+    </lightning-card>
+
+    <template if:true={isModalOpen}>
+        <section
+            role="dialog"
+            tabindex="-1"
+            aria-modal="true"
+            aria-label={modalTitle}
+            class="slds-modal slds-fade-in-open">
+            <div class="slds-modal__container epp-modal">
+                <header class="slds-modal__header">
+                    <button
+                        class="slds-button slds-button_icon slds-modal__close slds-button_icon-inverse"
+                        title="Close"
+                        onclick={closeModal}>
+                        <lightning-icon
+                            icon-name="utility:close"
+                            alternative-text="Close"
+                            size="small">
+                        </lightning-icon>
+                        <span class="slds-assistive-text">Close</span>
+                    </button>
+                    <h2 class="slds-modal__title slds-hyphenate">{modalTitle}</h2>
+                </header>
+
+                <div class="slds-modal__content slds-p-around_medium">
+                    <template if:true={errorMessage}>
+                        <div
+                            class="slds-notify slds-notify_alert slds-alert_error slds-m-bottom_medium"
+                            role="alert">
+                            {errorMessage}
+                        </div>
+                    </template>
+
+                    <div class="search-row">
+                        <lightning-input
+                            class="search-input"
+                            type="search"
+                            label="Product Name or Item Number"
+                            value={searchKey}
+                            onchange={handleSearchKeyChange}
+                            onkeypress={handleSearchKeyPress}>
+                        </lightning-input>
+                        <lightning-button
+                            label="Search"
+                            variant="brand"
+                            onclick={handleSearch}>
+                        </lightning-button>
+                    </div>
+
+                    <template if:true={hasSearchResults}>
+                        <div class="slds-m-top_medium">
+                            <lightning-datatable
+                                key-field="pricebookEntryId"
+                                data={searchResults}
+                                columns={productColumns}
+                                selected-rows={selectedProductIds}
+                                onrowselection={handleProductSelection}>
+                            </lightning-datatable>
+                        </div>
+                    </template>
+                    <template if:false={hasSearchResults}>
+                        <div class="slds-m-top_medium slds-text-color_weak">
+                            No eligible products matched the search.
+                        </div>
+                    </template>
+
+                    <template if:true={hasSelectedProducts}>
+                        <h3 class="slds-text-heading_small slds-m-top_large slds-m-bottom_small">
+                            Selected Products
+                        </h3>
+                        <div class="selected-products-scroll">
+                            <table class="slds-table slds-table_cell-buffer slds-table_bordered">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Product</th>
+                                        <th scope="col">Item Number</th>
+                                        <th scope="col">Quantity</th>
+                                        <template if:false={isConsumable}>
+                                            <th scope="col">Placement Start Date</th>
+                                            <th scope="col">Placement End Date</th>
+                                        </template>
+                                        <template if:true={isConsumable}>
+                                            <th scope="col">Frequency</th>
+                                            <th scope="col">Standard / Oracle Price</th>
+                                            <th scope="col">Elevated / EPP Pricing</th>
+                                            <th scope="col">EPP Price</th>
+                                            <th scope="col">Commitment Start Date</th>
+                                            <th scope="col">Commitment End Date</th>
+                                        </template>
+                                        <th scope="col">Remove</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={selectedProducts} for:item="product">
+                                        <tr key={product.pricebookEntryId}>
+                                            <td>{product.productName}</td>
+                                            <td>{product.productCode}</td>
+                                            <td>
+                                                <lightning-input
+                                                    type="number"
+                                                    variant="label-hidden"
+                                                    label="Quantity"
+                                                    min="0.01"
+                                                    step="0.01"
+                                                    required
+                                                    value={product.quantity}
+                                                    data-entryid={product.pricebookEntryId}
+                                                    data-field="quantity"
+                                                    data-type="number"
+                                                    data-validate="true"
+                                                    onchange={handleLineFieldChange}>
+                                                </lightning-input>
+                                            </td>
+                                            <template if:false={isConsumable}>
+                                                <td>
+                                                    <lightning-input
+                                                        type="date"
+                                                        variant="label-hidden"
+                                                        label="Placement Start Date"
+                                                        required
+                                                        value={product.placementStartDate}
+                                                        data-entryid={product.pricebookEntryId}
+                                                        data-field="placementStartDate"
+                                                        data-type="date"
+                                                        data-validate="true"
+                                                        onchange={handleLineFieldChange}>
+                                                    </lightning-input>
+                                                </td>
+                                                <td>
+                                                    <lightning-input
+                                                        type="date"
+                                                        variant="label-hidden"
+                                                        label="Placement End Date"
+                                                        required
+                                                        value={product.placementEndDate}
+                                                        data-entryid={product.pricebookEntryId}
+                                                        data-field="placementEndDate"
+                                                        data-type="date"
+                                                        data-validate="true"
+                                                        onchange={handleLineFieldChange}>
+                                                    </lightning-input>
+                                                </td>
+                                            </template>
+                                            <template if:true={isConsumable}>
+                                                <td>
+                                                    <lightning-combobox
+                                                        variant="label-hidden"
+                                                        label="Frequency"
+                                                        placeholder="Select"
+                                                        required
+                                                        options={frequencyOptions}
+                                                        value={product.consumptionFrequency}
+                                                        data-entryid={product.pricebookEntryId}
+                                                        data-field="consumptionFrequency"
+                                                        data-type="text"
+                                                        data-validate="true"
+                                                        onchange={handleLineFieldChange}>
+                                                    </lightning-combobox>
+                                                </td>
+                                                <td>{product.listPrice}</td>
+                                                <td>
+                                                    <lightning-input
+                                                        type="checkbox"
+                                                        variant="label-hidden"
+                                                        label="Elevated / EPP Pricing Applicable"
+                                                        checked={product.elevatedEPPPricingApplicable}
+                                                        data-entryid={product.pricebookEntryId}
+                                                        data-field="elevatedEPPPricingApplicable"
+                                                        data-type="checkbox"
+                                                        onchange={handleLineFieldChange}>
+                                                    </lightning-input>
+                                                </td>
+                                                <td>
+                                                    <template if:true={product.elevatedEPPPricingApplicable}>
+                                                        <lightning-input
+                                                            type="number"
+                                                            variant="label-hidden"
+                                                            label="EPP Price"
+                                                            min="0"
+                                                            step="0.01"
+                                                            required
+                                                            value={product.eppPrice}
+                                                            data-entryid={product.pricebookEntryId}
+                                                            data-field="eppPrice"
+                                                            data-type="number"
+                                                            data-validate="true"
+                                                            onchange={handleLineFieldChange}>
+                                                        </lightning-input>
+                                                    </template>
+                                                    <template if:false={product.elevatedEPPPricingApplicable}>
+                                                        <span class="slds-text-color_weak">Not applicable</span>
+                                                    </template>
+                                                </td>
+                                                <td>
+                                                    <lightning-input
+                                                        type="date"
+                                                        variant="label-hidden"
+                                                        label="Commitment Start Date"
+                                                        required
+                                                        value={product.commitmentStartDate}
+                                                        data-entryid={product.pricebookEntryId}
+                                                        data-field="commitmentStartDate"
+                                                        data-type="date"
+                                                        data-validate="true"
+                                                        onchange={handleLineFieldChange}>
+                                                    </lightning-input>
+                                                </td>
+                                                <td>
+                                                    <lightning-input
+                                                        type="date"
+                                                        variant="label-hidden"
+                                                        label="Commitment End Date"
+                                                        required
+                                                        value={product.commitmentEndDate}
+                                                        data-entryid={product.pricebookEntryId}
+                                                        data-field="commitmentEndDate"
+                                                        data-type="date"
+                                                        data-validate="true"
+                                                        onchange={handleLineFieldChange}>
+                                                    </lightning-input>
+                                                </td>
+                                            </template>
+                                            <td>
+                                                <lightning-button-icon
+                                                    icon-name="utility:close"
+                                                    variant="bare"
+                                                    alternative-text="Remove"
+                                                    data-entryid={product.pricebookEntryId}
+                                                    onclick={removeSelectedProduct}>
+                                                </lightning-button-icon>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </template>
+                </div>
+
+                <footer class="slds-modal__footer">
+                    <lightning-button
+                        label="Cancel"
+                        onclick={closeModal}
+                        disabled={isLoading}>
+                    </lightning-button>
+                    <lightning-button
+                        class="slds-m-left_x-small"
+                        label="Add Products"
+                        variant="brand"
+                        onclick={handleSave}
+                        disabled={isSaveDisabled}>
+                    </lightning-button>
+                </footer>
+
+                <template if:true={isLoading}>
+                    <lightning-spinner alternative-text="Processing"></lightning-spinner>
+                </template>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open"></div>
+    </template>
+
+    <template if:true={isDetailModalOpen}>
+        <section
+            role="dialog"
+            tabindex="-1"
+            aria-modal="true"
+            aria-label={detailModalTitle}
+            class="slds-modal slds-fade-in-open">
+            <div class="slds-modal__container epp-detail-modal">
+                <header class="slds-modal__header">
+                    <button
+                        class="slds-button slds-button_icon slds-modal__close slds-button_icon-inverse"
+                        title="Close"
+                        onclick={closeDetailModal}>
+                        <lightning-icon
+                            icon-name="utility:close"
+                            alternative-text="Close"
+                            size="small">
+                        </lightning-icon>
+                        <span class="slds-assistive-text">Close</span>
+                    </button>
+                    <h2 class="slds-modal__title slds-hyphenate">{detailModalTitle}</h2>
+                </header>
+
+                <lightning-record-edit-form
+                    record-id={selectedLineId}
+                    object-api-name="OpportunityLineItem"
+                    onsuccess={handleDetailSuccess}
+                    onerror={handleDetailError}>
+                    <div class="slds-modal__content slds-p-around_medium epp-detail-content">
+                        <lightning-messages></lightning-messages>
+
+                        <section class="detail-section">
+                            <h3 class="detail-section-title">Product Information</h3>
+                            <div class="slds-grid slds-wrap slds-gutters">
+                                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                    <lightning-output-field field-name="Product2Id"></lightning-output-field>
+                                    <lightning-output-field field-name="ProductCode"></lightning-output-field>
+                                    <lightning-output-field field-name="ProductFamily__c"></lightning-output-field>
+                                    <lightning-output-field field-name="BusinessUnit__c"></lightning-output-field>
+                                </div>
+                                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                    <template if:true={isDetailEdit}>
+                                        <lightning-input-field field-name="Quantity"></lightning-input-field>
+                                        <lightning-input-field field-name="UnitPrice"></lightning-input-field>
+                                    </template>
+                                    <template if:false={isDetailEdit}>
+                                        <lightning-output-field field-name="Quantity"></lightning-output-field>
+                                        <lightning-output-field field-name="UnitPrice"></lightning-output-field>
+                                    </template>
+                                    <lightning-output-field field-name="TotalPrice"></lightning-output-field>
+                                </div>
+                            </div>
+                        </section>
+
+                        <template if:false={isConsumable}>
+                            <section class="detail-section">
+                                <h3 class="detail-section-title">EPP Placement</h3>
+                                <div class="slds-grid slds-wrap slds-gutters">
+                                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                        <template if:true={isDetailEdit}>
+                                            <lightning-input-field field-name="PlacementStartDate__c"></lightning-input-field>
+                                        </template>
+                                        <template if:false={isDetailEdit}>
+                                            <lightning-output-field field-name="PlacementStartDate__c"></lightning-output-field>
+                                        </template>
+                                    </div>
+                                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                        <template if:true={isDetailEdit}>
+                                            <lightning-input-field field-name="PlacementEndDate__c"></lightning-input-field>
+                                        </template>
+                                        <template if:false={isDetailEdit}>
+                                            <lightning-output-field field-name="PlacementEndDate__c"></lightning-output-field>
+                                        </template>
+                                    </div>
+                                </div>
+                            </section>
+                        </template>
+
+                        <template if:true={isConsumable}>
+                            <section class="detail-section">
+                                <h3 class="detail-section-title">EPP Commitment &amp; Pricing</h3>
+                                <div class="slds-grid slds-wrap slds-gutters">
+                                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                        <template if:true={isDetailEdit}>
+                                            <lightning-input-field field-name="ConsumptionFrequency__c"></lightning-input-field>
+                                            <lightning-input-field field-name="ElevatedEPPPricingApplicable__c"></lightning-input-field>
+                                            <lightning-input-field field-name="EPPPrice__c"></lightning-input-field>
+                                            <lightning-input-field field-name="CommitmentStartDate__c"></lightning-input-field>
+                                        </template>
+                                        <template if:false={isDetailEdit}>
+                                            <lightning-output-field field-name="ConsumptionFrequency__c"></lightning-output-field>
+                                            <lightning-output-field field-name="ElevatedEPPPricingApplicable__c"></lightning-output-field>
+                                            <lightning-output-field field-name="EPPPrice__c"></lightning-output-field>
+                                            <lightning-output-field field-name="CommitmentStartDate__c"></lightning-output-field>
+                                        </template>
+                                    </div>
+                                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                        <template if:true={isDetailEdit}>
+                                            <lightning-input-field field-name="CommitmentEndDate__c"></lightning-input-field>
+                                        </template>
+                                        <template if:false={isDetailEdit}>
+                                            <lightning-output-field field-name="CommitmentEndDate__c"></lightning-output-field>
+                                        </template>
+                                        <lightning-output-field field-name="AnnualCommittedRevenue__c"></lightning-output-field>
+                                        <lightning-output-field field-name="ContractTermRevenue__c"></lightning-output-field>
+                                    </div>
+                                </div>
+                            </section>
+                        </template>
+                    </div>
+
+                    <footer class="slds-modal__footer">
+                        <lightning-button
+                            label="Close"
+                            onclick={closeDetailModal}>
+                        </lightning-button>
+                        <template if:true={isDetailEdit}>
+                            <lightning-button
+                                class="slds-m-left_x-small"
+                                label="Save"
+                                variant="brand"
+                                type="submit">
+                            </lightning-button>
+                        </template>
+                    </footer>
+                </lightning-record-edit-form>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open"></div>
+    </template>
+</template>

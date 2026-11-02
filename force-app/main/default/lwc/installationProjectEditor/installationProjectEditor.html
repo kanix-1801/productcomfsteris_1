@@ -1,0 +1,270 @@
+<template>
+    <lightning-card>
+        <!-- Loading Spinner -->
+        <template if:true={isLoading}>
+            <div class="slds-text-align_center slds-p-around_large">
+                <lightning-spinner alternative-text="Loading project data..." size="large"></lightning-spinner>
+            </div>
+        </template>
+
+        <!-- Main Content -->
+        <template if:false={isLoading}>
+            <!-- Fixed Height Content Container -->
+            <div class="content-wrapper">
+                <!-- Page Content Area -->
+                <div class="page-content">
+                    <!-- Page Title with Icon -->
+                    <div class="slds-m-horizontal_medium slds-m-vertical_medium">
+                        <div class="slds-media slds-m-bottom_medium">
+                            <div class="slds-media__figure">
+                                <lightning-icon 
+                                    icon-name="utility:settings" 
+                                    size="small"
+                                    class="brandIcon">
+                                </lightning-icon>
+                            </div>
+                            <div class="slds-media__body">
+                                <h3 class="slds-text-heading_small slds-m-bottom_none">Edit Project Details</h3>
+                                <p class="slds-text-body_small slds-m-top_x-small slds-text-color_weak">
+                                    Project: {projectData.projectName}
+                                </p>
+                                <p class="slds-text-body_small slds-m-top_x-small slds-text-color_weak">
+                                    Template: {projectData.templateName}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Custom Table -->
+                    <div class="slds-m-horizontal_medium slds-m-bottom_medium">
+                        <div class="table-container">
+                            <table class="slds-table slds-table_cell-buffer slds-table_bordered">
+                                <thead>
+                                    <tr class="slds-line-height_reset">
+                                        <th scope="col" class="slds-text-align_center" style="width: 60px;">
+                                            <div class="slds-truncate" title="#">#</div>
+                                        </th>
+                                        <th scope="col" style="width: 100px;">
+                                            <div class="slds-truncate" title="Type">Type</div>
+                                        </th>
+                                        <th scope="col">
+                                            <div class="slds-truncate" title="Details">Details</div>
+                                        </th>
+                                        <th scope="col" style="width: 130px;">
+                                            <div class="slds-truncate" title="Due Date">Due Date</div>
+                                        </th>
+                                        <th scope="col" style="width: 100px;">
+                                            <div class="slds-truncate" title="Duration (Days)">Duration (Days)</div>
+                                        </th>
+                                        <th scope="col" style="width: 150px;">
+                                            <div class="slds-truncate" title="Assigned To">Assigned To</div>
+                                        </th>
+                                        <th scope="col" style="width: 130px;">
+                                            <div class="slds-truncate" title="Status">Status</div>
+                                        </th>
+                                        <th scope="col" style="width: 75px;">
+                                            <div class="slds-truncate" title="Actions">Actions</div>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template if:true={projectItems}>
+                                        <template for:each={projectItems} for:item="item">
+                                            <tr key={item.id} class="slds-hint-parent">
+                                                <!-- Column 1: # -->
+                                                <td class="slds-text-align_center">
+                                                    <div class="slds-truncate" title={item.sequence}>
+                                                        {item.sequence}
+                                                    </div>
+                                                </td>
+                                                
+                                                <!-- Column 2: Type (Editable only for new items) -->
+                                                <td>
+                                                    <template if:true={item.isNew}>
+                                                        <lightning-combobox
+                                                            options={typeOptions}
+                                                            value={item.recordType}
+                                                            placeholder="Select..."
+                                                            data-id={item.id}
+                                                            onchange={handleTypeChange}
+                                                            class="slds-m-bottom_none">
+                                                        </lightning-combobox>
+                                                    </template>
+                                                    <template if:false={item.isNew}>
+                                                        <div class="slds-truncate" title={item.recordType}>
+                                                            {item.recordType}
+                                                        </div>
+                                                    </template>
+                                                </td>
+                                                
+                                                <!-- Column 3: Details (Editable only for new items) -->
+                                                <td>
+                                                    <template if:true={item.isNew}>
+                                                        <lightning-input
+                                                            type="text"
+                                                            value={item.subject}
+                                                            data-id={item.id}
+                                                            onchange={handleSubjectChange}
+                                                            class="slds-m-bottom_none">
+                                                        </lightning-input>
+                                                    </template>
+                                                    <template if:false={item.isNew}>
+                                                        <div class="slds-truncate" title={item.subject}>
+                                                            {item.subject}
+                                                        </div>
+                                                    </template>
+                                                </td>
+                                                
+                                                <!-- Column 4: Due Date (Editable) -->
+                                                <td>
+                                                    <lightning-input
+                                                        type="date"
+                                                        value={item.activityDate}
+                                                        data-id={item.id}
+                                                        onchange={handleDueDateChange}
+                                                        class="slds-m-bottom_none">
+                                                    </lightning-input>
+                                                </td>
+                                                
+                                                <!-- Column 5: Duration (Days) (Editable) -->
+                                                <td>
+                                                    <lightning-input
+                                                        type="number"
+                                                        value={item.duration}
+                                                        min="0"
+                                                        step="1"
+                                                        data-id={item.id}
+                                                        onchange={handleDurationChange}
+                                                        class="slds-m-bottom_none">
+                                                    </lightning-input>
+                                                </td>
+                                                
+                                                <!-- Column 6: Assigned To (Editable) -->
+                                                <td>
+                                                    <div class="autocomplete-container" onclick={handleContainerClick}>
+                                                        <lightning-input
+                                                            type="text"
+                                                            label=""
+                                                            placeholder="Search..."
+                                                            value={item.ownerName}
+                                                            data-id={item.id}
+                                                            onchange={handleOwnerSearch}
+                                                            onfocus={handleOwnerSearch}
+                                                            class="slds-m-bottom_none">
+                                                        </lightning-input>
+                                                        <template if:true={item.showAutocomplete}>
+                                                            <div class="autocomplete-dropdown" onclick={handleDropdownClick}>
+                                                                <template if:true={item.filteredUsers}>
+                                                                    <template for:each={item.filteredUsers} for:item="user">
+                                                                        <div 
+                                                                            key={user.value}
+                                                                            class="autocomplete-option"
+                                                                            data-item-id={item.id}
+                                                                            data-user-id={user.value}
+                                                                            data-user-name={user.label}
+                                                                            onclick={handleOwnerSelect}>
+                                                                            {user.label}
+                                                                        </div>
+                                                                    </template>
+                                                                </template>
+                                                                <template if:true={item.noUsersFound}>
+                                                                    <div class="autocomplete-option autocomplete-no-results">
+                                                                        No users found
+                                                                    </div>
+                                                                </template>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                </td>
+                                                
+                                                <!-- Column 7: Status (Editable) -->
+                                                <td>
+                                                    <template if:true={item.isTask}>
+                                                        <lightning-combobox
+                                                            options={statusOptions}
+                                                            value={item.status}
+                                                            placeholder="Select..."
+                                                            data-id={item.id}
+                                                            onchange={handleStatusChange}
+                                                            class="slds-m-bottom_none">
+                                                        </lightning-combobox>
+                                                    </template>
+                                                    <template if:true={item.isEvent}>
+                                                        <lightning-combobox
+                                                            options={statusOptions}
+                                                            value={item.status}
+                                                            placeholder="Select..."
+                                                            data-id={item.id}
+                                                            onchange={handleStatusChange}
+                                                            class="slds-m-bottom_none">
+                                                        </lightning-combobox>
+                                                    </template>
+                                                </td>
+                                                
+                                                <!-- Column 8: Actions -->
+                                                <td>
+                                                    <template if:true={item.isMainItem}>
+                                                        <lightning-button-menu
+                                                            alternative-text="Actions"
+                                                            icon-name="utility:down"
+                                                            variant="border-filled"
+                                                            size="x-small"
+                                                            menu-alignment="left"
+                                                            data-id={item.id}
+                                                            onselect={handleRowAction}>
+                                                            <lightning-menu-item
+                                                                label="Add Line"
+                                                                value="add_line"
+                                                                data-id={item.id}>
+                                                            </lightning-menu-item>
+                                                            <lightning-menu-item
+                                                                label="Add Sub"
+                                                                value="add_subline"
+                                                                data-id={item.id}>
+                                                            </lightning-menu-item>
+                                                        </lightning-button-menu>
+                                                    </template>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </template>
+                                    <template if:false={projectItems}>
+                                        <tr>
+                                            <td colspan="8" class="slds-text-align_center slds-p-around_medium">
+                                                No items found for this project.
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Separator -->
+                <div class="slds-m-horizontal_small">
+                    <hr class="slds-m-vertical_medium">
+                </div>
+
+                <!-- Footer Buttons -->
+                <div class="slds-m-horizontal_medium slds-m-top_x-small slds-m-bottom_x-small slds-clearfix">
+                    <div class="slds-float_right">
+                        <lightning-button 
+                            label="Cancel" 
+                            variant="neutral"
+                            onclick={handleCancel}
+                            disabled={isSaving}
+                            class="slds-m-left_x-small">
+                        </lightning-button>
+                        <lightning-button 
+                            label="Save" 
+                            variant="brand"
+                            onclick={handleSave}
+                            disabled={isSaving}>
+                        </lightning-button>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </lightning-card>
+</template>

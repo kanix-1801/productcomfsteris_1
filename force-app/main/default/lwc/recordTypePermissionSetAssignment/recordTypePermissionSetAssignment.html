@@ -1,0 +1,174 @@
+<template>
+    <template if:true={showModal}>
+        <!-- Record Type Assignment modal -->
+        <section role="dialog" tabindex="-1" class="custom-modal">
+            <div class="custom-modal-container">
+                <!-- Modal header -->
+                <header class="custom-modal-header">
+                    <lightning-button-icon icon-name="utility:close" alternative-text="Close" title="Close"
+                        onclick={handleCancel} variant="bare" class="custom-close-icon">
+                    </lightning-button-icon>
+                    <h2 class="slds-text-heading_medium">Record Type Assignment</h2>
+                </header>
+
+                <!-- Modal body -->
+                <div class="custom-modal-body">
+                    <lightning-card title="Manage Object Record Type Access">
+                        <div class="slds-p-around_small">
+                            <!-- Object selection and user search -->
+                            <div class="slds-box slds-theme_default slds-m-bottom_medium selection-panel">
+                                <div class="section-header slds-m-bottom_small">
+                                    <h3 class="slds-text-heading_small">Select Object and User</h3>
+                                </div>
+
+                                <!-- Compact search controls -->
+                                <div class="search-controls-row">
+                                    <div class="object-field">
+                                        <lightning-combobox name="objectApiName" label="Object"
+                                            value={selectedObjectApiName} placeholder="Select Object"
+                                            options={objectOptions} onchange={handleObjectChange}>
+                                        </lightning-combobox>
+                                    </div>
+                                    <div class="user-search-field">
+                                        <lightning-input type="search" label="Search User" value={userSearchKey}
+                                            onchange={handleUserSearchChange} onkeydown={handleUserEnterKey}
+                                            placeholder="Search by Name or Email">
+                                        </lightning-input>
+                                    </div>
+                                    <div class="user-search-action">
+                                        <lightning-button label={searchUsersButtonLabel} variant="brand"
+                                            onclick={handleSearchUsers} disabled={isSearchUsersButtonDisabled}>
+                                        </lightning-button>
+                                    </div>
+                                </div>
+
+                                <!-- User search results -->
+                                <template if:true={hasUserResults}>
+                                    <div class="slds-m-top_small slds-m-bottom_x-small result-count">
+                                        <span class="slds-text-body_small">
+                                            <strong>{userResultCount}</strong> user(s) found
+                                        </span>
+                                    </div>
+                                    <div class="user-results-table">
+                                        <table
+                                            class="slds-table slds-table_cell-buffer slds-table_bordered slds-table_striped compact-table">
+                                            <thead>
+                                                <tr class="slds-line-height_reset">
+                                                    <th scope="col" class="radio-column"></th>
+                                                    <th scope="col" class={userNameColumnClass} aria-sort={userNameAriaSort}>
+                                                        <a class="slds-th__action slds-text-link_reset" role="button"
+                                                            tabindex="0" onclick={handleUserNameSort}
+                                                            onkeydown={handleUserNameSortKeydown}>
+                                                            <span class="slds-assistive-text">Sort by Name</span>
+                                                            <div
+                                                                class="slds-grid slds-grid_vertical-align-center slds-has-flexi-truncate">
+                                                                <span class="slds-truncate" title="Name">Name</span>
+                                                                <span
+                                                                    class="slds-icon_container slds-icon-utility-arrowup slds-m-left_x-small">
+                                                                    <lightning-icon icon-name={userNameSortIcon}
+                                                                        size="xx-small" alternative-text="Sort">
+                                                                    </lightning-icon>
+                                                                </span>
+                                                            </div>
+                                                        </a>
+                                                    </th>
+                                                    <th scope="col">Email</th>
+                                                    <th scope="col">Profile</th>
+                                                    <th scope="col">Role</th>
+                                                    <th scope="col">Title</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <template for:each={paginatedUserData} for:item="userRecord">
+                                                    <tr key={userRecord.userId} data-user-id={userRecord.userId}
+                                                        class={userRecord.rowClass} onclick={handleUserRowClick}>
+                                                        <td>
+                                                            <lightning-input type="radio" name="selectedUser"
+                                                                checked={userRecord.isSelected}
+                                                                data-user-id={userRecord.userId} tabindex="-1">
+                                                            </lightning-input>
+                                                        </td>
+                                                        <td>{userRecord.userName}</td>
+                                                        <td>{userRecord.email}</td>
+                                                        <td>{userRecord.profileName}</td>
+                                                        <td>{userRecord.role}</td>
+                                                        <td>{userRecord.title}</td>
+                                                    </tr>
+                                                </template>
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <!-- User search pagination -->
+                                    <div
+                                        class="slds-m-top_small slds-grid slds-grid_vertical-align-center slds-grid_align-spread user-pagination-row">
+                                        <lightning-button label="Previous" onclick={handlePreviousUserPage}
+                                            disabled={disablePreviousUserPage}>
+                                        </lightning-button>
+
+                                        <div class="slds-grid slds-grid_vertical-align-center pagination-center">
+                                            <span class="slds-text-body_small slds-m-right_small">Page {userPageNumber}
+                                                of {userTotalPages}</span>
+                                            <lightning-combobox label="Records Per Page" variant="label-hidden"
+                                                class="page-size-combobox" value={userPageSizeValue}
+                                                options={pageSizeOptions} onchange={handleUserPageSizeChange}>
+                                            </lightning-combobox>
+                                        </div>
+
+                                        <lightning-button label="Next" onclick={handleNextUserPage}
+                                            disabled={disableNextUserPage}>
+                                        </lightning-button>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- Record type permission set assignment -->
+                            <template if:true={showPermissionSetAssignment}>
+                                <div class="slds-box slds-theme_default assignment-panel">
+                                    <div class="section-header slds-m-bottom_x-small">
+                                        <h3 class="slds-text-heading_small">{recordTypeAssignmentSectionTitle}</h3>
+                                    </div>
+                                    <p class="slds-text-body_small slds-m-bottom_small assignment-help-text">
+                                        Move permission sets between Available and Assigned to control
+                                        {selectedObjectApiName} record type access for the selected user.
+                                    </p>
+                                    <lightning-dual-listbox name="permissionSets" source-label="Available Record Types"
+                                        selected-label="Assigned Record Types" add-button-label="Add"
+                                        remove-button-label="Remove" disable-reordering options={permissionSetOptions}
+                                        value={assignedPermissionSetIds} onchange={handlePermissionSetChange}
+                                        min={minDualListSelection} size={dualListboxSize}>
+                                    </lightning-dual-listbox>
+                                </div>
+                            </template>
+                        </div>
+                    </lightning-card>
+                </div>
+
+                <!-- Modal footer actions -->
+                <footer class="custom-modal-footer">
+                    <div class="footer-left">
+                        <lightning-button label="Reset" onclick={handleReset} disabled={isResetDisabled}>
+                        </lightning-button>
+                    </div>
+                    <div class="footer-right">
+                        <lightning-button label="Cancel" onclick={handleCancel}></lightning-button>
+                        <lightning-button label="Save" variant="brand" class="slds-m-left_small" onclick={handleSave}
+                            disabled={isSaveDisabled}>
+                        </lightning-button>
+                    </div>
+                </footer>
+
+                <!-- Loading spinner -->
+                <template if:true={showLoadingOverlay}>
+                    <div class="modal-spinner-overlay">
+                        <div class="modal-spinner-content">
+                            <lightning-spinner alternative-text={loadingMessage} size="medium"></lightning-spinner>
+                            <p class="modal-spinner-text">{loadingMessage}</p>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </section>
+        <div class="custom-backdrop"></div>
+    </template>
+</template>

@@ -1,0 +1,67 @@
+<Apex:component controller="SOAEmailController"  access="global">
+    <Apex:attribute name="orderId1" description="" assignTo="{!orderId}" type="String" />  
+    
+    <apex:attribute name="caseId" type="String" description="Order Number"/>
+	<apex:attribute name="fobCode" type="String" description="FOB Code"/>
+    <apex:attribute name="orderTotal" type="Decimal" description="Order Total"/>
+    <apex:attribute name="customerWantDate" type="Date" description="Customer Want Date"/>
+    <apex:attribute name="accountName" type="String" description="Account Name"/>
+    <apex:attribute name="orderSource" type="String" description="Order Source"/>
+	<apex:attribute name="urgentOrder" type="String" description="Urgent Order"/>
+	<apex:attribute name="orderNumber" type="String" description="Order Number"/>
+	<apex:attribute name="shippingMethod" type="String" description="Shipping Method"/>
+   
+    
+    
+   <apex:image URL="{!BannerUrlNoChargeSOA}" alt="STERIS Banner" width="982" height="180"/>
+    
+    <!-- Account Manager -->
+<p>Hello {!AccountManagerNames},</p>
+    
+
+
+    <!-- Dynamic Rendering -->
+    <p>Attached is the SOA for {!accountName}.</p>
+
+
+    <table style=" border-collapse:collapse; font-family:Arial, sans-serif; font-size:14px;" width="982" border="1" cellpadding="8">
+        <thead>
+            <tr style="background-color:#004b6b; color:#ffffff; text-align:left;">
+                <th colspan="2">Order Information</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="width: 30%;" >Sales Order #</td>
+                <td style="width: 70%;">{!orderNumber}</td>
+            </tr>
+            <tr>
+                <td >Shipping Method</td>
+                <td></td>
+            </tr>
+            <tr>
+                <td >Product Availability</td>
+                <td></td>
+            </tr>
+        </tbody>
+    </table>
+ 
+        <br/>
+        
+        
+        <p style="font-family:Arial, sans-serif; font-size:14px;">Thank you,</p>
+        <p style="font-family:Arial, sans-serif; font-size:14px;">
+            <b>Order Management Team</b><br/>
+            STERIS Corporation | Healthcare<br/>
+            5960 Heisley Road | Mentor, OH 44060-1834 USA<br/>
+            IPT Direct: 440-392-7399<br/>
+            Surgical Direct: 440-392-8859<br/>
+            E-mail: RegionalSalesSupport@steris.com
+        </p>
+
+
+        
+    <c:ReplyThreadInternalExternal caseId1="{!caseId}"
+        threadType1="External"
+    />
+</Apex:component>

@@ -1,0 +1,82 @@
+<template>
+    <div class="account-information">
+        <template lwc:if={showSectionTitle}>
+            <h2 class="section-title slds-m-bottom_small">{sectionTitle}</h2>
+        </template>
+
+        <template lwc:if={isLoading}>
+            <div class="slds-is-relative slds-p-around_medium">
+                <lightning-spinner
+                    alternative-text="Loading account information"
+                    size="small"
+                ></lightning-spinner>
+            </div>
+        </template>
+
+        <template lwc:else>
+            <div class="slds-grid slds-wrap slds-gutters">
+                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                    <div class="field-stack">
+                        <template lwc:if={lockAccount}>
+                            <lightning-input
+                                type="text"
+                                label="Account"
+                                value={accountName}
+                                required
+                                disabled
+                            ></lightning-input>
+                        </template>
+                        <template lwc:else>
+                            <template for:each={accountPickerInstances} for:item="picker">
+                                <lightning-record-picker
+                                    key={picker.key}
+                                    label="Account"
+                                    placeholder="Search Accounts..."
+                                    object-api-name="Account"
+                                    value={accountPickerValue}
+                                    required
+                                    onchange={handleAccountChange}
+                                ></lightning-record-picker>
+                            </template>
+                        </template>
+
+                        <lightning-input
+                            type="text"
+                            label="Legacy Customer ID"
+                            value={legacyCustomerId}
+                            disabled
+                        ></lightning-input>
+                    </div>
+                </div>
+
+                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                    <div class="field-stack">
+                        <lightning-combobox
+                            label="Sales Rep"
+                            value={salesRepId}
+                            options={salesRepOptions}
+                            required
+                            data-field="salesRepId"
+                            onchange={handleFieldChange}
+                        ></lightning-combobox>
+
+                        <lightning-combobox
+                            label="Operating Unit"
+                            value={operatingUnit}
+                            options={operatingUnitOptions}
+                            required
+                            data-field="operatingUnit"
+                            onchange={handleFieldChange}
+                        ></lightning-combobox>
+                    </div>
+                </div>
+            </div>
+
+            <template lwc:if={errorMessage}>
+                <div class="slds-text-color_error slds-m-top_small" role="alert">
+                    {errorMessage}
+                </div>
+            </template>
+        </template>
+    </div>
+</template>

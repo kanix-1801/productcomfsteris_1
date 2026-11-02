@@ -1,0 +1,49 @@
+<template>
+    <template lwc:if={hasElements}>
+        <!-- Standard Salesforce fields via lightning-record-form (Left/Right interleaved or Full width) -->
+        <template lwc:if={hasFieldElements}>
+            <template lwc:if={hasRecordId}>
+                <template lwc:if={hasColumnFormFields}>
+                    <lightning-record-form
+                        record-id={recordId}
+                        object-api-name={objectApiName}
+                        mode={formMode}
+                        fields={columnFormFieldApiNames}
+                        columns="2"
+                        density="comfy">
+                    </lightning-record-form>
+                </template>
+
+                <template lwc:if={hasFullFormFields}>
+                    <lightning-record-form
+                        class={fullFormClass}
+                        record-id={recordId}
+                        object-api-name={objectApiName}
+                        mode={formMode}
+                        fields={fullFormFieldApiNames}
+                        columns="1"
+                        density="comfy">
+                    </lightning-record-form>
+                </template>
+            </template>
+            <template lwc:else>
+                <div class="slds-text-color_weak slds-p-around_small">
+                    No record is available to display fields.
+                </div>
+            </template>
+        </template>
+
+        <!-- CMDT Component rows: custom LWCs or standard:* types via metadataElementRenderer -->
+        <template lwc:if={hasComponentElements}>
+            <div class={componentStackClass}>
+                <template for:each={componentElements} for:item="element">
+                    <c-metadata-element-renderer
+                        key={element.apiName}
+                        element={element}
+                        record-id={recordId}>
+                    </c-metadata-element-renderer>
+                </template>
+            </div>
+        </template>
+    </template>
+</template>

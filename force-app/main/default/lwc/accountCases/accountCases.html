@@ -1,0 +1,26 @@
+<template>
+    <lightning-card title="Cases" icon-name="standard:case">
+        <div slot="actions">
+            <lightning-button
+                label="New"
+                onclick={handleNewCase}>
+            </lightning-button>
+        </div>
+
+        <template if:true={hasRecords}>
+            <lightning-datatable
+                key-field="id"
+                data={cases}
+                columns={columns}
+                onrowaction={handleRowAction}
+                hide-checkbox-column>
+            </lightning-datatable>
+        </template>
+
+        <template if:false={hasRecords}>
+            <div class="slds-p-around_medium">
+                No Cases Found
+            </div>
+        </template>
+    </lightning-card>
+</template>

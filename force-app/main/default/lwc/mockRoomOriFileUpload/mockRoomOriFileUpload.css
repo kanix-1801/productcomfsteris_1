@@ -1,0 +1,13 @@
+.hint,
+.saved,
+.error {
+    margin-bottom: 0.75rem;
+}
+
+.saved {
+    margin-top: 0.75rem;
+}
+
+.error {
+    color: #ba0517;
+}

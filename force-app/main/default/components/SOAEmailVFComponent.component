@@ -1,0 +1,139 @@
+<Apex:component controller="SOAEmailController"  access="global">
+    <Apex:attribute name="orderId1" description="" assignTo="{!orderId}" type="String" />  
+    
+    <apex:attribute name="caseId" type="String" description="Order Number"/>
+	<apex:attribute name="fobCode" type="String" description="FOB Code"/>
+    <apex:attribute name="orderTotal" type="Decimal" description="Order Total"/>
+    <apex:attribute name="customerWantDate" type="Date" description="Customer Want Date"/>
+    <apex:attribute name="accountName" type="String" description="Account Name"/>
+    <apex:attribute name="orderSource" type="String" description="Order Source"/>
+	<apex:attribute name="urgentOrder" type="String" description="Urgent Order"/>
+   
+    
+    
+   <apex:image URL="{!BannerUrlSOA}" alt="STERIS Banner" width="982" height="180"/>
+
+    <!--<img src="https://steris-healthcare--cbmdev.sandbox.my.salesforce.com/servlet/servlet.ImageServer?id=015D7000001tdEN&oid=00DD7000000jUPM&lastMod=1764173553000" 
+        alt="STERIS Banner Image 1" width="982" height="180"/>-->
+    
+    
+    <!-- width="828" height="150" -->
+    
+    <!-- Account Manager -->
+    
+    
+<p>Dear {!AccountManagerNames},</p>
+    
+
+
+    <!-- Dynamic Rendering -->
+    <apex:outputPanel rendered="{!orderSource != 'EDI'}">
+        <p>Congratulations on your order! Attached are the SOA, PO, quote and Customer order confirmation for {!accountName}.</p>
+    </apex:outputPanel>
+
+    <apex:outputPanel rendered="{!orderSource == 'EDI'}">
+         <p>Congratulations on your order! Attached are the SOA, PO and quote for {!accountName}.</p>
+        <p>Order was received via EDI orders and customer received an electronic order confirmation via EDI.</p>
+	</apex:outputPanel>
+    
+    
+    
+    <apex:outputPanel rendered="{!GiReprocessingOrders}">
+        <p >Shipping and handling charges will be added to the order prior to shipment.</p>
+	</apex:outputPanel>
+    
+    <apex:outputPanel rendered="{!urgentOrder}">
+        <p style="color:red;">This is an urgent/unit down order and needs installation scheduled as soon as possible after delivery.</p>
+	</apex:outputPanel>
+    
+    <apex:outputPanel rendered="{!ServiceLineSalesRep}">
+        <p style="color:red; font-weight:bold;">
+            Note: There is no sales rep available for service lines. Please add manually and Remove this line before sending.
+        </p>
+    </apex:outputPanel>
+
+
+    <table style=" border-collapse:collapse; font-family:Arial, sans-serif; font-size:14px;" width="982" border="1" cellpadding="8">
+        <thead>
+            <tr style="background-color:#004b6b; color:#ffffff; text-align:left;">
+                <th colspan="2">Order Information</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td >FOB:</td>
+                <td>{!fobCode}</td>
+            </tr>
+            <tr>
+                <td >Order Total:</td>
+                <!--td>${!orderTotal}</td-->
+                <td>
+                    <apex:outputText value="{0, number, currency}">
+                        <apex:param value="{!orderTotal}" />
+                    </apex:outputText>
+                </td>
+            </tr>
+            <tr>
+                <td >Shipping &amp; Handling charges:</td>
+                <td>
+                    
+                </td>
+            </tr>
+            <tr>
+                <td >AM-Provided Want Date:</td>
+                <!--td>{!customerWantDate}</td-->
+                <td>
+                    <apex:outputText value="{0,date,MM'/'dd'/'yyyy}">
+        				<apex:param value="{!customerWantDate}" />
+    				</apex:outputText>
+                </td>
+            </tr>
+            <tr>
+                <td >Requested Ship Date (in Oracle):</td>
+                <td>{!CapLineReqShipDate}</td>
+            </tr>
+        </tbody>
+    </table>
+<br/>
+    
+<table style=" border-collapse:collapse; font-family:Arial, sans-serif; font-size:14px;" width="982" border="1" cellpadding="8">
+    <thead>
+        <tr style="background-color:#d71920; color:#ffffff; text-align:left;">
+            <th colspan="2">AM Required Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        
+            <apex:repeat value="{!ReasonCodeList}" var="rc">
+                <tr>
+                    <td >{!rc.reasonCode}</td>
+                    <td>{!rc.reasonDescription}</td>
+                </tr>
+            </apex:repeat>
+
+        <!-- Static last row -->
+        <tr>
+            <td style="font-weight:bold;">Urgency Notice</td>
+            <td style="font-weight:bold;">Please ensure all action items are taken care of as soon as possible to avoid any delays. Please direct any inquiries to your Regional Backlog Coordinator.</td>
+        </tr>
+    </tbody>
+</table>
+ 
+        <br/>
+        
+        
+        <p style="font-family:Arial, sans-serif; font-size:14px;">Thank you,</p>
+        <p style="font-family:Arial, sans-serif; font-size:14px;">
+            <b>Order Management Team</b><br/>
+            STERIS Corporation | Healthcare<br/>
+            5960 Heisley Road | Mentor, OH 44060-1834 USA<br/>
+            SPD REPROCESSING Direct: 440-392-7399<br/>
+            Procedural Direct: 440-392-8859
+        </p>
+
+
+        
+    <c:ReplyThreadInternalExternal caseId1="{!caseId}"
+        threadType1="External"
+    />
+</Apex:component>

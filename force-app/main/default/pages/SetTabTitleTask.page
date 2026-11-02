@@ -1,0 +1,14 @@
+<apex:page standardController="Task" extensions="TaskCaseController">
+    
+    <apex:includeScript value="/support/console/66.0/integration.js"/>
+
+    <script>
+        function setCaseTitle() {
+            sforce.console.setTabTitle('{!JSENCODE(relatedCase.Subject)}');
+        }
+
+        if (typeof sforce !== 'undefined' && sforce.console) {
+            setCaseTitle();
+        }
+    </script>
+</apex:page>

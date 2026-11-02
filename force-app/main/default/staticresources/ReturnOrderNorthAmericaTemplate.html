@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <title>Return Order {!srnNumber}</title>
+    <style type="text/css">
+        body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #222; margin: 16px; }
+        table { border-collapse: collapse; width: 100%; }
+        .header td { vertical-align: top; }
+        .title { font-size: 18px; font-weight: bold; }
+        .banner { background: #e8f4ea; border: 1px solid #8fbf98; padding: 6px 8px; margin: 8px 0; font-weight: bold; }
+        .box { border: 1px solid #999; padding: 8px; }
+        .label { color: #555; font-size: 9px; text-transform: uppercase; }
+        .section { margin-top: 12px; }
+        .items th { background: #333; color: #fff; font-size: 9px; text-align: left; padding: 4px; border: 1px solid #333; }
+        .items td { border: 1px solid #ccc; padding: 4px; }
+        .footer { margin-top: 16px; font-size: 9px; color: #555; }
+        .check-cell { width: 32px; }
+    </style>
+</head>
+<body>
+    <table class="header">
+        <tr>
+            <td width="35%"><img src="{!logoUrl}" alt="STERIS" height="42"/></td>
+            <td width="40%">
+                <div class="title">Return Order</div>
+                <div>{!barcodeMarkup}</div>
+            </td>
+            <td width="25%" align="right">
+                <div class="label">SRN</div>
+                <div style="font-size:16px;font-weight:bold;">{!srnNumber}</div>
+                <div class="label">Date</div>
+                <div>{!dateGenerated}</div>
+            </td>
+        </tr>
+    </table>
+
+    <div class="banner">Estimate: {!estimateRequiredLabel} &nbsp;|&nbsp; Type: {!orderType}</div>
+
+    <table class="section">
+        <tr>
+            <td width="50%" class="box">
+                <div class="label">Ship From / Customer</div>
+                <div><strong>{!returnAddressLine1}</strong></div>
+                <div>{!returnAddressLine2}</div>
+                <div>{!customerDisplay}</div>
+                <div class="label" style="margin-top:6px;">Contact</div>
+                <div>{!contactName}</div>
+                <div class="label">Department</div>
+                <div>{!department}</div>
+            </td>
+            <td width="4%"></td>
+            <td width="46%" class="box">
+                <div class="label">Repair Center</div>
+                <div><strong>{!vendorLab}</strong></div>
+                <div>{!vendorAddress}</div>
+                <div class="label" style="margin-top:6px;">Account Manager</div>
+                <div>{!accountManager}</div>
+                <div class="label">PO / Customer Reference</div>
+                <div>{!poNumber} / {!customerReference}</div>
+                <div class="label">Customer Care</div>
+                <div>{!customerCare}</div>
+            </td>
+        </tr>
+    </table>
+
+    <table class="section">
+        <tr>
+            <td class="check-cell">{!reprocessHasBeenContent}</td>
+            <td>Item has been cleaned and disinfected or sterilized.</td>
+        </tr>
+        <tr>
+            <td class="check-cell">{!reprocessHasNotBeenContent}</td>
+            <td>Item has not been cleaned and disinfected or sterilized.</td>
+        </tr>
+    </table>
+
+    <table class="items section">
+        <thead>
+            <tr>
+                <th width="6%">#</th>
+                <th width="16%">Serial</th>
+                <th width="22%">Type / Manufacturer</th>
+                <th width="16%">Model</th>
+                <th width="8%">Qty</th>
+                <th width="32%">Reported Problem</th>
+            </tr>
+        </thead>
+        <tbody>
+            {!repairItemRows}
+        </tbody>
+    </table>
+
+    <div class="footer">
+        Created by {!createdByName} via {!creationSource} on {!createdDateTime}.
+        &copy; {!copyrightYear} STERIS. All rights reserved.
+    </div>
+</body>
+</html>

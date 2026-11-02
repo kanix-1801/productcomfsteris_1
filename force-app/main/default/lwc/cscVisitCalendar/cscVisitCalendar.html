@@ -1,0 +1,131 @@
+<template>
+    <div class="slds-is-relative">
+        <!-- Spinner while Apex occupancy loads -->
+        <template if:true={isLoading}>
+            <lightning-spinner alternative-text={label.loading} size="small"></lightning-spinner>
+        </template>
+
+        <div class="slds-grid slds-grid_align-center">
+            <div class="slds-datepicker">
+                <!-- Previous / next month -->
+                <div class="slds-datepicker__filter slds-grid">
+                    <div class="slds-datepicker__filter_month slds-grid slds-grid_align-spread slds-size_1-of-1">
+                        <div class="slds-align-middle">
+                            <lightning-button-icon
+                                icon-name="utility:chevronleft"
+                                alternative-text={label.previousMonth}
+                                variant="container"
+                                onclick={handlePrevious}>
+                            </lightning-button-icon>
+                        </div>
+                        <h2 id="cal-month" class="slds-align-middle slds-text-heading_small" aria-live="polite">
+                            {monthLabel}
+                        </h2>
+                        <div class="slds-align-middle">
+                            <lightning-button-icon
+                                icon-name="utility:chevronright"
+                                alternative-text={label.nextMonth}
+                                variant="container"
+                                onclick={handleNext}>
+                            </lightning-button-icon>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Month grid. Blocked days cannot be clicked. -->
+                <table class="slds-datepicker__month" role="grid" aria-labelledby="cal-month">
+                    <thead>
+                        <tr>
+                            <template for:each={weekdays} for:item="weekday">
+                                <th key={weekday.short} scope="col">
+                                    <abbr title={weekday.full}>{weekday.short}</abbr>
+                                </th>
+                            </template>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template for:each={weeks} for:item="week">
+                            <tr key={week.key}>
+                                <template for:each={week.days} for:item="day">
+                                    <td
+                                        key={day.key}
+                                        role="gridcell"
+                                        class={day.cellClass}
+                                        title={day.title}
+                                        aria-label={day.title}
+                                        aria-selected={day.selected}
+                                        data-iso={day.iso}
+                                        onclick={handleDayClick}>
+                                        <span class="slds-day">{day.label}</span>
+                                    </td>
+                                </template>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Available / Pending / Unavailable. Swatches match the day circles. -->
+        <div class="legend-row">
+            <span class="legend"><span class="swatch swatch-available"></span>{label.available}</span>
+            <span class="legend"><span class="swatch swatch-pending"></span>{label.pending}</span>
+            <span class="legend"><span class="swatch swatch-unavailable"></span>{label.unavailable}</span>
+        </div>
+
+        <p class="slds-text-body_small slds-text-color_weak slds-text-align_center slds-m-top_x-small">
+            {label.clearHint}
+        </p>
+        <div class="slds-align_absolute-center slds-m-top_x-small">
+            <lightning-button
+                label={label.resetDates}
+                title={label.resetDates}
+                onclick={handleReset}
+                disabled={resetDisabled}>
+            </lightning-button>
+        </div>
+
+        <template if:true={isBlockMode}>
+            <p class="slds-text-body_small slds-text-align_center slds-m-top_small">{blockSummary}</p>
+        </template>
+
+        <template if:true={isChangeMode}>
+            <div class="slds-m-top_small">
+                <lightning-input
+                    type="date"
+                    name="confirmedDate"
+                    label={label.confirmedDate}
+                    value={primaryDate}
+                    required
+                    disabled>
+                </lightning-input>
+            </div>
+        </template>
+
+        <!-- Selected dates shown as read-only fields for Flow -->
+        <template if:true={showVisitDates}>
+        <div class="slds-grid slds-gutters slds-m-top_small">
+            <div class="slds-col slds-size_1-of-2">
+                <lightning-input
+                    type="date"
+                    name="primaryDate"
+                    label={label.primaryDate}
+                    value={primaryDate}
+                    required
+                    disabled>
+                </lightning-input>
+            </div>
+            <div class="slds-col slds-size_1-of-2">
+                <lightning-input
+                    type="date"
+                    name="backupDate"
+                    label={label.backupDate}
+                    value={backupDate}
+                    required
+                    disabled>
+                </lightning-input>
+            </div>
+        </div>
+        </template>
+    </div>
+</template>

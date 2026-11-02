@@ -1,0 +1,124 @@
+<template>
+    <template lwc:if={isLoading}>
+        <lightning-spinner alternative-text="Loading account header" size="small"></lightning-spinner>
+    </template>
+
+    <template lwc:elseif={errorMessage}>
+        <div class="slds-text-color_error slds-p-around_medium" role="alert">
+            {errorMessage}
+        </div>
+    </template>
+
+    <template lwc:elseif={showHeaderOnly}>
+        <div class="slds-grid slds-wrap slds-gutters_medium">
+            <div class="slds-col slds-size_1-of-1 slds-large-size_1-of-3">
+                <section class="slds-card identity-card">
+                    <div class="slds-card__body slds-card__body_inner">
+                        <div class="identity-heading">
+                            <lightning-icon icon-name="standard:account" size="large"></lightning-icon>
+                            <div>
+                                <h1 class="slds-text-heading_medium slds-truncate" title={accountName}>
+                                    {accountName}
+                                </h1>
+                                <template lwc:if={hasAddress}>
+                                    <p class="address">{addressDisplay}</p>
+                                </template>
+                            </div>
+                        </div>
+
+                        <dl class="field-list">
+                            <div class="field">
+                                <dt>Customer Number</dt>
+                                <dd>{customerNumber}</dd>
+                            </div>
+                            <div class="field">
+                                <dt>GPO Affiliation</dt>
+                                <dd>{gpoAffiliation}</dd>
+                            </div>
+                            <div class="field">
+                                <dt>Website</dt>
+                                <dd>
+                                    <template lwc:if={hasWebsite}>
+                                        <a href={safeWebsiteUrl} target="_blank" rel="noopener noreferrer">
+                                            {website}
+                                        </a>
+                                    </template>
+                                </dd>
+                            </div>
+                            <div class="field">
+                                <dt>Parent Account</dt>
+                                <dd>
+                                    <template lwc:if={hasParentAccount}>
+                                        <a href={parentAccountUrl}>{parentAccountName}</a>
+                                    </template>
+                                </dd>
+                            </div>
+                            <div class="field">
+                                <dt>Customer Class</dt>
+                                <dd>{customerClass}</dd>
+                            </div>
+                            <div class="field">
+                                <dt>Account Owner</dt>
+                                <dd>{ownerName}</dd>
+                            </div>
+                        </dl>
+                    </div>
+                </section>
+            </div>
+
+            <div class="slds-col slds-size_1-of-1 slds-large-size_2-of-3">
+                <lightning-card title="Account">
+                    <lightning-tabset>
+                        <lightning-tab label="Details" value="details">
+                            <div class="slds-p-horizontal_small slds-p-bottom_medium">
+                                <div class="slds-grid slds-wrap slds-gutters_medium">
+                                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                        <dl class="field-list">
+                                            <div class="field">
+                                                <dt>Customer Name</dt>
+                                                <dd>{accountName}</dd>
+                                            </div>
+                                            <div class="field">
+                                                <dt>Phone</dt>
+                                                <dd>
+                                                    <lightning-formatted-phone value={phone}></lightning-formatted-phone>
+                                                </dd>
+                                            </div>
+                                            <div class="field">
+                                                <dt>Industry</dt>
+                                                <dd>{industry}</dd>
+                                            </div>
+                                        </dl>
+                                    </div>
+                                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                        <dl class="field-list">
+                                            <div class="field">
+                                                <dt>Account Source</dt>
+                                                <dd>{accountSource}</dd>
+                                            </div>
+                                            <div class="field">
+                                                <dt>Parent Account</dt>
+                                                <dd>
+                                                    <template lwc:if={hasParentAccount}>
+                                                        <a href={parentAccountUrl}>{parentAccountName}</a>
+                                                    </template>
+                                                </dd>
+                                            </div>
+                                            <div class="field">
+                                                <dt>Type</dt>
+                                                <dd>{accountType}</dd>
+                                            </div>
+                                        </dl>
+                                    </div>
+                                </div>
+                            </div>
+                        </lightning-tab>
+                        <lightning-tab label="Account Team" value="accountTeam">
+                            <c-ls-account-team-member-details record-id={recordId}></c-ls-account-team-member-details>
+                        </lightning-tab>
+                    </lightning-tabset>
+                </lightning-card>
+            </div>
+        </div>
+    </template>
+</template>

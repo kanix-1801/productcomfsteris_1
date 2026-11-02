@@ -1,0 +1,16 @@
+<template>
+    <div class="slds-form-element">
+        <label class="slds-form-element__label" for="email-body-input">
+            <abbr class="slds-required" title="required">*</abbr>
+            {fieldLabel}
+        </label>
+        <div class="slds-form-element__control">
+            <textarea
+                id="email-body-input"
+                class="slds-textarea email-body-textarea"
+                oninput={handleChange}
+                required
+            >{bodyValue}</textarea>
+        </div>
+    </div>
+</template>

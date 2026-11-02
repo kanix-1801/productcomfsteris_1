@@ -1,0 +1,2056 @@
+<template>
+    <div class={rootClass}>
+        <template lwc:if={isLoading}>
+            <div class="slds-is-relative slds-p-around_large">
+                <lightning-spinner alternative-text="Loading Receiving" size="medium"></lightning-spinner>
+            </div>
+        </template>
+
+        <template lwc:if={showScanPage}>
+            <lightning-card title="Receiving" icon-name="custom:custom19">
+                <div class="slds-p-around_medium">
+                    <p class="slds-text-heading_small slds-m-bottom_small">Scan Order</p>
+                    <div class="scan-order-row">
+                        <div class="scan-order-row__input">
+                            <c-repair-center-scan-input
+                                label={scanFieldLabel}
+                                placeholder={scanFieldPlaceholder}
+                                value={scanInput}
+                                disabled={isScanBusy}
+                                onvaluechange={handleScanValueChange}
+                                oncontinue={handleScanContinue}
+                            ></c-repair-center-scan-input>
+                        </div>
+                        <template lwc:if={showCreateNewOrderButton}>
+                            <div class="scan-order-row__action">
+                                <button
+                                    type="button"
+                                    class="create-order-button"
+                                    disabled={isCreateNewOrderButtonDisabled}
+                                    onclick={handleCreateNewOrder}
+                                >
+                                    <span class="create-order-button__icon" aria-hidden="true">
+                                        <span class="create-order-button__icon-mark">
+                                            <lightning-icon
+                                                icon-name="utility:add"
+                                                size="xx-small"
+                                            ></lightning-icon>
+                                        </span>
+                                    </span>
+                                    <span class="create-order-button__text">Create New Order</span>
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+
+                    <template lwc:if={scanErrorMessage}>
+                        <div class="slds-text-color_error slds-m-top_small" role="alert">
+                            {scanErrorMessage}
+                        </div>
+                    </template>
+
+                    <template lwc:if={isResolving}>
+                        <div class="slds-m-top_medium slds-is-relative slds-p-around_large">
+                            <lightning-spinner alternative-text="Loading" size="small"></lightning-spinner>
+                        </div>
+                    </template>
+                </div>
+            </lightning-card>
+        </template>
+
+        <template lwc:if={showCreateNewOrderPage}>
+            <lightning-card title={createOrderCardTitle} icon-name="standard:work_order">
+                <div class="slds-p-around_medium">
+                    <template lwc:if={showCreateOrderAccountSummary}>
+                        <div class="shell-account shell-account_create-order slds-m-bottom_medium">
+                            <div class="shell-account__details">
+                                <div class="shell-account__name">{createOrderAccountName}</div>
+                                <div class="shell-account__meta">{createOrderAccountMetaDisplay}</div>
+                            </div>
+                            <template lwc:if={showCreateOrderAddItemMenu}>
+                                <div class="create-order-add-item-menu">
+                                    <lightning-button-menu
+                                        label="Add Item"
+                                        alternative-text="Add Item"
+                                        variant="brand"
+                                        menu-alignment="right"
+                                        onselect={handleCreateOrderAddItemMenuSelect}
+                                    >
+                                        <lightning-menu-subheader label="Select Type"></lightning-menu-subheader>
+                                        <template for:each={createOrderAddItemMenuOptions} for:item="option">
+                                            <lightning-menu-item
+                                                key={option.key}
+                                                value={option.value}
+                                                label={option.label}
+                                                disabled={option.disabled}
+                                            ></lightning-menu-item>
+                                        </template>
+                                    </lightning-button-menu>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+
+                    <div class="slds-m-bottom_medium">
+                        <lightning-progress-indicator
+                            current-step={createOrderCurrentStep}
+                            type="base"
+                            variant="base"
+                        >
+                            <template for:each={createOrderProgressSteps} for:item="step">
+                                <lightning-progress-step
+                                    key={step.value}
+                                    label={step.label}
+                                    value={step.value}
+                                ></lightning-progress-step>
+                            </template>
+                        </lightning-progress-indicator>
+                    </div>
+
+                    <template lwc:if={showCreateOrderAccountStep}>
+                        <c-create-order-account-information
+                            lwc:ref="createOrderAccountInfo"
+                            onchange={handleCreateOrderAccountChange}
+                        ></c-create-order-account-information>
+                    </template>
+
+                    <template lwc:if={showCreateOrderAddItemStep}>
+                        <div class="create-order-add-item">
+                            <h2 class="slds-text-heading_small">Add Item</h2>
+                            <p class="slds-text-body_regular slds-m-top_xx-small slds-m-bottom_small">
+                                Select a type of item to begin your Order.
+                            </p>
+                            <div class="create-order-item-type-table-wrapper">
+                                <table
+                                    class="slds-table slds-table_cell-buffer slds-table_bordered create-order-item-type-table"
+                                >
+                                    <thead>
+                                        <tr class="slds-line-height_reset">
+                                            <th scope="col" class="create-order-item-type-table__type-col">
+                                                Type
+                                            </th>
+                                            <th scope="col" class="create-order-item-type-table__details-col">
+                                                Details
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template for:each={createOrderItemTypeOptions} for:item="option">
+                                            <tr key={option.key} class={option.rowClass}>
+                                                <th
+                                                    scope="row"
+                                                    class="create-order-item-type-table__type-col"
+                                                    data-label="Type"
+                                                >
+                                                    <template lwc:if={option.isEnabled}>
+                                                        <a
+                                                            href="javascript:void(0);"
+                                                            role="button"
+                                                            class="create-order-item-type-table__type-link slds-text-link"
+                                                            title={option.description}
+                                                            data-item-type={option.itemType}
+                                                            onclick={handleCreateOrderSelectItemType}
+                                                        >
+                                                            {option.typeLabel}
+                                                        </a>
+                                                    </template>
+                                                    <template lwc:else>
+                                                        <span
+                                                            class="create-order-item-type-table__type-disabled"
+                                                            title={option.description}
+                                                        >
+                                                            {option.typeLabel}
+                                                        </span>
+                                                    </template>
+                                                </th>
+                                                <td
+                                                    class="create-order-item-type-table__details-col"
+                                                    data-label="Details"
+                                                >
+                                                    <div
+                                                        class="create-order-item-type-table__details-text"
+                                                        title={option.description}
+                                                    >
+                                                        {option.description}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </template>
+
+                    <template lwc:if={showCreateOrderItemsHost}>
+                        <div class={createOrderItemsHostClass}>
+                            <c-create-order-items
+                                lwc:ref="createOrderItems"
+                                account-id={createOrderAccountId}
+                                account-name={createOrderAccountName}
+                            ></c-create-order-items>
+                        </div>
+                    </template>
+
+                    <template lwc:if={showCreateOrderSummaryStep}>
+                        <c-create-order-summary
+                            groups={createOrderSummaryGroups}
+                        ></c-create-order-summary>
+                    </template>
+
+                    <template lwc:if={showCreateOrderConfirmationStep}>
+                        <c-create-order-confirmation
+                            orders={createOrderConfirmationOrders}
+                            onopenworkorder={handleCreateOrderOpenWorkOrder}
+                        ></c-create-order-confirmation>
+                    </template>
+
+                    <div class="slds-grid slds-grid_align-end slds-m-top_medium slds-gutters_small">
+                        <template lwc:if={showCreateOrderCancelButton}>
+                            <div class="slds-col slds-grow-none">
+                                <lightning-button
+                                    label="Cancel"
+                                    disabled={isCreateOrderSubmitting}
+                                    onclick={handleCancelCreateNewOrder}
+                                ></lightning-button>
+                            </div>
+                        </template>
+                        <template lwc:if={showCreateOrderAddItemBack}>
+                            <div class="slds-col slds-grow-none">
+                                <lightning-button
+                                    label="Back"
+                                    disabled={isCreateOrderSubmitting}
+                                    onclick={handleCreateOrderBack}
+                                ></lightning-button>
+                            </div>
+                        </template>
+                        <template lwc:if={showCreateOrderProductFooter}>
+                            <div class="slds-col slds-grow-none">
+                                <lightning-button
+                                    label="Back"
+                                    disabled={isCreateOrderSubmitting}
+                                    onclick={handleCreateOrderBack}
+                                ></lightning-button>
+                            </div>
+                            <div class="slds-col slds-grow-none">
+                                <lightning-button
+                                    variant="brand"
+                                    label="Next"
+                                    disabled={isCreateOrderSubmitting}
+                                    onclick={handleCreateOrderProductNext}
+                                ></lightning-button>
+                            </div>
+                        </template>
+                        <template lwc:if={showCreateOrderSummaryFooter}>
+                            <div class="slds-col slds-grow-none">
+                                <lightning-button
+                                    label="Back"
+                                    disabled={isCreateOrderSubmitting}
+                                    onclick={handleCreateOrderBack}
+                                ></lightning-button>
+                            </div>
+                            <div class="slds-col slds-grow-none">
+                                <lightning-button
+                                    variant="brand"
+                                    label="Next"
+                                    disabled={isCreateOrderSummaryNextDisabled}
+                                    onclick={handleCreateOrderSummaryNext}
+                                ></lightning-button>
+                            </div>
+                        </template>
+                        <template lwc:if={showCreateOrderConfirmationFooter}>
+                            <div class="slds-col slds-grow-none">
+                                <lightning-button
+                                    variant="brand"
+                                    label="Close"
+                                    onclick={handleCreateOrderConfirmationClose}
+                                ></lightning-button>
+                            </div>
+                        </template>
+                        <template lwc:if={showCreateOrderAccountNext}>
+                            <div class="slds-col slds-grow-none">
+                                <lightning-button
+                                    variant="brand"
+                                    label="Next"
+                                    disabled={isCreateOrderAccountNextDisabled}
+                                    onclick={handleCreateOrderAccountNext}
+                                ></lightning-button>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </lightning-card>
+        </template>
+
+        <template lwc:if={showReceivePage}>
+            <lightning-card icon-name="standard:return_order">
+                <div slot="title" class="shell-card-title">
+                    <span>{receiveCardTitle}</span>
+                    <template lwc:if={showShipCompleteBadge}>
+                        <span class="item-badge item-badge_info" title="Ship Complete">
+                            <span class="item-badge__icon-mark" aria-hidden="true">i</span>
+                            Ship Complete
+                        </span>
+                    </template>
+                </div>
+                <div slot="actions" class="shell-receiver">
+                    <span class="shell-receiver__icon" aria-hidden="true">
+                        <lightning-icon
+                            icon-name="utility:user"
+                            size="xx-small"
+                            alternative-text=""
+                        ></lightning-icon>
+                    </span>
+                    <span class="shell-receiver__label">RECEIVER:</span>
+                    <span class="shell-receiver__name">{shellContext.receiverName}</span>
+                </div>
+
+                <div class="slds-p-around_medium">
+                    <div class="shell-account slds-m-bottom_medium">
+                        <div class="shell-account__details">
+                            <div class="shell-account__name">{shellContext.accountName}</div>
+                            <div class="shell-account__meta">{accountMetaDisplay}</div>
+                        </div>
+                        <template lwc:if={hasKeyIndicators}>
+                            <div class="key-indicators" aria-label="Account indicators">
+                                {keyIndicatorsDisplay}
+                            </div>
+                        </template>
+                    </div>
+
+                    <template lwc:if={isVendorWorkOrder}>
+                        <div class="verification-panel vendor-verification" aria-label="Vendor verification">
+                            <div class="verification-panel__title">Verification</div>
+                            <div class="verification-panel__subtitle">
+                                Please verify that the following was received from the vendor.
+                            </div>
+                            <template lwc:if={hasItems}>
+                                <ul class="vendor-verify-list">
+                                    <template for:each={vendorDisplayItems} for:item="item">
+                                        <li key={item.itemKey} class="vendor-verify-row">
+                                            <span class="vendor-verify-row__title">
+                                                Item {item.itemNumber}: {item.displayTitle}
+                                            </span>
+                                            <div class="vendor-verify-row__toggle">
+                                                <lightning-input
+                                                    type="toggle"
+                                                    label={item.vendorToggleLabel}
+                                                    variant="label-hidden"
+                                                    message-toggle-active=""
+                                                    message-toggle-inactive=""
+                                                    checked={item.vendorVerified}
+                                                    data-item-key={item.itemKey}
+                                                    onchange={handleVendorVerifiedToggle}
+                                                ></lightning-input>
+                                            </div>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </template>
+                            <template lwc:else>
+                                <p class="slds-text-color_weak">No items to verify.</p>
+                            </template>
+                            <div class="verification-panel__actions verification-panel__actions_split">
+                                <lightning-button
+                                    label="Cancel"
+                                    onclick={handleCancelReceiving}
+                                ></lightning-button>
+                                <template lwc:if={showVendorSubmitButton}>
+                                    <lightning-button
+                                        variant="brand"
+                                        label="Submit"
+                                        onclick={handleVendorWorkOrderSubmit}
+                                    ></lightning-button>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+
+                    <div class="item-list" aria-label="Items to receive" lwc:if={showStandardItemList}>
+                        <template lwc:if={hasItems}>
+                            <template for:each={displayItems} for:item="item">
+                                <section key={item.itemKey} class="item-card">
+                                    <button
+                                        type="button"
+                                        class="item-card__header"
+                                        data-item-key={item.itemKey}
+                                        onclick={handleToggleItem}
+                                        aria-expanded={item.isExpanded}
+                                    >
+                                        <lightning-icon
+                                            icon-name={item.chevronIcon}
+                                            size="x-small"
+                                            alternative-text=""
+                                            class="item-card__chevron"
+                                        ></lightning-icon>
+                                        <span class="item-card__title">{item.headerTitle}</span>
+                                        <span class="item-card__badges">
+                                            <template for:each={item.badges} for:item="badge">
+                                                <span
+                                                    key={badge.key}
+                                                    class={badge.cssClass}
+                                                    title={badge.label}
+                                                >
+                                                    <template lwc:if={badge.useIconMark}>
+                                                        <span class="item-badge__icon-mark" aria-hidden="true"
+                                                            >{badge.iconMark}</span>
+                                                    </template>
+                                                    <template lwc:else>
+                                                        <lightning-icon
+                                                            icon-name={badge.iconName}
+                                                            size="xx-small"
+                                                            alternative-text=""
+                                                        ></lightning-icon>
+                                                    </template>
+                                                    {badge.label}
+                                                </span>
+                                            </template>
+                                        </span>
+                                    </button>
+
+                                    <template lwc:if={item.isExpanded}>
+                                        <div class="item-card__body">
+                                            <template lwc:if={item.showActionsPanel}>
+                                                <div class="actions-panel">
+                                                    <nav class="actions-breadcrumb" aria-label="Item steps">
+                                                        <button
+                                                            type="button"
+                                                            class="actions-breadcrumb__link"
+                                                            data-item-key={item.itemKey}
+                                                            onclick={handleActionsBack}
+                                                        >
+                                                            Verification
+                                                        </button>
+                                                        <span class="actions-breadcrumb__sep" aria-hidden="true"
+                                                            >&gt;</span
+                                                        >
+                                                        <span class="actions-breadcrumb__current">Actions</span>
+                                                    </nav>
+                                                    <div class="actions-panel__title">Action</div>
+                                                    <div class="actions-panel__subtitle">
+                                                        Please choose a following action.
+                                                    </div>
+                                                    <div class="actions-grid">
+                                                        <div class="actions-column" role="list">
+                                                            <template
+                                                                for:each={item.leftActionOptions}
+                                                                for:item="action"
+                                                            >
+                                                                <button
+                                                                    key={action.key}
+                                                                    type="button"
+                                                                    class={action.cardClass}
+                                                                    role="listitem"
+                                                                    data-item-key={item.itemKey}
+                                                                    data-action-key={action.key}
+                                                                    onclick={handleActionSelect}
+                                                                >
+                                                                    <span
+                                                                        class="action-card__icon"
+                                                                        aria-hidden="true"
+                                                                    >
+                                                                        <lightning-icon
+                                                                            icon-name={action.iconName}
+                                                                            size="small"
+                                                                            alternative-text=""
+                                                                        ></lightning-icon>
+                                                                    </span>
+                                                                    <span class="action-card__text">
+                                                                        <span class="action-card__label"
+                                                                            >{action.label}</span
+                                                                        >
+                                                                        <span
+                                                                            class="action-card__description"
+                                                                            >{action.description}</span
+                                                                        >
+                                                                    </span>
+                                                                </button>
+                                                            </template>
+                                                        </div>
+                                                        <div class="actions-column" role="list">
+                                                            <template
+                                                                for:each={item.rightActionOptions}
+                                                                for:item="action"
+                                                            >
+                                                                <button
+                                                                    key={action.key}
+                                                                    type="button"
+                                                                    class={action.cardClass}
+                                                                    role="listitem"
+                                                                    data-item-key={item.itemKey}
+                                                                    data-action-key={action.key}
+                                                                    onclick={handleActionSelect}
+                                                                >
+                                                                    <span
+                                                                        class="action-card__icon"
+                                                                        aria-hidden="true"
+                                                                    >
+                                                                        <lightning-icon
+                                                                            icon-name={action.iconName}
+                                                                            size="small"
+                                                                            alternative-text=""
+                                                                        ></lightning-icon>
+                                                                    </span>
+                                                                    <span class="action-card__text">
+                                                                        <span class="action-card__label"
+                                                                            >{action.label}</span
+                                                                        >
+                                                                        <span
+                                                                            class="action-card__description"
+                                                                            >{action.description}</span
+                                                                        >
+                                                                    </span>
+                                                                </button>
+                                                            </template>
+                                                        </div>
+                                                    </div>
+                                                    <div class="actions-panel__footer">
+                                                        <lightning-button
+                                                            label="Back"
+                                                            data-item-key={item.itemKey}
+                                                            onclick={handleActionsBack}
+                                                        ></lightning-button>
+                                                        <template lwc:if={showFinishReceivingOnActions}>
+                                                            <lightning-button
+                                                                variant="brand"
+                                                                label="Finish Receiving"
+                                                                icon-name="utility:print"
+                                                                data-item-key={item.itemKey}
+                                                                disabled={isFinishReceivingBusy}
+                                                                onclick={handleFinishReceiving}
+                                                            ></lightning-button>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </template>
+
+                                            <template lwc:elseif={item.showRerunResiPanel}>
+                                                <div class="actions-panel rerun-resi-panel">
+                                                    <nav class="actions-breadcrumb" aria-label="Item steps">
+                                                        <button
+                                                            type="button"
+                                                            class="actions-breadcrumb__link"
+                                                            data-item-key={item.itemKey}
+                                                            onclick={handleNavigateToActions}
+                                                        >
+                                                            Verification &amp; Actions
+                                                        </button>
+                                                        <span class="actions-breadcrumb__sep" aria-hidden="true"
+                                                            >&gt;</span
+                                                        >
+                                                        <span class="actions-breadcrumb__current"
+                                                            >Rerun Resi-Test</span
+                                                        >
+                                                    </nav>
+                                                    <div class="actions-panel__title">Rerun Resi-Test</div>
+                                                    <div class="actions-panel__subtitle">
+                                                        Rerun the Resi-Test for previously received Orders and add
+                                                        disinfection code.
+                                                    </div>
+                                                    <div class="verify-row rerun-resi-panel__fields">
+                                                        <div class="verify-field">
+                                                            <div class="verify-field__label">
+                                                                <abbr class="slds-required" title="required">*</abbr>
+                                                                Disinfected?
+                                                            </div>
+                                                            <div class="verify-field__control">
+                                                                <div
+                                                                    class="decision-pills"
+                                                                    role="group"
+                                                                    aria-label="Disinfected"
+                                                                >
+                                                                    <button
+                                                                        type="button"
+                                                                        class={item.disinfectedCleanClass}
+                                                                        data-item-key={item.itemKey}
+                                                                        data-field="disinfected"
+                                                                        data-value="Clean"
+                                                                        onclick={handleDecisionClick}
+                                                                    >
+                                                                        Clean
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        class={item.disinfectedContaminatedClass}
+                                                                        data-item-key={item.itemKey}
+                                                                        data-field="disinfected"
+                                                                        data-value="Contaminated"
+                                                                        onclick={handleDecisionClick}
+                                                                    >
+                                                                        Contaminated
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="verify-field verify-field_checkbox">
+                                                            <div
+                                                                class="verify-field__label verify-field__label_spacer"
+                                                                aria-hidden="true"
+                                                            >
+                                                                &nbsp;
+                                                            </div>
+                                                            <div class="verify-field__control verify-field__control_checkbox">
+                                                                <label class="resi-check">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={item.resiTestPerformed}
+                                                                        data-item-key={item.itemKey}
+                                                                        onchange={handleResiTestChange}
+                                                                    />
+                                                                    <span class="resi-check__text"
+                                                                        >Resi-Test Performed</span
+                                                                    >
+                                                                </label>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="actions-panel__footer">
+                                                        <lightning-button
+                                                            label="Back"
+                                                            data-item-key={item.itemKey}
+                                                            onclick={handleRerunResiBack}
+                                                        ></lightning-button>
+                                                        <lightning-button
+                                                            variant="brand"
+                                                            label="Submit"
+                                                            data-item-key={item.itemKey}
+                                                            disabled={item.isRerunSubmitDisabled}
+                                                            onclick={handleRerunResiSubmit}
+                                                        ></lightning-button>
+                                                    </div>
+                                                </div>
+                                            </template>
+
+                                            <template lwc:elseif={item.showCustomerCarePanel}>
+                                                <div class="actions-panel customer-care-panel">
+                                                    <nav class="actions-breadcrumb" aria-label="Item steps">
+                                                        <button
+                                                            type="button"
+                                                            class="actions-breadcrumb__link"
+                                                            data-item-key={item.itemKey}
+                                                            onclick={handleActionsBack}
+                                                        >
+                                                            Verification
+                                                        </button>
+                                                        <span class="actions-breadcrumb__sep" aria-hidden="true"
+                                                            >&gt;</span
+                                                        >
+                                                        <button
+                                                            type="button"
+                                                            class="actions-breadcrumb__link"
+                                                            data-item-key={item.itemKey}
+                                                            onclick={handleNavigateToActions}
+                                                        >
+                                                            Actions
+                                                        </button>
+                                                        <span class="actions-breadcrumb__sep" aria-hidden="true"
+                                                            >&gt;</span
+                                                        >
+                                                        <span class="actions-breadcrumb__current"
+                                                            >Contact Customer Care</span
+                                                        >
+                                                    </nav>
+                                                    <div class="actions-panel__title">Contact Customer Care</div>
+                                                    <div class="actions-panel__subtitle">
+                                                        Resolve serial number, model, or other receipt discrepancies.
+                                                    </div>
+                                                    <div class="customer-care-form">
+                                                        <div class="customer-care-form__field">
+                                                            <lightning-checkbox-group
+                                                                label="Reason Code"
+                                                                value={item.customerCareDraftReasonCodes}
+                                                                options={customerCareReasonOptions}
+                                                                required
+                                                                data-item-key={item.itemKey}
+                                                                data-field="customerCareDraftReasonCodes"
+                                                                onchange={handleCustomerCareFieldChange}
+                                                            ></lightning-checkbox-group>
+                                                        </div>
+                                                        <div class="customer-care-form__field customer-care-form__field_notes">
+                                                            <lightning-textarea
+                                                                label="Notes"
+                                                                value={item.customerCareDraftNotes}
+                                                                data-item-key={item.itemKey}
+                                                                data-field="customerCareDraftNotes"
+                                                                onchange={handleCustomerCareFieldChange}
+                                                            ></lightning-textarea>
+                                                        </div>
+                                                    </div>
+                                                    <div class="actions-panel__footer">
+                                                        <lightning-button
+                                                            label="Back"
+                                                            data-item-key={item.itemKey}
+                                                            onclick={handleCustomerCareBack}
+                                                        ></lightning-button>
+                                                        <lightning-button
+                                                            variant="brand"
+                                                            label="Submit"
+                                                            data-item-key={item.itemKey}
+                                                            disabled={item.isCustomerCareSubmitDisabled}
+                                                            onclick={handleCustomerCareSubmit}
+                                                        ></lightning-button>
+                                                    </div>
+                                                </div>
+                                            </template>
+
+                                            <template lwc:elseif={item.showAccessoriesPanel}>
+                                                <div class="actions-panel accessories-panel">
+                                                    <nav class="actions-breadcrumb" aria-label="Item steps">
+                                                        <button
+                                                            type="button"
+                                                            class="actions-breadcrumb__link"
+                                                            data-item-key={item.itemKey}
+                                                            onclick={handleActionsBack}
+                                                        >
+                                                            Verification
+                                                        </button>
+                                                        <span class="actions-breadcrumb__sep" aria-hidden="true"
+                                                            >&gt;</span
+                                                        >
+                                                        <button
+                                                            type="button"
+                                                            class="actions-breadcrumb__link"
+                                                            data-item-key={item.itemKey}
+                                                            onclick={handleNavigateToActions}
+                                                        >
+                                                            Actions
+                                                        </button>
+                                                        <span class="actions-breadcrumb__sep" aria-hidden="true"
+                                                            >&gt;</span
+                                                        >
+                                                        <span class="actions-breadcrumb__current"
+                                                            >Add Case or Accessories</span
+                                                        >
+                                                    </nav>
+                                                    <div class="accessories-panel__header">
+                                                        <div>
+                                                            <div class="actions-panel__title">
+                                                                Add Case or Accessories
+                                                            </div>
+                                                            <div class="actions-panel__subtitle">
+                                                                Record any cases or accessories received.
+                                                            </div>
+                                                        </div>
+                                                        <lightning-button
+                                                            variant="brand"
+                                                            label="Add Case or Accessory"
+                                                            icon-name="utility:add"
+                                                            data-item-key={item.itemKey}
+                                                            onclick={handleAddAccessoryRow}
+                                                        ></lightning-button>
+                                                    </div>
+                                                    <div class="accessory-list" aria-label="Accessories">
+                                                        <template lwc:if={item.hasAccessoriesDraft}>
+                                                            <template
+                                                                for:each={item.accessoriesDraft}
+                                                                for:item="accessory"
+                                                            >
+                                                                <section key={accessory.key} class="accessory-card">
+                                                                    <div class="accessory-card__header">
+                                                                        <button
+                                                                            type="button"
+                                                                            class="accessory-card__toggle"
+                                                                            data-item-key={item.itemKey}
+                                                                            data-accessory-key={accessory.key}
+                                                                            onclick={handleToggleAccessoryRow}
+                                                                            aria-expanded={accessory.isExpanded}
+                                                                        >
+                                                                            <lightning-icon
+                                                                                icon-name={accessory.chevronIcon}
+                                                                                size="x-small"
+                                                                                alternative-text=""
+                                                                            ></lightning-icon>
+                                                                            <span class="accessory-card__title"
+                                                                                >{accessory.headerLabel}</span
+                                                                            >
+                                                                        </button>
+                                                                        <div class="accessory-card__header-actions">
+                                                                            <template lwc:if={accessory.isExpanded}>
+                                                                                <lightning-button-icon
+                                                                                    icon-name="utility:delete"
+                                                                                    alternative-text="Delete accessory"
+                                                                                    title="Delete"
+                                                                                    variant="bare"
+                                                                                    class="accessory-card__delete"
+                                                                                    data-item-key={item.itemKey}
+                                                                                    data-accessory-key={accessory.key}
+                                                                                    onclick={handleDeleteAccessoryRow}
+                                                                                ></lightning-button-icon>
+                                                                            </template>
+                                                                            <template lwc:else>
+                                                                                <lightning-button-icon
+                                                                                    icon-name="utility:edit"
+                                                                                    alternative-text="Edit accessory"
+                                                                                    title="Edit"
+                                                                                    variant="bare"
+                                                                                    data-item-key={item.itemKey}
+                                                                                    data-accessory-key={accessory.key}
+                                                                                    onclick={handleEditAccessoryRow}
+                                                                                ></lightning-button-icon>
+                                                                                <lightning-button-icon
+                                                                                    icon-name="utility:delete"
+                                                                                    alternative-text="Delete accessory"
+                                                                                    title="Delete"
+                                                                                    variant="bare"
+                                                                                    class="accessory-card__delete"
+                                                                                    data-item-key={item.itemKey}
+                                                                                    data-accessory-key={accessory.key}
+                                                                                    onclick={handleDeleteAccessoryRow}
+                                                                                ></lightning-button-icon>
+                                                                            </template>
+                                                                        </div>
+                                                                    </div>
+                                                                    <template lwc:if={accessory.isExpanded}>
+                                                                        <div class="accessory-card__body">
+                                                                            <div class="accessory-form">
+                                                                                <div class="accessory-form__field accessory-form__field_type">
+                                                                                    <lightning-combobox
+                                                                                        label="Accessory Type"
+                                                                                        value={accessory.accessoryType}
+                                                                                        options={accessoryTypeOptions}
+                                                                                        placeholder="Select"
+                                                                                        required
+                                                                                        data-item-key={item.itemKey}
+                                                                                        data-accessory-key={accessory.key}
+                                                                                        data-field="accessoryType"
+                                                                                        onchange={handleAccessoryFieldChange}
+                                                                                    ></lightning-combobox>
+                                                                                </div>
+                                                                                <div class="accessory-form__field accessory-form__field_storage">
+                                                                                    <lightning-input
+                                                                                        label="Storage Location"
+                                                                                        value={accessory.storageLocation}
+                                                                                        data-item-key={item.itemKey}
+                                                                                        data-accessory-key={accessory.key}
+                                                                                        data-field="storageLocation"
+                                                                                        onchange={handleAccessoryFieldChange}
+                                                                                    ></lightning-input>
+                                                                                </div>
+                                                                                <div class="accessory-form__field accessory-form__field_quantity">
+                                                                                    <lightning-input
+                                                                                        label="Quantity"
+                                                                                        type="number"
+                                                                                        min="1"
+                                                                                        step="1"
+                                                                                        value={accessory.quantity}
+                                                                                        required
+                                                                                        data-item-key={item.itemKey}
+                                                                                        data-accessory-key={accessory.key}
+                                                                                        data-field="quantity"
+                                                                                        onchange={handleAccessoryFieldChange}
+                                                                                    ></lightning-input>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div class="accessory-card__footer">
+                                                                                <lightning-button
+                                                                                    label="Delete"
+                                                                                    icon-name="utility:delete"
+                                                                                    data-item-key={item.itemKey}
+                                                                                    data-accessory-key={accessory.key}
+                                                                                    onclick={handleDeleteAccessoryRow}
+                                                                                ></lightning-button>
+                                                                            </div>
+                                                                        </div>
+                                                                    </template>
+                                                                </section>
+                                                            </template>
+                                                        </template>
+                                                        <template lwc:else>
+                                                            <p class="slds-text-color_weak">
+                                                                No accessories added yet. Use Add Case or Accessory to
+                                                                begin.
+                                                            </p>
+                                                        </template>
+                                                    </div>
+                                                    <div class="actions-panel__footer">
+                                                        <lightning-button
+                                                            label="Back"
+                                                            data-item-key={item.itemKey}
+                                                            onclick={handleAccessoriesBack}
+                                                        ></lightning-button>
+                                                        <lightning-button
+                                                            variant="brand"
+                                                            label="Submit"
+                                                            data-item-key={item.itemKey}
+                                                            onclick={handleAccessoriesSubmit}
+                                                        ></lightning-button>
+                                                    </div>
+                                                </div>
+                                            </template>
+
+                                            <template lwc:elseif={item.showOverridePanel}>
+                                                <div class="actions-panel override-panel">
+                                                    <nav class="actions-breadcrumb" aria-label="Item steps">
+                                                        <button
+                                                            type="button"
+                                                            class="actions-breadcrumb__link"
+                                                            data-item-key={item.itemKey}
+                                                            onclick={handleActionsBack}
+                                                        >
+                                                            Verification
+                                                        </button>
+                                                        <span class="actions-breadcrumb__sep" aria-hidden="true"
+                                                            >&gt;</span
+                                                        >
+                                                        <button
+                                                            type="button"
+                                                            class="actions-breadcrumb__link"
+                                                            data-item-key={item.itemKey}
+                                                            onclick={handleNavigateToActions}
+                                                        >
+                                                            Actions
+                                                        </button>
+                                                        <span class="actions-breadcrumb__sep" aria-hidden="true"
+                                                            >&gt;</span
+                                                        >
+                                                        <span class="actions-breadcrumb__current">Override</span>
+                                                    </nav>
+                                                    <div class="actions-panel__title">Override</div>
+                                                    <div class="actions-panel__subtitle">
+                                                        Correct the serial number or model information received.
+                                                    </div>
+                                                    <div class="override-form">
+                                                        <lightning-input
+                                                            label="Listed Serial Number"
+                                                            value={item.listedSerialNumber}
+                                                            read-only
+                                                        ></lightning-input>
+                                                        <div class={item.overrideSerialFieldClass}>
+                                                            <lightning-input
+                                                                label="Corrected Serial Number"
+                                                                value={item.overrideDraftSerial}
+                                                                data-item-key={item.itemKey}
+                                                                data-field="overrideDraftSerial"
+                                                                onchange={handleOverrideFieldChange}
+                                                            ></lightning-input>
+                                                            <template lwc:if={item.overrideSerialError}>
+                                                                <div class="override-error" role="alert">
+                                                                    {item.overrideSerialError}
+                                                                </div>
+                                                            </template>
+                                                        </div>
+                                                        <lightning-input
+                                                            label="Listed Model"
+                                                            value={item.listedModel}
+                                                            read-only
+                                                        ></lightning-input>
+                                                        <lightning-input
+                                                            label="Corrected Model"
+                                                            value={item.overrideDraftModel}
+                                                            data-item-key={item.itemKey}
+                                                            data-field="overrideDraftModel"
+                                                            onchange={handleOverrideFieldChange}
+                                                        ></lightning-input>
+                                                    </div>
+                                                    <template lwc:if={item.showOverrideCustomerCare}>
+                                                        <div class="override-care">
+                                                            <div class="override-care__intro">
+                                                                <div class="actions-panel__title">
+                                                                    Contact Customer Care
+                                                                </div>
+                                                                <div class="actions-panel__subtitle">
+                                                                    Resolve serial number, model, or other receipt
+                                                                    discrepancies.
+                                                                </div>
+                                                            </div>
+                                                            <lightning-checkbox-group
+                                                                label="Reason Code"
+                                                                value={item.overrideDraftReasonCodes}
+                                                                options={customerCareReasonOptions}
+                                                                required
+                                                                data-item-key={item.itemKey}
+                                                                data-field="overrideDraftReasonCodes"
+                                                                onchange={handleOverrideFieldChange}
+                                                            ></lightning-checkbox-group>
+                                                            <lightning-textarea
+                                                                label="Notes"
+                                                                value={item.overrideDraftNotes}
+                                                                data-item-key={item.itemKey}
+                                                                data-field="overrideDraftNotes"
+                                                                onchange={handleOverrideFieldChange}
+                                                            ></lightning-textarea>
+                                                        </div>
+                                                    </template>
+                                                    <div class="actions-panel__footer">
+                                                        <lightning-button
+                                                            label="Back"
+                                                            data-item-key={item.itemKey}
+                                                            onclick={handleOverrideBack}
+                                                        ></lightning-button>
+                                                        <lightning-button
+                                                            variant="brand"
+                                                            label="Submit"
+                                                            data-item-key={item.itemKey}
+                                                            disabled={item.isOverrideSubmitDisabled}
+                                                            onclick={handleOverrideSubmit}
+                                                        ></lightning-button>
+                                                    </div>
+                                                </div>
+                                            </template>
+
+                                            <template lwc:elseif={item.showRedirectPanel}>
+                                                <div class="actions-panel redirect-panel">
+                                                    <nav class="actions-breadcrumb" aria-label="Item steps">
+                                                        <button
+                                                            type="button"
+                                                            class="actions-breadcrumb__link"
+                                                            data-item-key={item.itemKey}
+                                                            onclick={handleActionsBack}
+                                                        >
+                                                            Verification
+                                                        </button>
+                                                        <span class="actions-breadcrumb__sep" aria-hidden="true"
+                                                            >&gt;</span
+                                                        >
+                                                        <button
+                                                            type="button"
+                                                            class="actions-breadcrumb__link"
+                                                            data-item-key={item.itemKey}
+                                                            onclick={handleNavigateToActions}
+                                                        >
+                                                            Actions
+                                                        </button>
+                                                        <span class="actions-breadcrumb__sep" aria-hidden="true"
+                                                            >&gt;</span
+                                                        >
+                                                        <span class="actions-breadcrumb__current"
+                                                            >Redirect Repair Center</span
+                                                        >
+                                                    </nav>
+                                                    <div class="actions-panel__title">Redirect Repair Center</div>
+                                                    <div class="actions-panel__subtitle">
+                                                        Route item to the appropriate STERIS Repair Center location.
+                                                    </div>
+                                                    <div class="redirect-form">
+                                                        <lightning-input
+                                                            label="Listed Repair Center"
+                                                            value={item.listedRepairCenterName}
+                                                            read-only
+                                                        ></lightning-input>
+                                                        <lightning-combobox
+                                                            label="Redirect to Repair Center"
+                                                            value={item.redirectDraftLocationId}
+                                                            options={item.redirectRepairCenterOptions}
+                                                            placeholder="Select"
+                                                            required
+                                                            data-item-key={item.itemKey}
+                                                            data-field="redirectDraftLocationId"
+                                                            onchange={handleRedirectFieldChange}
+                                                        ></lightning-combobox>
+                                                        <div class="redirect-form__notes">
+                                                            <lightning-textarea
+                                                                label="Notes"
+                                                                value={item.redirectDraftNotes}
+                                                                data-item-key={item.itemKey}
+                                                                data-field="redirectDraftNotes"
+                                                                onchange={handleRedirectFieldChange}
+                                                            ></lightning-textarea>
+                                                        </div>
+                                                    </div>
+                                                    <div class="actions-panel__footer">
+                                                        <lightning-button
+                                                            label="Back"
+                                                            data-item-key={item.itemKey}
+                                                            onclick={handleRedirectBack}
+                                                        ></lightning-button>
+                                                        <lightning-button
+                                                            variant="brand"
+                                                            label="Submit"
+                                                            data-item-key={item.itemKey}
+                                                            disabled={item.isRedirectSubmitDisabled}
+                                                            onclick={handleRedirectSubmit}
+                                                        ></lightning-button>
+                                                    </div>
+                                                </div>
+                                            </template>
+
+                                            <template lwc:elseif={item.showOutsideVendorPanel}>
+                                                <div class="actions-panel outside-vendor-panel">
+                                                    <nav class="actions-breadcrumb" aria-label="Item steps">
+                                                        <button
+                                                            type="button"
+                                                            class="actions-breadcrumb__link"
+                                                            data-item-key={item.itemKey}
+                                                            onclick={handleActionsBack}
+                                                        >
+                                                            Verification
+                                                        </button>
+                                                        <span class="actions-breadcrumb__sep" aria-hidden="true"
+                                                            >&gt;</span
+                                                        >
+                                                        <button
+                                                            type="button"
+                                                            class="actions-breadcrumb__link"
+                                                            data-item-key={item.itemKey}
+                                                            onclick={handleNavigateToActions}
+                                                        >
+                                                            Actions
+                                                        </button>
+                                                        <span class="actions-breadcrumb__sep" aria-hidden="true"
+                                                            >&gt;</span
+                                                        >
+                                                        <span class="actions-breadcrumb__current"
+                                                            >Outside Vendor</span
+                                                        >
+                                                    </nav>
+                                                    <div class="actions-panel__title">Outside Vendor</div>
+                                                    <div class="actions-panel__subtitle">
+                                                        Send item(s) to an external vendor for repair services.
+                                                    </div>
+                                                    <div class="outside-vendor-form">
+                                                        <div class="outside-vendor-form__field">
+                                                            <lightning-combobox
+                                                                label="Select Vendor"
+                                                                placeholder="Select"
+                                                                options={vendorAccountOptions}
+                                                                value={item.outsideVendorDraftAccountId}
+                                                                required
+                                                                data-item-key={item.itemKey}
+                                                                onchange={handleOutsideVendorChange}
+                                                            ></lightning-combobox>
+                                                        </div>
+                                                        <div class="outside-vendor-form__field outside-vendor-form__field_instructions">
+                                                            <lightning-textarea
+                                                                label="Instructions to Vendor"
+                                                                value={item.outsideVendorDraftInstructions}
+                                                                data-item-key={item.itemKey}
+                                                                onchange={handleOutsideVendorInstructionsChange}
+                                                            ></lightning-textarea>
+                                                        </div>
+                                                    </div>
+                                                    <div class="actions-panel__footer">
+                                                        <lightning-button
+                                                            label="Back"
+                                                            data-item-key={item.itemKey}
+                                                            onclick={handleOutsideVendorBack}
+                                                        ></lightning-button>
+                                                        <lightning-button
+                                                            variant="brand"
+                                                            label="Submit"
+                                                            data-item-key={item.itemKey}
+                                                            disabled={item.isOutsideVendorSubmitDisabled}
+                                                            onclick={handleOutsideVendorSubmit}
+                                                        ></lightning-button>
+                                                    </div>
+                                                </div>
+                                            </template>
+
+                                            <template lwc:elseif={item.showInternalRepairPanel}>
+                                                <div class="actions-panel internal-repair-panel">
+                                                    <nav class="actions-breadcrumb" aria-label="Item steps">
+                                                        <button
+                                                            type="button"
+                                                            class="actions-breadcrumb__link"
+                                                            data-item-key={item.itemKey}
+                                                            onclick={handleActionsBack}
+                                                        >
+                                                            Verification
+                                                        </button>
+                                                        <span class="actions-breadcrumb__sep" aria-hidden="true"
+                                                            >&gt;</span
+                                                        >
+                                                        <button
+                                                            type="button"
+                                                            class="actions-breadcrumb__link"
+                                                            data-item-key={item.itemKey}
+                                                            onclick={handleNavigateToActions}
+                                                        >
+                                                            Actions
+                                                        </button>
+                                                        <span class="actions-breadcrumb__sep" aria-hidden="true"
+                                                            >&gt;</span
+                                                        >
+                                                        <span class="actions-breadcrumb__current"
+                                                            >Internal Repair</span
+                                                        >
+                                                    </nav>
+                                                    <div class="actions-panel__title">Internal Repair</div>
+                                                    <div class="actions-panel__subtitle">
+                                                        Assign internal account to repair.
+                                                    </div>
+                                                    <div class="internal-repair-form">
+                                                        <div class="internal-repair-form__field">
+                                                            <lightning-combobox
+                                                                label="Internal Account"
+                                                                value={item.internalRepairDraftAccountId}
+                                                                options={item.internalAccountOptions}
+                                                                placeholder="Select"
+                                                                required
+                                                                data-item-key={item.itemKey}
+                                                                data-field="internalRepairDraftAccountId"
+                                                                onchange={handleInternalRepairFieldChange}
+                                                            ></lightning-combobox>
+                                                        </div>
+                                                        <div
+                                                            class="internal-repair-form__field internal-repair-form__field_notes"
+                                                        >
+                                                            <lightning-textarea
+                                                                label="Notes"
+                                                                value={item.internalRepairDraftNotes}
+                                                                data-item-key={item.itemKey}
+                                                                data-field="internalRepairDraftNotes"
+                                                                onchange={handleInternalRepairFieldChange}
+                                                            ></lightning-textarea>
+                                                        </div>
+                                                    </div>
+                                                    <div class="actions-panel__footer">
+                                                        <lightning-button
+                                                            label="Back"
+                                                            data-item-key={item.itemKey}
+                                                            onclick={handleInternalRepairBack}
+                                                        ></lightning-button>
+                                                        <lightning-button
+                                                            variant="brand"
+                                                            label="Submit"
+                                                            data-item-key={item.itemKey}
+                                                            disabled={item.isInternalRepairSubmitDisabled}
+                                                            onclick={handleInternalRepairSubmit}
+                                                        ></lightning-button>
+                                                    </div>
+                                                </div>
+                                            </template>
+
+                                            <template lwc:elseif={item.showVerificationPanel}>
+                                            <div class="verification-panel">
+                                                <template lwc:if={item.isAdHoc}>
+                                                    <div class="verification-panel__title">Verification</div>
+                                                    <div class="verification-panel__subtitle">
+                                                        Please verify the following.
+                                                    </div>
+                                                    <div class="add-item-form">
+                                                        <div class="add-item-form__column">
+                                                            <template lwc:if={item.isSerializedAddItem}>
+                                                                <template lwc:if={hasAccountForAssetPicker}>
+                                                                    <div class="add-item-form__field">
+                                                                        <lightning-record-picker
+                                                                            label="Account Assets"
+                                                                            placeholder="Select"
+                                                                            object-api-name="Asset"
+                                                                            filter={accountAssetFilter}
+                                                                            value={item.assetId}
+                                                                            data-item-key={item.itemKey}
+                                                                            data-field="assetId"
+                                                                            onchange={handleAdHocRecordChange}
+                                                                        ></lightning-record-picker>
+                                                                    </div>
+                                                                </template>
+                                                            </template>
+                                                            <div class="add-item-form__field">
+                                                                <lightning-record-picker
+                                                                    label="Product"
+                                                                    placeholder="Select"
+                                                                    object-api-name="Product2"
+                                                                    value={item.product2Id}
+                                                                    required
+                                                                    data-item-key={item.itemKey}
+                                                                    data-field="product2Id"
+                                                                    onchange={handleAdHocRecordChange}
+                                                                ></lightning-record-picker>
+                                                            </div>
+                                                            <div class="add-item-form__field">
+                                                                <lightning-combobox
+                                                                    label="Disinfected"
+                                                                    value={item.disinfected}
+                                                                    options={disinfectedAddItemOptions}
+                                                                    placeholder="Select"
+                                                                    required
+                                                                    data-item-key={item.itemKey}
+                                                                    data-field="disinfected"
+                                                                    onchange={handleAdHocFieldChange}
+                                                                ></lightning-combobox>
+                                                            </div>
+                                                        </div>
+                                                        <div class="add-item-form__column">
+                                                            <template lwc:if={item.isSerializedAddItem}>
+                                                                <div class="add-item-form__field">
+                                                                    <lightning-input
+                                                                        label="Serial Number"
+                                                                        value={item.serialNumber}
+                                                                        required
+                                                                        data-item-key={item.itemKey}
+                                                                        data-field="serialNumber"
+                                                                        onchange={handleAdHocFieldChange}
+                                                                    ></lightning-input>
+                                                                </div>
+                                                            </template>
+                                                            <div class="add-item-form__field">
+                                                                <lightning-input
+                                                                    label="Model"
+                                                                    value={item.model}
+                                                                    read-only
+                                                                    data-item-key={item.itemKey}
+                                                                    data-field="model"
+                                                                ></lightning-input>
+                                                            </div>
+                                                            <div class="add-item-form__field">
+                                                                <lightning-input
+                                                                    label="Product Line"
+                                                                    value={item.productLine}
+                                                                    read-only
+                                                                    data-item-key={item.itemKey}
+                                                                    data-field="productLine"
+                                                                ></lightning-input>
+                                                            </div>
+                                                        </div>
+                                                        <div class="add-item-form__section">
+                                                            <div class="add-item-form__section-copy">
+                                                                <div class="add-item-form__section-title">
+                                                                    Contact Customer Care
+                                                                </div>
+                                                                <div class="add-item-form__section-subtitle">
+                                                                    Resolve serial number, model, or other receipt discrepancies.
+                                                                </div>
+                                                            </div>
+                                                            <div class="add-item-form__field add-item-form__field_reason">
+                                                                <lightning-checkbox-group
+                                                                    label="Reason Code"
+                                                                    value={item.customerCareReasonCodes}
+                                                                    options={customerCareReasonOptions}
+                                                                    required
+                                                                    data-item-key={item.itemKey}
+                                                                    data-field="customerCareReasonCodes"
+                                                                    onchange={handleAdHocFieldChange}
+                                                                ></lightning-checkbox-group>
+                                                            </div>
+                                                            <div class="add-item-form__field add-item-form__field_notes">
+                                                                <lightning-textarea
+                                                                    label="Notes"
+                                                                    value={item.customerCareNotes}
+                                                                    data-item-key={item.itemKey}
+                                                                    data-field="customerCareNotes"
+                                                                    onchange={handleAdHocFieldChange}
+                                                                ></lightning-textarea>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="verification-panel__actions verification-panel__actions_end">
+                                                        <lightning-button
+                                                            label="Remove Item"
+                                                            icon-name="utility:delete"
+                                                            data-item-key={item.itemKey}
+                                                            onclick={handleRemoveAdHocItem}
+                                                        ></lightning-button>
+                                                        <template lwc:if={item.showNextButton}>
+                                                            <lightning-button
+                                                                variant="brand"
+                                                                label="Next"
+                                                                data-item-key={item.itemKey}
+                                                                onclick={handleItemNext}
+                                                            ></lightning-button>
+                                                        </template>
+                                                    </div>
+                                                </template>
+
+                                                <template lwc:else>
+                                                <div class="verification-panel__title">Verification</div>
+                                                <div class="verification-panel__subtitle">
+                                                    Please verify the following.
+                                                </div>
+
+                                                <template lwc:if={item.isInstrumentItem}>
+                                                    <div class="verify-row">
+                                                        <div class="verify-field">
+                                                            <div class="verify-field__label">
+                                                                Total Quantity on Order
+                                                            </div>
+                                                            <div class="verify-field__control">
+                                                                <div class="verify-readonly" aria-readonly="true">
+                                                                    {item.quantityReturned}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="verify-field">
+                                                            <label class="verify-field__label" for={item.qtyReceivedInputId}>
+                                                                <abbr class="slds-required" title="required">*</abbr>
+                                                                Quantity Received
+                                                            </label>
+                                                            <div class="verify-field__control">
+                                                                <input
+                                                                    id={item.qtyReceivedInputId}
+                                                                    class="verify-input"
+                                                                    type="number"
+                                                                    min="0"
+                                                                    step="1"
+                                                                    value={item.quantityReceived}
+                                                                    data-item-key={item.itemKey}
+                                                                    oninput={handleQuantityReceivedChange}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                        <div class="verify-field">
+                                                            <div class="verify-field__label">
+                                                                <abbr class="slds-required" title="required">*</abbr>
+                                                                Disinfected?
+                                                            </div>
+                                                            <div class="verify-field__control">
+                                                                <div
+                                                                    class="decision-pills"
+                                                                    role="group"
+                                                                    aria-label="Disinfected"
+                                                                >
+                                                                    <button
+                                                                        type="button"
+                                                                        class={item.disinfectedCleanClass}
+                                                                        data-item-key={item.itemKey}
+                                                                        data-field="disinfected"
+                                                                        data-value="Clean"
+                                                                        onclick={handleDecisionClick}
+                                                                    >
+                                                                        Clean
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        class={item.disinfectedContaminatedClass}
+                                                                        data-item-key={item.itemKey}
+                                                                        data-field="disinfected"
+                                                                        data-value="Contaminated"
+                                                                        onclick={handleDecisionClick}
+                                                                    >
+                                                                        Contaminated
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="verify-field verify-field_checkbox">
+                                                            <div class="verify-field__label verify-field__label_spacer" aria-hidden="true">
+                                                                &nbsp;
+                                                            </div>
+                                                            <div class="verify-field__control verify-field__control_checkbox">
+                                                                <label class="resi-check">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={item.resiTestPerformed}
+                                                                        data-item-key={item.itemKey}
+                                                                        onchange={handleResiTestChange}
+                                                                    />
+                                                                    <span class="resi-check__text">Resi-Test Performed</span>
+                                                                </label>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="mod-form">
+                                                        <div class="mod-form__title">Mod Form</div>
+                                                        <div
+                                                            class={item.modFormDropzoneClass}
+                                                            data-item-key={item.itemKey}
+                                                            ondragover={handleModFormDragOver}
+                                                            ondragleave={handleModFormDragLeave}
+                                                            ondrop={handleModFormDrop}
+                                                        >
+                                                            <input
+                                                                type="file"
+                                                                class="slds-hide"
+                                                                data-id="mod-form-file-input"
+                                                                data-item-key={item.itemKey}
+                                                                accept={modFormAccept}
+                                                                multiple
+                                                                onchange={handleModFormFileSelected}
+                                                            />
+                                                            <div class="mod-form__actions">
+                                                                <lightning-button
+                                                                    label="Take Photo"
+                                                                    icon-name="utility:photo"
+                                                                    data-item-key={item.itemKey}
+                                                                    onclick={handleOpenModFormCamera}
+                                                                    disabled={isModFormBusy}
+                                                                ></lightning-button>
+                                                                <template lwc:if={item.hasModFormPhotos}>
+                                                                    <span class="mod-form__count">
+                                                                        {item.modFormPhotoCountLabel}
+                                                                    </span>
+                                                                </template>
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                class="mod-form__drop-label"
+                                                                data-item-key={item.itemKey}
+                                                                onclick={handleModFormChooseFiles}
+                                                                disabled={isModFormBusy}
+                                                            >
+                                                                Or drop files
+                                                            </button>
+                                                        </div>
+                                                        <template lwc:if={modFormError}>
+                                                            <div class="slds-text-color_error slds-m-top_x-small" role="alert">
+                                                                {modFormError}
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                </template>
+
+                                                <template lwc:else>
+                                                    <div class="verify-row">
+                                                        <template lwc:if={item.showQuantityVerify}>
+                                                            <template lwc:if={isReturnOrderPath}>
+                                                                <div class="verify-field">
+                                                                    <div class="verify-field__label">
+                                                                        Total Quantity on Order
+                                                                    </div>
+                                                                    <div class="verify-field__control">
+                                                                        <div class="verify-readonly" aria-readonly="true">
+                                                                            {item.quantityReturned}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </template>
+                                                            <div class="verify-field">
+                                                                <label class="verify-field__label" for={item.qtyReceivedInputId}>
+                                                                    <abbr class="slds-required" title="required">*</abbr>
+                                                                    Quantity Received
+                                                                </label>
+                                                                <div class="verify-field__control">
+                                                                    <input
+                                                                        id={item.qtyReceivedInputId}
+                                                                        class="verify-input"
+                                                                        type="number"
+                                                                        min="0"
+                                                                        step="1"
+                                                                        value={item.quantityReceived}
+                                                                        data-item-key={item.itemKey}
+                                                                        oninput={handleQuantityReceivedChange}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        </template>
+
+                                                        <template lwc:if={item.showSerialVerify}>
+                                                            <div class="verify-field">
+                                                                <div class="verify-field__label">
+                                                                    {item.serialVerifyLabel}
+                                                                </div>
+                                                                <div class="verify-field__control">
+                                                                    <div
+                                                                        class="decision-pills"
+                                                                        role="group"
+                                                                        aria-label={item.serialVerifyLabel}
+                                                                    >
+                                                                        <button
+                                                                            type="button"
+                                                                            class={item.serialYesClass}
+                                                                            data-item-key={item.itemKey}
+                                                                            data-field="serialMatch"
+                                                                            data-value="Yes"
+                                                                            onclick={handleDecisionClick}
+                                                                        >
+                                                                            Yes
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            class={item.serialNoClass}
+                                                                            data-item-key={item.itemKey}
+                                                                            data-field="serialMatch"
+                                                                            data-value="No"
+                                                                            onclick={handleDecisionClick}
+                                                                        >
+                                                                            No
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </template>
+
+                                                        <template lwc:if={item.showModelVerify}>
+                                                            <div class="verify-field">
+                                                                <div class="verify-field__label">
+                                                                    {item.modelVerifyLabel}
+                                                                </div>
+                                                                <div class="verify-field__control">
+                                                                    <div
+                                                                        class="decision-pills"
+                                                                        role="group"
+                                                                        aria-label={item.modelVerifyLabel}
+                                                                    >
+                                                                        <button
+                                                                            type="button"
+                                                                            class={item.modelYesClass}
+                                                                            data-item-key={item.itemKey}
+                                                                            data-field="modelMatch"
+                                                                            data-value="Yes"
+                                                                            onclick={handleDecisionClick}
+                                                                        >
+                                                                            Yes
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            class={item.modelNoClass}
+                                                                            data-item-key={item.itemKey}
+                                                                            data-field="modelMatch"
+                                                                            data-value="No"
+                                                                            onclick={handleDecisionClick}
+                                                                        >
+                                                                            No
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </template>
+
+                                                        <template lwc:if={item.showDisinfectedVerify}>
+                                                            <div class="verify-field">
+                                                                <div class="verify-field__label">
+                                                                    <abbr class="slds-required" title="required">*</abbr>
+                                                                    Disinfected?
+                                                                </div>
+                                                                <div class="verify-field__control">
+                                                                    <div
+                                                                        class="decision-pills"
+                                                                        role="group"
+                                                                        aria-label="Disinfected"
+                                                                    >
+                                                                        <button
+                                                                            type="button"
+                                                                            class={item.disinfectedCleanClass}
+                                                                            data-item-key={item.itemKey}
+                                                                            data-field="disinfected"
+                                                                            data-value="Clean"
+                                                                            onclick={handleDecisionClick}
+                                                                        >
+                                                                            Clean
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            class={item.disinfectedContaminatedClass}
+                                                                            data-item-key={item.itemKey}
+                                                                            data-field="disinfected"
+                                                                            data-value="Contaminated"
+                                                                            onclick={handleDecisionClick}
+                                                                        >
+                                                                            Contaminated
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            <div class="verify-field verify-field_checkbox">
+                                                                <div class="verify-field__label verify-field__label_spacer" aria-hidden="true">
+                                                                    &nbsp;
+                                                                </div>
+                                                                <div class="verify-field__control verify-field__control_checkbox">
+                                                                    <label class="resi-check">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={item.resiTestPerformed}
+                                                                            data-item-key={item.itemKey}
+                                                                            onchange={handleResiTestChange}
+                                                                        />
+                                                                        <span class="resi-check__text">Resi-Test Performed</span>
+                                                                    </label>
+                                                                </div>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                </template>
+
+                                                <template lwc:if={item.showContaminationReason}>
+                                                    <div class="contamination-reason">
+                                                        <div class="contamination-reason__title">
+                                                            Contamination Reason
+                                                        </div>
+                                                        <div
+                                                            class="contamination-reason__options"
+                                                            role="group"
+                                                            aria-label="Contamination Reason"
+                                                        >
+                                                            <label class="resi-check">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={item.resiTestFailed}
+                                                                    data-item-key={item.itemKey}
+                                                                    data-reason="resiTestFailed"
+                                                                    onchange={handleContaminationReasonChange}
+                                                                />
+                                                                <span class="resi-check__text">Resi-Test Failed</span>
+                                                            </label>
+                                                            <label class="resi-check">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={item.visualInspection}
+                                                                    data-item-key={item.itemKey}
+                                                                    data-reason="visualInspection"
+                                                                    onchange={handleContaminationReasonChange}
+                                                                />
+                                                                <span class="resi-check__text">Visual Inspection</span>
+                                                            </label>
+                                                            <label class="resi-check">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={item.bioBag}
+                                                                    data-item-key={item.itemKey}
+                                                                    data-reason="bioBag"
+                                                                    onchange={handleContaminationReasonChange}
+                                                                />
+                                                                <span class="resi-check__text">Bio Bag</span>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                </template>
+
+                                                <template lwc:if={item.showOutsideVendor}>
+                                                    <div class="outside-vendor">
+                                                        <div class="outside-vendor__title">Outside Vendor</div>
+                                                        <div class="outside-vendor__subtitle">
+                                                            Send item(s) to an external vendor for repair services.
+                                                        </div>
+                                                        <div class="outside-vendor__fields">
+                                                            <div class="outside-vendor__field">
+                                                                <lightning-combobox
+                                                                    label="Select Vendor"
+                                                                    placeholder="Select"
+                                                                    options={vendorAccountOptions}
+                                                                    value={item.vendorAccountId}
+                                                                    required={item.isVendorRequired}
+                                                                    data-item-key={item.itemKey}
+                                                                    onchange={handleVendorChange}
+                                                                ></lightning-combobox>
+                                                            </div>
+                                                            <div class="outside-vendor__field">
+                                                                <lightning-textarea
+                                                                    label="Instructions to Vendor"
+                                                                    value={item.instructionsToVendor}
+                                                                    data-item-key={item.itemKey}
+                                                                    onchange={handleVendorInstructionsChange}
+                                                                ></lightning-textarea>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </template>
+
+                                                <template lwc:if={item.showInlineActions}>
+                                                    <div class="inline-actions">
+                                                        <div class="verification-panel__title">Action</div>
+                                                        <div class="verification-panel__subtitle">
+                                                            Please choose a following action.
+                                                        </div>
+                                                        <div class="actions-grid">
+                                                            <div class="actions-column" role="list">
+                                                                <template
+                                                                    for:each={item.leftActionOptions}
+                                                                    for:item="action"
+                                                                >
+                                                                    <button
+                                                                        key={action.key}
+                                                                        type="button"
+                                                                        class={action.cardClass}
+                                                                        role="listitem"
+                                                                        data-item-key={item.itemKey}
+                                                                        data-action-key={action.key}
+                                                                        onclick={handleActionSelect}
+                                                                    >
+                                                                        <span
+                                                                            class="action-card__icon"
+                                                                            aria-hidden="true"
+                                                                        >
+                                                                            <lightning-icon
+                                                                                icon-name={action.iconName}
+                                                                                size="small"
+                                                                                alternative-text=""
+                                                                            ></lightning-icon>
+                                                                        </span>
+                                                                        <span class="action-card__text">
+                                                                            <span class="action-card__label"
+                                                                                >{action.label}</span
+                                                                            >
+                                                                            <span
+                                                                                class="action-card__description"
+                                                                                >{action.description}</span
+                                                                            >
+                                                                        </span>
+                                                                    </button>
+                                                                </template>
+                                                            </div>
+                                                            <div class="actions-column" role="list">
+                                                                <template
+                                                                    for:each={item.rightActionOptions}
+                                                                    for:item="action"
+                                                                >
+                                                                    <button
+                                                                        key={action.key}
+                                                                        type="button"
+                                                                        class={action.cardClass}
+                                                                        role="listitem"
+                                                                        data-item-key={item.itemKey}
+                                                                        data-action-key={action.key}
+                                                                        onclick={handleActionSelect}
+                                                                    >
+                                                                        <span
+                                                                            class="action-card__icon"
+                                                                            aria-hidden="true"
+                                                                        >
+                                                                            <lightning-icon
+                                                                                icon-name={action.iconName}
+                                                                                size="small"
+                                                                                alternative-text=""
+                                                                            ></lightning-icon>
+                                                                        </span>
+                                                                        <span class="action-card__text">
+                                                                            <span class="action-card__label"
+                                                                                >{action.label}</span
+                                                                            >
+                                                                            <span
+                                                                                class="action-card__description"
+                                                                                >{action.description}</span
+                                                                            >
+                                                                        </span>
+                                                                    </button>
+                                                                </template>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </template>
+
+                                                <template lwc:if={item.showNextButton}>
+                                                    <div class="verification-panel__actions">
+                                                        <lightning-button
+                                                            variant="brand"
+                                                            label="Next"
+                                                            data-item-key={item.itemKey}
+                                                            onclick={handleItemNext}
+                                                        ></lightning-button>
+                                                    </div>
+                                                </template>
+                                                </template>
+                                            </div>
+                                            </template>
+                                        </div>
+                                    </template>
+                                </section>
+                            </template>
+                        </template>
+                        <template lwc:else>
+                            <p class="slds-text-color_weak">No items to receive.</p>
+                        </template>
+                    </div>
+
+                    <template lwc:if={showStandardItemList}>
+                        <div class="receive-footer">
+                            <div class="receive-footer__left">
+                                <template lwc:if={showAddItemButton}>
+                                    <lightning-button
+                                        variant="brand"
+                                        label="Add Item to Receive"
+                                        icon-name="utility:add"
+                                        onclick={handleAddItemToReceive}
+                                    ></lightning-button>
+                                </template>
+                            </div>
+                            <div class="receive-footer__right">
+                                <template lwc:if={showCancelButton}>
+                                    <lightning-button
+                                        label="Cancel"
+                                        onclick={handleCancelReceiving}
+                                    ></lightning-button>
+                                </template>
+                                <template lwc:if={showReceiveNextOrderButton}>
+                                    <lightning-button
+                                        variant="brand"
+                                        label="Receive Next Order"
+                                        onclick={handleReceiveNextOrder}
+                                    ></lightning-button>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </lightning-card>
+        </template>
+
+        <template lwc:if={isModFormCameraOpen}>
+            <section
+                role="dialog"
+                tabindex="-1"
+                aria-modal="true"
+                aria-labelledby="receiving-mod-form-camera-title"
+                class="slds-modal slds-fade-in-open camera-modal"
+            >
+                <div class="slds-modal__container">
+                    <header class="slds-modal__header">
+                        <lightning-button-icon
+                            icon-name="utility:close"
+                            alternative-text="Close"
+                            title="Close"
+                            class="slds-modal__close"
+                            onclick={handleCloseModFormCamera}
+                        ></lightning-button-icon>
+                        <h2
+                            id="receiving-mod-form-camera-title"
+                            class="slds-modal__title slds-hyphenate"
+                        >
+                            {modFormPhotoModalTitle}
+                        </h2>
+                        <p
+                            class="slds-text-body_small slds-text-color_weak slds-m-top_xx-small"
+                        >
+                            {photoModalSubtitle}
+                        </p>
+                    </header>
+                    <div class="slds-modal__content slds-p-around_medium">
+                        <div class="slds-m-bottom_medium">
+                            <input
+                                type="file"
+                                class="slds-hide"
+                                data-id="mod-form-modal-file-input"
+                                accept={modFormAccept}
+                                multiple
+                                onchange={handleModFormModalFileSelected}
+                            />
+                            <lightning-button
+                                label="Upload files"
+                                icon-name="utility:upload"
+                                onclick={handleModFormModalChooseFiles}
+                                disabled={isModFormPhotoModalBusy}
+                                class="slds-m-right_small"
+                            ></lightning-button>
+                        </div>
+
+                        <h3 class="slds-text-heading_small slds-m-bottom_x-small">Camera</h3>
+                        <div class="slds-m-bottom_small">
+                            <lightning-combobox
+                                label="Camera"
+                                value={selectedCameraId}
+                                options={cameraOptions}
+                                onchange={handleCameraChange}
+                                disabled={isCameraStarting}
+                                placeholder="Select a camera"
+                            ></lightning-combobox>
+                        </div>
+                        <div class="slds-m-bottom_small">
+                            <lightning-button
+                                label="Start camera"
+                                onclick={handleStartCamera}
+                                disabled={isStartCameraDisabled}
+                                class="slds-m-right_small"
+                            ></lightning-button>
+                            <lightning-button
+                                label="Capture photo"
+                                variant="brand"
+                                onclick={handleCaptureModFormPhoto}
+                                disabled={isCaptureDisabled}
+                                class="slds-m-right_small"
+                            ></lightning-button>
+                            <lightning-button
+                                label="Stop camera"
+                                onclick={handleStopCamera}
+                                disabled={isStopCameraDisabled}
+                            ></lightning-button>
+                        </div>
+                        <template lwc:if={cameraError}>
+                            <div class="slds-text-color_error slds-m-bottom_small" role="alert">
+                                {cameraError}
+                            </div>
+                        </template>
+                        <video
+                            class="camera-preview"
+                            autoplay
+                            playsinline
+                            muted
+                            lwc:dom="manual"
+                        ></video>
+                        <canvas class="slds-hide" lwc:dom="manual"></canvas>
+
+                        <h3 class="slds-text-heading_small slds-m-top_medium slds-m-bottom_x-small">
+                            Photos
+                        </h3>
+                        <template lwc:if={hasModFormModalPhotos}>
+                            <table
+                                class="slds-table slds-table_cell-buffer slds-table_bordered files-table"
+                            >
+                                <thead>
+                                    <tr>
+                                        <th scope="col" class="files-table__col-icon"></th>
+                                        <th scope="col">Title</th>
+                                        <th scope="col">Type</th>
+                                        <th scope="col" class="files-table__col-actions">
+                                            Actions
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={modFormModalPhotos} for:item="file">
+                                        <tr key={file.contentDocumentId}>
+                                            <td class="files-table__col-icon">
+                                                <template lwc:if={file.showThumbnail}>
+                                                    <img
+                                                        src={file.thumbnailUrl}
+                                                        alt=""
+                                                        class="files-table__thumb"
+                                                        data-doc-id={file.contentDocumentId}
+                                                        onerror={handleModFormThumbnailError}
+                                                    />
+                                                </template>
+                                                <template lwc:else>
+                                                    <div class="files-table__icon-slot">
+                                                        <lightning-icon
+                                                            icon-name="doctype:image"
+                                                            size="small"
+                                                            alternative-text={file.fileExtension}
+                                                        ></lightning-icon>
+                                                    </div>
+                                                </template>
+                                            </td>
+                                            <td>
+                                                <div
+                                                    class="slds-grid slds-grid_vertical-align-center"
+                                                >
+                                                    <div class="slds-col slds-grow">
+                                                        <lightning-input
+                                                            variant="label-hidden"
+                                                            label="Photo title"
+                                                            value={file.editTitle}
+                                                            data-doc-id={file.contentDocumentId}
+                                                            onchange={handleModFormPhotoTitleChange}
+                                                            onkeyup={handleModFormPhotoTitleChange}
+                                                            disabled={file.isRenaming}
+                                                            class={file.titleInputClass}
+                                                        ></lightning-input>
+                                                    </div>
+                                                    <div
+                                                        class="slds-col slds-no-flex slds-m-left_xx-small"
+                                                    >
+                                                        <lightning-button-icon
+                                                            icon-name="utility:check"
+                                                            alternative-text="Save title"
+                                                            title={file.titleSaveTitle}
+                                                            variant={file.titleSaveVariant}
+                                                            class={file.titleSaveClass}
+                                                            data-doc-id={file.contentDocumentId}
+                                                            onclick={handleSaveModFormPhotoTitle}
+                                                            disabled={file.isSaveTitleDisabled}
+                                                        ></lightning-button-icon>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>{file.fileExtension}</td>
+                                            <td class="files-table__col-actions">
+                                                <lightning-button-icon
+                                                    icon-name="utility:delete"
+                                                    alternative-text="Delete photo"
+                                                    title="Delete photo"
+                                                    data-item-key={modFormCameraItemKey}
+                                                    data-document-id={file.contentDocumentId}
+                                                    onclick={handleRemoveModFormPhoto}
+                                                    disabled={file.isDeleting}
+                                                ></lightning-button-icon>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </template>
+                        <template lwc:else>
+                            <p class="slds-text-body_regular">{photoModalEmptyMessage}</p>
+                        </template>
+                    </div>
+                    <footer class="slds-modal__footer">
+                        <lightning-button
+                            label="Done"
+                            variant="brand"
+                            onclick={handleCloseModFormCamera}
+                        ></lightning-button>
+                    </footer>
+                </div>
+            </section>
+            <div class="slds-backdrop slds-backdrop_open camera-modal-backdrop"></div>
+        </template>
+    </div>
+</template>

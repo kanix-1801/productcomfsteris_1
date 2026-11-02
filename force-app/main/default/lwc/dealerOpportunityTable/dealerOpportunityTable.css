@@ -1,0 +1,155 @@
+:host {
+    display: block;
+}
+
+.stage-class-registry {
+    display: none;
+}
+
+.table-scroll {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.opportunity-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.table-workspace {
+    table-layout: fixed;
+}
+
+.table-workspace th:nth-child(1),
+.table-workspace td:nth-child(1) { width: 24%; }
+.table-workspace th:nth-child(2),
+.table-workspace td:nth-child(2) { width: 18%; }
+.table-workspace th:nth-child(3),
+.table-workspace td:nth-child(3) { width: 20%; }
+.table-workspace th:nth-child(4),
+.table-workspace td:nth-child(4) { width: 14%; }
+.table-workspace th:nth-child(5),
+.table-workspace td:nth-child(5) { width: 12%; }
+.table-workspace th:nth-child(6),
+.table-workspace td:nth-child(6) { width: 12%; }
+
+th {
+    padding: 0.85rem 1rem;
+    color: #374151;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-align: left;
+    text-transform: uppercase;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+td {
+    padding: 0.9rem 1rem;
+    color: #1f2937;
+    font-size: 0.9rem;
+    border-bottom: 1px solid #f3f4f6;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sort-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    max-width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-weight: 700;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    cursor: pointer;
+}
+
+.amount-column .sort-button {
+    justify-content: flex-end;
+    width: 100%;
+}
+
+.sort-mark {
+    font-weight: 700;
+}
+
+.amount-column {
+    text-align: right;
+}
+
+.name-button {
+    display: block;
+    max-width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #1d4ed8;
+    font: inherit;
+    font-weight: 600;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.stage-pill {
+    display: inline-block;
+    max-width: 100%;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: middle;
+}
+
+.stage-discovery {
+    background: #2563eb;
+    color: #ffffff;
+}
+
+.stage-evaluation {
+    background: #fde68a;
+    color: #92400e;
+}
+
+.stage-proposal {
+    background: #c7d2fe;
+    color: #312e81;
+}
+
+.stage-commit {
+    background: #1e293b;
+    color: #ffffff;
+}
+
+.stage-closed-won {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.stage-closed-lost {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.stage-cancelled {
+    background: #f3f4f6;
+    color: #4b5563;
+}
+
+.empty-message {
+    margin: 0;
+    padding: 1.5rem 1rem 1.75rem;
+    color: #6b7280;
+}

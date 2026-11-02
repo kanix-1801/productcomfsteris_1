@@ -1,0 +1,80 @@
+:host {
+    display: block;
+}
+
+.path-wrapper {
+    padding: 0.75rem;
+}
+
+.path-loading {
+    min-height: 4rem;
+}
+
+.path-nav {
+    display: flex;
+    flex-wrap: nowrap;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    overflow-x: auto;
+}
+
+.path-nav-item {
+    flex: 1 1 0;
+    min-width: 7rem;
+    position: relative;
+    margin-right: 0.25rem;
+}
+
+.path-nav-item:last-child {
+    margin-right: 0;
+}
+
+.path-step {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    width: 100%;
+    min-height: 2.25rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #c9c9c9;
+    border-radius: 0.25rem;
+    background: #f3f3f3;
+    color: #181818;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.25;
+    text-align: center;
+}
+
+.path-nav-item.path-complete .path-step {
+    background: #2e844a;
+    border-color: #2e844a;
+    color: #ffffff;
+}
+
+.path-nav-item.path-current .path-step {
+    background: #0176d3;
+    border-color: #0176d3;
+    color: #ffffff;
+    box-shadow: inset 0 0 0 1px #0176d3;
+}
+
+.path-nav-item.path-incomplete .path-step {
+    background: #ffffff;
+    color: #444444;
+}
+
+.path-step-label {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.path-check-icon {
+    --slds-c-icon-color-foreground-default: currentColor;
+    flex-shrink: 0;
+}

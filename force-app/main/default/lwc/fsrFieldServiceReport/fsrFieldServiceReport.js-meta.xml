@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>65.0</apiVersion>
+    <description>GW-1900: Field Service Report body for Field Service Document Builder. Header from Regional Control, customer details, record info, service charges with price masking, resolution.</description>
+    <isExposed>true</isExposed>
+    <masterLabel>FSR Field Service Report</masterLabel>
+    <targets>
+        <target>lightning__ServiceDocument</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightning__ServiceDocument">
+            <property name="revision" type="String" label="Revision" default="Rev 26.0" description="Form revision printed top right (document control)."/>
+            <property name="formNumber" type="String" label="Form Number" default="RSR033" description="Form number printed top right (document control)."/>
+            <property name="fsrFooter" type="String" label="Field Service Report Footer" default="This is only an estimate and not an invoice. Tax is not included."/>
+            <property name="proformaFooter" type="String" label="Proforma Invoice Footer" default="" description="Footer for Proforma Invoice, supplied by Finance."/>
+            <supportedFormFactors>
+                <supportedFormFactor type="Small"/>
+                <supportedFormFactor type="Large"/>
+            </supportedFormFactors>
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

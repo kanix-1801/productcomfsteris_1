@@ -1,0 +1,6 @@
+<apex:page standardController="ServiceAppointment">
+<flow:interview name="ServiceAppointment_SCR_DispatchAdditionalResource">
+<apex:param name="recordId" value="{!ServiceAppointment.Id}"/>
+
+</flow:interview>
+</apex:page>

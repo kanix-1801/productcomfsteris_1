@@ -1,0 +1,47 @@
+<!--
+    @description       : Custom Lightning Record Page template for Account workspace layout.
+                         Provides admin-configurable regions for Header, Left Sidebar,
+                         Main Content, and Right Sidebar.
+    @author            : Suraj Thapliyal
+    @last modified on  : 06-02-2026
+-->
+<aura:component
+    implements="lightning:recordHomeTemplate"
+    access="global"
+    description="Custom Account Workspace Layout">
+
+    <!-- Header region used for highlights panel, path, or key account summary components. -->
+
+    <!-- Left sidebar region used for secondary/contextual components. -->
+    <aura:attribute name="left" type="Aura.Component[]" />
+
+    <!-- Main region used for primary account content. -->
+    <aura:attribute name="main" type="Aura.Component[]" />
+
+    <!-- Right sidebar region used for activity, insights, or supporting components. -->
+    <aura:attribute name="right" type="Aura.Component[]" />
+
+    <div class="workspace-container">
+
+
+        <!-- Renders the three-column workspace layout. -->
+        <div class="content-grid">
+
+            <!-- Renders left sidebar content. -->
+            <div class="left-region">
+                {!v.left}
+            </div>
+
+            <!-- Renders primary/main content. -->
+            <div class="main-region">
+                {!v.main}
+            </div>
+
+            <!-- Renders right sidebar content. -->
+            <div class="right-region">
+                {!v.right}
+            </div>
+
+        </div>
+    </div>
+</aura:component>

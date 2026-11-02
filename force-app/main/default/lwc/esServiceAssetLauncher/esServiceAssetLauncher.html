@@ -1,0 +1,50 @@
+<template>
+    <template lwc:if={showCard}>
+        <section class="card" aria-label={cardTitle}>
+            <header class="card-header">
+                <lightning-icon icon-name="standard:asset_object" size="small"></lightning-icon>
+                <div class="card-title">
+                    <h2>{cardTitle} <span class="count">({count})</span></h2>
+                    <p>Applies to every service product in this bundle</p>
+                </div>
+                <lightning-button class="edit" label="Edit" icon-name="utility:edit" onclick={handleEdit}></lightning-button>
+            </header>
+
+            <div class="card-body">
+                <template lwc:if={error}>
+                    <p class="error" role="alert">{error}</p>
+                </template>
+                <template lwc:if={loading}>
+                    <div class="loading"><lightning-spinner alternative-text="Loading assets" size="small"></lightning-spinner></div>
+                </template>
+                <template lwc:elseif={hasAssets}>
+                    <div class="preview">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th scope="col" style="width: 22%">Serial Number</th>
+                                    <th scope="col" style="width: 28%">Asset Name</th>
+                                    <th scope="col" style="width: 16%">Status</th>
+                                    <th scope="col" style="width: 34%">Account</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template for:each={previewRows} for:item="row">
+                                    <tr key={row.key}>
+                                        <td title={row.serialNumber}>{row.serialNumber}</td>
+                                        <td title={row.name}>{row.name}</td>
+                                        <td title={row.status}>{row.status}</td>
+                                        <td title={row.accountName}>{row.accountName}</td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </template>
+                <template lwc:else>
+                    <p class="empty">No assets selected yet. Click Edit to choose assets.</p>
+                </template>
+            </div>
+        </section>
+    </template>
+</template>

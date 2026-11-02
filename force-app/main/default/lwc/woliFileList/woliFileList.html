@@ -1,0 +1,188 @@
+<template>
+    <article class="slds-card files-card">
+        <div class="slds-card__header slds-grid files-card__header">
+            <header class="slds-media slds-media_center slds-has-flexi-truncate">
+                <div class="slds-media__figure">
+                    <lightning-icon icon-name="standard:file" size="small"></lightning-icon>
+                </div>
+                <div class="slds-media__body">
+                    <h2 class="slds-card__header-title">
+                        <span class="slds-truncate" title="Files">Files</span>
+                        <template if:true={hasFileRows}>
+                            <span class="slds-text-body_small slds-text-color_weak files-card__count">
+                                {fileCountLabel}
+                            </span>
+                        </template>
+                    </h2>
+                </div>
+            </header>
+            <div class="slds-no-flex">
+                <lightning-button-icon
+                    icon-name="utility:refresh"
+                    alternative-text="Refresh"
+                    title="Refresh"
+                    onclick={handleRefresh}
+                    disabled={isLoading}
+                ></lightning-button-icon>
+            </div>
+        </div>
+
+        <div class="slds-card__body slds-card__body_inner">
+            <template if:true={errorMessage}>
+                <div class="slds-text-color_error slds-m-bottom_small">{errorMessage}</div>
+            </template>
+
+            <template if:true={isLoading}>
+                <lightning-spinner alternative-text="Loading files" size="small"></lightning-spinner>
+            </template>
+
+            <template if:false={isLoading}>
+                <template if:true={hasFileRows}>
+                    <div class="files-table-wrapper">
+                        <table class="slds-table slds-table_cell-buffer slds-table_bordered files-table">
+                            <thead>
+                                <tr class="slds-line-height_reset">
+                                    <th scope="col" class="files-table__col-icon"></th>
+                                    <th scope="col">
+                                        <div class="slds-truncate" title="Title">Title</div>
+                                    </th>
+                                    <th scope="col">
+                                        <div class="slds-truncate" title="Category">Category</div>
+                                    </th>
+                                    <th scope="col">
+                                        <div class="slds-truncate" title="Beyond Repair Reason">Beyond Repair Reason</div>
+                                    </th>
+                                    <th scope="col">
+                                        <div class="slds-truncate" title="Type">Type</div>
+                                    </th>
+                                    <th scope="col">
+                                        <div class="slds-truncate" title="Size">Size</div>
+                                    </th>
+                                    <th scope="col">
+                                        <div class="slds-truncate" title="Owner">Owner</div>
+                                    </th>
+                                    <th scope="col">
+                                        <div class="slds-truncate" title="Created">Created</div>
+                                    </th>
+                                    <th scope="col" class="files-table__col-actions">
+                                        <div class="slds-truncate" title="Actions">Actions</div>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template for:each={displayFileRows} for:item="row">
+                                    <tr key={row.rowKey} class="files-table__row">
+                                        <td class="files-table__col-icon">
+                                            <template if:true={row.showThumbnail}>
+                                                <div
+                                                    class="slds-file slds-file_card files-table__file-card"
+                                                    data-doc-id={row.contentDocumentId}
+                                                    onclick={handleOpenFilePreview}
+                                                    title={row.title}
+                                                    role="button"
+                                                    tabindex="0"
+                                                >
+                                                    <figure>
+                                                        <a class="slds-file__crop slds-file__crop_4-by-3">
+                                                            <img
+                                                                src={row.thumbnailUrl}
+                                                                alt=""
+                                                                class="files-table__thumb"
+                                                                data-doc-id={row.contentDocumentId}
+                                                                onerror={handleThumbnailError}
+                                                            />
+                                                        </a>
+                                                    </figure>
+                                                </div>
+                                            </template>
+                                            <template if:false={row.showThumbnail}>
+                                                <div class="files-table__icon-slot">
+                                                    <lightning-icon
+                                                        icon-name={row.docTypeIcon}
+                                                        size="small"
+                                                        alternative-text={row.typeLabel}
+                                                    ></lightning-icon>
+                                                </div>
+                                            </template>
+                                        </td>
+                                        <td class="files-table__col-title">
+                                            <button
+                                                type="button"
+                                                class="slds-button slds-button_reset slds-text-link files-table__title-link"
+                                                data-doc-id={row.contentDocumentId}
+                                                onclick={handleOpenFilePreview}
+                                                title={row.title}
+                                            >
+                                                {row.title}
+                                            </button>
+                                        </td>
+                                        <td class="files-table__col-category">
+                                            <lightning-combobox
+                                                variant="label-hidden"
+                                                value={row.category}
+                                                options={categoryOptions}
+                                                data-doc-id={row.contentDocumentId}
+                                                onchange={handleCategoryChange}
+                                                disabled={row.isUpdatingCategory}
+                                            ></lightning-combobox>
+                                        </td>
+                                        <td class="files-table__col-beyond-repair-reason">
+                                            <template if:true={row.showBeyondRepairReason}>
+                                                <lightning-combobox
+                                                    variant="label-hidden"
+                                                    value={row.beyondRepairReason}
+                                                    options={beyondRepairReasonOptions}
+                                                    data-doc-id={row.contentDocumentId}
+                                                    onchange={handleBeyondRepairReasonChange}
+                                                    disabled={row.isUpdatingCategory}
+                                                    required
+                                                ></lightning-combobox>
+                                            </template>
+                                            <template if:false={row.showBeyondRepairReason}>
+                                                <div class="slds-truncate">—</div>
+                                            </template>
+                                        </td>
+                                        <td>
+                                            <div class="slds-truncate" title={row.typeLabel}>{row.typeLabel}</div>
+                                        </td>
+                                        <td>
+                                            <div class="slds-truncate" title={row.sizeLabel}>{row.sizeLabel}</div>
+                                        </td>
+                                        <td>
+                                            <div class="slds-truncate" title={row.ownerName}>{row.ownerName}</div>
+                                        </td>
+                                        <td>
+                                            <lightning-formatted-date-time
+                                                value={row.createdDate}
+                                                year="numeric"
+                                                month="short"
+                                                day="2-digit"
+                                                hour="2-digit"
+                                                minute="2-digit"
+                                            ></lightning-formatted-date-time>
+                                        </td>
+                                        <td class="files-table__col-actions">
+                                            <lightning-button-icon
+                                                icon-name="utility:delete"
+                                                alternative-text="Delete file"
+                                                title="Delete file"
+                                                data-doc-id={row.contentDocumentId}
+                                                onclick={handleDeleteFile}
+                                                disabled={row.isDeleting}
+                                            ></lightning-button-icon>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </template>
+                <template if:false={hasFileRows}>
+                    <p class="slds-text-body_small slds-text-color_weak">
+                        No files yet — capture with Microscope Capture or upload from the standard Files list below.
+                    </p>
+                </template>
+            </template>
+        </div>
+    </article>
+</template>

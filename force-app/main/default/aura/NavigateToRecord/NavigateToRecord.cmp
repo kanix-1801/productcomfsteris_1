@@ -1,0 +1,4 @@
+<aura:component access="global" implements="lightning:availableForFlowActions">
+    <aura:attribute name="recordId" type="String" access="global"/>
+    <lightning:navigation aura:id="navService"/>
+</aura:component>

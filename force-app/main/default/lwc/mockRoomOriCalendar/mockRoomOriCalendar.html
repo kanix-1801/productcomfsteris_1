@@ -1,0 +1,53 @@
+<template>
+    <div class="calendar">
+        <div class="toolbar">
+            <div class="toolbar-left">
+                <button type="button" class="nav-btn" onclick={previousMonth} aria-label="Previous month">&#8249;</button>
+                <button type="button" class="nav-btn next" onclick={nextMonth} aria-label="Next month">&#8250;</button>
+                <span class="month">{monthLabel}</span>
+            </div>
+            <button type="button" class="today" onclick={goToToday}>Today</button>
+        </div>
+        <div class="grid">
+            <template for:each={weekdayLabels} for:item="label">
+                <div key={label} class="weekday">{label}</div>
+            </template>
+            <template for:each={dayCells} for:item="day">
+                <div
+                    key={day.iso}
+                    class={day.className}
+                    data-iso={day.iso}
+                    role="button"
+                    tabindex={day.tabIndex}
+                    aria-disabled={day.isPast}
+                    onclick={selectDay}>
+                    <span class={day.numberClass}>{day.dayLabel}</span>
+                    <template if:true={day.selectionLabel}>
+                        <span class="selection">{day.selectionLabel}</span>
+                    </template>
+                    <template for:each={day.bars} for:item="bar">
+                        <span key={bar.key} class={bar.className} title={bar.title}>{bar.text}</span>
+                    </template>
+                </div>
+            </template>
+        </div>
+        <div class="legend">
+            <span class="legend-item"><i class="key free"></i> Free</span>
+            <span class="legend-item"><i class="key confirmed"></i> Confirmed</span>
+            <span class="legend-item"><i class="key pending"></i> Pending / Held</span>
+            <span class="legend-item"><i class="key blocked"></i> Blocked/Holiday</span>
+        </div>
+        <p class="message" if:true={message}>{message}</p>
+        <p class="message error" if:true={loadError}>{loadError}</p>
+        <button type="button" class="clear" onclick={clearDates}>Clear dates</button>
+        <template if:true={hasConflict}>
+            <lightning-textarea
+                class="justification"
+                label="Business Justification"
+                value={businessJustification}
+                required
+                onchange={justificationChanged}>
+            </lightning-textarea>
+        </template>
+    </div>
+</template>

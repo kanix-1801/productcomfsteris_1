@@ -1,0 +1,61 @@
+<template>
+    <div class="assign-rack-root slds-p-around_medium">
+        <lightning-card title="Assign Rack" icon-name="standard:location">
+            <div class="slds-p-around_medium">
+                <p class="slds-text-heading_small slds-m-bottom_small">Scan Work Order and Rack</p>
+
+                <lightning-input
+                    data-id="work-order-input"
+                    type="text"
+                    label="Work Order"
+                    value={workOrderInput}
+                    placeholder="Scan or enter Work Order Id / Number"
+                    disabled={isLoading}
+                    onchange={handleWorkOrderChange}
+                    onkeydown={handleWorkOrderKeyDown}
+                ></lightning-input>
+
+                <div class="slds-m-top_small">
+                    <lightning-input
+                        data-id="rack-input"
+                        type="text"
+                        label="Rack"
+                        value={rackInput}
+                        placeholder="Scan or enter Rack barcode / Name"
+                        disabled={isLoading}
+                        onchange={handleRackChange}
+                        onkeydown={handleRackKeyDown}
+                    ></lightning-input>
+                </div>
+
+                <template lwc:if={errorMessage}>
+                    <div
+                        class="slds-notify slds-notify_alert slds-theme_warning slds-m-top_small"
+                        role="alert"
+                    >
+                        <span class="slds-assistive-text">Warning</span>
+                        <h2 class="slds-text-heading_small">{errorMessage}</h2>
+                    </div>
+                </template>
+
+                <div class="slds-m-top_medium">
+                    <lightning-button
+                        variant="brand"
+                        label="Continue"
+                        onclick={handleContinue}
+                        disabled={isContinueDisabled}
+                    ></lightning-button>
+                </div>
+
+                <template lwc:if={isLoading}>
+                    <div class="slds-m-top_medium slds-is-relative slds-p-around_large">
+                        <lightning-spinner
+                            alternative-text="Assigning rack"
+                            size="small"
+                        ></lightning-spinner>
+                    </div>
+                </template>
+            </div>
+        </lightning-card>
+    </div>
+</template>

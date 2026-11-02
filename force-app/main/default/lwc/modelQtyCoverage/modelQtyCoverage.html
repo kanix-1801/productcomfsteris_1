@@ -1,0 +1,278 @@
+<template>
+    <div class="ca-card">
+        <div class="ca-card-head">
+            <div class="ca-head-left">
+                <span class="ca-icon">
+                    <lightning-icon icon-name="utility:richtextbulletedlist" size="x-small" variant="inverse"
+                        alternative-text="Contract adjustments"></lightning-icon>
+                </span>
+                <div>
+                    <h3 class="ca-title">Contract Adjustments</h3>
+                    <p class="ca-sub">Rules that decide downstream whether a repair is charged</p>
+                </div>
+            </div>
+            <div class="ca-head-right">
+                <span lwc:if={isPendingSave} class="slds-badge slds-theme_warning">Saved with the configuration</span>
+                <button type="button" class="slds-button slds-button_neutral ca-pill-button" onclick={handleManage}
+                    disabled={editDisabled}>Manage</button>
+            </div>
+        </div>
+
+        <div lwc:if={errorMessage} class="ca-error ca-card-error" role="alert">{errorMessage}</div>
+
+        <div lwc:if={isLoading} class="ca-loading">
+            <lightning-spinner size="small" alternative-text="Loading"></lightning-spinner>
+        </div>
+        <ul lwc:else class="ca-type-list">
+            <template for:each={summaryTypes} for:item="type">
+                <li key={type.key}>
+                    <button type="button" class="ca-type-row" data-section={type.key} onclick={handleOpenType}
+                        disabled={editDisabled}>
+                        <span class="ca-type-label">{type.label}</span>
+                        <span class="ca-count">{type.count}</span>
+                        <span class="ca-type-preview" title={type.preview}>{type.preview}</span>
+                        <lightning-icon icon-name="utility:chevronright" size="xx-small"
+                            alternative-text={type.label}></lightning-icon>
+                    </button>
+                </li>
+            </template>
+        </ul>
+    </div>
+
+    <!-- ===================== MODAL ===================== -->
+    <template lwc:if={isModalOpen}>
+        <section role="dialog" tabindex="-1" aria-modal="true" aria-labelledby="ca-modal-title"
+            class="slds-modal slds-fade-in-open" onkeydown={handleKeydown}>
+            <div class="slds-modal__container ca-modal-container">
+
+                <header class="slds-modal__header ca-modal-head">
+                    <lightning-button-icon class="slds-modal__close" icon-name="utility:close" variant="bare-inverse"
+                        size="large" alternative-text="Close" onclick={handleCancelModal}></lightning-button-icon>
+                    <span class="ca-icon">
+                        <lightning-icon icon-name="utility:richtextbulletedlist" size="x-small" variant="inverse"
+                            alternative-text=""></lightning-icon>
+                    </span>
+                    <div>
+                        <h2 id="ca-modal-title" class="ca-modal-title">Contract Adjustments</h2>
+                        <p class="ca-sub">IMS Service Agreement · used downstream to decide whether a repair is
+                            charged</p>
+                    </div>
+                </header>
+
+                <div class="slds-modal__content ca-modal-body">
+                    <nav class="ca-nav" aria-label="Adjustment type">
+                        <h3 class="ca-nav-title">Adjustment Type</h3>
+                        <template for:each={navItems} for:item="item">
+                            <button key={item.key} type="button" class={item.itemClass} data-section={item.key}
+                                aria-current={item.ariaCurrent} onclick={handleSectionClick}>
+                                <span>{item.label}</span>
+                                <span class={item.badgeClass}>{item.count}</span>
+                            </button>
+                        </template>
+                    </nav>
+
+                    <div class="ca-content">
+                        <div lwc:if={modalError} class="ca-error" role="alert">{modalError}</div>
+
+                        <!-- Inclusions / Exclusions -->
+                        <template lwc:if={isIncExcSection}>
+                            <div class="ca-section-head">
+                                <div>
+                                    <h3 class="ca-section-title">Inclusions / Exclusions</h3>
+                                    <p class="ca-section-sub">Each inclusion covers equipment by up to five fields;
+                                        a blank field means any value. Open an inclusion's exclusions with its +
+                                        button to narrow it further.</p>
+                                </div>
+                                <button type="button" class="slds-button slds-button_neutral ca-pill-button"
+                                    onclick={handleAddInclusion}>
+                                    <lightning-icon icon-name="utility:add" size="xx-small" class="ca-btn-icon"
+                                        alternative-text=""></lightning-icon>
+                                    Add inclusion
+                                </button>
+                            </div>
+
+                            <table class="ca-table">
+                                <thead>
+                                    <tr>
+                                        <th class="ca-col-rule">Rule</th>
+                                        <th>Product Line</th>
+                                        <th>Sub Product Line</th>
+                                        <th>Device Type</th>
+                                        <th>Manufacturer</th>
+                                        <th>Model</th>
+                                        <th class="ca-col-action"><span class="slds-assistive-text">Actions</span></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={incExcRows} for:item="rule">
+                                        <tr key={rule.key} class={rule.rowClass}>
+                                            <td class="ca-col-rule">
+                                                <div class="ca-rule-cell">
+                                                    <lightning-button-icon icon-name={rule.toggleIcon}
+                                                        variant="border-filled" size="x-small"
+                                                        alternative-text={rule.toggleLabel}
+                                                        data-rule-key={rule.key}
+                                                        onclick={handleToggleRule}></lightning-button-icon>
+                                                    <span class="ca-badge ca-badge_include">{rule.ruleLabel}</span>
+                                                    <span class={rule.exclusionTextClass}>{rule.exclusionText}</span>
+                                                </div>
+                                            </td>
+                                            <template for:each={rule.cells} for:item="cell">
+                                                <td key={cell.key}>
+                                                    <lightning-combobox lwc:if={cell.isPicklist}
+                                                        variant="label-hidden" label={cell.label} placeholder="Any"
+                                                        options={cell.options} value={cell.value}
+                                                        dropdown-alignment="auto" data-rule-key={cell.ruleKey}
+                                                        data-exc-key={cell.excKey} data-field={cell.field}
+                                                        onchange={handleIncFieldChange}></lightning-combobox>
+                                                    <lightning-input lwc:else variant="label-hidden"
+                                                        label={cell.label} placeholder="Any" value={cell.value}
+                                                        max-length={cell.maxLength} data-rule-key={cell.ruleKey}
+                                                        data-exc-key={cell.excKey} data-field={cell.field}
+                                                        onchange={handleIncFieldChange}></lightning-input>
+                                                </td>
+                                            </template>
+                                            <td class="ca-col-action">
+                                                <lightning-button-icon icon-name="utility:delete"
+                                                    variant="border-filled" size="small"
+                                                    alternative-text={rule.deleteLabel} data-rule-key={rule.key}
+                                                    onclick={handleRemoveInclusion}></lightning-button-icon>
+                                            </td>
+                                        </tr>
+
+                                        <template lwc:if={rule.expanded}>
+                                            <template for:each={rule.exclusions} for:item="exc">
+                                                <tr key={exc.key} class="ca-exc-row">
+                                                    <td class="ca-col-rule">
+                                                        <div class="ca-rule-cell ca-rule-cell_child">
+                                                            <span class="ca-child-arrow" aria-hidden="true">↳</span>
+                                                            <span class="ca-badge ca-badge_exclude">Exclude</span>
+                                                        </div>
+                                                    </td>
+                                                    <template for:each={exc.cells} for:item="cell">
+                                                        <td key={cell.key}>
+                                                            <lightning-combobox lwc:if={cell.isPicklist}
+                                                                variant="label-hidden" label={cell.label}
+                                                                placeholder="Any" options={cell.options}
+                                                                value={cell.value} dropdown-alignment="auto"
+                                                                data-rule-key={cell.ruleKey}
+                                                                data-exc-key={cell.excKey} data-field={cell.field}
+                                                                onchange={handleIncFieldChange}></lightning-combobox>
+                                                            <lightning-input lwc:else variant="label-hidden"
+                                                                label={cell.label} placeholder="Any"
+                                                                value={cell.value} max-length={cell.maxLength}
+                                                                data-rule-key={cell.ruleKey}
+                                                                data-exc-key={cell.excKey} data-field={cell.field}
+                                                                onchange={handleIncFieldChange}></lightning-input>
+                                                        </td>
+                                                    </template>
+                                                    <td class="ca-col-action">
+                                                        <lightning-button-icon icon-name="utility:delete"
+                                                            variant="border-filled" size="small"
+                                                            alternative-text={exc.deleteLabel}
+                                                            data-rule-key={rule.key} data-exc-key={exc.key}
+                                                            onclick={handleRemoveExclusion}></lightning-button-icon>
+                                                    </td>
+                                                </tr>
+                                            </template>
+                                            <tr key={rule.addExclusionLabel} class="ca-exc-row">
+                                                <td colspan="7" class="ca-add-exc-cell">
+                                                    <lightning-button variant="base" icon-name="utility:add"
+                                                        label={rule.addExclusionLabel} data-rule-key={rule.key}
+                                                        onclick={handleAddExclusion}></lightning-button>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </template>
+                                </tbody>
+                            </table>
+                            <p lwc:if={noIncRules} class="ca-empty">No inclusions yet. Click Add inclusion to cover equipment.</p>
+                        </template>
+
+                        <!-- Model Quantity -->
+                        <template lwc:if={isModelQtySection}>
+                            <div class="ca-section-head">
+                                <div>
+                                    <h3 class="ca-section-title">Model Qty</h3>
+                                    <p class="ca-section-sub">Describe the equipment with the same fields as
+                                        Inclusions / Exclusions, then record the maximum number of devices covered.
+                                        Each field narrows the choices in the fields to its right.</p>
+                                </div>
+                                <button type="button" class="slds-button slds-button_neutral ca-pill-button"
+                                    onclick={handleAddModelRow}>
+                                    <lightning-icon icon-name="utility:add" size="xx-small" class="ca-btn-icon"
+                                        alternative-text=""></lightning-icon>
+                                    Add row
+                                </button>
+                            </div>
+
+                            <table class="ca-table">
+                                <thead>
+                                    <tr>
+                                        <th>Product Line</th>
+                                        <th>Sub Product Line</th>
+                                        <th>Device Type</th>
+                                        <th>Manufacturer</th>
+                                        <th>Model</th>
+                                        <th class="ca-col-match">Matching Assets</th>
+                                        <th class="ca-col-qty">Max Covered Devices</th>
+                                        <th class="ca-col-action"><span class="slds-assistive-text">Actions</span></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={modelQtyRows} for:item="row">
+                                        <tr key={row.key}>
+                                            <template for:each={row.cells} for:item="cell">
+                                                <td key={cell.key}>
+                                                    <lightning-combobox variant="label-hidden" label={cell.label}
+                                                        placeholder="Any" options={cell.options} value={cell.value}
+                                                        dropdown-alignment="auto" data-row-key={row.key}
+                                                        data-field={cell.field}
+                                                        onchange={handleModelFieldChange}></lightning-combobox>
+                                                </td>
+                                            </template>
+                                            <td class="ca-col-match">
+                                                <span class="ca-count ca-count_match">{row.matchingCount}</span>
+                                            </td>
+                                            <td class="ca-col-qty">
+                                                <lightning-input type="number" variant="label-hidden"
+                                                    label={row.qtyLabel} value={row.qty} min="1" max="99999"
+                                                    step="1" data-row-key={row.key}
+                                                    onchange={handleQtyChange}></lightning-input>
+                                            </td>
+                                            <td class="ca-col-action">
+                                                <lightning-button-icon icon-name="utility:delete"
+                                                    variant="border-filled" size="small"
+                                                    alternative-text={row.deleteLabel} data-row-key={row.key}
+                                                    disabled={row.deleteDisabled}
+                                                    onclick={handleRemoveModelRow}></lightning-button-icon>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                            <p class="ca-note">
+                                <lightning-icon icon-name="utility:info" size="xx-small"
+                                    alternative-text=""></lightning-icon>
+                                <span><strong>Matching Assets</strong> counts the assets on this account that fit the
+                                    fields picked in that row, and updates as the picks change. A field left at "Any"
+                                    matches every value.</span>
+                            </p>
+                        </template>
+                    </div>
+                </div>
+
+                <footer class="slds-modal__footer ca-modal-foot">
+                    <span class="ca-hint">{footerSummary}</span>
+                    <div>
+                        <button type="button" class="slds-button slds-button_neutral ca-pill-button"
+                            onclick={handleCancelModal}>Cancel</button>
+                        <button type="button" class="slds-button slds-button_brand ca-pill-button"
+                            onclick={handleCommit} disabled={commitDisabled}>Save Adjustments</button>
+                    </div>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open" role="presentation"></div>
+    </template>
+</template>

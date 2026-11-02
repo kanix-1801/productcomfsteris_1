@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>66.0</apiVersion>
+    <isExposed>true</isExposed>
+    <masterLabel>Metadata Page Shell</masterLabel>
+    <description>GC-3183 Metadata-driven page shell that renders tabs, sections, fields, and components from DynamicPageElement CMDT.</description>
+    <targets>
+        <target>lightning__RecordPage</target>
+        <target>lightning__AppPage</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightning__RecordPage">
+            <property name="pageName" type="String" default="Customer360" label="Page Name" description="Metadata page key. Must match PageName__c on DynamicPageElement and DynamicPageAccessRule records. Example: Customer360"/>
+            <property name="objectApiName" type="String" default="Account" label="Object API Name" description="Record object for this page. Must match ObjectAPIName__c on the access rule. Example: Account"/>
+            <property name="cardTitle" type="String" default="Customer 360" label="Card Title" description="Header text shown on the outer card. Example: Customer 360"/>
+            <objects>
+                <object>Account</object>
+            </objects>
+        </targetConfig>
+        <targetConfig targets="lightning__AppPage">
+            <property name="pageName" type="String" default="Customer360" label="Page Name" description="Metadata page key. Must match PageName__c on DynamicPageElement and DynamicPageAccessRule records. Example: Customer360"/>
+            <property name="objectApiName" type="String" default="Account" label="Object API Name" description="Record object for this page. Must match ObjectAPIName__c on the access rule. Example: Account"/>
+            <property name="cardTitle" type="String" default="Customer 360" label="Card Title" description="Header text shown on the outer card. Example: Customer 360"/>
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

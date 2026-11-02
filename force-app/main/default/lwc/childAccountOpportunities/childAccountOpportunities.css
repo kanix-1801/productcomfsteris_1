@@ -1,0 +1,69 @@
+:host {
+    display: block;
+    width: 100%;
+}
+
+.component-wrapper {
+    width: 100%;
+    padding: 0.75rem;
+    box-sizing: border-box;
+}
+
+.related-list-container {
+    width: 100%;
+    border: 1px solid var(--lwc-colorBorder, #dddbda);
+    border-radius: 0.75rem;
+    background: var(--lwc-colorBackgroundAlt, #ffffff);
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+.related-list-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 4.5rem;
+    padding: 0.75rem 1.25rem;
+    background: var(--lwc-colorBackgroundAlt, #ffffff);
+    box-sizing: border-box;
+}
+
+.header-title {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    gap: 0.75rem;
+}
+
+.header-title h2 {
+    margin: 0;
+    color: var(--lwc-colorTextDefault, #181818);
+    font-size: 1.25rem;
+    font-weight: 400;
+    line-height: 1.5;
+    white-space: nowrap;
+}
+
+.refresh-button {
+    flex-shrink: 0;
+    margin-left: 1rem;
+}
+
+.datatable-container {
+    width: 100%;
+    max-height: 30rem;
+    overflow: auto;
+}
+
+.spinner-container {
+    position: relative;
+    min-height: 8rem;
+}
+
+.empty-state {
+    min-height: 8rem;
+    padding: 3rem 1rem;
+    text-align: center;
+    color: var(--lwc-colorTextWeak, #706e6b);
+    font-size: 1rem;
+}

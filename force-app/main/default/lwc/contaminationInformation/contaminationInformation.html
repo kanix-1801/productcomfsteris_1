@@ -1,0 +1,60 @@
+<template>
+    <template lwc:if={visible}>
+        <h3 class="slds-text-heading_small slds-m-top_medium slds-m-bottom_small">
+            Contamination Information
+        </h3>
+        <div class="slds-grid slds-wrap slds-gutters detail-grid">
+            <div class="slds-col slds-size_1-of-2 detail-grid__col">
+                <template for:each={columnOneFields} for:item="item">
+                    <div key={item.rowKey} class="detail-row">
+                        <span class="detail-row__label">{item.label}</span>
+                        <div class="detail-row__value">
+                            <lightning-input
+                                type="checkbox"
+                                variant="label-hidden"
+                                label={item.label}
+                                checked={item.checked}
+                                data-field={item.field}
+                                disabled={disabled}
+                                onchange={handleCheckboxChange}
+                            ></lightning-input>
+                        </div>
+                    </div>
+                </template>
+            </div>
+            <div class="slds-col slds-size_1-of-2 detail-grid__col">
+                <template for:each={columnTwoFields} for:item="item">
+                    <div key={item.rowKey} class="detail-row">
+                        <span class="detail-row__label">{item.label}</span>
+                        <div class="detail-row__value">
+                            <lightning-input
+                                type="checkbox"
+                                variant="label-hidden"
+                                label={item.label}
+                                checked={item.checked}
+                                data-field={item.field}
+                                disabled={disabled}
+                                onchange={handleCheckboxChange}
+                            ></lightning-input>
+                        </div>
+                    </div>
+                </template>
+                <div class="detail-row">
+                    <span class="detail-row__label">Other</span>
+                    <div class="detail-row__value detail-row__value_grow">
+                        <input
+                            class="detail-row__control"
+                            type="text"
+                            value={otherValue}
+                            maxlength="255"
+                            disabled={disabled}
+                            aria-label="Other"
+                            onchange={handleOtherChange}
+                            oninput={handleOtherChange}
+                        />
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+</template>

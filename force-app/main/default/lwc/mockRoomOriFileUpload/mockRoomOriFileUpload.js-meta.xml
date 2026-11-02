@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>66.0</apiVersion>
+    <isExposed>true</isExposed>
+    <masterLabel>Mock Room / ORI File Upload</masterLabel>
+    <description>GC-3483. Optional photos and files for a Mock Room or ORI request. Files are uploaded before the request exists and the flow attaches them after create.</description>
+    <targets>
+        <target>lightning__FlowScreen</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightning__FlowScreen">
+            <property name="recordId" type="String" label="Request Id"
+                description="Earlier flow versions passed the request Id here. New interviews attach files after the request is created."/>
+            <property name="uploadedDocumentIds" type="String" label="Uploaded Document Ids"
+                description="GC-3483. Comma-separated ContentDocument Ids uploaded on this screen."/>
+            <property name="fileNames" type="String" label="Uploaded File Names"
+                description="GC-3483. Names of the uploaded files, shown again when the user returns to this screen."/>
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

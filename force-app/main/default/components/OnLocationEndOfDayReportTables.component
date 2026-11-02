@@ -1,0 +1,62 @@
+<apex:component controller="OnLocationEndOfDayReportController" access="global">
+    <apex:attribute name="siteVisitId" type="Id" assignTo="{!siteVisitWorkOrderId}"
+        description="Site visit Work Order the report is about."/>
+
+    <apex:outputPanel layout="none" rendered="{!hasRepairCenterRows}">
+        <table cellpadding="4" cellspacing="0" border="1" style="border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; font-size: 12px; margin-bottom: 16px;">
+            <tr>
+                <th colspan="6" style="background-color: #000000; color: #ffffff; text-align: center;">INSTRUMENTS SENT TO NATIONAL REPAIR CENTER</th>
+            </tr>
+            <tr style="background-color: #ffff00;">
+                <th>Tray Name</th>
+                <th>Instrument</th>
+                <th>Manufacturer</th>
+                <th>Catalog #</th>
+                <th>Quantity</th>
+                <th>Reason</th>
+            </tr>
+            <apex:repeat value="{!repairCenterRows}" var="row">
+                <tr>
+                    <td>{!row.trayName}</td>
+                    <td>{!row.instrument}</td>
+                    <td>{!row.manufacturer}</td>
+                    <td>{!row.catalogNumber}</td>
+                    <td style="text-align: center;">
+                        <apex:outputText value="{0,number,0}"><apex:param value="{!row.quantity}"/></apex:outputText>
+                    </td>
+                    <td>{!row.reason}</td>
+                </tr>
+            </apex:repeat>
+        </table>
+    </apex:outputPanel>
+
+    <apex:outputPanel layout="none" rendered="{!hasBeyondRepairRows}">
+        <table cellpadding="4" cellspacing="0" border="1" style="border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; font-size: 12px;">
+            <tr>
+                <th colspan="7" style="background-color: #ff0000; color: #ffffff; text-align: center;">INSTRUMENTS BEYOND REPAIR</th>
+            </tr>
+            <tr style="background-color: #ffff00;">
+                <th>Tray Name</th>
+                <th>Instrument</th>
+                <th>Manufacturer</th>
+                <th>Catalog #</th>
+                <th>Quantity</th>
+                <th>Reason</th>
+                <th>Replaced with I-Xchange</th>
+            </tr>
+            <apex:repeat value="{!beyondRepairRows}" var="row">
+                <tr>
+                    <td>{!row.trayName}</td>
+                    <td>{!row.instrument}</td>
+                    <td>{!row.manufacturer}</td>
+                    <td>{!row.catalogNumber}</td>
+                    <td style="text-align: center;">
+                        <apex:outputText value="{0,number,0}"><apex:param value="{!row.quantity}"/></apex:outputText>
+                    </td>
+                    <td>{!row.reason}</td>
+                    <td style="text-align: center;">{!row.replacedWithIXchange}</td>
+                </tr>
+            </apex:repeat>
+        </table>
+    </apex:outputPanel>
+</apex:component>

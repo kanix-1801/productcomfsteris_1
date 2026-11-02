@@ -1,0 +1,17 @@
+.field-list__row {
+    width: 100%;
+}
+
+.field-list__cell {
+    padding-right: 0.75rem;
+}
+
+.field-list__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.field-list__actions_center {
+    justify-content: center;
+}

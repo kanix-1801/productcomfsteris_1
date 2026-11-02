@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>66.0</apiVersion>
+    <isExposed>true</isExposed>
+    <masterLabel>Mock Room / ORI Calendar</masterLabel>
+    <description>GC-3483. Shared calendar for selecting a primary and backup requested date.</description>
+    <targets>
+        <target>lightning__FlowScreen</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightning__FlowScreen">
+            <property name="excludeRequestId" type="String" label="Request being edited" role="inputOnly"
+                description="GC-3483. Leave blank when creating a request. When updating dates, set this to the current request so it stays visible and is not a conflict with itself."/>
+            <property name="primaryDate" type="Date" label="Primary Requested Date"
+                description="GC-3483. Primary date selected on the calendar."/>
+            <property name="backupDate" type="Date" label="Backup Requested Date"
+                description="GC-3483. Backup date selected on the calendar."/>
+            <property name="hasConflict" type="Boolean" label="Has Date Conflict"
+                description="GC-3483. True when a selected date already has another event."/>
+            <property name="businessJustification" type="String" label="Business Justification"
+                description="GC-3483. Required when a selected date already has another event."/>
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

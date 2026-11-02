@@ -1,0 +1,72 @@
+<template>
+    <div class="portal-page">
+        <header class="title-row">
+            <div class="title-block">
+                <img class="title-icon" src={opportunityIconUrl} alt="" />
+                <div>
+                    <h1>My Opportunities</h1>
+                    <p>Track and advance your active sales pipeline through each stage.</p>
+                </div>
+            </div>
+            <lightning-button variant="brand" label="+ New Opportunity" onclick={openCreate}></lightning-button>
+        </header>
+
+        <template if:true={errorMessage}>
+            <p class="form-error" role="alert">{errorMessage}</p>
+        </template>
+
+        <section class="metric-row">
+            <article class="metric-card">
+                <img class="metric-icon" src={pipelineIconUrl} alt="" />
+                <div>
+                    <p class="metric-label">Open Pipeline Value</p>
+                    <p class="metric-value">{openPipelineLabel}</p>
+                </div>
+            </article>
+            <article class="metric-card">
+                <img class="metric-icon" src={activeIconUrl} alt="" />
+                <div>
+                    <p class="metric-label">Active Opportunities</p>
+                    <p class="metric-value">{openCountLabel}</p>
+                </div>
+            </article>
+            <article class="metric-card">
+                <span class="metric-icon metric-green">✓</span>
+                <div>
+                    <p class="metric-label">Closed Won</p>
+                    <p class="metric-value">{closedWonLabel}</p>
+                </div>
+            </article>
+        </section>
+
+        <article class="workspace">
+            <div class="stage-tabs" role="tablist">
+                <template for:each={stageTabs} for:item="tab">
+                    <button key={tab.stageName} type="button" class={tab.className} data-stage={tab.stageName} onclick={selectStage}>
+                        <strong>{tab.recordCount}</strong>
+                        <span>{tab.label}</span>
+                    </button>
+                </template>
+            </div>
+            <div class="filter-row">
+                <lightning-input type="search" label="Search Opportunities" variant="label-hidden" placeholder="Search Opportunities" value={search} onchange={handleSearch}></lightning-input>
+            </div>
+            <c-dealer-opportunity-table
+                records={opportunities}
+                variant="workspace"
+                sort-field={sortField}
+                sort-direction={sortDirection}
+                empty-message="No opportunities found."
+                onsort={handleSort}>
+            </c-dealer-opportunity-table>
+            <footer class="pager">
+                <span>{pageLabel}</span>
+                <div>
+                    <lightning-button label="Previous" onclick={previousPage} disabled={isFirstPage}></lightning-button>
+                    <lightning-button label="Next" onclick={nextPage} disabled={isLastPage}></lightning-button>
+                </div>
+            </footer>
+        </article>
+    </div>
+    <c-dealer-opportunity-create is-open={isCreateOpen} onclose={closeCreate} oncreated={handleCreated}></c-dealer-opportunity-create>
+</template>

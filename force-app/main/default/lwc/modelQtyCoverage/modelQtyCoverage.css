@@ -369,6 +369,14 @@
     background: #ba0517;
 }
 
+.ca-col-program {
+    width: 16rem;
+}
+
+.ca-col-ctcode {
+    width: 8rem;
+}
+
 .ca-exc-count {
     font-size: 0.75rem;
     font-weight: 600;
@@ -394,4 +402,8 @@
 
 .ca-count_match {
     min-width: 2.25rem;
+}
+.ca-program-name {
+    font-weight: 600;
+    white-space: nowrap;
 }

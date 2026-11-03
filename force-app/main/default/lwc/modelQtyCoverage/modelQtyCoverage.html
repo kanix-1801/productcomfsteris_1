@@ -74,6 +74,49 @@
                     <div class="ca-content">
                         <div lwc:if={modalError} class="ca-error" role="alert">{modalError}</div>
 
+                        <!-- Pricing Programs -->
+                        <template lwc:if={isPricingSection}>
+                            <div class="ca-section-head">
+                                <div>
+                                    <h3 class="ca-section-title">Pricing Programs</h3>
+                                    <p class="ca-section-sub">Assign pricing programs set up outside the quote. Hover or focus a program's CT codes to check which device categories it covers</p>
+                                </div>
+                            </div>
+                            <!-- Search Bar -->
+                            <div class="ca-search-bar">
+                                <lightning-input type="search" label="Add pricing program"
+                                    placeholder="Search program, CT code or category..."
+                                    onchange={handlePricingProgramSearch}></lightning-input>
+                            </div>
+
+                            <table class="ca-table">
+                                <thead>
+                                    <tr>
+                                        <th class="ca-col-program">Program</th>
+                                        <th>Description</th>
+                                        <th class="ca-col-ctcode">CT Code</th>
+                                        <th class="ca-col-action"><span class="slds-assistive-text">Actions</span></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={pricingProgramRows} for:item="row">
+                                        <tr key={row.key}>
+                                            <td class="ca-col-program">{row.program}</td>
+                                            <td>{row.description}</td>
+                                            <!-- pricing program line items -->
+                                            <td class="ca-col-ctcode">{row.ctCode}</td> 
+                                            <td class="ca-col-action">
+                                                <lightning-button-icon icon-name="utility:delete"
+                                                    variant="border-filled" size="small"
+                                                    alternative-text={row.deleteLabel} data-rule-key={row.key}
+                                                    onclick={handleRemovePricingProgram}></lightning-button-icon>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                            <p lwc:if={noPricingRows} class="ca-empty">No pricing programs yet.</p>
+                        </template>
                         <!-- Inclusions / Exclusions -->
                         <template lwc:if={isIncExcSection}>
                             <div class="ca-section-head">

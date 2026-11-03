@@ -17,6 +17,7 @@ import PRODUCT_TYPE_FIELD from '@salesforce/schema/ContractModifier__c.ProductTy
 import getManufacturers from '@salesforce/apex/ModelQtyCoverageController.getManufacturers';
 import getSubProductLines from '@salesforce/apex/ModelQtyCoverageController.getSubProductLines';
 import getAssetCatalog from '@salesforce/apex/ModelQtyCoverageController.getAssetCatalog';
+import { PRICING_PROGRAMS, PRICING_PROGRAM_SAMPLE_ROWS } from './pricingProgramsMockData';
 
 const COVERAGE_FIELD = 'ModelQtyCoverage__c';
 const MODEL_MAX_LENGTH = 100; // ContractModifier__c.Model__c
@@ -37,7 +38,8 @@ const PICKLIST_FIELDS = ['productLine', 'subProductLine', 'productType', 'manufa
 
 const SECTION_INC_EXC = 'incExc';
 const SECTION_MODEL_QTY = 'modelQty';
-const EMPTY_ADJUSTMENTS = { inclusions: [], models: [], pricingProgram: null };
+const SECTION_PRICING = 'pricingPrograms';
+const EMPTY_ADJUSTMENTS = { inclusions: [], models: [], pricingPrograms: [], pricingProgram: null };
 
 // A real, saved Quote Line Item Id. New lines in the configurator have temporary "ref_" Ids.
 const isSavedLineId = (id) => typeof id === 'string' && id.startsWith('0QL') && (id.length === 15 || id.length === 18);
@@ -49,6 +51,12 @@ const pickCriteria = (source) => Object.fromEntries(FIELDS.map((f) => [f, blankT
 const hasAnyValue = (criteria) => FIELDS.some((f) => !!clean(criteria[f]));
 const criteriaKey = (criteria) => FIELDS.map((f) => lower(criteria[f])).join('|');
 const manufacturerKey = (row) => `${lower(row?.productLine)}|${lower(row?.subProductLine)}`;
+// Pricing Program row as stored in the JSON: program, description, CT code
+const pickProgram = (source) => ({
+    program: blankToNull(source?.program),
+    description: blankToNull(source?.description),
+    ctCode: blankToNull(source?.ctCode)
+});
 
 export default class ModelQtyCoverage extends LightningElement {
     // configuratorContext > transactionLineId: the configuration's root line
@@ -85,7 +93,11 @@ export default class ModelQtyCoverage extends LightningElement {
     activeSection = SECTION_INC_EXC;
     incRules = [];
     modelRows = [];
+    pricingRows = [];
     _seq = 0;
+
+    // Known Pricing Programs: name, description, CT code (dummy JSON for now, see pricingProgramsMockData.js)
+    pricingPrograms = PRICING_PROGRAMS;
 
     productLineValues = [];
     subProductLineValues = [];
@@ -186,7 +198,8 @@ export default class ModelQtyCoverage extends LightningElement {
     async loadLine(lineId) {
         if (!lineId || this.savedByLine[lineId] || this.loadingLines[lineId]) return;
         if (!isSavedLineId(lineId)) {
-            this.savedByLine = { ...this.savedByLine, [lineId]: EMPTY_ADJUSTMENTS }; // new line: nothing stored
+            // new line: nothing stored (Pricing Programs start from the dummy sample rows)
+            this.savedByLine = { ...this.savedByLine, [lineId]: this.fromJson(null) };
             return;
         }
         this.loadingLines = { ...this.loadingLines, [lineId]: true };
@@ -216,6 +229,8 @@ export default class ModelQtyCoverage extends LightningElement {
                 exclusions: (r.exclusions || []).map(pickCriteria)
             })),
             models: (data?.models || []).map((m) => ({ ...pickCriteria(m), qty: Number(m.qty) })),
+            // Not returned by Apex yet: falls back to the dummy sample rows
+            pricingPrograms: (data?.pricingPrograms || PRICING_PROGRAM_SAMPLE_ROWS).map(pickProgram),
             pricingProgram: data?.pricingProgram || null
         };
     }
@@ -248,6 +263,9 @@ export default class ModelQtyCoverage extends LightningElement {
             ])
             .join(' · ');
         const modelPreview = c.models.map((m) => `${m.model || this.describe(m)} · ${m.qty} max`).join(' · ');
+        const pricingPreview = c.pricingPrograms
+            .map((p) => (p.ctCode ? `${this.programLabel(p.program)} (${p.ctCode})` : this.programLabel(p.program)))
+            .join(' · ');
         return [
             {
                 key: SECTION_INC_EXC,
@@ -260,8 +278,19 @@ export default class ModelQtyCoverage extends LightningElement {
                 label: 'Model Quantity',
                 count: c.models.length,
                 preview: modelPreview || 'None configured'
+            },
+            {
+                key: SECTION_PRICING,
+                label: 'Pricing Programs',
+                count: c.pricingPrograms.length,
+                preview: pricingPreview || 'None configured'
             }
         ];
+    }
+
+    // A Pricing Program is stored and shown by its name, e.g. "PP-ENDO-01"
+    programLabel(value) {
+        return value || 'No program';
     }
 
     // "Manufacturer: Pentax" for a single field, otherwise the values joined: "Flexible Endoscopy / Olympus"
@@ -301,6 +330,7 @@ export default class ModelQtyCoverage extends LightningElement {
         this.incRules = c.inclusions.map((r) => this.newRule(r, r.exclusions));
         this.modelRows = c.models.map((m) => this.newModelRow(m, m.qty));
         if (!this.modelRows.length) this.modelRows = [this.newModelRow()];
+        this.pricingRows = c.pricingPrograms.map((p) => this.newPricingRow(p));
         this.ensureManufacturers({}); // new rows start at Any / Any
         this.incRules.forEach((r) => {
             this.ensureSubProductLines(r.productLine);
@@ -329,6 +359,9 @@ export default class ModelQtyCoverage extends LightningElement {
     get isModelQtySection() {
         return this.activeSection === SECTION_MODEL_QTY;
     }
+    get isPricingSection() {
+        return this.activeSection === SECTION_PRICING;
+    }
 
     get navItems() {
         const incExcCount = this.incRules.reduce(
@@ -336,9 +369,11 @@ export default class ModelQtyCoverage extends LightningElement {
             0
         );
         const modelCount = this.modelRows.filter(hasAnyValue).length;
+        const pricingCount = this.pricingRows.filter((r) => r.program).length;
         return [
             { key: SECTION_INC_EXC, label: 'Inclusions / Exclusions', count: incExcCount },
-            { key: SECTION_MODEL_QTY, label: 'Model Quantity', count: modelCount }
+            { key: SECTION_MODEL_QTY, label: 'Model Quantity', count: modelCount },
+            { key: SECTION_PRICING, label: 'Pricing Programs', count: pricingCount }
         ].map((item) => {
             const active = item.key === this.activeSection;
             return {
@@ -638,6 +673,43 @@ export default class ModelQtyCoverage extends LightningElement {
         this.modelRows = this.modelRows.filter((r) => r.key !== rowKey);
     }
 
+    /* =====================  PRICING PROGRAMS  ===================== */
+    // One row per program: Program is the program name itself (e.g. "PP-ENDO-01"), shown as plain text.
+    // Description and CT Code come from the program list for a known name.
+
+    newPricingRow(source) {
+        const p = pickProgram(source);
+        return {
+            key: this.nextKey('pp'),
+            program: p.program || '',
+            description: p.description || '',
+            ctCode: p.ctCode || ''
+        };
+    }
+
+    get pricingProgramRows() {
+        return this.pricingRows.map((row, i) => {
+            const number = i + 1;
+            return {
+                key: row.key,
+                program: row.program,
+                programLabel: `Pricing Program ${number} Program`,
+                description: row.description || '—',
+                ctCode: row.ctCode || '—',
+                deleteLabel: `Remove Pricing Program ${number}`
+            };
+        });
+    }
+
+    get noPricingRows() {
+        return this.pricingRows.length === 0;
+    }
+
+    handleRemovePricingProgram(event) {
+        const ruleKey = event.currentTarget.dataset.ruleKey;
+        this.pricingRows = this.pricingRows.filter((r) => r.key !== ruleKey);
+    }
+
     /* =====================  SAVE (commit)  ===================== */
 
     // The adjustments as entered; fully blank rows are left out
@@ -651,7 +723,8 @@ export default class ModelQtyCoverage extends LightningElement {
         const models = this.modelRows
             .filter((row) => hasAnyValue(row) || row.qty)
             .map((row) => ({ ...pickCriteria(row), qty: row.qty }));
-        return { inclusions, models, pricingProgram: this.committed.pricingProgram || null };
+        const pricingPrograms = this.pricingRows.filter((row) => row.program).map(pickProgram);
+        return { inclusions, models, pricingPrograms, pricingProgram: this.committed.pricingProgram || null };
     }
 
     get commitDisabled() {
@@ -665,6 +738,7 @@ export default class ModelQtyCoverage extends LightningElement {
                 exclusions: r.exclusions.map(pickCriteria)
             })),
             models: adjustments.models.map((m) => ({ ...pickCriteria(m), qty: m.qty })),
+            pricingPrograms: (adjustments.pricingPrograms || []).map(pickProgram),
             pricingProgram: adjustments.pricingProgram || null
         };
     }
@@ -707,6 +781,17 @@ export default class ModelQtyCoverage extends LightningElement {
                 return { section: SECTION_MODEL_QTY, message: `${name} is the same as an earlier row.` };
             }
             seenModels.add(criteriaKey(row));
+        }
+
+        const seenPrograms = new Set();
+        for (const [i, row] of value.pricingPrograms.entries()) {
+            if (seenPrograms.has(row.program)) {
+                return {
+                    section: SECTION_PRICING,
+                    message: `Pricing Program ${i + 1}: ${this.programLabel(row.program)} is already added.`
+                };
+            }
+            seenPrograms.add(row.program);
         }
         return null;
     }

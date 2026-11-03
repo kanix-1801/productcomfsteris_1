@@ -74,7 +74,7 @@ public with sharing class DealerOpportunityController {
         @AuraEnabled public List<OpportunityRow> pastDueOpportunities;
         @AuraEnabled public List<StageMetric> stageChart;
         @AuraEnabled public List<ChartPoint> quarterChart;
-        @AuraEnabled public List<ChartPoint> countryChart;
+        @AuraEnabled public List<ChartPoint> businessUnitChart;
     }
 
     /**
@@ -99,7 +99,9 @@ public with sharing class DealerOpportunityController {
         @AuraEnabled public String dealerAccountName;
         @AuraEnabled public String defaultCurrency;
         @AuraEnabled public List<CurrencyOption> currencies;
+        @AuraEnabled public List<CurrencyOption> businessUnits;
         @AuraEnabled public List<String> stages;
+        @AuraEnabled public Id recordTypeId;
     }
 
     /**
@@ -176,6 +178,24 @@ public with sharing class DealerOpportunityController {
             return DealerOpportunityService.createOpportunity(requestJson);
         } catch (Exception exceptionValue) {
             throw buildHandledException('Unable to create the opportunity.', exceptionValue);
+        } finally {
+            Logger.saveLog();
+        }
+    }
+
+    /**
+     * @description
+     * Dealer Portal R1 - Stamps dealer fields and assigns the Dealer Manager after the
+     * standard Opportunity form creates the record.
+     *
+     * @param opportunityId Opportunity created by the standard form.
+     */
+    @AuraEnabled
+    public static void finalizeCreatedOpportunity(Id opportunityId) {
+        try {
+            DealerOpportunityService.finalizeCreatedOpportunity(opportunityId);
+        } catch (Exception exceptionValue) {
+            throw buildHandledException('Unable to finish the opportunity.', exceptionValue);
         } finally {
             Logger.saveLog();
         }

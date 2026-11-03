@@ -35,7 +35,6 @@ private class WoDebriefAllowedUnitControllerTest {
         System.assertEquals(false, result.hasAsset, 'Expected no asset on Work Order');
         System.assertEquals(false, result.evaluated, 'Evaluation should be skipped without an Asset');
         System.assertEquals(null, result.allowedUnit, 'Allowed Unit should remain unset');
-        System.assertEquals(null, result.criticalPart, 'Critical Part should remain unset');
     }
 
     /**
@@ -65,7 +64,6 @@ private class WoDebriefAllowedUnitControllerTest {
         System.assertEquals(false, result.hasAsset);
         System.assertEquals(false, result.evaluated);
         System.assertEquals(null, result.allowedUnit);
-        System.assertEquals(null, result.criticalPart);
     }
 
     /**

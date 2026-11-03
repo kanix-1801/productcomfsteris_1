@@ -55,7 +55,10 @@ public with sharing class EsServiceAssetSelectionController {
         }
 
         try {
-            Quote quoteRecord = QuoteSelector.selectById(quoteId, new List<String>{ 'AccountId' });
+            Quote quoteRecord = (Quote) new QuoteSelector()
+                .selectField('AccountId')
+                .whereEquals('Id', quoteId)
+                .first();
             if (quoteRecord == null || quoteRecord.AccountId == null) {
                 return result;
             }
@@ -63,8 +66,13 @@ public with sharing class EsServiceAssetSelectionController {
             result.quoteAccountId = quoteAccountId;
 
             Set<Id> accountIds = new Set<Id>{ quoteAccountId };
-            for (AccountAccountRelationship__c rel
-                    : AccountAccountRelationshipSelector.selectAccountRelationships(quoteAccountId)) {
+            List<AccountAccountRelationship__c> relationshipList =
+                (List<AccountAccountRelationship__c>) new AccountAccountRelationshipSelector()
+                    .selectField('ParentAccount__c')
+                    .whereEquals('ChildAccount__c', quoteAccountId)
+                    .whereField('ParentAccount__c', '!=', null)
+                    .execute();
+            for (AccountAccountRelationship__c rel : relationshipList) {
                 accountIds.add(rel.ParentAccount__c);
             }
             result.relatedAccountCount = accountIds.size() - 1;
@@ -80,7 +88,13 @@ public with sharing class EsServiceAssetSelectionController {
                 'ProductTypeCalculated__c', 'ManufacturerCalculated__c',
                 'ModelCalculated__c', 'PFCL__c', 'Product2.PFCL__r.Name'
             };
-            List<Asset> assets = AssetsSelector.selectAssets(assetFields, 'AccountId', accountIdValues, queryLimit);
+            List<Asset> assets = (List<Asset>) new AssetsSelector()
+                .selectFields(assetFields)
+                .whereField('AccountId', 'IN', accountIdValues)
+                .orderBy('SerialNumber', false, true)
+                .orderBy('Name')
+                .limitTo(queryLimit)
+                .execute();
             if (assets.size() > MAX_ASSETS) {
                 result.truncated = true;
                 assets.remove(assets.size() - 1);
@@ -117,7 +131,13 @@ public with sharing class EsServiceAssetSelectionController {
                 'ProductLineCalculated__c', 'SubProductLineCalculated__c', 'ProductTypeCalculated__c',
                 'ManufacturerCalculated__c', 'ModelCalculated__c', 'PFCL__c', 'Product2.PFCL__r.Name'
             };
-            for (Asset a : AssetsSelector.selectAssets(assetFields, 'Id', assetIdValues, null)) {
+            List<Asset> assetList = (List<Asset>) new AssetsSelector()
+                .selectFields(assetFields)
+                .whereField('Id', 'IN', assetIdValues)
+                .orderBy('SerialNumber', false, true)
+                .orderBy('Name')
+                .execute();
+            for (Asset a : assetList) {
                 rows.add(toRow(a));
             }
             return rows;
@@ -149,10 +169,11 @@ public with sharing class EsServiceAssetSelectionController {
             return null;
         }
         try {
-            List<QuoteLineItem> rows = QuoteLineItemSelector.selectQuoteLineItemById(
-                qliId, new List<String>{ 'Product2Id' }
-            );
-            return rows.isEmpty() ? null : rows[0].Product2Id;
+            QuoteLineItem lineRecord = (QuoteLineItem) new QuoteLineItemSelector()
+                .selectField('Product2Id')
+                .whereEquals('Id', qliId)
+                .first();
+            return lineRecord == null ? null : lineRecord.Product2Id;
         } catch (Exception e) {
             throw toAuraException('getLineProductId: unable to load the line product', qliId, e,
                                   'Unable to load the quote line product.');
@@ -173,14 +194,16 @@ public with sharing class EsServiceAssetSelectionController {
             return null;
         }
         try {
-            List<QuoteLineItem> rows = QuoteLineItemSelector.selectQuoteLineItemById(qliId, new List<String>{
-                'Asset__c', 'AssetName__c', 'Asset__r.Name', 'Asset__r.SerialNumber',
-                'PFCLName__c', 'PFCL__r.Name', 'RequestedNumberofPMVisits__c'
-            });
-            if (rows.isEmpty()) {
+            QuoteLineItem r = (QuoteLineItem) new QuoteLineItemSelector()
+                .selectFields(new List<String>{
+                    'Asset__c', 'AssetName__c', 'Asset__r.Name', 'Asset__r.SerialNumber',
+                    'PFCLName__c', 'PFCL__r.Name', 'RequestedNumberofPMVisits__c'
+                })
+                .whereEquals('Id', qliId)
+                .first();
+            if (r == null) {
                 return null;
             }
-            QuoteLineItem r = rows[0];
             LineAsset a = new LineAsset();
             a.assetId = r.Asset__c;
             a.assetName = String.isNotBlank(r.AssetName__c) ? r.AssetName__c : r.Asset__r?.Name;
@@ -198,7 +221,7 @@ public with sharing class EsServiceAssetSelectionController {
 
     /**
      * @description Saved per-asset visits (JSON map of Asset Id to requested visits) for a service product
-     *              line that exists as a record. Dynamic SOQL so the class deploys before the field exists.
+     *              line that exists as a record.
      * @param lineId Quoe Line Item Id
      * @return Asset Visits
      */
@@ -209,10 +232,11 @@ public with sharing class EsServiceAssetSelectionController {
             return null;
         }
         try {
-            List<SObject> rows = QuoteLineItemSelector.selectQuoteLineItemById(
-                qliId, new List<String>{ 'AssetVisits__c' }
-            );
-            return rows.isEmpty() ? null : (String) rows[0].get('AssetVisits__c');
+            QuoteLineItem lineRecord = (QuoteLineItem) new QuoteLineItemSelector()
+                .selectField('AssetVisits__c')
+                .whereEquals('Id', qliId)
+                .first();
+            return lineRecord?.AssetVisits__c;
         } catch (Exception e) {
             throw toAuraException('getSavedVisits: unable to load the saved visits', qliId, e,
                                   'Unable to load the saved PM visits.');
@@ -241,7 +265,6 @@ public with sharing class EsServiceAssetSelectionController {
 
     /**
      * @description Saved selection (JSON list of Asset Ids) for a bundle line that exists as a record.
-     *              Dynamic SOQL so the class deploys even before SelectedAssets__c is created.
      * @param lineId Quoe Line Item Id
      * @return Selected Asset
      */
@@ -260,10 +283,11 @@ public with sharing class EsServiceAssetSelectionController {
             return null;
         }
         try {
-            List<SObject> rows = QuoteLineItemSelector.selectQuoteLineItemById(
-                qliId, new List<String>{ 'SelectedAssets__c' }
-            );
-            return rows.isEmpty() ? null : (String) rows[0].get('SelectedAssets__c');
+            QuoteLineItem lineRecord = (QuoteLineItem) new QuoteLineItemSelector()
+                .selectField('SelectedAssets__c')
+                .whereEquals('Id', qliId)
+                .first();
+            return lineRecord?.SelectedAssets__c;
         } catch (Exception e) {
             throw toAuraException('getSavedSelection: unable to load the saved selection', qliId, e,
                                   'Unable to load the saved asset selection.');

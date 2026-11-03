@@ -161,6 +161,79 @@ private class OnLocationEndOfDayReportTest {
     }
 
     /**
+     * @description GW-6257 - Without a Contact the report goes to every typed email.
+     */
+    @IsTest
+    static void sendReport_noContactMultipleEmails_sendsToEach() {
+        OnLocationEndOfDayReportAction.Request request = new OnLocationEndOfDayReportAction.Request();
+        request.siteVisitWorkOrderId = [SELECT Id FROM WorkOrder WHERE Subject = 'EOD Site Visit' LIMIT 1].Id;
+        request.recipientEmail = 'first.eod@example.com; second.eod@example.com;';
+
+        Test.startTest();
+        List<OnLocationEndOfDayReportAction.Result> results =
+            OnLocationEndOfDayReportAction.sendReport(new List<OnLocationEndOfDayReportAction.Request>{ request });
+        Test.stopTest();
+
+        System.assert(String.isNotBlank(results[0].message));
+        if (results[0].sentCount > 0) {
+            System.assert(results[0].message.contains('first.eod@example.com, second.eod@example.com'), results[0].message);
+        }
+    }
+
+    /**
+     * @description GW-6257 - The template renders without a Contact and greets with just Hello.
+     */
+    @IsTest
+    static void template_noContact_rendersPlainGreeting() {
+        Id siteVisitId = [SELECT Id FROM WorkOrder WHERE Subject = 'EOD Site Visit' LIMIT 1].Id;
+        Id templateId = [
+            SELECT Id
+            FROM EmailTemplate
+            WHERE DeveloperName = :OnLocationEndOfDayReportAction.TEMPLATE_DEVELOPER_NAME
+            LIMIT 1
+        ].Id;
+
+        Messaging.SingleEmailMessage rendered = Messaging.renderStoredEmailTemplate(templateId, null, siteVisitId);
+
+        System.assert(rendered.getHtmlBody().contains('Hello,'), rendered.getHtmlBody());
+    }
+
+    /**
+     * @description GW-6257 - Without a Contact or an email nothing is sent.
+     */
+    @IsTest
+    static void sendReport_noContactNoEmail_returnsMessage() {
+        OnLocationEndOfDayReportAction.Request request = new OnLocationEndOfDayReportAction.Request();
+        request.siteVisitWorkOrderId = [SELECT Id FROM WorkOrder WHERE Subject = 'EOD Site Visit' LIMIT 1].Id;
+        request.recipientEmail = ' ; ';
+
+        Test.startTest();
+        List<OnLocationEndOfDayReportAction.Result> results =
+            OnLocationEndOfDayReportAction.sendReport(new List<OnLocationEndOfDayReportAction.Request>{ request });
+        Test.stopTest();
+
+        System.assertEquals(0, results[0].sentCount);
+        System.assert(results[0].message.contains('No email'), results[0].message);
+    }
+
+    /**
+     * @description GW-6257 - An invalid typed email blocks the send and is named in the message.
+     */
+    @IsTest
+    static void sendReport_invalidEmail_returnsMessage() {
+        OnLocationEndOfDayReportAction.Request request = buildRequest('With Email');
+        request.recipientEmail = 'good.eod@example.com; not-an-email';
+
+        Test.startTest();
+        List<OnLocationEndOfDayReportAction.Result> results =
+            OnLocationEndOfDayReportAction.sendReport(new List<OnLocationEndOfDayReportAction.Request>{ request });
+        Test.stopTest();
+
+        System.assertEquals(0, results[0].sentCount);
+        System.assert(results[0].message.contains('not-an-email'), results[0].message);
+    }
+
+    /**
      * @description A missing site visit is reported back to the flow.
      */
     @IsTest

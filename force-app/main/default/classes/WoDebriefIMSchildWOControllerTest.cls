@@ -532,15 +532,14 @@ private class WoDebriefIMSchildWOControllerTest {
     @IsTest
     static void saveMobileDevicePicture_linksPrimaryAndParent() {
         String token = String.valueOf(Crypto.getRandomInteger()).replace('-', '');
-        Account instrumentLine = new Account(
-            Name = 'Picture Line ' + token,
-            SourceSystemID__c = 'ORACLE-PIC-LINE-' + token
+        WorkOrder child = createChildWorkOrderForCompletion(token);
+        WorkOrder siteVisit = new WorkOrder(Id = child.ParentWorkOrderId);
+        WorkOrderLineItem instrumentLine = new WorkOrderLineItem(
+            WorkOrderId = child.Id,
+            RecordTypeId = instrumentRecordTypeId(),
+            LineType__c = 'Instrument'
         );
-        Account siteVisit = new Account(
-            Name = 'Picture Site Visit ' + token,
-            SourceSystemID__c = 'ORACLE-PIC-SV-' + token
-        );
-        insert new List<Account>{ instrumentLine, siteVisit };
+        insert instrumentLine;
         ContentVersion otherFile = new ContentVersion(
             Title = 'Repair photo',
             PathOnClient = 'repair.png',
@@ -681,15 +680,14 @@ private class WoDebriefIMSchildWOControllerTest {
     @IsTest
     static void deleteMobileDevicePicture_removesBothLinks() {
         String token = String.valueOf(Crypto.getRandomInteger()).replace('-', '');
-        Account instrumentLine = new Account(
-            Name = 'Delete Line ' + token,
-            SourceSystemID__c = 'ORACLE-PIC-DEL-L-' + token
+        WorkOrder child = createChildWorkOrderForCompletion(token);
+        WorkOrder siteVisit = new WorkOrder(Id = child.ParentWorkOrderId);
+        WorkOrderLineItem instrumentLine = new WorkOrderLineItem(
+            WorkOrderId = child.Id,
+            RecordTypeId = instrumentRecordTypeId(),
+            LineType__c = 'Instrument'
         );
-        Account siteVisit = new Account(
-            Name = 'Delete Site Visit ' + token,
-            SourceSystemID__c = 'ORACLE-PIC-DEL-S-' + token
-        );
-        insert new List<Account>{ instrumentLine, siteVisit };
+        insert instrumentLine;
         WoDebriefIMSchildWOController.MobileDevicePicture saved =
             WoDebriefIMSchildWOController.saveMobileDevicePicture(
                 instrumentLine.Id,
@@ -1099,10 +1097,10 @@ private class WoDebriefIMSchildWOControllerTest {
     }
 
     /**
-     * @description A Beyond Repair picture is saved on the line and is not counted as a Mobile Device Picture.
+     * @description GW-375 - A picture saved with details keeps its Category, Before/After, and comment.
      */
     @IsTest
-    static void saveBeyondRepairPicture_savesOnLineWithoutCounting() {
+    static void saveMobileDevicePictureWithDetails_savesDetails() {
         String token = String.valueOf(Crypto.getRandomInteger()).replace('-', '');
         WorkOrder child = createChildWorkOrderForCompletion(token);
         WorkOrderLineItem line = new WorkOrderLineItem(
@@ -1114,37 +1112,59 @@ private class WoDebriefIMSchildWOControllerTest {
 
         Test.startTest();
         WoDebriefIMSchildWOController.MobileDevicePicture saved =
-            WoDebriefIMSchildWOController.saveBeyondRepairPicture(
+            WoDebriefIMSchildWOController.saveMobileDevicePictureWithDetails(
                 line.Id,
-                EncodingUtil.base64Encode(Blob.valueOf('beyond-repair')),
-                'BeyondRepairPicture.jpg'
+                null,
+                EncodingUtil.base64Encode(Blob.valueOf('picture-with-details')),
+                'MobileDevicePicture.jpg',
+                '{"category":"Extensive Repair","beforeAfter":"After","comment":"Replaced jaw"}'
             );
-        Boolean blocked = false;
-        try {
-            WoDebriefIMSchildWOController.saveBeyondRepairPicture(
-                child.Id,
-                EncodingUtil.base64Encode(Blob.valueOf('beyond-repair')),
-                'BeyondRepairPicture.jpg'
-            );
-        } catch (AuraHandledException ex) {
-            blocked = true;
-        }
+        List<WoDebriefIMSchildWOController.MobileDevicePicture> listed =
+            WoDebriefIMSchildWOController.listMobileDevicePictures(String.valueOf(line.Id));
         Test.stopTest();
 
-        System.assertNotEquals(null, saved.contentDocumentId);
-        System.assertEquals(1, [
-            SELECT COUNT()
-            FROM ContentDocumentLink
-            WHERE ContentDocumentId = :saved.contentDocumentId
-                AND LinkedEntityId = :line.Id
-        ]);
-        Decimal pictureCount = [SELECT MobileDevicePictureCount__c FROM WorkOrderLineItem WHERE Id = :line.Id]
-            .MobileDevicePictureCount__c;
-        System.assertEquals(
-            0,
-            pictureCount == null ? 0 : pictureCount,
-            'Beyond Repair pictures do not count as Mobile Device Pictures'
+        System.assertEquals('Extensive Repair', saved.category);
+        System.assertEquals('After', saved.beforeAfter);
+        System.assertEquals('Replaced jaw', saved.comment);
+        System.assertEquals(1, listed.size());
+        System.assertEquals('Extensive Repair', listed[0].category);
+        System.assertEquals('After', listed[0].beforeAfter);
+    }
+
+    /**
+     * @description A picture uploaded by the mobile app without the description is still listed by its title.
+     */
+    @IsTest
+    static void listMobileDevicePictures_matchesTitleWithoutDescription() {
+        String token = String.valueOf(Crypto.getRandomInteger()).replace('-', '');
+        WorkOrder child = createChildWorkOrderForCompletion(token);
+        WorkOrderLineItem line = new WorkOrderLineItem(
+            WorkOrderId = child.Id,
+            RecordTypeId = instrumentRecordTypeId(),
+            LineType__c = 'Instrument'
         );
-        System.assertEquals(true, blocked, 'Only an instrument line can hold a Beyond Repair picture');
+        insert line;
+        insert new List<ContentVersion>{
+            new ContentVersion(
+                Title = WoDebriefIMSchildWOController.MOBILE_DEVICE_PICTURE_TITLE,
+                PathOnClient = 'MobileDevicePicture.jpg',
+                VersionData = Blob.valueOf('mobile-app-upload'),
+                FirstPublishLocationId = line.Id
+            ),
+            new ContentVersion(
+                Title = 'Other File',
+                PathOnClient = 'Other.jpg',
+                VersionData = Blob.valueOf('other-file'),
+                FirstPublishLocationId = line.Id
+            )
+        };
+
+        Test.startTest();
+        List<WoDebriefIMSchildWOController.MobileDevicePicture> pictures =
+            WoDebriefIMSchildWOController.listMobileDevicePictures(String.valueOf(line.Id));
+        Test.stopTest();
+
+        System.assertEquals(1, pictures.size(), 'Only the Mobile Device Picture is listed');
+        System.assertEquals(line.Id, pictures[0].linkedEntityId);
     }
 }

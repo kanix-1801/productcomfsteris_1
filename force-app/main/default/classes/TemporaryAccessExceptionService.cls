@@ -235,11 +235,26 @@ public with sharing class TemporaryAccessExceptionService {
                 successfulTaeIds.add(plan.taeId);
             }
         }
+        reassignLifeScienceOwnership(rows, successfulTaeIds);
         Set<Id> updatedIds = updateStatuses(successfulTaeIds, TemporaryAccessExceptionSelector.STATUS_EXPIRED);
         sendRevokeEmails(rows, updatedIds);
         Logger.info(
             'TemporaryAccessExceptionService.processRevokes: successfulCount=' + successfulTaeIds.size()
         );
+    }
+    /**
+     * GCL-103. Life Science rows only. A failure is logged and does not stop Healthcare expiry.
+     */
+    private static void reassignLifeScienceOwnership(
+        List<TemporaryAccessException__c> rows,
+        Set<Id> successfulTaeIds
+    ) {
+        try {
+            Set<Id> lifeScienceIds = LSTemporaryAccessExceptionEmailService.filterLifeScienceRequestIds(successfulTaeIds);
+            LSTemporaryAccessReassignmentService.reassignOnExpiry(rows, lifeScienceIds);
+        } catch (Exception e) {
+            Logger.error('TemporaryAccessExceptionService.processRevokes: Life Science reassignment failed', e);
+        }
     }
     /**
      * @description Sends grant notification emails for successfully processed rows.

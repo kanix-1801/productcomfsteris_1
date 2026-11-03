@@ -5,7 +5,7 @@
  * @group Work Order Debrief
  */
 public with sharing class WorkOrderSelector {
-    /** @description Work Order fields required for Allowed Unit / Critical Part evaluation. */
+    /** @description Work Order fields required for Allowed Unit evaluation. */
     private static final String ALLOWED_UNIT_FIELDS =
         'Id, AssetId, Asset.PFCL__c, Asset.ServiceBOM__c';
 

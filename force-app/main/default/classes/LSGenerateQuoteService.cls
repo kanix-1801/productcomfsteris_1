@@ -136,83 +136,6 @@ public with sharing class LSGenerateQuoteService {
         }
     }
 
-    /**
-     * @description Syncs Quote Forecast Confidence to Sales Connection (GC-3457) then applies SF update on success.
-     * @param opportunityId Opportunity Id.
-     * @param quoteId Quote Id.
-     * @param quoteForecastConfidence Selected Quote Forecast Confidence value.
-     * @param syncFromOpportunity When true, copies the Opportunity Forecast Confidence first.
-     * @return Updated quote values for the UI.
-     */
-    public static GenerateQuoteController.QuoteWrapper syncQuoteForecastConfidence(
-        Id opportunityId,
-        Id quoteId,
-        String quoteForecastConfidence,
-        Boolean syncFromOpportunity
-    ) {
-        validateOpportunityId(opportunityId);
-        validateQuoteAccess(opportunityId);
-
-        if (quoteId == null) {
-            throw new GenerateQuoteException('Select a quote to sync forecast confidence.');
-        }
-
-        List<Quote> quoteRecords = QuoteSelector.selectByIdsWithLineItems(new Set<Id>{ quoteId });
-        if (quoteRecords.isEmpty() || quoteRecords[0].OpportunityId != opportunityId) {
-            throw new GenerateQuoteException('Quote record was not found for this Opportunity.');
-        }
-
-        Quote existingQuote = quoteRecords[0];
-        String resolvedForecastConfidence = quoteForecastConfidence;
-
-        if (syncFromOpportunity == true) {
-            Opportunity opportunityRecord = OpportunitySelector.selectForecastConfidenceByIds(
-                new Set<Id>{ opportunityId }
-            ).get(opportunityId);
-
-            if (opportunityRecord == null) {
-                throw new GenerateQuoteException('Opportunity record was not found.');
-            }
-
-            resolvedForecastConfidence = QuoteService.mapOpportunityForecastConfidenceToQuote(
-                opportunityRecord.ForecastConfidenceLevel__c
-            );
-
-            if (String.isBlank(resolvedForecastConfidence)) {
-                throw new GenerateQuoteException(
-                    'The Opportunity does not have a Forecast Confidence value to sync.'
-                );
-            }
-        }
-
-        if (String.isBlank(resolvedForecastConfidence)) {
-            throw new GenerateQuoteException('Select a Quote Forecast Confidence value.');
-        }
-
-        GenerateQuoteController.QuoteWrapper quoteWrapper = new GenerateQuoteController.QuoteWrapper();
-        quoteWrapper.id = existingQuote.Id;
-        quoteWrapper.quoteForecastConfidence = existingQuote.QuoteForecastConfidence__c;
-        quoteWrapper.opportunityForecastConfidence = getOpportunityForecastConfidence(opportunityId);
-
-        if (resolvedForecastConfidence == existingQuote.QuoteForecastConfidence__c) {
-            return quoteWrapper;
-        }
-
-        ScOpportunityQuoteEventService.synchronizeForecastConfidenceUpdate(
-            opportunityId,
-            resolvedForecastConfidence,
-            new Set<Id>{ quoteId },
-            UserInfo.getUserId()
-        );
-
-        List<Quote> updatedQuotes = QuoteSelector.selectByIdsWithLineItems(new Set<Id>{ quoteId });
-        if (!updatedQuotes.isEmpty()) {
-            quoteWrapper.quoteForecastConfidence = updatedQuotes[0].QuoteForecastConfidence__c;
-        }
-
-        return quoteWrapper;
-    }
-
     private static String getOpportunityForecastConfidence(Id opportunityId) {
         Opportunity opportunityRecord = OpportunitySelector.selectForecastConfidenceByIds(
             new Set<Id>{ opportunityId }
@@ -335,7 +258,7 @@ public with sharing class LSGenerateQuoteService {
             quoteType,
             trialId,
             sampleId,
-            SalesConnectionUrlService.SF_REQUEST_CREATE
+            LSSalesConnectionUrlService.SF_REQUEST_CREATE
         );
     }
 
@@ -453,9 +376,9 @@ public with sharing class LSGenerateQuoteService {
     @TestVisible
     private static void validateSalesConnectionSfRequest(String sfRequest) {
         if (
-            !SalesConnectionUrlService.SF_REQUEST_CREATE.equals(sfRequest) &&
-            !SalesConnectionUrlService.SF_REQUEST_COPY.equals(sfRequest) &&
-            !SalesConnectionUrlService.SF_REQUEST_MERGE.equals(sfRequest)
+            !LSSalesConnectionUrlService.SF_REQUEST_CREATE.equals(sfRequest) &&
+            !LSSalesConnectionUrlService.SF_REQUEST_COPY.equals(sfRequest) &&
+            !LSSalesConnectionUrlService.SF_REQUEST_MERGE.equals(sfRequest)
         ) {
             throw new GenerateQuoteException('Unsupported Sales Connection request type.');
         }
@@ -781,7 +704,7 @@ public with sharing class LSGenerateQuoteService {
                 ? null
                 : opportunityRecord.ForecastConfidenceLevel__c;
             try {
-                quoteWrapper.salesConnectionUrl = SalesConnectionUrlService.buildQuoteUrl(
+                quoteWrapper.salesConnectionUrl = LSSalesConnectionUrlService.buildQuoteUrl(
                     quoteRecord,
                     opportunityRecord,
                     accountRecord
@@ -825,7 +748,7 @@ public with sharing class LSGenerateQuoteService {
         response.quoteName = insertedQuote.Name;
         response.quoteNumber = resolveQuoteNumber(insertedQuote);
         try {
-            response.salesConnectionUrl = SalesConnectionUrlService.buildQuoteUrl(
+            response.salesConnectionUrl = LSSalesConnectionUrlService.buildQuoteUrl(
                 insertedQuote,
                 opportunityRecord,
                 accountRecord
@@ -847,7 +770,7 @@ public with sharing class LSGenerateQuoteService {
         Account accountRecord,
         String sfRequest
     ) {
-        if (SalesConnectionUrlService.SF_REQUEST_CREATE.equals(sfRequest)) {
+        if (LSSalesConnectionUrlService.SF_REQUEST_CREATE.equals(sfRequest)) {
             persistStoredCreateQuoteUrl(quoteRecord, opportunityRecord, accountRecord);
             return;
         }
@@ -857,11 +780,11 @@ public with sharing class LSGenerateQuoteService {
         }
 
         try {
-            String storedUrl = SalesConnectionUrlService.buildStoredQuoteRequestUrl(
+            String storedUrl = LSSalesConnectionUrlService.buildStoredQuoteRequestUrl(
                 opportunityRecord.Id,
                 quoteRecord.Id,
                 accountRecord,
-                SalesConnectionUrlService.resolveCurrentUserEmployeeNumber(),
+                LSSalesConnectionUrlService.resolveCurrentUserEmployeeNumber(),
                 sfRequest
             );
 
@@ -892,11 +815,11 @@ public with sharing class LSGenerateQuoteService {
         }
 
         try {
-            String storedCreateQuoteUrl = SalesConnectionUrlService.buildStoredCreateQuoteUrl(
+            String storedCreateQuoteUrl = LSSalesConnectionUrlService.buildStoredCreateQuoteUrl(
                 opportunityRecord.Id,
                 quoteRecord.Id,
                 accountRecord,
-                SalesConnectionUrlService.resolveCurrentUserEmployeeNumber()
+                LSSalesConnectionUrlService.resolveCurrentUserEmployeeNumber()
             );
 
             if (!Schema.sObjectType.Quote.isUpdateable()) {

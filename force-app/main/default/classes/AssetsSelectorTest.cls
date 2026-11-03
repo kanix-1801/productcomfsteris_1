@@ -120,63 +120,6 @@ private class AssetsSelectorTest {
         Assert.areEqual('Alpha Pump', results[0].Name);
     }
 
-    // ---- selectAssets ----------------------------------------------------------------------
-
-    @IsTest
-    static void selectAssets_invalidInput_returnsEmptyList() {
-        List<String> fields = new List<String>{ 'Id' };
-        List<Object> values = new List<Id>{ accountId('Asset Test Account 1') };
-        Assert.areEqual(0, AssetsSelector.selectAssets(null, 'AccountId', values, null).size());
-        Assert.areEqual(0, AssetsSelector.selectAssets(new List<String>(), 'AccountId', values, null).size());
-        Assert.areEqual(0, AssetsSelector.selectAssets(fields, ' ', values, null).size());
-        Assert.areEqual(0, AssetsSelector.selectAssets(fields, 'AccountId', null, null).size());
-        Assert.areEqual(0, AssetsSelector.selectAssets(fields, 'AccountId', new List<Id>(), null).size());
-    }
-
-    @IsTest
-    static void selectAssets_accountIds_returnsAssetsOrderedBySerialNumber() {
-        List<Object> accountIdValues = new List<Id>{
-            accountId('Asset Test Account 1'), accountId('Asset Test Account 2')
-        };
-
-        Test.startTest();
-        List<Asset> results = AssetsSelector.selectAssets(
-            new List<String>{ 'Id', 'Name', 'SerialNumber' }, 'AccountId', accountIdValues, 2
-        );
-        Test.stopTest();
-
-        Assert.areEqual(2, results.size());
-        Assert.areEqual('SN-001', results[0].SerialNumber);
-        Assert.areEqual('SN-002', results[1].SerialNumber);
-    }
-
-    // ---- searchAssets ----------------------------------------------------------------------
-
-    @IsTest
-    static void searchAssets_blankInput_returnsEmptyList() {
-        List<String> fields = new List<String>{ 'Id', 'Name' };
-        Assert.areEqual(0, AssetsSelector.searchAssets(null, '%Pump%', fields, 10).size());
-        Assert.areEqual(0, AssetsSelector.searchAssets(accountId('Asset Test Account 1'), ' ', fields, 10).size());
-    }
-
-    @IsTest
-    static void searchAssets_matchingTerm_returnsOnlyThatAccountsAssets() {
-        Id acc1Id = accountId('Asset Test Account 1');
-
-        Test.startTest();
-        List<Asset> byName = AssetsSelector.searchAssets(
-            acc1Id, '%alpha%', new List<String>{ 'Id', 'Name', 'SerialNumber' }, 10
-        );
-        List<Asset> bySerial = AssetsSelector.searchAssets(
-            acc1Id, '%SN-003%', new List<String>{ 'Id', 'Name', 'SerialNumber' }, 10
-        );
-        Test.stopTest();
-
-        Assert.areEqual(1, byName.size());
-        Assert.areEqual('Alpha Pump', byName[0].Name);
-        Assert.isTrue(bySerial.isEmpty(), 'SN-003 belongs to another account');
-    }
-
     // ---- selectBySerialNumber --------------------------------------------------------------
 
     @IsTest

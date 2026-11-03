@@ -5,10 +5,12 @@
  */
 public with sharing class ProductRelatedMaterialsSelector {
 
+    // GW-5869 - BOMTag__c removed: the field does not exist on ProductRelatedMaterial
+    // ("No such column" broke every query using BASE_FIELDS). Re-add once the field is deployed.
     private static final String BASE_FIELDS =
         'Id, Name, ProductId, ProductComponentId, ServiceBOM__c, ' +
         'QuantityPerProductUnit, QuantityUomId, ComponentSequence__c, ' +
-        'BOMTag__c, Description, UsageCategory, ' +
+        'Description, UsageCategory, ' +
         'CreatedDate, LastModifiedDate';
 
     /**
@@ -103,7 +105,7 @@ public with sharing class ProductRelatedMaterialsSelector {
 
     /**
      * @description Selects BOM components for Service BOMs that match the given Product2 Ids
-     *              (Allowed Unit / Critical Part evaluation).
+     *              (Allowed Unit evaluation).
      * @param serviceBomIdSet Service BOM Ids in the allowed parts union
      * @param product2IdSet Product2 Ids to match as ProductComponentId
      * @return Matching BOM Component records
@@ -118,7 +120,7 @@ public with sharing class ProductRelatedMaterialsSelector {
         }
 
         return [
-            SELECT Id, ServiceBOM__c, ProductComponentId, CriticalPart__c
+            SELECT Id, ServiceBOM__c, ProductComponentId
             FROM ProductRelatedMaterial
             WHERE ServiceBOM__c IN :serviceBomIdSet
             AND ProductComponentId IN :product2IdSet

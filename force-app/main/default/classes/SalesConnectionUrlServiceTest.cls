@@ -17,32 +17,6 @@ private class SalesConnectionUrlServiceTest {
     }
     
     @IsTest
-    static void testBuildStoredQuoteRequestUrlForCopyAndMerge() {
-        configureSalesConnectionSettings();
-        Account accountRecord = buildCustomerAccount('4563321');
-
-        Test.startTest();
-        String copyUrl = SalesConnectionUrlService.buildStoredQuoteRequestUrl(
-            TEST_OPPORTUNITY_ID,
-            TEST_QUOTE_ID,
-            accountRecord,
-            TEST_EMPLOYEE_NUMBER,
-            SalesConnectionUrlService.SF_REQUEST_COPY
-        );
-        String mergeUrl = SalesConnectionUrlService.buildStoredQuoteRequestUrl(
-            TEST_OPPORTUNITY_ID,
-            TEST_QUOTE_ID,
-            accountRecord,
-            TEST_EMPLOYEE_NUMBER,
-            SalesConnectionUrlService.SF_REQUEST_MERGE
-        );
-        Test.stopTest();
-
-        System.assert(copyUrl.contains('&sfrequest=copy&'), 'Copy URL should include sfrequest=copy.');
-        System.assert(mergeUrl.contains('&sfrequest=merge&'), 'Merge URL should include sfrequest=merge.');
-    }
-
-    @IsTest
     static void testBuildStoredCreateQuoteUrlForCustomerAccount() {
         configureSalesConnectionSettings();
         Account accountRecord = buildCustomerAccount('319163');

@@ -30,6 +30,8 @@ import REFRESH_QUOTE_SUCCESS_MESSAGE from '@salesforce/label/c.RefreshQuoteSucce
 const QUOTES_PAGE_SIZE = 5;
 const OPPORTUNITY_RECORD_TYPE_GOODWILL = 'HC_Sales_Customer_Goodwill_Support';
 const QUOTE_TYPE_GOODWILL = 'Goodwill Quote';
+const QUOTE_TYPE_TRIAL = 'Trial Quote';
+const QUOTE_TYPE_SAMPLE = 'Sample Quote';
 
 export default class GenerateQuote extends LightningElement {
     @api recordId;
@@ -700,6 +702,7 @@ export default class GenerateQuote extends LightningElement {
         const isForecastIneligible =
             quote.isForecastIneligible === true ||
             quote.IsForecastIneligible__c === true;
+        const hideQuoteForecastConfidence = this.shouldHideQuoteForecastConfidence(quote);
         const forecastIneligibleClass = isForecastIneligible ? ' quote-row--forecast-ineligible' : '';
 
         const mappedQuote = {
@@ -715,6 +718,8 @@ export default class GenerateQuote extends LightningElement {
             totalWithoutFreight: this.formatCurrency(quote.quoteTotalWithoutFreight),
             lastModifiedDate: this.formatDateTime(quote.lastModifiedDate),
             isForecastIneligible,
+            hideQuoteForecastConfidence,
+            quoteType: quote.quoteType || '',
             rowClass: `slds-hint-parent${forecastIneligibleClass}`,
             childRowClass: `child-row${forecastIneligibleClass}`,
             // GC-3292: default to expanded when quotes are (re)loaded
@@ -771,7 +776,19 @@ export default class GenerateQuote extends LightningElement {
     }
 
     resolveQuoteForecastConfidenceForDisplay(quote) {
+        if (quote?.hideQuoteForecastConfidence) {
+            return '';
+        }
         return this.resolveQuoteForecastConfidenceBaseline(quote);
+    }
+
+    shouldHideQuoteForecastConfidence(quote) {
+        const quoteType = String(quote?.quoteType || '').trim();
+        return (
+            quoteType === QUOTE_TYPE_TRIAL ||
+            quoteType === QUOTE_TYPE_SAMPLE ||
+            quoteType === QUOTE_TYPE_GOODWILL
+        );
     }
 
     buildForecastConfidenceSelectOptions(selectedValue) {
@@ -799,6 +816,18 @@ export default class GenerateQuote extends LightningElement {
     }
 
     withForecastSelectOptions(quote) {
+        if (quote.hideQuoteForecastConfidence) {
+            return {
+                ...quote,
+                quoteForecastConfidence: '',
+                forecastConfidenceSelectKey: `${quote.id}-forecast-hidden`,
+                forecastConfidenceSelectOptions: [],
+                forecastConfidenceDirty: false,
+                saveForecastConfidenceDisabled: true,
+                cancelForecastConfidenceDisabled: true
+            };
+        }
+
         const storedValue = this.resolveStoredQuoteForecastConfidence(quote);
         const displayValue = quote.forecastConfidenceDirty
             ? String(quote.quoteForecastConfidence ?? '').trim()
@@ -828,6 +857,10 @@ export default class GenerateQuote extends LightningElement {
 
         this.allQuotes = this.allQuotes.map((quote) => {
             if (!this.isSameRecordId(quote.id, quoteId)) {
+                return quote;
+            }
+
+            if (quote.hideQuoteForecastConfidence) {
                 return quote;
             }
 
@@ -880,6 +913,10 @@ export default class GenerateQuote extends LightningElement {
 
         const quoteRow = this.allQuotes.find((quote) => this.isSameRecordId(quote.id, quoteId));
         if (!quoteRow) {
+            return;
+        }
+
+        if (quoteRow.hideQuoteForecastConfidence) {
             return;
         }
 

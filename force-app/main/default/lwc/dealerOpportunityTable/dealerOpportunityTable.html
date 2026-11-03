@@ -29,24 +29,19 @@
                 <tbody>
                     <template for:each={displayRows} for:item="row">
                         <tr key={row.opportunityId}>
-                            <td>
-                                <button type="button" class="name-button" data-id={row.opportunityId} onclick={openOpportunity} title={row.name}>
-                                    {row.name}
-                                </button>
-                            </td>
-                            <td title={row.endCustomerName}>{row.endCustomerName}</td>
-                            <td title={row.dealerAccountName}>{row.dealerAccountName}</td>
-                            <td><span class={row.stageClass}>{row.stageName}</span></td>
-                            <template if:true={showShipDate}>
-                                <td>{row.shipLabel}</td>
+                            <template for:each={row.cells} for:item="cell">
+                                <td key={cell.key} class={cell.cellClass} title={cell.title}>
+                                    <template if:true={cell.isName}>
+                                        <button type="button" class="name-button" data-id={cell.opportunityId} onclick={openOpportunity} title={cell.value}>
+                                            {cell.value}
+                                        </button>
+                                    </template>
+                                    <template if:true={cell.isStage}>
+                                        <span class={cell.stageClass}>{cell.value}</span>
+                                    </template>
+                                    <template if:true={cell.isPlain}>{cell.value}</template>
+                                </td>
                             </template>
-                            <template if:true={showCreatedDate}>
-                                <td>{row.createdLabel}</td>
-                            </template>
-                            <template if:true={showCloseDate}>
-                                <td>{row.closeLabel}</td>
-                            </template>
-                            <td class="amount-column">{row.amountLabel}</td>
                         </tr>
                     </template>
                 </tbody>

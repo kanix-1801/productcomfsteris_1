@@ -55,6 +55,7 @@ public with sharing class GenerateQuoteController {
         @AuraEnabled public Decimal quoteTotalWithoutFreight;
         @AuraEnabled public Datetime lastModifiedDate;
         @AuraEnabled public Boolean isForecastIneligible;
+        @AuraEnabled public String quoteType;
         @AuraEnabled public String quoteForecastConfidence;
         @AuraEnabled public String opportunityForecastConfidence;
         @AuraEnabled public List<ProductSubgroupSummaryWrapper> productSubgroupSummary;

@@ -13,11 +13,35 @@
     border-bottom: 1px solid #e5e7eb;
 }
 
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex: 0 0 auto;
+    background: transparent;
+}
+
 .logo {
     display: block;
-    height: 36px;
+    height: 32px;
     width: auto;
-    flex: 0 0 auto;
+    border: 0;
+    background: transparent;
+}
+
+.brand-divider {
+    width: 1px;
+    height: 1.35rem;
+    background: #cfd5dc;
+}
+
+.brand-title {
+    color: #2b86d1;
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
 }
 
 .tabs {

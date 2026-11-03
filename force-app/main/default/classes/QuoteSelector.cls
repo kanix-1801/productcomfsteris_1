@@ -761,24 +761,6 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
     }
 
     /**
-     * @description Selects a Quote by Id.
-     * @param quoteId Quote Id.
-     * @return Matching Quote record, or null when not found.
-     */
-    public static Quote selectById(Id quoteId, List<String> fields) {
-        if (quoteId == null) {
-            return null;
-        }
-
-        List<Quote> quotes = (List<Quote>) SoqlQueryBuilder.fromObject('Quote')
-                                                           .selectFields(fields)
-                                                           .whereEquals('Id', quoteId)
-                                                           .limitTo(1)
-                                                           .execute();
-        return quotes.isEmpty() ? null : quotes[0];
-    }
-
-    /**
      * @description Selects Quotes and related line items by Id set.
      * @param quoteIds Quote Id set.
      * @return Matching Quote records with child Quote Line Items.

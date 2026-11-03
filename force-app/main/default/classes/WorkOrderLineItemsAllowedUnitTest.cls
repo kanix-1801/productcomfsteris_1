@@ -61,7 +61,6 @@ private class WorkOrderLineItemsAllowedUnitTest {
         System.assertEquals(false, result.hasAsset, 'Expected no asset on Work Order');
         System.assertEquals(false, result.evaluated, 'Evaluation should be skipped without an Asset');
         System.assertEquals(null, result.allowedUnit, 'Allowed Unit should remain unset');
-        System.assertEquals(null, result.criticalPart, 'Critical Part should remain unset');
     }
 
     /**
@@ -77,7 +76,6 @@ private class WorkOrderLineItemsAllowedUnitTest {
         System.assertEquals(false, result.hasAsset);
         System.assertEquals(false, result.evaluated);
         System.assertEquals(null, result.allowedUnit);
-        System.assertEquals(null, result.criticalPart);
     }
 
     /**
@@ -93,7 +91,6 @@ private class WorkOrderLineItemsAllowedUnitTest {
         System.assertEquals(false, result.hasAsset);
         System.assertEquals(false, result.evaluated);
         System.assertEquals(null, result.allowedUnit);
-        System.assertEquals(null, result.criticalPart);
     }
 
     /**
@@ -129,10 +126,10 @@ private class WorkOrderLineItemsAllowedUnitTest {
     }
 
     /**
-     * @description Verifies Asset + Service BOM path marks allowed/critical parts correctly.
+     * @description Verifies Asset + Service BOM path marks allowed parts correctly.
      */
     @IsTest
-    static void testEvaluateAllowedUnit_withAssetAndBom_marksAllowedAndCritical() {
+    static void testEvaluateAllowedUnit_withAssetAndBom_marksAllowed() {
         Account account = createAccount('Allowed Unit Asset Account');
 
         ServiceBOM__c serviceBom = new ServiceBOM__c(
@@ -167,8 +164,7 @@ private class WorkOrderLineItemsAllowedUnitTest {
             ServiceBOM__c = serviceBom.Id,
             ProductId = assetProduct.Id,
             ProductComponentId = allowedPart.Id,
-            QuantityPerProductUnit = 1,
-            CriticalPart__c = true
+            QuantityPerProductUnit = 1
         );
         insert bomComponent;
 
@@ -219,11 +215,9 @@ private class WorkOrderLineItemsAllowedUnitTest {
         System.assertEquals(true, allowedResult.hasAsset);
         System.assertEquals(true, allowedResult.evaluated);
         System.assertEquals(true, allowedResult.allowedUnit);
-        System.assertEquals(true, allowedResult.criticalPart);
 
         System.assertEquals(true, otherResult.evaluated);
         System.assertEquals(false, otherResult.allowedUnit);
-        System.assertEquals(false, otherResult.criticalPart);
 
         System.assertEquals(true, missingItemResult.evaluated);
         System.assertEquals(false, missingItemResult.allowedUnit);
@@ -231,7 +225,6 @@ private class WorkOrderLineItemsAllowedUnitTest {
         System.assertEquals(true, allowedByProduct.hasAsset, 'Customer Stock should evaluate Product2 directly');
         System.assertEquals(true, allowedByProduct.evaluated);
         System.assertEquals(true, allowedByProduct.allowedUnit);
-        System.assertEquals(true, allowedByProduct.criticalPart);
         System.assertEquals(true, otherByProduct.evaluated);
         System.assertEquals(false, otherByProduct.allowedUnit);
     }
@@ -291,12 +284,11 @@ private class WorkOrderLineItemsAllowedUnitTest {
         System.assertEquals(true, result.hasAsset);
         System.assertEquals(true, result.evaluated);
         System.assertEquals(false, result.allowedUnit);
-        System.assertEquals(false, result.criticalPart);
     }
 
     /**
      * @description GW-4218: When Root PFCL SBOM Required is not Yes, skip SBOM cross-reference
-     *              and leave Allowed Unit / Critical Part unevaluated.
+     *              and leave Allowed Unit unevaluated.
      */
     @IsTest
     static void testEvaluateAllowedUnit_rootSbomNotRequired_skipsEvaluation() {
@@ -353,8 +345,7 @@ private class WorkOrderLineItemsAllowedUnitTest {
             ServiceBOM__c = serviceBom.Id,
             ProductId = assetProduct.Id,
             ProductComponentId = part.Id,
-            QuantityPerProductUnit = 1,
-            CriticalPart__c = true
+            QuantityPerProductUnit = 1
         );
         insert bomComponent;
 
@@ -389,7 +380,6 @@ private class WorkOrderLineItemsAllowedUnitTest {
         System.assertEquals(true, result.hasAsset, 'Work Order still has an Asset');
         System.assertEquals(false, result.evaluated, 'SBOM Required No should skip evaluation');
         System.assertEquals(null, result.allowedUnit);
-        System.assertEquals(null, result.criticalPart);
     }
 
     /**

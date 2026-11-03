@@ -20,8 +20,12 @@ public without sharing class WoDebriefIMSchildWOController {
     private static final Integer MOBILE_PICTURE_COMMENT_MAX_LENGTH = 1000;
     /** @description GW-375 - File title shown on the work order and instrument line. */
     public static final String MOBILE_DEVICE_PICTURE_TITLE = 'Mobile Device Picture';
-    /** @description File title for a picture taken in Beyond Repair Info. */
-    public static final String BEYOND_REPAIR_PICTURE_TITLE = 'Beyond Repair Picture';
+    /**
+     * @description GW-375 - Follows the marker in ContentVersion.Description when the mobile app uploads
+     *              a picture with its details. The file adapter only takes a title and a description,
+     *              so the details travel there and are moved into their fields once the file is linked.
+     */
+    public static final String PICTURE_DETAILS_SEPARATOR = '|';
     private static final Integer MAX_MOBILE_PICTURE_BYTES = 4500000;
     private static final String WORK_ORDER_STATUS_COMPLETED = 'Completed';
     /**
@@ -591,6 +595,19 @@ public without sharing class WoDebriefIMSchildWOController {
         @AuraEnabled public String title;
         /** @description GW-6437 - Optional CRSS debrief comment for this picture. */
         @AuraEnabled public String comment;
+        /** @description GW-375 - Beyond Repair, Care and Handling, Extensive Repair, or Technical Excellence. */
+        @AuraEnabled public String category;
+        /** @description GW-375 - Before or After. */
+        @AuraEnabled public String beforeAfter;
+    }
+
+    /**
+     * @description GW-375 - Category, Before/After, and comment chosen when the picture is taken.
+     */
+    public class PictureDetails {
+        public String category;
+        public String beforeAfter;
+        public String comment;
     }
 
     /**
@@ -669,7 +686,7 @@ public without sharing class WoDebriefIMSchildWOController {
             FROM ContentVersion
             WHERE Id = :versionId
                 AND IsLatest = true
-                AND Description = :MOBILE_DEVICE_PICTURE_MARKER
+                AND (Description = :MOBILE_DEVICE_PICTURE_MARKER OR Title = :MOBILE_DEVICE_PICTURE_TITLE)
             LIMIT 1
         ];
         if (versions.isEmpty() || versions[0].VersionData == null) {
@@ -697,6 +714,52 @@ public without sharing class WoDebriefIMSchildWOController {
         String fileName,
         String workOrderIdForResolve
     ) {
+        return savePrimaryMobileDevicePicture(
+            primaryRecordId,
+            parentWorkOrderId,
+            base64Data,
+            fileName,
+            workOrderIdForResolve,
+            null
+        );
+    }
+
+    /**
+     * @description GW-375 - Saves a Mobile Device Picture with its Category, Before/After, and comment
+     *              on the instrument line or child work order, and links it to the site visit work order.
+     * @param primaryRecordId Instrument line or child Work Order
+     * @param parentWorkOrderId Site visit Work Order
+     * @param base64Data Image data, with or without a data-url prefix
+     * @param fileName Client file name
+     * @param pictureDetails JSON with category, beforeAfter, and comment
+     * @return Saved picture
+     */
+    @AuraEnabled
+    public static MobileDevicePicture saveMobileDevicePictureWithDetails(
+        String primaryRecordId,
+        String parentWorkOrderId,
+        String base64Data,
+        String fileName,
+        String pictureDetails
+    ) {
+        return savePrimaryMobileDevicePicture(
+            primaryRecordId,
+            parentWorkOrderId,
+            base64Data,
+            fileName,
+            null,
+            parsePictureDetails(pictureDetails)
+        );
+    }
+
+    private static MobileDevicePicture savePrimaryMobileDevicePicture(
+        String primaryRecordId,
+        String parentWorkOrderId,
+        String base64Data,
+        String fileName,
+        String workOrderIdForResolve,
+        PictureDetails details
+    ) {
         PrimaryPictureTarget target = parsePrimaryPictureTarget(primaryRecordId, workOrderIdForResolve);
         Id primaryId = target.primaryId;
         if (primaryId == null
@@ -712,49 +775,8 @@ public without sharing class WoDebriefIMSchildWOController {
             throw auraException('A record is required to save the picture.');
         }
         Id parentId = parseRecordId(parentWorkOrderId);
-        return insertMobileDevicePicture(primaryId, parentId, base64Data, fileName);
+        return insertMobileDevicePictureWithDetails(primaryId, parentId, base64Data, fileName, details);
     }
-
-    /**
-     * @description Saves a Beyond Repair Info picture on an instrument line.
-     *              Used where the mobile file adapter is not available, such as the desktop.
-     *              The file is not a Mobile Device Picture and does not count toward the required pictures.
-     * @param primaryRecordId Instrument Work Order Line Item
-     * @param base64Data Image data, with or without a data-url prefix
-     * @param fileName Client file name
-     * @return Saved picture
-     */
-    @AuraEnabled
-    public static MobileDevicePicture saveBeyondRepairPicture(
-        String primaryRecordId,
-        String base64Data,
-        String fileName
-    ) {
-        Id lineId = parseRecordId(primaryRecordId);
-        if (lineId == null
-            || lineId.getSobjectType() != WorkOrderLineItem.SObjectType
-            || !picturePrimaryRecordExists(lineId)) {
-            throw auraException('An instrument line is required to save the picture.');
-        }
-        ContentVersion version = new ContentVersion();
-        version.Title = BEYOND_REPAIR_PICTURE_TITLE;
-        version.PathOnClient = mobilePictureFileName(fileName);
-        version.VersionData = decodeMobilePicture(base64Data);
-        version.FirstPublishLocationId = lineId;
-        try {
-            insert version;
-        } catch (DmlException ex) {
-            throw auraException(mobilePictureDmlMessage(ex));
-        }
-        ContentVersion saved = [
-            SELECT Id, ContentDocumentId, Title, Description, MobileDevicePictureComment__c
-            FROM ContentVersion
-            WHERE Id = :version.Id
-            LIMIT 1
-        ];
-        return toMobileDevicePicture(saved, lineId);
-    }
-
     /**
      * @description GW-375 - Saves a Mobile Device Picture on the site visit work order header.
      *              Uses only String parameters for Field Service Mobile.
@@ -1192,12 +1214,33 @@ public without sharing class WoDebriefIMSchildWOController {
         String fileName,
         String pictureComment
     ) {
+        PictureDetails details = new PictureDetails();
+        details.comment = pictureComment;
+        return insertMobileDevicePictureWithDetails(primaryId, parentId, base64Data, fileName, details);
+    }
+
+    /**
+     * @description GW-375 - Inserts a Mobile Device Picture with its Category, Before/After, and comment.
+     * @param primaryId Work Order or Work Order Line Item
+     * @param parentId Optional second link target
+     * @param base64Data Image data
+     * @param fileName Client file name
+     * @param details Picture details, or null
+     * @return Saved picture
+     */
+    private static MobileDevicePicture insertMobileDevicePictureWithDetails(
+        Id primaryId,
+        Id parentId,
+        String base64Data,
+        String fileName,
+        PictureDetails details
+    ) {
         ContentVersion version = new ContentVersion();
         version.Title = MOBILE_DEVICE_PICTURE_TITLE;
         version.PathOnClient = mobilePictureFileName(fileName);
         version.VersionData = decodeMobilePicture(base64Data);
         version.Description = MOBILE_DEVICE_PICTURE_MARKER;
-        version.MobileDevicePictureComment__c = normalizeMobilePictureComment(pictureComment);
+        applyPictureDetails(version, details);
         version.FirstPublishLocationId = primaryId;
         try {
             TriggerHandler.bypass('ContentDocumentLinkTriggerHandler');
@@ -1215,7 +1258,8 @@ public without sharing class WoDebriefIMSchildWOController {
         }
 
         List<ContentVersion> saved = [
-            SELECT Id, ContentDocumentId, Title, Description, MobileDevicePictureComment__c
+            SELECT Id, ContentDocumentId, Title, Description, MobileDevicePictureComment__c,
+                PictureCategory__c, BeforeAfter__c
             FROM ContentVersion
             WHERE Id = :version.Id
             LIMIT 1
@@ -1331,7 +1375,8 @@ public without sharing class WoDebriefIMSchildWOController {
     /**
      * @description GW-375 - Latest Mobile Device Pictures. Kept on this controller so the
      *              shared ContentVersionsSelector does not need a deployment for this story.
-     *              Description separates these files from a future connected camera.
+     *              Description separates these files from a future connected camera. Title is also
+     *              accepted because the mobile app file upload may not keep the description.
      * @param contentDocumentIds ContentDocument Ids already linked to the requested records
      * @return Matching latest versions, oldest first
      */
@@ -1340,11 +1385,12 @@ public without sharing class WoDebriefIMSchildWOController {
             return new List<ContentVersion>();
         }
         return [
-            SELECT Id, ContentDocumentId, Title, Description, CreatedDate, MobileDevicePictureComment__c
+            SELECT Id, ContentDocumentId, Title, Description, CreatedDate, MobileDevicePictureComment__c,
+                PictureCategory__c, BeforeAfter__c
             FROM ContentVersion
             WHERE ContentDocumentId IN :contentDocumentIds
                 AND IsLatest = true
-                AND Description = :MOBILE_DEVICE_PICTURE_MARKER
+                AND (Description = :MOBILE_DEVICE_PICTURE_MARKER OR Title = :MOBILE_DEVICE_PICTURE_TITLE)
             ORDER BY CreatedDate ASC
         ];
     }
@@ -1362,7 +1408,67 @@ public without sharing class WoDebriefIMSchildWOController {
         picture.linkedEntityId = linkedEntityId;
         picture.title = version.Title;
         picture.comment = version.MobileDevicePictureComment__c;
+        picture.category = version.PictureCategory__c;
+        picture.beforeAfter = version.BeforeAfter__c;
         return picture;
+    }
+
+    /**
+     * @description GW-375 - Reads picture details sent as JSON by the debrief screen.
+     * @param value JSON with category, beforeAfter, and comment
+     * @return Details, or null when blank
+     */
+    @TestVisible
+    private static PictureDetails parsePictureDetails(String value) {
+        if (String.isBlank(value)) {
+            return null;
+        }
+        try {
+            return (PictureDetails) JSON.deserialize(value, PictureDetails.class);
+        } catch (JSONException ex) {
+            throw auraException('The picture details could not be read.');
+        }
+    }
+
+    /**
+     * @description GW-375 - Writes picture details onto a ContentVersion.
+     * @param version ContentVersion to update
+     * @param details Picture details, or null
+     */
+    private static void applyPictureDetails(ContentVersion version, PictureDetails details) {
+        if (details == null) {
+            return;
+        }
+        version.MobileDevicePictureComment__c = normalizeMobilePictureComment(details.comment);
+        version.PictureCategory__c = String.isBlank(details.category) ? null : details.category.trim();
+        version.BeforeAfter__c = String.isBlank(details.beforeAfter) ? null : details.beforeAfter.trim();
+    }
+
+    /**
+     * @description GW-375 - Moves picture details the mobile app put in the description into their fields,
+     *              and leaves only the marker in the description so the picture is still found and counted.
+     * @param versions Latest Mobile Device Picture versions with Id and Description
+     */
+    public static void applyPictureDetailsFromDescription(List<ContentVersion> versions) {
+        String prefix = MOBILE_DEVICE_PICTURE_MARKER + PICTURE_DETAILS_SEPARATOR;
+        List<ContentVersion> updates = new List<ContentVersion>();
+        for (ContentVersion version : versions == null ? new List<ContentVersion>() : versions) {
+            if (version?.Description == null || !version.Description.startsWith(prefix)) {
+                continue;
+            }
+            PictureDetails details;
+            try {
+                details = parsePictureDetails(version.Description.substring(prefix.length()));
+            } catch (AuraHandledException ex) {
+                details = null;
+            }
+            ContentVersion row = new ContentVersion(Id = version.Id, Description = MOBILE_DEVICE_PICTURE_MARKER);
+            applyPictureDetails(row, details);
+            updates.add(row);
+        }
+        if (!updates.isEmpty()) {
+            update updates;
+        }
     }
 
     /**

@@ -175,8 +175,7 @@ public with sharing class ContractModifierService {
         try {
             Map<Id, List<ContractModifier__c>> modelQtyByLineIdMap = new Map<Id, List<ContractModifier__c>>();
             Map<Id, List<ContractModifier__c>> incExcByLineIdMap = new Map<Id, List<ContractModifier__c>>();
-            for (ContractModifier__c rec
-                    : ContractModifierSelector.selectAdjustmentsByQuoteLineItemIds(changedLineMap.keySet())) {
+            for (ContractModifier__c rec : selectAdjustments(changedLineMap.keySet())) {
                 Map<Id, List<ContractModifier__c>> targetMap = rec.Type__c == ContractModifierSelector.TYPE_INC_EXC
                     ? incExcByLineIdMap : modelQtyByLineIdMap;
                 if (!targetMap.containsKey(rec.QuoteLineItem__c)) {
@@ -245,18 +244,18 @@ public with sharing class ContractModifierService {
         if (quoteLineItemId == null) {
             return adjustments;
         }
-        List<QuoteLineItem> lineList = QuoteLineItemSelector.selectQuoteLineItemById(
-            quoteLineItemId, new List<String>{ COVERAGE_FIELD }
-        );
-        ContractAdjustments saved = lineList.isEmpty() ? null : parseCoverage((String) lineList[0].get(COVERAGE_FIELD));
+        QuoteLineItem lineRecord = (QuoteLineItem) new QuoteLineItemSelector()
+            .selectField(COVERAGE_FIELD)
+            .whereEquals('Id', quoteLineItemId)
+            .first();
+        ContractAdjustments saved = lineRecord == null ? null : parseCoverage(lineRecord.ModelQtyCoverage__c);
         if (saved != null) {
             return saved;
         }
 
         Map<Id, InclusionRule> inclusionByIdMap = new Map<Id, InclusionRule>();
         List<ContractModifier__c> exclusionRecordList = new List<ContractModifier__c>();
-        for (ContractModifier__c rec
-                : ContractModifierSelector.selectAdjustmentsByQuoteLineItemIds(new Set<Id>{ quoteLineItemId })) {
+        for (ContractModifier__c rec : selectAdjustments(new Set<Id>{ quoteLineItemId })) {
             if (rec.Type__c == ContractModifierSelector.TYPE_MODEL_QTY) {
                 ModelQtyEntry entry = new ModelQtyEntry();
                 readCriteria(rec, entry);
@@ -288,7 +287,26 @@ public with sharing class ContractModifierService {
      * @return Distinct Sub Product Line values, sorted; empty when no Product Line is given
      */
     public static List<String> getSubProductLines(String productLine) {
-        return Product2Selector.selectSubProductLinesByProductLine(productLine);
+        List<String> subProductLineList = new List<String>();
+        if (String.isBlank(productLine)) {
+            return subProductLineList;
+        }
+
+        List<Product2> productList = (List<Product2>) new Product2Selector()
+            .selectField('SubProductLine__c')
+            .whereEquals('IsActive', true)
+            .whereEquals('ProductLine__c', productLine)
+            .whereField('SubProductLine__c', '!=', null)
+            .orderBy('SubProductLine__c')
+            .execute();
+        // Distinct values, ignoring case like GROUP BY; the first spelling in sort order is kept.
+        Set<String> seenSet = new Set<String>();
+        for (Product2 productRecord : productList) {
+            if (seenSet.add(productRecord.SubProductLine__c.toLowerCase())) {
+                subProductLineList.add(productRecord.SubProductLine__c);
+            }
+        }
+        return subProductLineList;
     }
 
     /**
@@ -310,7 +328,7 @@ public with sharing class ContractModifierService {
             'Id', 'ManufacturerCalculated__c', 'ProductLineCalculated__c', 'SubProductLineCalculated__c'
         };
         Set<String> seenSet = new Set<String>();
-        for (Asset assetRecord : AssetsSelector.selectAssets(fieldList, 'AccountId', accountIdValues, MAX_ASSETS)) {
+        for (Asset assetRecord : selectAccountAssets(fieldList, accountIdValues)) {
             String manufacturer = text(assetRecord, 'ManufacturerCalculated__c')?.trim();
             if (String.isBlank(manufacturer)
                     || !matches(productLine, text(assetRecord, 'ProductLineCalculated__c'))
@@ -344,7 +362,7 @@ public with sharing class ContractModifierService {
             'Id', 'ProductLineCalculated__c', 'SubProductLineCalculated__c', 'ProductTypeCalculated__c',
             'ManufacturerCalculated__c', 'ModelCalculated__c'
         };
-        for (Asset assetRecord : AssetsSelector.selectAssets(fieldList, 'AccountId', accountIdValues, MAX_ASSETS)) {
+        for (Asset assetRecord : selectAccountAssets(fieldList, accountIdValues)) {
             AssetGroup assetGroup = new AssetGroup();
             assetGroup.productLine = toPicklistValue('productLine', text(assetRecord, 'ProductLineCalculated__c'));
             assetGroup.subProductLine = toPicklistValue(
@@ -700,17 +718,57 @@ public with sharing class ContractModifierService {
     // The quote's account and its parent accounts (empty without a quote or account). Must stay a List<Id> at
     // runtime: binding a List<Object> to an Id column fails in SOQL.
     private static List<Object> quoteAccountIds(Id quoteId) {
-        Quote quoteRecord = quoteId == null
-            ? null : QuoteSelector.selectById(quoteId, new List<String>{ 'AccountId' });
+        Quote quoteRecord = quoteId == null ? null : (Quote) new QuoteSelector()
+            .selectField('AccountId')
+            .whereEquals('Id', quoteId)
+            .first();
         if (quoteRecord == null || quoteRecord.AccountId == null) {
             return new List<Id>();
         }
         Set<Id> accountIdSet = new Set<Id>{ quoteRecord.AccountId };
-        for (AccountAccountRelationship__c rel
-                : AccountAccountRelationshipSelector.selectAccountRelationships(quoteRecord.AccountId)) {
+        List<AccountAccountRelationship__c> relationshipList =
+            (List<AccountAccountRelationship__c>) new AccountAccountRelationshipSelector()
+                .selectField('ParentAccount__c')
+                .whereEquals('ChildAccount__c', quoteRecord.AccountId)
+                .whereField('ParentAccount__c', '!=', null)
+                .execute();
+        for (AccountAccountRelationship__c rel : relationshipList) {
             accountIdSet.add(rel.ParentAccount__c);
         }
         return new List<Id>(accountIdSet);
+    }
+
+    // Model Qty and Inclusion / Exclusion Contract Modifiers of the given quote lines, oldest first.
+    private static List<ContractModifier__c> selectAdjustments(Set<Id> quoteLineItemIdSet) {
+        if (quoteLineItemIdSet == null || quoteLineItemIdSet.isEmpty()) {
+            return new List<ContractModifier__c>();
+        }
+        // Must stay a List<Id> at runtime: binding a List<Object> to an Id column fails in SOQL.
+        List<Object> lineIdValues = new List<Id>(quoteLineItemIdSet);
+        List<Object> typeValues = new List<String>{
+            ContractModifierSelector.TYPE_MODEL_QTY, ContractModifierSelector.TYPE_INC_EXC
+        };
+        return (List<ContractModifier__c>) new ContractModifierSelector()
+            .selectFields(new List<String>{
+                'Id', 'Type__c', 'InclusionExclusionType__c', 'ParentContractModifier__c', 'ProductLine__c',
+                'SubProductLine__c', 'ProductType__c', 'Manufacture__c', 'Model__c', 'ModelQty__c',
+                'QuoteLineItem__c', 'Quote__c', 'StartDate__c', 'EndDate__c'
+            })
+            .whereField('QuoteLineItem__c', 'IN', lineIdValues)
+            .whereField('Type__c', 'IN', typeValues)
+            .orderBy('CreatedDate')
+            .execute();
+    }
+
+    // Assets on the given accounts with the given fields, ordered by serial number (nulls last) and name.
+    private static List<Asset> selectAccountAssets(List<String> fieldList, List<Object> accountIdValues) {
+        return (List<Asset>) new AssetsSelector()
+            .selectFields(fieldList)
+            .whereField('AccountId', 'IN', accountIdValues)
+            .orderBy('SerialNumber', false, true)
+            .orderBy('Name')
+            .limitTo(MAX_ASSETS)
+            .execute();
     }
 
     private static Boolean matches(String wanted, String actual) {

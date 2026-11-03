@@ -12,6 +12,32 @@ const STAGE_CLASS = {
     'Closed-No Bid': 'stage-cancelled'
 };
 
+const COLUMNS = {
+    recent: [
+        { field: 'Name', label: 'Opportunity Name', type: 'name' },
+        { field: 'EndCustomerName__c', label: 'End Customer Name', type: 'text', value: 'endCustomerName' },
+        { field: 'StageName', label: 'Opportunity Stage', type: 'stage' },
+        { field: 'Amount', label: 'Opportunity Amount', type: 'amount' },
+        { field: 'Expected_Ship_Date__c', label: 'Expected Ship Date', type: 'text', value: 'shipLabel' },
+        { field: 'CreatedDate', label: 'Created Date', type: 'text', value: 'createdLabel' }
+    ],
+    pastdue: [
+        { field: 'Name', label: 'Opportunity Name', type: 'name' },
+        { field: 'EndCustomerName__c', label: 'End Customer Name', type: 'text', value: 'endCustomerName' },
+        { field: 'StageName', label: 'Opportunity Stage', type: 'stage' },
+        { field: 'Expected_Ship_Date__c', label: 'Expected Ship Date', type: 'text', value: 'shipLabel' },
+        { field: 'Amount', label: 'Opportunity Amount', type: 'amount' }
+    ],
+    workspace: [
+        { field: 'Name', label: 'Opportunity Name', type: 'name' },
+        { field: 'EndCustomerName__c', label: 'Customer', type: 'text', value: 'endCustomerName' },
+        { field: 'DealerAccountName__c', label: 'Dealer Account', type: 'text', value: 'dealerAccountName' },
+        { field: 'StageName', label: 'Stage', type: 'stage' },
+        { field: 'CloseDate', label: 'Close Date', type: 'text', value: 'closeLabel' },
+        { field: 'Amount', label: 'Amount', type: 'amount' }
+    ]
+};
+
 export default class DealerOpportunityTable extends NavigationMixin(LightningElement) {
     @api records = [];
     @api variant = 'workspace';
@@ -23,41 +49,13 @@ export default class DealerOpportunityTable extends NavigationMixin(LightningEle
         return this.displayRows.length > 0;
     }
 
-    get showShipDate() {
-        return this.variant === 'pastdue';
-    }
-
-    get showCreatedDate() {
-        return this.variant === 'recent';
-    }
-
-    get showCloseDate() {
-        return this.variant === 'recent' || this.variant === 'workspace';
-    }
-
     get tableClass() {
         return this.variant === 'workspace' ? 'opportunity-table table-workspace' : 'opportunity-table';
     }
 
     get columns() {
-        const columns = [
-            { field: 'Name', label: 'Opportunity Name' },
-            { field: 'EndCustomerName__c', label: 'Customer' },
-            { field: 'DealerAccountName__c', label: 'Dealer Account' },
-            { field: 'StageName', label: 'Stage' }
-        ];
-        if (this.showShipDate) {
-            columns.push({ field: 'Expected_Ship_Date__c', label: 'Expected Ship Date', sortable: false });
-        }
-        if (this.showCreatedDate) {
-            columns.push({ field: 'CreatedDate', label: 'Created Date', sortable: false });
-        }
-        if (this.showCloseDate) {
-            columns.push({ field: 'CloseDate', label: 'Close Date' });
-        }
-        columns.push({ field: 'Amount', label: 'Amount', amount: true });
         const canSort = this.variant === 'workspace';
-        return columns.map((column) => {
+        return this.columnDefinitions.map((column) => {
             const sortable = canSort && column.sortable !== false;
             let sortLabel = '';
             if (sortable) {
@@ -69,22 +67,33 @@ export default class DealerOpportunityTable extends NavigationMixin(LightningEle
                 ...column,
                 sortable,
                 sortLabel,
-                headerClass: column.amount ? 'amount-column' : ''
+                headerClass: column.type === 'amount' ? 'amount-column' : ''
             };
         });
     }
 
+    get columnDefinitions() {
+        return COLUMNS[this.variant] || COLUMNS.workspace;
+    }
+
     get displayRows() {
-        return (this.records || []).map((row) => ({
-            ...row,
-            stageClass: `stage-pill ${STAGE_CLASS[row.stageName] || 'stage-cancelled'}`,
-            amountLabel: formatAmount(row.amount, row.currencyCode),
-            closeLabel: formatDate(row.closeDate),
-            createdLabel: formatDate(row.createdDate),
-            shipLabel: formatDate(row.expectedShipDate),
-            endCustomerName: row.endCustomerName || '—',
-            dealerAccountName: row.dealerAccountName || '—'
-        }));
+        return (this.records || []).map((row) => {
+            const formatted = {
+                name: row.name,
+                endCustomerName: row.endCustomerName || '—',
+                dealerAccountName: row.dealerAccountName || '—',
+                stageName: row.stageName,
+                stageClass: `stage-pill ${STAGE_CLASS[row.stageName] || 'stage-cancelled'}`,
+                amountLabel: formatAmount(row.amount, row.currencyCode),
+                closeLabel: formatDate(row.closeDate),
+                createdLabel: formatDate(row.createdDate),
+                shipLabel: formatDate(row.expectedShipDate)
+            };
+            return {
+                opportunityId: row.opportunityId,
+                cells: this.columnDefinitions.map((column) => buildCell(row.opportunityId, column, formatted))
+            };
+        });
     }
 
     requestSort(event) {
@@ -103,6 +112,30 @@ export default class DealerOpportunityTable extends NavigationMixin(LightningEle
             }
         });
     }
+}
+
+function buildCell(opportunityId, column, formatted) {
+    const isName = column.type === 'name';
+    const isStage = column.type === 'stage';
+    const isAmount = column.type === 'amount';
+    const value = isName
+        ? formatted.name
+        : isStage
+            ? formatted.stageName
+            : isAmount
+                ? formatted.amountLabel
+                : formatted[column.value];
+    return {
+        key: `${opportunityId}-${column.field}`,
+        opportunityId,
+        value: value || '—',
+        title: value || '',
+        isName,
+        isStage,
+        isPlain: !isName && !isStage,
+        stageClass: formatted.stageClass,
+        cellClass: isAmount ? 'amount-column' : ''
+    };
 }
 
 function formatAmount(amount, currencyCode) {

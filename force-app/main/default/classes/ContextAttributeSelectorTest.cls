@@ -5,31 +5,25 @@
 private class ContextAttributeSelectorTest {
 
     /**
-     * @description Null or empty titles return an empty list without querying.
+     * @description The selector builds queries against ContextAttribute.
      */
     @IsTest
-    static void testSelectByTitlesBlankInput() {
-        User contextUser = new User(Id = UserInfo.getUserId());
-        Assert.areEqual(0, Limits.getQueries(), 'No queries should have run yet');
+    static void testSelectorBuildsContextAttributeQuery() {
+        ContextAttributeSelector selector = new ContextAttributeSelector();
 
-        List<ContextAttribute> fromNull;
-        List<ContextAttribute> fromEmpty;
+        Assert.isNotNull(selector, 'The selector should be created');
+
         Test.startTest();
-        System.runAs(contextUser) {
-            fromNull = ContextAttributeSelector.selectByTitles(null);
-            fromEmpty = ContextAttributeSelector.selectByTitles(new List<String>());
-        }
+        String soql = selector.selectFields(new List<String>{ 'Id', 'Title' }).orderBy('Title').toSoql();
         Test.stopTest();
-
-        Assert.isTrue(fromNull.isEmpty(), 'Null titles should return an empty list');
-        Assert.isTrue(fromEmpty.isEmpty(), 'Empty titles should return an empty list');
+        Assert.isTrue(soql.contains('FROM ContextAttribute'), 'Query should target ContextAttribute: ' + soql);
     }
 
     /**
      * @description Titles with no matching context attribute return an empty list.
      */
     @IsTest
-    static void testSelectByTitlesNoMatch() {
+    static void testSelectByTitleNoMatch() {
         User contextUser = new User(Id = UserInfo.getUserId());
         List<String> titles = new List<String>{ 'ESPC_Not_A_Context_Attribute__c' };
 
@@ -39,7 +33,10 @@ private class ContextAttributeSelectorTest {
         List<ContextAttribute> results;
         Test.startTest();
         System.runAs(contextUser) {
-            results = ContextAttributeSelector.selectByTitles(titles);
+            results = (List<ContextAttribute>) new ContextAttributeSelector()
+                .selectFields(new List<String>{ 'Id', 'Title' })
+                .whereField('Title', 'IN', titles)
+                .execute();
         }
         Test.stopTest();
         Assert.isTrue(results.isEmpty(), 'Unknown titles should return an empty list');

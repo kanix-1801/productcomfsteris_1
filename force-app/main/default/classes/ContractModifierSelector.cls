@@ -41,32 +41,4 @@ public with sharing class ContractModifierSelector extends SoqlQueryBuilder {
     public ContractModifierSelector() {
         this.objectName = 'ContractModifier__c';
     }
-
-    /**
-     * @description GW-4777/5676 Selects the Model Qty and Inclusion / Exclusion Contract Modifiers of the given
-     *              quote line items, oldest first.
-     * @param quoteLineItemIds Quote Line Item Ids.
-     * @return List of Contract Modifier records with Type__c = MODEL QTY or INC/EXC.
-     */
-    public static List<ContractModifier__c> selectAdjustmentsByQuoteLineItemIds(Set<Id> quoteLineItemIds) {
-        if (quoteLineItemIds == null || quoteLineItemIds.isEmpty()) {
-            return new List<ContractModifier__c>();
-        }
-
-        // Must stay a List<Id> at runtime: binding a List<Object> to an Id column fails in SOQL.
-        List<Object> lineIdValues = new List<Id>(quoteLineItemIds);
-        List<Object> typeValues = new List<String>{ TYPE_MODEL_QTY, TYPE_INC_EXC };
-        return (List<ContractModifier__c>) SoqlQueryBuilder.fromObject('ContractModifier__c')
-                                                           .selectFields(new List<String>{
-                                                               'Id', 'Type__c', 'InclusionExclusionType__c',
-                                                               'ParentContractModifier__c', 'ProductLine__c',
-                                                               'SubProductLine__c', 'ProductType__c', 'Manufacture__c',
-                                                               'Model__c', 'ModelQty__c', 'QuoteLineItem__c',
-                                                               'Quote__c', 'StartDate__c', 'EndDate__c'
-                                                           })
-                                                           .whereField('QuoteLineItem__c', 'IN', lineIdValues)
-                                                           .whereField('Type__c', 'IN', typeValues)
-                                                           .orderBy('CreatedDate')
-                                                           .execute();
-    }
 }

@@ -28,7 +28,7 @@ public with sharing class DealerOpportunityService {
         );
         response.stageChart = buildStageChart(response.summary);
         response.quarterChart = buildQuarterChart(DealerOpportunitySelector.selectQuarterSummaries());
-        response.countryChart = buildCountryChart(DealerOpportunitySelector.selectCountrySummaries());
+        response.businessUnitChart = buildBusinessUnitChart(DealerOpportunitySelector.selectOpenPipeline());
         return response;
     }
 
@@ -62,7 +62,9 @@ public with sharing class DealerOpportunityService {
         DealerOpportunityController.CreateContext context = new DealerOpportunityController.CreateContext();
         context.defaultCurrency = DEFAULT_CURRENCY;
         context.currencies = activeCurrencies();
+        context.businessUnits = businessUnitOptions();
         context.stages = new List<String>(DealerOpportunitySelector.CREATE_STAGES);
+        context.recordTypeId = dealerRecordTypeId();
 
         User currentUser = [
             SELECT UserType, Contact.AccountId
@@ -107,6 +109,7 @@ public with sharing class DealerOpportunityService {
         opportunityRecord.EndCustomerName__c = request.endCustomerName.trim();
         opportunityRecord.Description = request.description.trim();
         opportunityRecord.Country__c = request.country.trim();
+        opportunityRecord.HCBusinessUnit__c = normalizeBusinessUnits(request.businessUnits);
         opportunityRecord.Amount = request.amount;
         opportunityRecord.StageName = request.stageName;
         opportunityRecord.ForecastConfidenceLevel__c = DEFAULT_CONFIDENCE;
@@ -122,6 +125,49 @@ public with sharing class DealerOpportunityService {
 
         DealerOpportunityShareService.assignOwnerAndShare(opportunityRecord.Id, UserInfo.getUserId());
         return opportunityRecord.Id;
+    }
+
+    /**
+     * @description
+     * Dealer Portal R1 - Completes a Dealer opportunity created from the standard layout form.
+     *
+     * @param opportunityId Opportunity created by the signed-in user.
+     */
+    public static void finalizeCreatedOpportunity(Id opportunityId) {
+        if (opportunityId == null) {
+            throw new DealerOpportunityException('The opportunity was not created.');
+        }
+
+        List<Opportunity> opportunities = [
+            SELECT Id, AccountId, DealerAccountName__c, DealerSubmitter__c, ForecastConfidenceLevel__c
+            FROM Opportunity
+            WHERE Id = :opportunityId
+            LIMIT 1
+        ];
+        if (opportunities.isEmpty()) {
+            throw new DealerOpportunityException('The opportunity was not created.');
+        }
+
+        Opportunity opportunityRecord = opportunities[0];
+        Boolean changed = false;
+        if (opportunityRecord.DealerSubmitter__c == null) {
+            opportunityRecord.DealerSubmitter__c = UserInfo.getUserId();
+            changed = true;
+        }
+        if (String.isBlank(opportunityRecord.ForecastConfidenceLevel__c)) {
+            opportunityRecord.ForecastConfidenceLevel__c = DEFAULT_CONFIDENCE;
+            changed = true;
+        }
+        if (opportunityRecord.AccountId != null && String.isBlank(opportunityRecord.DealerAccountName__c)) {
+            opportunityRecord.DealerAccountName__c = DealerOpportunityShareService.selectAccountName(
+                opportunityRecord.AccountId
+            );
+            changed = true;
+        }
+        if (changed) {
+            update opportunityRecord;
+        }
+        DealerOpportunityShareService.assignOwnerAndShare(opportunityRecord.Id, UserInfo.getUserId());
     }
 
     private static DealerOpportunityController.Summary buildSummary(List<AggregateResult> stageResults) {
@@ -186,13 +232,26 @@ public with sharing class DealerOpportunityService {
         return points;
     }
 
-    private static List<DealerOpportunityController.ChartPoint> buildCountryChart(List<AggregateResult> results) {
+    private static List<DealerOpportunityController.ChartPoint> buildBusinessUnitChart(List<Opportunity> opportunities) {
+        Map<String, Decimal> amountByUnit = new Map<String, Decimal>();
+        for (Opportunity opportunityRecord : opportunities) {
+            Decimal amount = opportunityRecord.Amount == null ? 0 : opportunityRecord.Amount;
+            String businessUnits = opportunityRecord.HCBusinessUnit__c;
+            List<String> unitNames = String.isBlank(businessUnits)
+                ? new List<String>{ 'Unspecified' }
+                : businessUnits.split(';');
+            for (String unitName : unitNames) {
+                String label = String.isBlank(unitName) ? 'Unspecified' : unitName.trim();
+                Decimal currentAmount = amountByUnit.containsKey(label) ? amountByUnit.get(label) : 0;
+                amountByUnit.put(label, currentAmount + amount);
+            }
+        }
+
         List<DealerOpportunityController.ChartPoint> points = new List<DealerOpportunityController.ChartPoint>();
-        for (AggregateResult result : results) {
+        for (String label : amountByUnit.keySet()) {
             DealerOpportunityController.ChartPoint point = new DealerOpportunityController.ChartPoint();
-            String countryName = (String) result.get('countryName');
-            point.label = String.isBlank(countryName) ? 'Unspecified' : countryName;
-            point.value = decimalValue(result.get('amountTotal'));
+            point.label = label;
+            point.value = amountByUnit.get(label);
             point.sortKey = point.value == null ? 0 : point.value.intValue();
             points.add(point);
         }
@@ -313,6 +372,49 @@ public with sharing class DealerOpportunityService {
         return recordTypeInfo.getRecordTypeId();
     }
 
+    private static String normalizeBusinessUnits(String rawValue) {
+        if (String.isBlank(rawValue)) {
+            return null;
+        }
+
+        Set<String> allowedValues = new Set<String>();
+        for (Schema.PicklistEntry entry : Opportunity.HCBusinessUnit__c.getDescribe().getPicklistValues()) {
+            if (entry.isActive()) {
+                allowedValues.add(entry.getValue());
+            }
+        }
+
+        List<String> selectedValues = new List<String>();
+        for (String unitName : rawValue.split(';')) {
+            String value = unitName == null ? null : unitName.trim();
+            if (String.isBlank(value)) {
+                continue;
+            }
+            if (!allowedValues.contains(value)) {
+                throw new DealerOpportunityException('Select a valid Business Unit.');
+            }
+            if (!selectedValues.contains(value)) {
+                selectedValues.add(value);
+            }
+        }
+        return selectedValues.isEmpty() ? null : String.join(selectedValues, ';');
+    }
+
+    private static List<DealerOpportunityController.CurrencyOption> businessUnitOptions() {
+        List<DealerOpportunityController.CurrencyOption> options =
+            new List<DealerOpportunityController.CurrencyOption>();
+        for (Schema.PicklistEntry entry : Opportunity.HCBusinessUnit__c.getDescribe().getPicklistValues()) {
+            if (!entry.isActive()) {
+                continue;
+            }
+            DealerOpportunityController.CurrencyOption option = new DealerOpportunityController.CurrencyOption();
+            option.label = entry.getLabel();
+            option.value = entry.getValue();
+            options.add(option);
+        }
+        return options;
+    }
+
     private static List<DealerOpportunityController.CurrencyOption> activeCurrencies() {
         List<DealerOpportunityController.CurrencyOption> options =
             new List<DealerOpportunityController.CurrencyOption>();
@@ -413,6 +515,7 @@ public with sharing class DealerOpportunityService {
         public String endCustomerName;
         public String description;
         public String country;
+        public String businessUnits;
         public Decimal amount;
         public String currencyCode;
         public String closeDate;

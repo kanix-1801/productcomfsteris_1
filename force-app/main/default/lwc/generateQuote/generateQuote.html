@@ -183,22 +183,27 @@
                                     </td>
 
                                     <td class="col-forecast-confidence">
-                                        <select
-                                            key={quote.forecastConfidenceSelectKey}
-                                            class="slds-select forecast-confidence-select"
-                                            data-id={quote.id}
-                                            onchange={handleForecastConfidenceChange}
-                                            aria-label="Quote Forecast Confidence">
-                                            <option value="">Select confidence</option>
-                                            <template for:each={quote.forecastConfidenceSelectOptions} for:item="option">
-                                                <option
-                                                    key={option.value}
-                                                    value={option.value}
-                                                    selected={option.isSelected}>
-                                                    {option.label}
-                                                </option>
-                                            </template>
-                                        </select>
+                                        <template if:true={quote.hideQuoteForecastConfidence}>
+                                            <div class="forecast-confidence-placeholder" aria-hidden="true">—</div>
+                                        </template>
+                                        <template if:false={quote.hideQuoteForecastConfidence}>
+                                            <select
+                                                key={quote.forecastConfidenceSelectKey}
+                                                class="slds-select forecast-confidence-select"
+                                                data-id={quote.id}
+                                                onchange={handleForecastConfidenceChange}
+                                                aria-label="Quote Forecast Confidence">
+                                                <option value="">Select confidence</option>
+                                                <template for:each={quote.forecastConfidenceSelectOptions} for:item="option">
+                                                    <option
+                                                        key={option.value}
+                                                        value={option.value}
+                                                        selected={option.isSelected}>
+                                                        {option.label}
+                                                    </option>
+                                                </template>
+                                            </select>
+                                        </template>
                                     </td>
 
                                     <td>
@@ -214,38 +219,40 @@
                                     </td>
 
                                     <td class="col-sync-confidence">
-                                        <div class="sync-action">
-                                            <template if:true={quote.isSyncingForecastConfidence}>
-                                                <lightning-spinner
-                                                    alternative-text="Saving quote forecast confidence"
-                                                    size="small"
-                                                    class="sync-spinner">
-                                                </lightning-spinner>
-                                            </template>
-                                            <template if:false={quote.isSyncingForecastConfidence}>
-                                                <template if:true={quote.forecastConfidenceDirty}>
-                                                    <div class="sync-action__buttons">
-                                                        <button
-                                                            type="button"
-                                                            class="slds-button slds-button_brand confidence-action-btn"
-                                                            title="Save Quote Forecast Confidence"
-                                                            data-id={quote.id}
-                                                            disabled={quote.saveForecastConfidenceDisabled}
-                                                            onclick={handleSaveForecastConfidence}>
-                                                            Save
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            class="slds-button slds-button_neutral confidence-action-btn"
-                                                            title="Cancel changes to Quote Forecast Confidence"
-                                                            data-id={quote.id}
-                                                            onclick={handleCancelForecastConfidence}>
-                                                            Cancel
-                                                        </button>
-                                                    </div>
+                                        <template if:false={quote.hideQuoteForecastConfidence}>
+                                            <div class="sync-action">
+                                                <template if:true={quote.isSyncingForecastConfidence}>
+                                                    <lightning-spinner
+                                                        alternative-text="Saving quote forecast confidence"
+                                                        size="small"
+                                                        class="sync-spinner">
+                                                    </lightning-spinner>
                                                 </template>
-                                            </template>
-                                        </div>
+                                                <template if:false={quote.isSyncingForecastConfidence}>
+                                                    <template if:true={quote.forecastConfidenceDirty}>
+                                                        <div class="sync-action__buttons">
+                                                            <button
+                                                                type="button"
+                                                                class="slds-button slds-button_brand confidence-action-btn"
+                                                                title="Save Quote Forecast Confidence"
+                                                                data-id={quote.id}
+                                                                disabled={quote.saveForecastConfidenceDisabled}
+                                                                onclick={handleSaveForecastConfidence}>
+                                                                Save
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                class="slds-button slds-button_neutral confidence-action-btn"
+                                                                title="Cancel changes to Quote Forecast Confidence"
+                                                                data-id={quote.id}
+                                                                onclick={handleCancelForecastConfidence}>
+                                                                Cancel
+                                                            </button>
+                                                        </div>
+                                                    </template>
+                                                </template>
+                                            </div>
+                                        </template>
                                     </td>
                                 </tr>
 

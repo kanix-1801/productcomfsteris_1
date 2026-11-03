@@ -1,18 +1,27 @@
 .identity-card {
     height: 100%;
+    overflow: hidden;
 }
 
-.identity-heading {
+.identity-banner {
     display: flex;
     gap: 0.75rem;
-    align-items: flex-start;
-    margin-bottom: 1rem;
+    align-items: center;
+    padding: 1rem;
+    background: #0176d3;
+    color: #ffffff;
 }
 
-.address {
-    white-space: pre-line;
-    color: var(--slds-g-color-neutral-base-30, #444);
-    margin-top: 0.25rem;
+.identity-title h1 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 400;
+    color: #ffffff;
+}
+
+.identity-title p {
+    margin: 0.125rem 0 0;
+    color: #ffffff;
 }
 
 .field-list {

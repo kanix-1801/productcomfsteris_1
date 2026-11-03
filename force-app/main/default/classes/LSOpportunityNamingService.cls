@@ -183,11 +183,47 @@ public with sharing class LSOpportunityNamingService {
     }
 
     /**
-     * Reads the sequence without sharing. A Life Science user cannot see every
-     * LS Opportunity an admin can see, so a with-sharing query would calculate
-     * a different next number for each user.
+     * Reads the sequence and the LS record type Ids without sharing or user
+     * record-type assignment.
+     *
+     * Two separate user-dependent behaviors caused admin and Life Science users
+     * to get different numbers:
+     * 1. A with-sharing SOQL query only sees Opportunities the running user has
+     *    access to, so the "highest number" calculation came out lower for a
+     *    restricted user.
+     * 2. Schema.getRecordTypeInfosByDeveloperName() only returns record types
+     *    assigned to the running user's profile/permission sets. If a user's
+     *    profile does not have both LS record types assigned, the in-scope set
+     *    silently shrank to one record type, which also changes the "highest
+     *    number" calculation.
+     * Both are fixed by resolving record type Ids with a direct SOQL query
+     * against RecordType, run here without sharing.
      */
     private without sharing class SequenceReader {
+        Set<Id> inScopeRecordTypeIds(Set<String> developerNames) {
+            Set<Id> ids = new Set<Id>();
+            Set<String> foundNames = new Set<String>();
+            for (RecordType rt : [
+                SELECT Id, DeveloperName
+                FROM RecordType
+                WHERE SObjectType = 'Opportunity'
+                AND DeveloperName IN :developerNames
+                AND IsActive = true
+            ]) {
+                ids.add(rt.Id);
+                foundNames.add(rt.DeveloperName);
+            }
+            for (String developerName : developerNames) {
+                if (!foundNames.contains(developerName)) {
+                    Logger.warn(
+                        CLASS_NAME + '.inScopeRecordTypeIds: record type not found=' +
+                        developerName
+                    );
+                }
+            }
+            return ids;
+        }
+
         Integer highestNumber(Set<Id> recordTypeIds) {
             if (recordTypeIds == null || recordTypeIds.isEmpty()) {
                 return 0;
@@ -195,29 +231,27 @@ public with sharing class LSOpportunityNamingService {
 
             // FOR UPDATE cannot be combined with ORDER BY. Find the highest
             // number first, lock that row, then read the max again.
-            List<Opportunity> candidates = [
-                SELECT Id
-                FROM Opportunity
-                WHERE RecordTypeId IN :recordTypeIds
-                AND LSOpportunityNumber__c != null
-                ORDER BY LSOpportunityNumber__c DESC
-                LIMIT 1
-            ];
+            List<Opportunity> candidates = Database.queryWithBinds(
+                'SELECT Id FROM Opportunity WHERE RecordTypeId IN :recordTypeIds ' +
+                'AND LSOpportunityNumber__c != null ' +
+                'ORDER BY LSOpportunityNumber__c DESC LIMIT 1',
+                new Map<String, Object>{ 'recordTypeIds' => recordTypeIds },
+                AccessLevel.SYSTEM_MODE
+            );	
             if (!candidates.isEmpty()) {
-                List<Opportunity> lockedRows = [
-                    SELECT Id
-                    FROM Opportunity
-                    WHERE Id = :candidates[0].Id
-                    FOR UPDATE
-                ];
+                Database.queryWithBinds(
+                    'SELECT Id FROM Opportunity WHERE Id = :rowId FOR UPDATE',
+                    new Map<String, Object>{ 'rowId' => candidates[0].Id },
+                    AccessLevel.SYSTEM_MODE
+                );
             }
 
-            List<AggregateResult> totals = [
-                SELECT MAX(LSOpportunityNumber__c) maxNumber
-                FROM Opportunity
-                WHERE RecordTypeId IN :recordTypeIds
-                AND LSOpportunityNumber__c != null
-            ];
+            List<AggregateResult> totals = Database.queryWithBinds(
+                'SELECT MAX(LSOpportunityNumber__c) maxNumber FROM Opportunity ' +
+                'WHERE RecordTypeId IN :recordTypeIds AND LSOpportunityNumber__c != null',
+                new Map<String, Object>{ 'recordTypeIds' => recordTypeIds },
+                AccessLevel.SYSTEM_MODE
+            );
             if (totals.isEmpty() || totals[0].get('maxNumber') == null) {
                 return 0;
             }
@@ -268,23 +302,8 @@ public with sharing class LSOpportunityNamingService {
         if (inScopeRecordTypeIds != null) {
             return inScopeRecordTypeIds;
         }
-
-        inScopeRecordTypeIds = new Set<Id>();
-        Map<String, Schema.RecordTypeInfo> byDeveloperName =
-            Opportunity.SObjectType.getDescribe()
-                .getRecordTypeInfosByDeveloperName();
-
-        for (String developerName : IN_SCOPE_RECORD_TYPE_DEVELOPER_NAMES) {
-            Schema.RecordTypeInfo info = byDeveloperName.get(developerName);
-            if (info != null) {
-                inScopeRecordTypeIds.add(info.getRecordTypeId());
-            } else {
-                Logger.warn(
-                    CLASS_NAME + '.getInScopeRecordTypeIds: record type not found=' +
-                    developerName
-                );
-            }
-        }
+        inScopeRecordTypeIds = new SequenceReader()
+            .inScopeRecordTypeIds(IN_SCOPE_RECORD_TYPE_DEVELOPER_NAMES);
         return inScopeRecordTypeIds;
     }
 }

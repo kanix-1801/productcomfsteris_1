@@ -20,7 +20,7 @@
             </article>
             <article class="metric-card">
                 <img class="metric-icon" src={activeIconUrl} alt="" />
-                <p class="metric-label">Active Opportunities</p>
+                <p class="metric-label">Total Open Opportunities</p>
                 <p class="metric-value">{openCountLabel}</p>
             </article>
             <article class="metric-card">
@@ -29,6 +29,15 @@
                 <p class="metric-value">{closedWonLabel}</p>
                 <p class="metric-note">{closedWonCountLabel}</p>
             </article>
+            <template for:each={stageCountCards} for:item="card">
+                <article key={card.stageName} class="metric-card">
+                    <span class={card.iconClass}>{card.mark}</span>
+                    <div>
+                        <p class="metric-label">{card.label}</p>
+                        <p class="metric-value">{card.count}</p>
+                    </div>
+                </article>
+            </template>
         </section>
 
         <section class="insight-grid">
@@ -45,57 +54,78 @@
             </article>
             <article class="panel">
                 <header class="panel-header">
-                    <h2>My Pipeline This Quarter</h2>
+                    <h2>Pipeline by Stage</h2>
                 </header>
-                <div class="chart-list">
-                    <template if:true={hasStageChart}>
-                        <template for:each={stageBars} for:item="bar">
-                            <div key={bar.stageName} class="bar-row">
-                                <span class="bar-label">{bar.stageName}</span>
-                                <span class="bar-track"><span class={bar.className} style={bar.style}></span></span>
-                                <strong class="bar-value">{bar.valueLabel}</strong>
-                            </div>
-                        </template>
-                    </template>
-                    <template if:false={hasStageChart}>
-                        <p class="empty-copy">No open pipeline to chart.</p>
-                    </template>
-                </div>
+                <template if:true={hasStageChart}>
+                    <p class="funnel-total">Sum of Amount: {stageTotalLabel}</p>
+                    <div class="funnel-layout">
+                        <div class="funnel">
+                            <template for:each={stageFunnel} for:item="segment">
+                                <div key={segment.stageName} class="funnel-segment" style={segment.style}>
+                                    <span>{segment.valueLabel}</span>
+                                </div>
+                            </template>
+                        </div>
+                        <ul class="funnel-legend">
+                            <li class="legend-title">Stage</li>
+                            <template for:each={stageFunnel} for:item="segment">
+                                <li key={segment.stageName}>
+                                    <span>{segment.stageName}</span>
+                                    <span class="legend-swatch" style={segment.swatchStyle}></span>
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+                </template>
+                <template if:false={hasStageChart}>
+                    <p class="empty-copy">No open pipeline to chart.</p>
+                </template>
             </article>
         </section>
 
         <section class="chart-grid">
             <article class="panel">
                 <h2>Quarterly Pipeline Trend</h2>
-                <div class="chart-list">
-                    <template if:true={hasQuarterChart}>
-                        <template for:each={quarterBars} for:item="bar">
-                            <div key={bar.label} class="bar-row">
-                                <span class="bar-label">{bar.label}</span>
-                                <span class="bar-track"><span class="bar-fill bar-blue" style={bar.style}></span></span>
-                                <strong class="bar-value">{bar.valueLabel}</strong>
-                            </div>
-                        </template>
-                    </template>
-                    <template if:false={hasQuarterChart}>
-                        <p class="empty-copy">No quarterly pipeline is available.</p>
-                    </template>
-                </div>
+                <template if:true={hasQuarterChart}>
+                    <div class="vchart">
+                        <div class="vchart-axis">
+                            <template for:each={quarterAxis} for:item="tick">
+                                <span key={tick.key}>{tick.label}</span>
+                            </template>
+                        </div>
+                        <div class="vchart-plot">
+                            <div class="grid-lines" aria-hidden="true"></div>
+                            <template for:each={quarterColumns} for:item="col">
+                                <div key={col.label} class="vchart-col">
+                                    <div class="vchart-track">
+                                        <div class="vchart-bar" style={col.style}>
+                                            <span class="vchart-amount">{col.valueLabel}</span>
+                                        </div>
+                                    </div>
+                                    <span class="vchart-xlabel">{col.label}</span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+                <template if:false={hasQuarterChart}>
+                    <p class="empty-copy">No quarterly pipeline is available.</p>
+                </template>
             </article>
             <article class="panel">
-                <h2>Pipeline by Country</h2>
+                <h2>Pipeline by Business Unit</h2>
                 <div class="chart-list">
-                    <template if:true={hasCountryChart}>
-                        <template for:each={countryBars} for:item="bar">
+                    <template if:true={hasBusinessUnitChart}>
+                        <template for:each={businessUnitBars} for:item="bar">
                             <div key={bar.label} class="bar-row">
                                 <span class="bar-label">{bar.label}</span>
-                                <span class="bar-track"><span class="bar-fill bar-gold" style={bar.style}></span></span>
+                                <span class="bar-track"><span class="bar-fill" style={bar.style}></span></span>
                                 <strong class="bar-value">{bar.valueLabel}</strong>
                             </div>
                         </template>
                     </template>
-                    <template if:false={hasCountryChart}>
-                        <p class="empty-copy">No country pipeline is available.</p>
+                    <template if:false={hasBusinessUnitChart}>
+                        <p class="empty-copy">No business unit pipeline is available.</p>
                     </template>
                 </div>
             </article>

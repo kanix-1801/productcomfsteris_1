@@ -198,21 +198,20 @@ public with sharing class DealerOpportunitySelector {
 
     /**
      * @description
-     * Dealer Portal R1 - Open pipeline value by Country. Country is the available geography dimension.
+     * Dealer Portal R1 - Open dealer opportunities used to total pipeline by Business Unit.
+     * HCBusinessUnit__c is a multi-select, so the values are split in Apex.
      *
-     * @return Aggregate rows ordered later by the service.
+     * @return Open Evaluation, Proposal, and Commit opportunities.
      */
-    public static List<AggregateResult> selectCountrySummaries() {
+    public static List<Opportunity> selectOpenPipeline() {
         String recordTypeName = RECORD_TYPE_NAME;
         List<String> openStages = OPEN_STAGES;
         return Database.queryWithBinds(
-            'SELECT Country__c countryName, SUM(convertCurrency(Amount)) amountTotal' +
+            'SELECT HCBusinessUnit__c, convertCurrency(Amount)' +
             ' FROM Opportunity' +
             ' WHERE RecordType.DeveloperName = :recordTypeName' +
             ' AND IsClosed = false' +
-            ' AND StageName IN :openStages' +
-            '' +
-            ' GROUP BY Country__c',
+            ' AND StageName IN :openStages',
             new Map<String, Object>{
                 'recordTypeName' => recordTypeName,
                 'openStages' => openStages
@@ -267,8 +266,26 @@ public with sharing class DealerOpportunitySelector {
             binds.put('shipDateTo', filter.shipDateTo);
         }
         if (String.isNotBlank(filter.search)) {
-            conditions.add('(Name LIKE :searchTerm OR EndCustomerName__c LIKE :searchTerm)');
+            List<String> searchConditions = new List<String>{
+                'Name LIKE :searchTerm',
+                'EndCustomerName__c LIKE :searchTerm',
+                'Country__c LIKE :searchTerm'
+            };
             binds.put('searchTerm', likeTerm(filter.search));
+
+            Decimal searchAmount = parseSearchAmount(filter.search);
+            if (searchAmount != null) {
+                searchConditions.add('Amount = :searchAmount');
+                binds.put('searchAmount', searchAmount);
+            }
+
+            Date searchDate = parseSearchDate(filter.search);
+            if (searchDate != null) {
+                searchConditions.add('CloseDate = :searchDate');
+                searchConditions.add('Expected_Ship_Date__c = :searchDate');
+                binds.put('searchDate', searchDate);
+            }
+            conditions.add('(' + String.join(searchConditions, ' OR ') + ')');
         }
 
         QueryParts parts = new QueryParts();
@@ -286,6 +303,42 @@ public with sharing class DealerOpportunitySelector {
 
     private static String likeTerm(String search) {
         return '%' + search.trim() + '%';
+    }
+
+    private static Decimal parseSearchAmount(String search) {
+        String cleaned = search.trim().replace('$', '').replace(',', '').replace(' ', '');
+        if (!Pattern.matches('\\d+(\\.\\d+)?', cleaned)) {
+            return null;
+        }
+        return Decimal.valueOf(cleaned);
+    }
+
+    private static Date parseSearchDate(String search) {
+        String value = search.trim();
+        try {
+            return Date.valueOf(value);
+        } catch (Exception ignored) {
+            // The search may use a locale date instead of yyyy-MM-dd.
+        }
+
+        Matcher slashDate = Pattern.compile('^(\\d{1,2})[/.-](\\d{1,2})[/.-](\\d{4})$').matcher(value);
+        if (slashDate.matches()) {
+            try {
+                return Date.newInstance(
+                    Integer.valueOf(slashDate.group(3)),
+                    Integer.valueOf(slashDate.group(1)),
+                    Integer.valueOf(slashDate.group(2))
+                );
+            } catch (Exception ignored) {
+                return null;
+            }
+        }
+
+        try {
+            return Date.parse(value);
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private static String sortClause(OpportunityFilter filter) {

@@ -776,6 +776,7 @@ public with sharing class GenerateQuoteService {
             );
             quoteWrapper.lastModifiedDate = resolveLastModifiedDate(quoteRecord);
             quoteWrapper.isForecastIneligible = quoteRecord.IsForecastIneligible__c == true;
+            quoteWrapper.quoteType = quoteRecord.QuoteType__c;
             quoteWrapper.quoteForecastConfidence = quoteRecord.QuoteForecastConfidence__c;
             quoteWrapper.opportunityForecastConfidence = opportunityRecord == null
                 ? null

@@ -17,7 +17,14 @@
  *              InverseRelationshipType__c = Has...Member.
  * GC-2860 - Supports competitive installed base hierarchy resolution.
  */
-public with sharing class AccountAccountRelationshipSelector {
+public with sharing class AccountAccountRelationshipSelector extends SoqlQueryBuilder {
+    /**
+     * @description Binds this selector to AccountAccountRelationship__c for SoqlQueryBuilder queries.
+     */
+    public AccountAccountRelationshipSelector() {
+        this.objectName = 'AccountAccountRelationship__c';
+    }
+
     public static final String RELATIONSHIP_TYPE_HAS_GPO_MEMBER = System.Label.AAR_RelationshipType_HasGPOMember;
     public static final String RELATIONSHIP_TYPE_HAS_IDN_MEMBER = System.Label.AAR_RelationshipType_HasIDNMember;
     public static final String RELATIONSHIP_TYPE_IS_IDN_MEMBER_OF = System.Label.AAR_RelationshipType_IsIDNMemberOf;
@@ -211,22 +218,5 @@ public with sharing class AccountAccountRelationshipSelector {
                OR ChildAccount__c IN :accountIds
             WITH USER_MODE
         ];
-    }
-
-    /**
-     * @description GW-6075 Returns Account Account relationship matches the given account Id.
-     * @param quoteAccountId Account Id to match against ChildAccount__c.
-     * @return List of Account Account Relationship records
-     */
-    public static List<AccountAccountRelationship__c> selectAccountRelationships(Id quoteAccountId) {
-        if (quoteAccountId == null) {
-            return new List<AccountAccountRelationship__c>();
-        }
-
-        return (List<AccountAccountRelationship__c>) SoqlQueryBuilder.fromObject('AccountAccountRelationship__c')
-                                                                     .selectFields(new List<String>{ 'ParentAccount__c' })
-                                                                     .whereEquals('ChildAccount__c', quoteAccountId)
-                                                                     .whereField('ParentAccount__c', '!=', null)
-                                                                     .execute();
     }
 }

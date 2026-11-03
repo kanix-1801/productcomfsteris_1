@@ -9,35 +9,23 @@
                 <template if:true={errorMessage}>
                     <p class="form-error" role="alert">{errorMessage}</p>
                 </template>
-                <div class="form-grid">
-                    <lightning-input class="span-two" label="Opportunity Name" value={name} required onchange={handleName}></lightning-input>
-                    <lightning-combobox label="Stage" value={stageName} placeholder="Select a stage" options={stageOptions} required onchange={handleStage}></lightning-combobox>
-                    <lightning-input class="span-two" label="End Customer Name" value={endCustomerName} required onchange={handleCustomer}></lightning-input>
-                    <template if:true={context.partnerUser}>
-                        <lightning-input class="span-two" label="Dealer Account" value={context.dealerAccountName} disabled></lightning-input>
+                <template if:true={isFinalizing}>
+                    <p class="form-status">Saving the opportunity...</p>
+                </template>
+                <div class="standard-form">
+                    <template if:true={recordTypeId}>
+                        <lightning-record-form
+                            object-api-name="Opportunity"
+                            record-type-id={recordTypeId}
+                            layout-type="Full"
+                            columns="2"
+                            density="comfy"
+                            onsuccess={handleSuccess}
+                            oncancel={close}
+                            onerror={handleError}>
+                        </lightning-record-form>
                     </template>
-                    <template if:false={context.partnerUser}>
-                        <div class="span-two">
-                            <lightning-record-picker
-                                object-api-name="Account"
-                                label="Dealer Account"
-                                placeholder="Search dealer accounts"
-                                onchange={handleAccount}>
-                            </lightning-record-picker>
-                        </div>
-                    </template>
-                    <lightning-textarea class="span-two" label="Description" value={description} required onchange={handleDescription}></lightning-textarea>
-                    <lightning-input label="Country" value={country} required onchange={handleCountry}></lightning-input>
-                    <lightning-input type="number" label="Amount" value={amount} required min="0" formatter="currency" step="0.01" onchange={handleAmount}></lightning-input>
-                    <lightning-combobox label="Currency" value={currencyCode} options={currencyOptions} required onchange={handleCurrency}></lightning-combobox>
-                    <lightning-input type="date" label="Close Date" field-level-help="Expected Order Date — the date you anticipate submitting the purchase order to STERIS." value={closeDate} required onchange={handleCloseDate}></lightning-input>
-                    <lightning-input type="date" label="Expected Ship Date" value={expectedShipDate} required onchange={handleShipDate}></lightning-input>
-                    <lightning-input type="date" label="Expected Installation Date" value={installationDate} required onchange={handleInstallationDate}></lightning-input>
                 </div>
-                <footer class="modal-footer">
-                    <lightning-button label="Cancel" onclick={close}></lightning-button>
-                    <lightning-button variant="brand" label="Create Opportunity" onclick={save} disabled={isSaving}></lightning-button>
-                </footer>
             </div>
         </section>
     </template>

@@ -7,7 +7,14 @@
  * @description
  * GC-3129 - SOQL selector for Product2 PSAM lookup used when deriving Product Sub-Group Detail on Opportunity.
  */
-public with sharing class Product2Selector {
+public with sharing class Product2Selector extends SoqlQueryBuilder {
+    /**
+     * @description Binds this selector to Product2 for SoqlQueryBuilder queries.
+     */
+    public Product2Selector() {
+        this.objectName = 'Product2';
+    }
+
     /**
      * @description
      * GC-3230 - Maximum number of active products returned to the Free Good Task product search.
@@ -81,38 +88,6 @@ public with sharing class Product2Selector {
             AND IsActive = TRUE
             WITH SYSTEM_MODE
         ];
-    }
-
-    /**
-     * @description
-     * GW-4777 - Distinct Sub Product Line values of active products in the given Product Line
-     * (master data for the Model Qty coverage Sub Product Line picklist).
-     *
-     * @param productLine Product Line value (Product2.ProductLine__c).
-     * @return Distinct non-blank Sub Product Line values, sorted.
-     *
-     * @example
-     * Product2Selector.selectSubProductLinesByProductLine('Sterilization');
-     */
-    public static List<String> selectSubProductLinesByProductLine(String productLine) {
-        List<String> subProductLineList = new List<String>();
-        if (String.isBlank(productLine)) {
-            return subProductLineList;
-        }
-
-        for (AggregateResult row : [
-            SELECT SubProductLine__c
-            FROM Product2
-            WHERE IsActive = TRUE
-            AND ProductLine__c = :productLine
-            AND SubProductLine__c != NULL
-            WITH USER_MODE
-            GROUP BY SubProductLine__c
-            ORDER BY SubProductLine__c
-        ]) {
-            subProductLineList.add((String) row.get('SubProductLine__c'));
-        }
-        return subProductLineList;
     }
 
     /**

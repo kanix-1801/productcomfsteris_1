@@ -1601,7 +1601,7 @@ public with sharing class WorkOrderLineItemsService {
                     resultByProductItemIdMap.put(
                         productItemId,
                         workOrderHasAsset
-                            ? AllowedUnitEvaluationDTO.evaluated(false, false)
+                            ? AllowedUnitEvaluationDTO.evaluated(false)
                             : AllowedUnitEvaluationDTO.unevaluated()
                     );
                     continue;
@@ -1693,7 +1693,6 @@ public with sharing class WorkOrderLineItemsService {
             }
 
             Set<Id> allowedProduct2IdSet = new Set<Id>();
-            Set<Id> criticalProduct2IdSet = new Set<Id>();
 
             if (!serviceBomIdSet.isEmpty() && !product2IdSet.isEmpty()) {
                 List<ProductRelatedMaterial> bomComponentList =
@@ -1704,19 +1703,15 @@ public with sharing class WorkOrderLineItemsService {
                 for (ProductRelatedMaterial bomComponent : bomComponentList) {
                     if (bomComponent.ProductComponentId != null) {
                         allowedProduct2IdSet.add(bomComponent.ProductComponentId);
-                        if (bomComponent.CriticalPart__c == true) {
-                            criticalProduct2IdSet.add(bomComponent.ProductComponentId);
-                        }
                     }
                 }
             }
 
             for (Id product2Id : product2IdSet) {
                 Boolean isAllowed = allowedProduct2IdSet.contains(product2Id);
-                Boolean isCritical = criticalProduct2IdSet.contains(product2Id);
                 resultByProduct2IdMap.put(
                     product2Id,
-                    AllowedUnitEvaluationDTO.evaluated(isAllowed, isCritical)
+                    AllowedUnitEvaluationDTO.evaluated(isAllowed)
                 );
             }
 

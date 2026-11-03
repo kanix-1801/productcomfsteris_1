@@ -13,10 +13,6 @@ public with sharing class AllowedUnitEvaluationDTO {
      * @description True when the product is on the allowed parts list; null when not evaluated.
      */
     @AuraEnabled public Boolean allowedUnit;
-    /**
-     * @description True when a matching SBOM component is marked Critical Part; null when not evaluated.
-     */
-    @AuraEnabled public Boolean criticalPart;
 
     /**
      * @description Builds an unevaluated result (no Asset / incomplete inputs).
@@ -27,7 +23,6 @@ public with sharing class AllowedUnitEvaluationDTO {
         dto.hasAsset = false;
         dto.evaluated = false;
         dto.allowedUnit = null;
-        dto.criticalPart = null;
         return dto;
     }
 
@@ -41,7 +36,6 @@ public with sharing class AllowedUnitEvaluationDTO {
         dto.hasAsset = true;
         dto.evaluated = false;
         dto.allowedUnit = null;
-        dto.criticalPart = null;
         return dto;
     }
 
@@ -51,21 +45,10 @@ public with sharing class AllowedUnitEvaluationDTO {
      * @return Evaluated Allowed Unit result
      */
     public static AllowedUnitEvaluationDTO evaluated(Boolean isAllowed) {
-        return evaluated(isAllowed, false);
-    }
-
-    /**
-     * @description Builds an evaluated result for a Work Order that has an Asset.
-     * @param isAllowed True when the Product2 is present on the allowed parts list
-     * @param isCritical True when a matching SBOM component is marked Critical Part
-     * @return Evaluated Allowed Unit result
-     */
-    public static AllowedUnitEvaluationDTO evaluated(Boolean isAllowed, Boolean isCritical) {
         AllowedUnitEvaluationDTO dto = new AllowedUnitEvaluationDTO();
         dto.hasAsset = true;
         dto.evaluated = true;
         dto.allowedUnit = isAllowed == true;
-        dto.criticalPart = isCritical == true;
         return dto;
     }
 }

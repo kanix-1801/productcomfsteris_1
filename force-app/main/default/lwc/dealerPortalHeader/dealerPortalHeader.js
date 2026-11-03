@@ -1,21 +1,22 @@
 import { LightningElement, wire } from 'lwc';
 import { NavigationMixin, CurrentPageReference } from 'lightning/navigation';
-import BRAND_LOGO from '@salesforce/resourceUrl/DealerPortalBrand';
+import basePath from '@salesforce/community/basePath';
+import BRAND_LOGO from '@salesforce/resourceUrl/DealerPortalWordmark';
 
 const PAGES = [
-    { name: 'Home', label: 'Home', key: 'home' },
-    { name: 'My_Opportunities__c', label: 'My Opportunities', key: 'opportunities' },
-    { name: 'Reports__c', label: 'Reports', key: 'reports' }
+    { path: '/', label: 'Home', key: 'home' },
+    { path: '/my-opportunities', label: 'My Opportunities', key: 'opportunities' },
+    { path: '/reports', label: 'Reports', key: 'reports' }
 ];
 
 export default class DealerPortalHeader extends NavigationMixin(LightningElement) {
-    logoUrl = BRAND_LOGO;
+    logoUrl = `${BRAND_LOGO}?v=3`;
     activeKey = 'home';
 
     @wire(CurrentPageReference)
     setPage(pageReference) {
-        const pageName = (pageReference?.attributes?.name || '').toLowerCase();
-        if (pageName.includes('opportunit')) {
+        const pageName = `${pageReference?.attributes?.name || ''} ${window.location?.pathname || ''}`.toLowerCase();
+        if (pageName.includes('opportunit') || pageName.includes('my-opportunities')) {
             this.activeKey = 'opportunities';
         } else if (pageName.includes('report')) {
             this.activeKey = 'reports';
@@ -32,10 +33,11 @@ export default class DealerPortalHeader extends NavigationMixin(LightningElement
     }
 
     openPage(event) {
+        const path = event.currentTarget.dataset.path || '/';
         this[NavigationMixin.Navigate]({
-            type: 'comm__namedPage',
+            type: 'standard__webPage',
             attributes: {
-                name: event.currentTarget.dataset.page
+                url: `${basePath}${path}`
             }
         });
     }

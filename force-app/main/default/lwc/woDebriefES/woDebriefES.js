@@ -15,6 +15,7 @@ import { getRelatedListRecords } from 'lightning/uiRelatedListApi';
 import { getObjectInfo, getPicklistValues } from 'lightning/uiObjectInfoApi';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import LightningConfirm from 'lightning/confirm';
+import LightningAlert from 'lightning/alert';
 import LightningPrompt from 'lightning/prompt';
 import { CloseActionScreenEvent } from 'lightning/actions';
 import { getBarcodeScanner } from 'lightning/mobileCapabilities';
@@ -40,7 +41,6 @@ import WOLI_PRODUCT_ITEM from '@salesforce/schema/WorkOrderLineItem.ProductItem_
 import WOLI_PRODUCT from '@salesforce/schema/WorkOrderLineItem.Product__c';
 import WOLI_PART_DESCRIPTION from '@salesforce/schema/WorkOrderLineItem.PartDescription__c';
 import WOLI_ALLOWED_UNIT from '@salesforce/schema/WorkOrderLineItem.AllowedUnit__c';
-import WOLI_CRITICAL_PART from '@salesforce/schema/WorkOrderLineItem.CriticalPart__c';
 import WOLI_RETURNABLE from '@salesforce/schema/WorkOrderLineItem.Returnable__c';
 import WOLI_REMOVED_PART from '@salesforce/schema/WorkOrderLineItem.RemovedPart__c';
 import WOLI_USAGES_EXCEPTION from '@salesforce/schema/WorkOrderLineItem.UsagesException__c';
@@ -105,8 +105,6 @@ import OVERRIDE_CODE from '@salesforce/schema/Expense.OverrideCode__c';
 import EXPENSE_BILLABLE_AMOUNT from '@salesforce/schema/Expense.BillableAmount__c';
 import EXPENSE_OVERRIDE_BILLABLE from '@salesforce/schema/Expense.OverrideBillableAmount__c';
 
-const CRITICAL_PART_CONFIRM_MESSAGE =
-    'Be aware that this part is marked as Critical Part, are you sure you want to consume it?';
 const PART_EXCEPTION_PROMPT =
     'This part is not approved for this product and must be sent to service engineering for approval prior to replacement. Would you like to proceed?';
 const PART_EXCEPTION_REASON_OPTIONS = [
@@ -119,6 +117,7 @@ const PART_EXCEPTION_REASON_OPTIONS = [
     { label: 'Customer Requested Part', value: 'Customer Requested Part' },
     { label: 'Other', value: 'Other' }
 ];
+const RETURNABLE_PART_ALERT_MESSAGE = 'Please note this is a returnable part.';
 const PARTS_SOURCE_TRUNK = 'TrunkStock';
 const PARTS_SOURCE_CUSTOMER = 'Customer Part';
 const PARTS_SOURCE_ON_ORDER = 'On Order';
@@ -335,7 +334,6 @@ const WORK_ORDER_QUERY = gql`
                                         }
                                         PartDescription__c { value }
                                         AllowedUnit__c { value }
-                                        CriticalPart__c { value }
                                         Returnable__c { value }
                                         RemovedPart__c { value }
                                         UsagesException__c { value }
@@ -1537,13 +1535,6 @@ export default class WoDebriefES extends LightningElement {
     }
 
     /**
-     * @description Add Form Critical Part Label.
-     */
-    get addFormCriticalPartLabel() {
-        return this._fmtReturnable(this.addFormState.criticalPart);
-    }
-
-    /**
      * @description Add Form Billing Type Label (read-only; set by automation after save).
      */
     get addFormBillingTypeLabel() {
@@ -1936,7 +1927,6 @@ export default class WoDebriefES extends LightningElement {
         }
         if (field === 'partsSource') {
             next.allowedUnit = null;
-            next.criticalPart = null;
             next.returnable = null;
             next.removedPartId = null;
             next.productCode = '';
@@ -1962,7 +1952,6 @@ export default class WoDebriefES extends LightningElement {
         }
         if (field === 'partsSource') {
             next.allowedUnit = null;
-            next.criticalPart = null;
             next.returnable = null;
             next.removedPartId = null;
             next.productCode = '';
@@ -2194,7 +2183,6 @@ export default class WoDebriefES extends LightningElement {
                 next.partDescription = '';
                 next.returnable = null;
                 next.allowedUnit = null;
-                next.criticalPart = null;
                 next.billingType = '';
             }
             if (field === 'productItemId') {
@@ -2215,7 +2203,6 @@ export default class WoDebriefES extends LightningElement {
                     ? (this._partDescriptionByProduct2Id[linkedProduct2Id] ?? '')
                     : '';
                 next.allowedUnit = null;
-                next.criticalPart = null;
                 next.billingType = '';
                 Object.assign(next, this._clearedPartExceptionFields());
                 this._onProductItemSelected(recordId, { isAddForm: true });
@@ -2237,7 +2224,6 @@ export default class WoDebriefES extends LightningElement {
                     ? (this._partDescriptionByProduct2Id[recordId] ?? '')
                     : '';
                 next.allowedUnit = null;
-                next.criticalPart = null;
                 next.billingType = '';
                 Object.assign(next, this._clearedPartExceptionFields());
                 if (recordId) this._product2LookupId = recordId;
@@ -2299,7 +2285,6 @@ export default class WoDebriefES extends LightningElement {
                     payload = {
                         ...payload,
                         allowedUnit: this.addFormState.allowedUnit,
-                        criticalPart: this.addFormState.criticalPart,
                         billingType: this.addFormState.billingType,
                         returnable: this.addFormState.returnable
                             ?? this._resolveReturnableForProductItem(payload.productItemId)
@@ -2318,20 +2303,11 @@ export default class WoDebriefES extends LightningElement {
                     payload = {
                         ...payload,
                         allowedUnit: this.addFormState.allowedUnit,
-                        criticalPart: this.addFormState.criticalPart,
                         billingType: this.addFormState.billingType,
                         returnable: this.addFormState.returnable
                             ?? this._resolveReturnableForProduct2(payload.product2Id)
                     };
                 }
-            }
-            if (payload.criticalPart) {
-                const criticalConfirmed = await LightningConfirm.open({
-                    message: CRITICAL_PART_CONFIRM_MESSAGE,
-                    variant: 'headerless',
-                    label: 'Critical Part'
-                });
-                if (!criticalConfirmed) return;
             }
             payload = {
                 ...payload,
@@ -2347,6 +2323,9 @@ export default class WoDebriefES extends LightningElement {
         if (errMsg) {
             this.addErrors = { ...this.addErrors, [tab]: errMsg };
             return;
+        }
+        if (schema === 'parts' && this._isTruthyFlag(payload.returnable)) {
+            await this._showReturnablePartAlert();
         }
         if (schema === 'time') {
             const skillOk = await this._checkTimeWorkTypeSkills({
@@ -2410,7 +2389,6 @@ export default class WoDebriefES extends LightningElement {
                 partExceptionAlreadyApproved: !!payload.partExceptionAlreadyApproved,
                 partExceptionSubmit: !!payload.partExceptionSubmit,
                 allowedUnit: payload.allowedUnit ?? null,
-                criticalPart: payload.criticalPart ?? null,
                 billingType: payload.billingType || 'Billable',
                 returnable: payload.returnable ?? null,
                 removedPartId: payload.removedPartId ?? null
@@ -2518,21 +2496,6 @@ export default class WoDebriefES extends LightningElement {
         });
         if (!confirmed) return;
 
-        const criticalEditNeedsConfirm = Object.entries(this._pendingEdits).some(([id, edit]) => {
-            if (edit._schema !== 'parts' || !edit.criticalPart) return false;
-            const original = this._serverLines.find(l => l.Id === id);
-            const originalProductItemId = original?.ProductItem__c?.value ?? null;
-            return edit.productItemId && edit.productItemId !== originalProductItemId;
-        });
-        if (criticalEditNeedsConfirm) {
-            const criticalConfirmed = await LightningConfirm.open({
-                message: CRITICAL_PART_CONFIRM_MESSAGE,
-                variant: 'headerless',
-                label: 'Critical Part'
-            });
-            if (!criticalConfirmed) return;
-        }
-
         let hasValidationError = false;
         for (const [id, edit] of Object.entries(this._pendingEdits)) {
             const err = this._validateForSchema(edit._schema ?? 'generic', edit);
@@ -2555,6 +2518,9 @@ export default class WoDebriefES extends LightningElement {
         if (hasValidationError) {
             this._toast('Validation Error', 'Fix highlighted errors before saving.', 'error');
             return;
+        }
+        if (this._hasReturnablePartChange()) {
+            await this._showReturnablePartAlert();
         }
 
         this._saving = true;
@@ -2898,7 +2864,6 @@ export default class WoDebriefES extends LightningElement {
         const quantity = edit?.quantity ?? l.UnitQty__c?.value ?? 0;
         const description = edit?.description ?? l.Description?.value ?? '';
         const allowedUnit = edit?.allowedUnit ?? l.AllowedUnit__c?.value ?? false;
-        const criticalPart = edit?.criticalPart ?? l.CriticalPart__c?.value ?? false;
         const returnable = edit?.returnable
             ?? l.Returnable__c?.value
             ?? (isCustomerStock
@@ -2932,7 +2897,6 @@ export default class WoDebriefES extends LightningElement {
             quantity,
             description,
             allowedUnit,
-            criticalPart,
             returnable,
             returnableLabel,
             usagesException,
@@ -2959,7 +2923,6 @@ export default class WoDebriefES extends LightningElement {
             editDescription: state.description ?? edit?.description ?? description,
             editReturnableLabel: returnableLabel,
             editAllowedUnitLabel: this._fmtReturnable(allowedUnit),
-            editCriticalPartLabel: this._fmtReturnable(criticalPart),
             editBillingTypeLabel: billingTypeLabel,
             editRemovedPartId: state.removedPartId ?? edit?.removedPartId ?? removedPartId,
             editUsagesException: state.usagesException ?? edit?.usagesException ?? usagesException,
@@ -2996,7 +2959,6 @@ export default class WoDebriefES extends LightningElement {
         const description = state.description ?? a.description ?? '';
         const usagesException = state.usagesException ?? a.usagesException ?? false;
         const allowedUnit = state.allowedUnit ?? a.allowedUnit ?? null;
-        const criticalPart = state.criticalPart ?? a.criticalPart ?? null;
         const returnable = state.returnable
             ?? a.returnable
             ?? (isCustomerStock
@@ -3034,7 +2996,6 @@ export default class WoDebriefES extends LightningElement {
             quantity,
             description,
             allowedUnit,
-            criticalPart,
             returnable,
             returnableLabel,
             usagesException,
@@ -3059,7 +3020,6 @@ export default class WoDebriefES extends LightningElement {
             editDescription: description,
             editReturnableLabel: returnableLabel,
             editAllowedUnitLabel: this._fmtReturnable(allowedUnit),
-            editCriticalPartLabel: this._fmtReturnable(criticalPart),
             editBillingTypeLabel: billingTypeLabel,
             editRemovedPartId: removedPartId,
             editUsagesException: usagesException,
@@ -3761,9 +3721,6 @@ export default class WoDebriefES extends LightningElement {
                 ...(edit.allowedUnit != null
                     ? { [WOLI_ALLOWED_UNIT.fieldApiName]: !!edit.allowedUnit }
                     : {}),
-                ...(edit.criticalPart != null
-                    ? { [WOLI_CRITICAL_PART.fieldApiName]: !!edit.criticalPart }
-                    : {}),
                 ...(edit.returnable != null
                     ? { [WOLI_RETURNABLE.fieldApiName]: !!edit.returnable }
                     : {}),
@@ -3837,9 +3794,6 @@ export default class WoDebriefES extends LightningElement {
                     [WOLI_BILLING_TYPE.fieldApiName]: a.billingType || 'Billable',
                     ...(a.allowedUnit != null
                         ? { [WOLI_ALLOWED_UNIT.fieldApiName]: !!a.allowedUnit }
-                        : {}),
-                    ...(a.criticalPart != null
-                        ? { [WOLI_CRITICAL_PART.fieldApiName]: !!a.criticalPart }
                         : {}),
                     ...(a.returnable != null
                         ? { [WOLI_RETURNABLE.fieldApiName]: !!a.returnable }
@@ -4068,7 +4022,6 @@ export default class WoDebriefES extends LightningElement {
                             : (value ? '' : (next.partDescription ?? ''));
                         if (value) {
                             next.allowedUnit = null;
-                            next.criticalPart = null;
                             Object.assign(next, this._clearedPartExceptionFields());
                         }
                     } else {
@@ -4079,7 +4032,6 @@ export default class WoDebriefES extends LightningElement {
                             ? (this._resolveReturnableForProductItem(value) ?? null)
                             : null;
                         next.allowedUnit = null;
-                        next.criticalPart = null;
                     }
                 }
                 if (field === 'product2Id' && a._schema === 'parts') {
@@ -4095,7 +4047,6 @@ export default class WoDebriefES extends LightningElement {
                         : (next.partDescription ?? '');
                     if (value) {
                         next.allowedUnit = null;
-                        next.criticalPart = null;
                         this._product2LookupId = value;
                     }
                 }
@@ -4161,7 +4112,6 @@ export default class WoDebriefES extends LightningElement {
                 : (value ? '' : (entry.partDescription ?? ''));
             if (value) {
                 entry.allowedUnit = null;
-                entry.criticalPart = null;
             }
         }
         if (field === 'product2Id') {
@@ -4175,7 +4125,6 @@ export default class WoDebriefES extends LightningElement {
                 : (entry.partDescription ?? '');
             if (value) {
                 entry.allowedUnit = null;
-                entry.criticalPart = null;
                 this._product2LookupId = value;
             }
         }
@@ -4318,7 +4267,6 @@ export default class WoDebriefES extends LightningElement {
                 quantity: line.UnitQty__c?.value ?? 0,
                 description: line.Description?.value ?? '',
                 allowedUnit: line.AllowedUnit__c?.value ?? false,
-                criticalPart: line.CriticalPart__c?.value ?? false,
                 returnable: line.Returnable__c?.value
                     ?? (product2Id
                         ? this._resolveReturnableForProduct2(product2Id)
@@ -4562,7 +4510,6 @@ export default class WoDebriefES extends LightningElement {
             usagesException: false,
             ...this._clearedPartExceptionFields(),
             allowedUnit: null,
-            criticalPart: null,
             billingType: '',
             removedPartId: null,
             startDate: '',
@@ -4963,7 +4910,6 @@ export default class WoDebriefES extends LightningElement {
                 this._stageEdit(editId, 'removedPartId', null);
             }
             this._stageEdit(editId, 'allowedUnit', null);
-            this._stageEdit(editId, 'criticalPart', null);
             this._stageEdit(editId, 'billingType', '');
         }
     }
@@ -4984,7 +4930,6 @@ export default class WoDebriefES extends LightningElement {
         if (!editId) return;
         const source = normalizePartsSource(partsSource);
         this._stageEdit(editId, 'allowedUnit', null);
-        this._stageEdit(editId, 'criticalPart', null);
         this._stageEdit(editId, 'billingType', '');
         this._stageEdit(editId, 'returnable', null);
         this._stageEdit(editId, 'productCode', '');
@@ -5202,14 +5147,14 @@ export default class WoDebriefES extends LightningElement {
     }
 
     /**
-     * @description Evaluates Allowed Unit / Critical Part for a Product Item via Apex.
+     * @description Evaluates Allowed Unit for a Product Item via Apex.
      *              Apex skips SBOM cross-reference when Root PFCL SBOM Required is not Yes
      *              (GW-4218) or when the Work Order has no Asset — both return evaluated=false.
      */
     async _evaluateAllowedUnitForProductItem(productItemId, options = {}) {
         const { editId = null, isAddForm = false } = options;
         if (!productItemId || !this.recordId) {
-            await this._applyAllowedUnitResult(null, null, { editId, isAddForm });
+            await this._applyAllowedUnitResult(null, { editId, isAddForm });
             return;
         }
 
@@ -5220,12 +5165,11 @@ export default class WoDebriefES extends LightningElement {
             });
             // No WO asset, or Root PFCL SBOM Required != Yes → leave fields unset.
             if (!result?.evaluated) {
-                await this._applyAllowedUnitResult(null, null, { editId, isAddForm });
+                await this._applyAllowedUnitResult(null, { editId, isAddForm });
                 return;
             }
             await this._applyAllowedUnitResult(
                 !!result.allowedUnit,
-                !!result.criticalPart,
                 { editId, isAddForm }
             );
         } catch (error) {
@@ -5239,12 +5183,12 @@ export default class WoDebriefES extends LightningElement {
     }
 
     /**
-     * @description GW-4311 — Evaluates Allowed Unit / Critical Part for a Product2 via Apex.
+     * @description GW-4311 — Evaluates Allowed Unit for a Product2 via Apex.
      */
     async _evaluateAllowedUnitForProduct(product2Id, options = {}) {
         const { editId = null, isAddForm = false } = options;
         if (!product2Id || !this.recordId) {
-            await this._applyAllowedUnitResult(null, null, { editId, isAddForm });
+            await this._applyAllowedUnitResult(null, { editId, isAddForm });
             return;
         }
 
@@ -5254,12 +5198,11 @@ export default class WoDebriefES extends LightningElement {
                 product2Id
             });
             if (!result?.evaluated) {
-                await this._applyAllowedUnitResult(null, null, { editId, isAddForm });
+                await this._applyAllowedUnitResult(null, { editId, isAddForm });
                 return;
             }
             await this._applyAllowedUnitResult(
                 !!result.allowedUnit,
-                !!result.criticalPart,
                 { editId, isAddForm }
             );
         } catch (error) {
@@ -5286,12 +5229,11 @@ export default class WoDebriefES extends LightningElement {
     /**
      * @description Internal helper: Apply Allowed Unit Result.
      */
-    async _applyAllowedUnitResult(allowedUnit, criticalPart, { editId = null, isAddForm = false } = {}) {
+    async _applyAllowedUnitResult(allowedUnit, { editId = null, isAddForm = false } = {}) {
         if (isAddForm) {
-            this.addFormState = { ...this.addFormState, allowedUnit, criticalPart };
+            this.addFormState = { ...this.addFormState, allowedUnit };
         } else if (editId) {
             this._stageEdit(editId, 'allowedUnit', allowedUnit);
-            this._stageEdit(editId, 'criticalPart', criticalPart);
         }
         if (!this._shouldPromptPartException({ editId, isAddForm })) {
             return;
@@ -5727,7 +5669,6 @@ export default class WoDebriefES extends LightningElement {
                 partDescription,
                 returnable: match.isReturnable ?? null,
                 allowedUnit: null,
-                criticalPart: null,
                 removedPartId: null
             };
             this._onProductItemSelected(productItemId, { isAddForm: true });
@@ -5744,7 +5685,6 @@ export default class WoDebriefES extends LightningElement {
             this._stageEdit(editId, 'returnable', match.isReturnable ?? null);
             this._stageEdit(editId, 'removedPartId', null);
             this._stageEdit(editId, 'allowedUnit', null);
-            this._stageEdit(editId, 'criticalPart', null);
             this._onProductItemSelected(productItemId, { editId });
             this._toast('Product Item selected', match.productName || productItemId, 'success');
         }
@@ -5781,7 +5721,6 @@ export default class WoDebriefES extends LightningElement {
                 partDescription,
                 returnable,
                 allowedUnit: null,
-                criticalPart: null,
                 billingType: '',
                 removedPartId: null
             };
@@ -5800,7 +5739,6 @@ export default class WoDebriefES extends LightningElement {
             this._stageEdit(editId, 'returnable', returnable);
             this._stageEdit(editId, 'removedPartId', null);
             this._stageEdit(editId, 'allowedUnit', null);
-            this._stageEdit(editId, 'criticalPart', null);
             this._stageEdit(editId, 'billingType', '');
             this._evaluateAllowedUnitForProduct(product2Id, { editId });
             this._evaluateBillingType({ product2Id, editId });
@@ -5896,6 +5834,33 @@ export default class WoDebriefES extends LightningElement {
      */
     _isTruthyFlag(value) {
         return value === true || value === 'true';
+    }
+
+    /**
+     * @description Shows the returnable part notice; resolves when the user clicks OK.
+     */
+    async _showReturnablePartAlert() {
+        await LightningAlert.open({
+            message: RETURNABLE_PART_ALERT_MESSAGE,
+            theme: 'info',
+            label: 'Returnable Part'
+        });
+    }
+
+    /**
+     * @description True when a pending Parts edit changes the part to a returnable part.
+     * @return {boolean}
+     */
+    _hasReturnablePartChange() {
+        return Object.entries(this._pendingEdits).some(([id, edit]) => {
+            if (edit._schema !== 'parts' || !this._isTruthyFlag(edit.returnable)) return false;
+            const original = this._serverLines.find(l => l.Id === id);
+            const productItemChanged = !!edit.productItemId
+                && edit.productItemId !== (original?.ProductItem__c?.value ?? null);
+            const productChanged = !!edit.product2Id
+                && edit.product2Id !== (original?.Product__c?.value ?? null);
+            return productItemChanged || productChanged;
+        });
     }
 
     /**

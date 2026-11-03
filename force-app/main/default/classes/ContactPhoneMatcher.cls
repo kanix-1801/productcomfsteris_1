@@ -1,17 +1,13 @@
 /**
- * @description Contact Management from SMS: Flow Apex Action that finds every Contact matching a phone number.
- *              Channel-agnostic, so voice, SMS or any other Genesys flow can reuse it. Uses SOSL IN PHONE FIELDS,
- *              so phone formatting on the Contact does not matter.
- *              Declared without sharing by design: if the Contact exists it is found, whatever the running user's access.
+ * @description GW-5874 - Contact Management from SMS: Flow Apex Action that finds every Contact matching a phone
+ *              number. Channel-agnostic, so voice, SMS or any other Genesys flow can reuse it.
+ *              Thin entry point: translates Flow requests and results; matching is done by ContactsService.
  *              Never throws; failures return matchCount = 0 and errorMessage.
  * @group Contact
  */
-public without sharing class ContactPhoneMatcher {
+public with sharing class ContactPhoneMatcher {
     @TestVisible
     private static final String BLANK_PHONE_MESSAGE = 'Phone is required to search for a Contact.';
-
-    @TestVisible
-    private static Boolean forceException = false;
 
     /**
      * @description Flow request. Phone is the customer number, ideally 10 digits.
@@ -19,6 +15,9 @@ public without sharing class ContactPhoneMatcher {
     public class Request {
         @InvocableVariable(label='Phone' description='Customer phone number, ideally 10 digits' required=true)
         public String phone;
+
+        @InvocableVariable(label='Record Id' description='Record the search is for (e.g. the SMS), used in logs')
+        public Id recordId;
     }
 
     /**
@@ -39,84 +38,88 @@ public without sharing class ContactPhoneMatcher {
     }
 
     /**
-     * @description Finds the Contacts matching each request's phone number.
-     * @param requests Flow requests
+     * @description Finds the Contacts matching each request's phone number, using one search for all requests.
+     * @param requestList Flow requests
      * @return One result per request, in the same order
      */
     @InvocableMethod(
         label='Find Contacts by Phone'
-        description='Returns every Contact whose phone fields match the number. Contact Id is set when exactly one matches.'
+        description='Returns every Contact whose phone fields match the number. Contact Id is set on a single match.'
         category='Contact'
     )
-    public static List<Result> findContacts(List<Request> requests) {
-        List<Result> results = new List<Result>();
-        if (requests == null) {
-            return results;
+    public static List<Result> findContacts(List<Request> requestList) {
+        List<Result> resultList = new List<Result>();
+        if (requestList == null) {
+            return resultList;
+        }
+
+        List<String> phoneList = new List<String>();
+        Set<String> phoneSet = new Set<String>();
+        for (Request request : requestList) {
+            String phone = PlatformUtilities.normalizePhone(request == null ? null : request.phone);
+            phoneList.add(phone);
+            if (phone != null) {
+                phoneSet.add(phone);
+            }
         }
 
         try {
-            for (Request request : requests) {
-                results.add(findContacts(request == null ? null : request.phone));
+            Map<String, List<Contact>> contactsByPhoneMap = ContactsService.findContactsByPhones(phoneSet);
+            for (String phone : phoneList) {
+                resultList.add(buildResult(phone, contactsByPhoneMap.get(phone)));
             }
+        } catch (Exception e) {
+            resultList = buildErrorResults(requestList, phoneList, e);
         } finally {
             Logger.saveLog();
         }
-        return results;
+        return resultList;
     }
 
     /**
-     * @description Runs one SOSL search for a single phone number.
-     * @param phone Raw phone number
-     * @return Result for the phone number
+     * @description Builds the result for one phone number.
+     * @param phone Normalized phone number, or null when the request had none
+     * @param contactList Contacts matching the phone number, or null when none match
+     * @return Result for the request
      */
-    private static Result findContacts(String phone) {
+    private static Result buildResult(String phone, List<Contact> contactList) {
         Result result = new Result();
-        String searchPhone = normalizePhone(phone);
-        if (String.isBlank(searchPhone)) {
+        if (phone == null) {
             result.errorMessage = BLANK_PHONE_MESSAGE;
             return result;
         }
-
-        try {
-            if (forceException) {
-                throw new ContactPhoneMatcherException('Forced exception for test');
-            }
-
-            List<List<SObject>> searchResults = [
-                FIND :searchPhone
-                IN PHONE FIELDS
-                RETURNING Contact(Id, Name, Phone, MobilePhone, Email, AccountId, Account.Name ORDER BY Name)
-            ];
-            result.contacts = (List<Contact>) searchResults[0];
-            result.matchCount = result.contacts.size();
-            if (result.matchCount == 1) {
-                result.contactId = result.contacts[0].Id;
-            }
-        } catch (Exception e) {
-            Logger.error(new LogMessage('ContactPhoneMatcher: Contact search failed for phone {0}', searchPhone), e);
-            result = new Result();
-            result.errorMessage = e.getMessage();
+        if (contactList != null) {
+            result.contacts = contactList;
+            result.matchCount = contactList.size();
+        }
+        if (result.matchCount == 1) {
+            result.contactId = result.contacts[0].Id;
         }
         return result;
     }
 
     /**
-     * @description Strips formatting and the +1 country code, so '+1 (555) 123-4567' searches as '5551234567'.
-     * @param phone Raw phone number
-     * @return Digits only, or null when there are none
+     * @description Logs the failed search against each affected record and returns an error result per request.
+     * @param requestList Flow requests
+     * @param phoneList Normalized phone number per request
+     * @param searchException Exception raised by the search
+     * @return One error result per request, in the same order
      */
-    @TestVisible
-    private static String normalizePhone(String phone) {
-        if (String.isBlank(phone)) {
-            return null;
-        }
-        String digits = phone.replaceAll('[^0-9]', '');
-        if (digits.length() == 11 && digits.startsWith('1')) {
-            digits = digits.substring(1);
-        }
-        return String.isBlank(digits) ? null : digits;
-    }
+    private static List<Result> buildErrorResults(
+        List<Request> requestList,
+        List<String> phoneList,
+        Exception searchException
+    ) {
+        List<Result> resultList = new List<Result>();
+        for (Integer i = 0; i < requestList.size(); i++) {
+            Result result = new Result();
+            result.errorMessage = phoneList[i] == null ? BLANK_PHONE_MESSAGE : searchException.getMessage();
+            resultList.add(result);
 
-    private class ContactPhoneMatcherException extends Exception {
+            Id recordId = requestList[i] == null ? null : requestList[i].recordId;
+            Logger.error('ContactPhoneMatcher.findContacts: Contact search by phone failed', searchException)
+                .setRecord(recordId);
+        }
+        return resultList;
     }
 }

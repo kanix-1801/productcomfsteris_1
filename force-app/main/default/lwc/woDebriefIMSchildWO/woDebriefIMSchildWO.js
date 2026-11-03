@@ -26,8 +26,7 @@ import getTrayPlanners from '@salesforce/apex/WoDebriefIMSchildWOController.getT
 import getDepartmentsForAccount from '@salesforce/apex/WoDebriefIMSchildWOController.getDepartmentsForAccount';
 import listMobileDevicePictures from '@salesforce/apex/WoDebriefIMSchildWOController.listMobileDevicePictures';
 import getMobileDevicePictureData from '@salesforce/apex/WoDebriefIMSchildWOController.getMobileDevicePictureData';
-import saveMobileDevicePicture from '@salesforce/apex/WoDebriefIMSchildWOController.saveMobileDevicePicture';
-import saveBeyondRepairPicture from '@salesforce/apex/WoDebriefIMSchildWOController.saveBeyondRepairPicture';
+import saveMobileDevicePictureWithDetails from '@salesforce/apex/WoDebriefIMSchildWOController.saveMobileDevicePictureWithDetails';
 import deleteMobileDevicePicture from '@salesforce/apex/WoDebriefIMSchildWOController.deleteMobileDevicePicture';
 import getCompletionCheck from '@salesforce/apex/WoDebriefIMSchildWOController.getCompletionCheck';
 import completeChildWorkOrder from '@salesforce/apex/WoDebriefIMSchildWOController.completeChildWorkOrder';
@@ -65,7 +64,6 @@ import WOLI_PRODUCT_ITEM from '@salesforce/schema/WorkOrderLineItem.ProductItem_
 import WOLI_PRODUCT from '@salesforce/schema/WorkOrderLineItem.Product__c';
 import WOLI_PART_DESCRIPTION from '@salesforce/schema/WorkOrderLineItem.PartDescription__c';
 import WOLI_ALLOWED_UNIT from '@salesforce/schema/WorkOrderLineItem.AllowedUnit__c';
-import WOLI_CRITICAL_PART from '@salesforce/schema/WorkOrderLineItem.CriticalPart__c';
 import WOLI_RETURNABLE from '@salesforce/schema/WorkOrderLineItem.Returnable__c';
 import WOLI_USAGES_EXCEPTION from '@salesforce/schema/WorkOrderLineItem.UsagesException__c';
 import WOLI_QUANTITY from '@salesforce/schema/WorkOrderLineItem.Quantity';
@@ -75,8 +73,6 @@ import WO_TOTAL_SERVICED_INSTRUMENTS from '@salesforce/schema/WorkOrder.TotalSer
 import WO_STATUS from '@salesforce/schema/WorkOrder.Status';
 import WOLI_LINE_STATUS from '@salesforce/schema/WorkOrderLineItem.Status';
 
-const CRITICAL_PART_CONFIRM_MESSAGE =
-    'Be aware that this part is marked as Critical Part, are you sure you want to consume it?';
 const PARTS_SOURCE_TRUNK = 'TrunkStock';
 const PARTS_SOURCE_CUSTOMER = 'Customer Part';
 const PARTS_SOURCE_ON_ORDER = 'On Order';
@@ -89,12 +85,25 @@ const WOLI_STATUS_IN_PROGRESS = 'In Progress';
 const HIGHLIGHT_BILLING_TYPES = new Set(['Courtesy', 'Warranty', 'SVC Warranty']);
 const REPAIR_CENTER_SERVICE_TEXT = 'forward to national repair center for service';
 const OBR_PRODUCT_CODE_PATTERN = /OBR/i;
-const PICTURE_KIND_MOBILE = 'mobile';
-const PICTURE_KIND_BEYOND_REPAIR = 'beyondRepair';
 const MOBILE_DEVICE_PICTURE_TITLE = 'Mobile Device Picture';
+/** Matches WoDebriefIMSchildWOController.REQUIRED_PICTURES_PER_LINE. */
+const REQUIRED_PICTURES_PER_LINE = 2;
 /** Matches WoDebriefIMSchildWOController.MOBILE_DEVICE_PICTURE_MARKER. The server counts files with this description. */
 const MOBILE_DEVICE_PICTURE_MARKER = 'MobileDevicePicture';
-const BEYOND_REPAIR_PICTURE_TITLE = 'Beyond Repair Picture';
+/** Matches WoDebriefIMSchildWOController.PICTURE_DETAILS_SEPARATOR. */
+const PICTURE_DETAILS_SEPARATOR = '|';
+/** The details travel in the 1000 character file description when the picture is saved offline. */
+const PICTURE_COMMENT_MAX_LENGTH = 800;
+const PICTURE_CATEGORY_OPTIONS = [
+    { label: 'Beyond Repair', value: 'Beyond Repair' },
+    { label: 'Care and Handling', value: 'Care and Handling' },
+    { label: 'Extensive Repair', value: 'Extensive Repair' },
+    { label: 'Technical Excellence', value: 'Technical Excellence' }
+];
+const BEFORE_AFTER_OPTIONS = [
+    { label: 'Before', value: 'Before' },
+    { label: 'After', value: 'After' }
+];
 const INSULATION_POWDER_COATING_OPTIONS = [
     'Black', 'Blue', 'Light Blue', 'Navy Blue', 'Green', 'Yellow', 'Orange',
     'Light Gray', 'Purple', 'Salmon Orange', 'Lavender', 'Brown', 'Red'
@@ -395,7 +404,6 @@ const WORK_ORDER_QUERY = gql`
                                         Product__c { value }
                                         PartDescription__c { value }
                                         AllowedUnit__c { value }
-                                        CriticalPart__c { value }
                                         Returnable__c { value }
                                         UsagesException__c { value }
                                         RepairCode__c { value }
@@ -633,9 +641,17 @@ export default class WoDebriefIMSchildWO extends LightningElement {
     _pendingAdds = [];
     editStateMap = {};
     _mobilePicturesByRecordId = {};
+    _unsavedPicturesByRecordId = {};
     _mobilePictureRequest = 0;
     _savingPicture = false;
     mobilePictureVersion = 0;
+    showPictureDetails = false;
+    pictureDetailsDraft = { category: '', beforeAfter: '', comment: '' };
+    pictureDetailsError = '';
+    _pendingPictureCapture = null;
+    pictureCategoryOptions = PICTURE_CATEGORY_OPTIONS;
+    beforeAfterOptions = BEFORE_AFTER_OPTIONS;
+    pictureCommentMaxLength = PICTURE_COMMENT_MAX_LENGTH;
     showPictureReview = false;
     reviewPictureUrl = '';
     reviewPictureLoading = false;
@@ -1342,12 +1358,6 @@ export default class WoDebriefIMSchildWO extends LightningElement {
     /**
      * @description Pictures chosen on a new repair-center line before it is saved.
      */
-    get addFormPictureItems() {
-        return this._beyondRepairPictureItems(this.addFormState?.pictures);
-    }
-    get hasAddFormPictureItems() {
-        return this.addFormPictureItems.length > 0;
-    }
     /**
      * @description True when the Work Order asset has Tray Planner records.
      */
@@ -1360,7 +1370,7 @@ export default class WoDebriefIMSchildWO extends LightningElement {
      */
     get trayPictures() {
         void this.mobilePictureVersion;
-        return (this._mobilePicturesByRecordId[this._pictureRecordKey(this.recordId)] || []).map(picture => this._pictureView(picture));
+        return this._savedAndUnsavedPictures(this.recordId).map(picture => this._pictureView(picture));
     }
 
     /**
@@ -1406,6 +1416,8 @@ export default class WoDebriefIMSchildWO extends LightningElement {
             Object.keys(this._pendingDeletes).length > 0 ||
             this._pendingAdds.length > 0 ||
             this._pendingWorkOrderStatus !== undefined ||
+            this._hasUnsavedPictures() ||
+            this._instrumentLineIdsReadyToComplete().length > 0 ||
             this._totalServicedInstrumentsNeedsSave();
     }
 
@@ -1595,13 +1607,6 @@ export default class WoDebriefIMSchildWO extends LightningElement {
      */
     get addFormAllowedUnitLabel() {
         return this._fmtReturnable(this.addFormState.allowedUnit);
-    }
-
-    /**
-     * @description Add Form Critical Part Label.
-     */
-    get addFormCriticalPartLabel() {
-        return this._fmtReturnable(this.addFormState.criticalPart);
     }
 
     /**
@@ -1878,7 +1883,7 @@ export default class WoDebriefIMSchildWO extends LightningElement {
         const cur = this.editStateMap[id];
         const becomingEdit = !(cur?.isEditing);
         if (!becomingEdit) {
-            this._finalizeInstrumentStatus(id, true);
+            this._finalizeInstrumentStatus(id);
         }
         this.editStateMap = { ...this.editStateMap, [id]: { isEditing: becomingEdit } };
         const errs = { ...this.editErrors };
@@ -1898,7 +1903,7 @@ export default class WoDebriefIMSchildWO extends LightningElement {
      */
     handleEditClose(e) {
         const id = e.currentTarget.dataset.id;
-        this._finalizeInstrumentStatus(id, true);
+        this._finalizeInstrumentStatus(id);
         this.editStateMap = { ...this.editStateMap, [id]: { isEditing: false } };
         const errs = { ...this.editErrors };
         delete errs[id];
@@ -1937,35 +1942,110 @@ export default class WoDebriefIMSchildWO extends LightningElement {
         this._savingPicture = true;
         try {
             const localPicture = await this._fileToMobilePicture(file);
-            if (scope === 'add') {
-                this.addFormState = {
-                    ...this.addFormState,
-                    mobilePictures: [...(this.addFormState.mobilePictures || []), localPicture]
-                };
-                this.mobilePictureVersion += 1;
-                return;
-            }
-            if (scope === 'line' && !this._isSalesforceWoliId(lineId)) {
-                this._pendingAdds = this._pendingAdds.map(add => (
-                    add._tempId === lineId
-                        ? { ...add, mobilePictures: [...(add.mobilePictures || []), localPicture] }
-                        : add
-                ));
-                this.mobilePictureVersion += 1;
-                return;
-            }
-            const primaryRecordId = scope === 'tray' ? this.recordId : lineId;
-            if (!primaryRecordId) {
-                this._toast('Picture was not saved', 'Open the work order again, then take the picture.', 'error');
-                return;
-            }
-            const saved = await this._savePictureOnRecord(primaryRecordId, localPicture, PICTURE_KIND_MOBILE);
-            this._rememberMobilePicture(primaryRecordId, saved, localPicture.previewUrl);
-            this._toast('Picture saved', 'Mobile Device Picture saved.', 'success');
+            this._pendingPictureCapture = { scope, lineId, localPicture };
+            this.pictureDetailsDraft = { category: '', beforeAfter: '', comment: '' };
+            this.pictureDetailsError = '';
+            this.showPictureDetails = true;
         } catch (error) {
             this._toast('Picture was not saved', this._errorMessage(error), 'error');
         } finally {
             this._savingPicture = false;
+        }
+    }
+
+    get pictureDetailsPreviewUrl() {
+        return this._pendingPictureCapture?.localPicture?.previewUrl || '';
+    }
+
+    /**
+     * @description GW-375 - Keeps the Category, Before/After, and comment of a new picture.
+     */
+    handlePictureDetailChange(event) {
+        const field = event.currentTarget.dataset.field;
+        this.pictureDetailsDraft = { ...this.pictureDetailsDraft, [field]: event.detail.value || '' };
+        this.pictureDetailsError = '';
+    }
+
+    /**
+     * @description GW-375 - Drops a new picture without saving it.
+     */
+    handlePictureDetailsCancel() {
+        this.showPictureDetails = false;
+        this._pendingPictureCapture = null;
+        this.pictureDetailsError = '';
+    }
+
+    /**
+     * @description GW-375 - Saves a new picture after Category and Before/After are chosen.
+     */
+    async handlePictureDetailsConfirm() {
+        const pending = this._pendingPictureCapture;
+        if (!pending?.localPicture) {
+            this.handlePictureDetailsCancel();
+            return;
+        }
+        const { category, beforeAfter, comment } = this.pictureDetailsDraft;
+        if (!category || !beforeAfter) {
+            this.pictureDetailsError = 'Select a Category and Before/After.';
+            return;
+        }
+        const localPicture = {
+            ...pending.localPicture,
+            category,
+            beforeAfter,
+            comment: String(comment || '').trim().substring(0, PICTURE_COMMENT_MAX_LENGTH)
+        };
+        this.showPictureDetails = false;
+        this._pendingPictureCapture = null;
+        if (this._savingPicture) {
+            return;
+        }
+        this._savingPicture = true;
+        try {
+            await this._placeMobilePicture(pending.scope, pending.lineId, localPicture);
+        } catch (error) {
+            this._toast('Picture was not saved', this._errorMessage(error), 'error');
+        } finally {
+            this._savingPicture = false;
+        }
+    }
+
+    /**
+     * @description GW-375 - Stages a picture on a new line, or saves it on a saved line or the work order.
+     * @param {string} scope tray, add, or line
+     * @param {string} lineId Line or temp Id
+     * @param {Object} localPicture Picture with its details
+     */
+    async _placeMobilePicture(scope, lineId, localPicture) {
+        if (scope === 'add') {
+            this.addFormState = {
+                ...this.addFormState,
+                mobilePictures: [...(this.addFormState.mobilePictures || []), localPicture]
+            };
+            this.mobilePictureVersion += 1;
+            return;
+        }
+        if (scope === 'line' && !this._isSalesforceWoliId(lineId)) {
+            this._pendingAdds = this._pendingAdds.map(add => (
+                add._tempId === lineId
+                    ? { ...add, mobilePictures: [...(add.mobilePictures || []), localPicture] }
+                    : add
+            ));
+            this.mobilePictureVersion += 1;
+            return;
+        }
+        const primaryRecordId = scope === 'tray' ? this.recordId : lineId;
+        if (!primaryRecordId) {
+            this._toast('Picture was not saved', 'Open the work order again, then take the picture.', 'error');
+            return;
+        }
+        if (await this._saveMobilePictureOrKeep(primaryRecordId, localPicture)) {
+            const completed = scope === 'line' ? await this._completeReadyInstrumentLines() : [];
+            this._toast(
+                'Picture saved',
+                completed.length ? 'Mobile Device Picture saved. The line is Completed.' : 'Mobile Device Picture saved.',
+                'success'
+            );
         }
     }
 
@@ -2046,79 +2126,6 @@ export default class WoDebriefIMSchildWO extends LightningElement {
             event.currentTarget.dataset.lineId,
             event.currentTarget.dataset.key
         );
-    }
-
-    /**
-     * @description Keeps a Beyond Repair Info picture on the line. It is saved with the line on Save All,
-     *              so it works on a new line and while offline.
-     */
-    async handleBeyondRepairPictureSelected(event) {
-        const input = event.currentTarget;
-        const file = input.files && input.files[0];
-        const lineId = input.dataset.id;
-        input.value = '';
-        if (!file) return;
-        let picture;
-        try {
-            picture = {
-                ...(await this._fileToMobilePicture(file)),
-                title: BEYOND_REPAIR_PICTURE_TITLE,
-                fileName: 'BeyondRepairPicture.jpg'
-            };
-        } catch (error) {
-            this._toast('Picture was not saved', this._errorMessage(error), 'error');
-            return;
-        }
-        if (!lineId) {
-            this.addFormState = {
-                ...this.addFormState,
-                pictures: [...(this.addFormState.pictures || []), picture]
-            };
-            return;
-        }
-        this._stageEdit(lineId, 'pictures', [...this._stagedBeyondRepairPictures(lineId), picture]);
-    }
-
-    /**
-     * @description Removes a Beyond Repair Info picture that has not been saved yet.
-     */
-    handleRemoveBeyondRepairPicture(event) {
-        event.stopPropagation();
-        const lineId = event.currentTarget.dataset.id;
-        const key = event.currentTarget.dataset.key;
-        if (!lineId) {
-            this.addFormState = {
-                ...this.addFormState,
-                pictures: (this.addFormState.pictures || []).filter(picture => picture.key !== key)
-            };
-            return;
-        }
-        this._stageEdit(
-            lineId,
-            'pictures',
-            this._stagedBeyondRepairPictures(lineId).filter(picture => picture.key !== key)
-        );
-    }
-
-    /**
-     * @description Beyond Repair Info pictures waiting on a new or edited line.
-     * @param {string} lineId Line or temp Id
-     * @return {Object[]}
-     */
-    _stagedBeyondRepairPictures(lineId) {
-        const add = this._pendingAdds.find(item => item._tempId === lineId);
-        return (add || this._pendingEdits[lineId])?.pictures || [];
-    }
-
-    /**
-     * @description Template rows for Beyond Repair Info pictures waiting to be saved.
-     * @param {Object[]} pictures Staged pictures
-     * @return {Object[]}
-     */
-    _beyondRepairPictureItems(pictures) {
-        return (pictures || [])
-            .filter(picture => picture?.base64Data)
-            .map(picture => ({ key: picture.key, previewUrl: picture.previewUrl }));
     }
 
     /**
@@ -2292,7 +2299,6 @@ export default class WoDebriefIMSchildWO extends LightningElement {
         }
         if (field === 'partsSource') {
             next.allowedUnit = null;
-            next.criticalPart = null;
             next.returnable = null;
             next.productCode = '';
             next.partDescription = '';
@@ -2663,7 +2669,6 @@ export default class WoDebriefIMSchildWO extends LightningElement {
                 next.partDescription = '';
                 next.returnable = null;
                 next.allowedUnit = null;
-                next.criticalPart = null;
             }
             if (field === 'productItemId') {
                 const linkedProduct2Id = recordId
@@ -2681,7 +2686,6 @@ export default class WoDebriefIMSchildWO extends LightningElement {
                     ? (this._partDescriptionByProduct2Id[linkedProduct2Id] ?? '')
                     : '';
                 next.allowedUnit = null;
-                next.criticalPart = null;
                 this._onProductItemSelected(recordId, { isAddForm: true });
             }
             if (field === 'product2Id') {
@@ -2698,7 +2702,6 @@ export default class WoDebriefIMSchildWO extends LightningElement {
                         ? (this._partDescriptionByProduct2Id[recordId] ?? '')
                         : '';
                     next.allowedUnit = null;
-                    next.criticalPart = null;
                     if (recordId) this._product2LookupId = recordId;
                     this.addFormState = next;
                     this._evaluateAllowedUnitForProduct(recordId, { isAddForm: true });
@@ -2766,7 +2769,6 @@ export default class WoDebriefIMSchildWO extends LightningElement {
                     payload = {
                         ...payload,
                         allowedUnit: this.addFormState.allowedUnit,
-                        criticalPart: this.addFormState.criticalPart,
                         returnable: this.addFormState.returnable
                             ?? this._resolveReturnableForProductItem(payload.productItemId)
                     };
@@ -2780,19 +2782,10 @@ export default class WoDebriefIMSchildWO extends LightningElement {
                     payload = {
                         ...payload,
                         allowedUnit: this.addFormState.allowedUnit,
-                        criticalPart: this.addFormState.criticalPart,
                         returnable: this.addFormState.returnable
                             ?? this._resolveReturnableForProduct2(payload.product2Id)
                     };
                 }
-            }
-            if (payload.criticalPart) {
-                const criticalConfirmed = await LightningConfirm.open({
-                    message: CRITICAL_PART_CONFIRM_MESSAGE,
-                    variant: 'headerless',
-                    label: 'Critical Part'
-                });
-                if (!criticalConfirmed) return;
             }
         }
         if (schema === 'time') {
@@ -2873,7 +2866,6 @@ export default class WoDebriefIMSchildWO extends LightningElement {
                 description: payload.description ?? '',
                 usagesException: !!payload.usagesException,
                 allowedUnit: payload.allowedUnit ?? null,
-                criticalPart: payload.criticalPart ?? null,
                 billingType: this._normalizeBillingType(payload.billingType),
                 discount: this._discountForBillingType(payload.billingType)
             };
@@ -3001,23 +2993,8 @@ export default class WoDebriefIMSchildWO extends LightningElement {
         });
         if (!confirmed) return;
 
-        const criticalEditNeedsConfirm = Object.entries(this._pendingEdits).some(([id, edit]) => {
-            if (edit._schema !== 'parts' || !edit.criticalPart) return false;
-            const original = this._serverLines.find(l => l.Id === id);
-            const originalProductItemId = original?.ProductItem__c?.value ?? null;
-            return edit.productItemId && edit.productItemId !== originalProductItemId;
-        });
-        if (criticalEditNeedsConfirm) {
-            const criticalConfirmed = await LightningConfirm.open({
-                message: CRITICAL_PART_CONFIRM_MESSAGE,
-                variant: 'headerless',
-                label: 'Critical Part'
-            });
-            if (!criticalConfirmed) return;
-        }
-
         let hasValidationError = false;
-        this._finalizeInstrumentStatuses(true);
+        this._finalizeInstrumentStatuses();
         for (const [id, edit] of Object.entries(this._pendingEdits)) {
             const err = this._validateForSchema(edit._schema ?? 'generic', edit);
             if (err) {
@@ -3133,6 +3110,8 @@ export default class WoDebriefIMSchildWO extends LightningElement {
             }
         }
 
+        await this._retryUnsavedPictures();
+
         const instrumentsValue = this._instrumentTotalForPersist(failedDeletes, failedEdits, failedAdds);
         if (this._shouldPersistTotalServicedInstruments(instrumentsValue)) {
             try {
@@ -3186,6 +3165,7 @@ export default class WoDebriefIMSchildWO extends LightningElement {
         this._pendingDeletes = failedDeletes;
         this._pendingEdits = failedEdits;
         this._pendingAdds = failedAdds;
+        okIds.push(...await this._completeReadyInstrumentLines());
         this.editStateMap = {};
         this.showAddForm = EMPTY_ADD_FORM_VISIBILITY();
         this.addFormState = this._emptyAddFormState();
@@ -3217,6 +3197,8 @@ export default class WoDebriefIMSchildWO extends LightningElement {
             label: 'Confirm Discard'
         });
         if (!confirmed) return;
+        this._unsavedPicturesByRecordId = {};
+        this.mobilePictureVersion += 1;
         this._resetDraft();
     }
 
@@ -3426,7 +3408,6 @@ export default class WoDebriefIMSchildWO extends LightningElement {
         const quantity = edit?.partsQuantity ?? edit?.quantity ?? l.UnitQty__c?.value ?? 0;
         const description = edit?.description ?? l.Description?.value ?? '';
         const allowedUnit = edit?.allowedUnit ?? l.AllowedUnit__c?.value ?? false;
-        const criticalPart = edit?.criticalPart ?? l.CriticalPart__c?.value ?? false;
         const returnable = edit?.returnable
             ?? l.Returnable__c?.value
             ?? (isCustomerStock
@@ -3458,7 +3439,6 @@ export default class WoDebriefIMSchildWO extends LightningElement {
             quantity,
             description,
             allowedUnit,
-            criticalPart,
             returnable,
             returnableLabel,
             usagesException,
@@ -3479,7 +3459,6 @@ export default class WoDebriefIMSchildWO extends LightningElement {
             editPartsQuantity: state.partsQuantity ?? edit?.partsQuantity ?? edit?.quantity ?? quantity,
             editDescription: state.description ?? edit?.description ?? description,
             editAllowedUnitLabel: this._fmtReturnable(allowedUnit),
-            editCriticalPartLabel: this._fmtReturnable(criticalPart),
             editReturnableLabel: returnableLabel,
             editUsagesException: state.usagesException ?? edit?.usagesException ?? usagesException,
             editBillingType: state.billingType ?? edit?.billingType ?? billingType,
@@ -3514,7 +3493,6 @@ export default class WoDebriefIMSchildWO extends LightningElement {
         const usagesException = state.usagesException ?? a.usagesException ?? false;
         const billingType = this._resolveBillingType(a, state);
         const allowedUnit = state.allowedUnit ?? a.allowedUnit ?? null;
-        const criticalPart = state.criticalPart ?? a.criticalPart ?? null;
         const returnable = state.returnable
             ?? a.returnable
             ?? (isCustomerStock
@@ -3549,7 +3527,6 @@ export default class WoDebriefIMSchildWO extends LightningElement {
             quantity,
             description,
             allowedUnit,
-            criticalPart,
             returnable,
             returnableLabel,
             usagesException,
@@ -3566,7 +3543,6 @@ export default class WoDebriefIMSchildWO extends LightningElement {
             editPartsQuantity: quantity,
             editDescription: description,
             editAllowedUnitLabel: this._fmtReturnable(allowedUnit),
-            editCriticalPartLabel: this._fmtReturnable(criticalPart),
             editReturnableLabel: returnableLabel,
             editUsagesException: usagesException,
             editBillingType: billingType,
@@ -4360,9 +4336,6 @@ export default class WoDebriefIMSchildWO extends LightningElement {
                 ...(edit.allowedUnit != null
                     ? { [WOLI_ALLOWED_UNIT.fieldApiName]: !!edit.allowedUnit }
                     : {}),
-                ...(edit.criticalPart != null
-                    ? { [WOLI_CRITICAL_PART.fieldApiName]: !!edit.criticalPart }
-                    : {}),
                 ...(edit.returnable != null
                     ? { [WOLI_RETURNABLE.fieldApiName]: !!edit.returnable }
                     : {}),
@@ -4436,9 +4409,6 @@ export default class WoDebriefIMSchildWO extends LightningElement {
                     [WOLI_USAGES_EXCEPTION.fieldApiName]: !!a.usagesException,
                     ...(a.allowedUnit != null
                         ? { [WOLI_ALLOWED_UNIT.fieldApiName]: !!a.allowedUnit }
-                        : {}),
-                    ...(a.criticalPart != null
-                        ? { [WOLI_CRITICAL_PART.fieldApiName]: !!a.criticalPart }
                         : {}),
                     ...(a.returnable != null
                         ? { [WOLI_RETURNABLE.fieldApiName]: !!a.returnable }
@@ -4631,7 +4601,6 @@ export default class WoDebriefIMSchildWO extends LightningElement {
                             : (value ? '' : (next.partDescription ?? ''));
                         if (value) {
                             next.allowedUnit = null;
-                            next.criticalPart = null;
                         }
                     } else {
                         next.product2Id = value
@@ -4641,7 +4610,6 @@ export default class WoDebriefIMSchildWO extends LightningElement {
                             ? (this._resolveReturnableForProductItem(value) ?? null)
                             : null;
                         next.allowedUnit = null;
-                        next.criticalPart = null;
                     }
                 }
                 if (field === 'partsQuantity') {
@@ -4667,7 +4635,6 @@ export default class WoDebriefIMSchildWO extends LightningElement {
                         : (next.partDescription ?? '');
                     if (value) {
                         next.allowedUnit = null;
-                        next.criticalPart = null;
                         this._product2LookupId = value;
                     }
                 }
@@ -4750,7 +4717,6 @@ export default class WoDebriefIMSchildWO extends LightningElement {
                 : (value ? '' : (entry.partDescription ?? ''));
             if (value) {
                 entry.allowedUnit = null;
-                entry.criticalPart = null;
             }
         }
         if (field === 'partsQuantity') {
@@ -4774,7 +4740,6 @@ export default class WoDebriefIMSchildWO extends LightningElement {
                 : (entry.partDescription ?? '');
             if (value) {
                 entry.allowedUnit = null;
-                entry.criticalPart = null;
                 this._product2LookupId = value;
             }
         }
@@ -4953,7 +4918,6 @@ export default class WoDebriefIMSchildWO extends LightningElement {
                 partsQuantity: line.UnitQty__c?.value ?? 0,
                 description: line.Description?.value ?? '',
                 allowedUnit: line.AllowedUnit__c?.value ?? false,
-                criticalPart: line.CriticalPart__c?.value ?? false,
                 returnable: line.Returnable__c?.value
                     ?? (product2Id
                         ? this._resolveReturnableForProduct2(product2Id)
@@ -5166,25 +5130,25 @@ export default class WoDebriefIMSchildWO extends LightningElement {
      * @param {boolean} closing True when the user closes the line or saves
      * @return {string}
      */
-    _resolveInstrumentStatus(payload, closing) {
+    _resolveInstrumentStatus(payload, pictureCount) {
         if (payload?.canceled || payload?.status === WOLI_STATUS_CANCELED) {
             return WOLI_STATUS_CANCELED;
         }
         const tone = this._instrumentTone(payload);
-        if (closing && tone === 'complete') return WOLI_STATUS_COMPLETED;
-        if (tone === 'partial') return WOLI_STATUS_IN_PROGRESS;
+        if (tone === 'complete' && pictureCount >= REQUIRED_PICTURES_PER_LINE) return WOLI_STATUS_COMPLETED;
+        if (tone !== 'empty' || payload?.status === WOLI_STATUS_COMPLETED) return WOLI_STATUS_IN_PROGRESS;
         return payload?.status || 'New';
     }
 
     /**
      * @description Writes the product-serviced status onto a staged line.
+     *              The line is Completed when all its information is filled and it has the required pictures.
      * @param {string} lineId Line or temp Id
-     * @param {boolean} closing True when the user closes the line
      */
-    _finalizeInstrumentStatus(lineId, closing) {
+    _finalizeInstrumentStatus(lineId) {
         const add = this._pendingAdds.find(item => item._tempId === lineId);
         if (add?._schema === 'instrument') {
-            const status = this._resolveInstrumentStatus(add, closing);
+            const status = this._resolveInstrumentStatus(add, (add.mobilePictures || []).length);
             this._pendingAdds = this._pendingAdds.map(item => (
                 item._tempId === lineId ? { ...item, status, canceled: status === WOLI_STATUS_CANCELED } : item
             ));
@@ -5192,36 +5156,99 @@ export default class WoDebriefIMSchildWO extends LightningElement {
         }
         const edit = this._pendingEdits[lineId];
         if (edit?._schema !== 'instrument') return;
-        const status = this._resolveInstrumentStatus(edit, closing);
+        const status = this._resolveInstrumentStatus(edit, this._savedPictureCount(lineId));
         this._stageEdit(lineId, 'status', status);
         this._stageEdit(lineId, 'canceled', status === WOLI_STATUS_CANCELED);
     }
 
     /**
-     * @description Applies close status to every staged product-serviced line before save.
-     * @param {boolean} closing True when save should complete finished lines
+     * @description Applies the status to every staged product-serviced line before save.
      */
-    _finalizeInstrumentStatuses(closing) {
+    _finalizeInstrumentStatuses() {
         Object.keys(this._pendingEdits).forEach(lineId => {
-            this._finalizeInstrumentStatus(lineId, closing);
+            this._finalizeInstrumentStatus(lineId);
         });
         this._pendingAdds
             .filter(add => add._schema === 'instrument')
-            .forEach(add => this._finalizeInstrumentStatus(add._tempId, false));
+            .forEach(add => this._finalizeInstrumentStatus(add._tempId));
+    }
+
+    /**
+     * @param {string} lineId Line Id
+     * @return {number} Pictures saved on the line
+     */
+    _savedPictureCount(lineId) {
+        return (this._mobilePicturesByRecordId[this._pictureRecordKey(lineId)] || []).length;
+    }
+
+    /**
+     * @description Saved instrument line values used to judge whether the line is complete.
+     * @param {Object} l Server line
+     * @return {Object}
+     */
+    _savedInstrumentValues(l) {
+        const stored = this._repairCenterByLineId[l.Id] || {};
+        return {
+            deviceTypeId: l.Product2Id?.value ?? l.Product2?.Id ?? null,
+            repairLevel: l.RepairLevel__c?.value ?? '',
+            quantity: l.Quantity?.value ?? '',
+            serialNumber: stored.serialNumber,
+            model: l.Model__c?.value ?? stored.model,
+            departmentId: stored.departmentId,
+            reportedProblem: stored.reportedProblem,
+            sendToRepairCenter: !!stored.sendToRepairCenter
+        };
+    }
+
+    /**
+     * @description Saved instrument lines that have all their information and the required pictures,
+     *              but are not Completed yet.
+     * @return {string[]}
+     */
+    _instrumentLineIdsReadyToComplete() {
+        void this.mobilePictureVersion;
+        return this._serverLines
+            .filter(l => INSTRUMENT_TAB_LINE_TYPES.has(l.LineType__c?.value))
+            .filter(l => !this._pendingDeletes[l.Id] && !this._pendingEdits[l.Id])
+            .filter(l => l.Status?.value !== WOLI_STATUS_COMPLETED && l.Status?.value !== WOLI_STATUS_CANCELED)
+            .filter(l => this._savedPictureCount(l.Id) >= REQUIRED_PICTURES_PER_LINE)
+            .filter(l => this._instrumentTone(this._savedInstrumentValues(l)) === 'complete')
+            .map(l => l.Id);
+    }
+
+    /**
+     * @description Sets Completed on saved instrument lines that are ready.
+     * @return {Promise<string[]>} Completed line Ids
+     */
+    async _completeReadyInstrumentLines() {
+        const completed = [];
+        for (const id of this._instrumentLineIdsReadyToComplete()) {
+            try {
+                // eslint-disable-next-line no-await-in-loop
+                await updateRecord({ fields: { Id: id, [WOLI_LINE_STATUS.fieldApiName]: WOLI_STATUS_COMPLETED } });
+                completed.push(id);
+            } catch (error) {
+                this.editErrors = { ...this.editErrors, [id]: this._errorMessage(error) };
+            }
+        }
+        if (completed.length) {
+            try { await refreshGraphQL(this.graphqlResult); } catch (e) { /* swallow */ }
+        }
+        return completed;
     }
 
     /**
      * @description Card color for a line. Text stays dark so the row can still be read.
-     *              Red Canceled, green Completed, orange when an instrument has no picture
-     *              or Billing Type is Warranty, SVC Warranty, or Courtesy, yellow In Progress,
-     *              blue New.
+     *              Red Canceled, orange when an instrument has fewer than the required pictures
+     *              or Billing Type is Warranty, SVC Warranty, or Courtesy, green Completed,
+     *              yellow In Progress, blue New.
      * @param {Object} line Line view model
      * @return {string}
      */
     _lineCardClass(line) {
         if (line?.status === WOLI_STATUS_CANCELED) return 'woli-card woli-card_canceled';
-        if (line?.status === WOLI_STATUS_COMPLETED) return 'woli-card woli-card_completed';
         if (this._lineUsesOrange(line)) return 'woli-card woli-card_billing';
+        if (line?.status === WOLI_STATUS_COMPLETED) return 'woli-card woli-card_completed';
         if (line?.status === WOLI_STATUS_IN_PROGRESS || (line?.schema === 'instrument' && line?.instrumentTone === 'partial')) {
             return 'woli-card woli-card_incomplete';
         }
@@ -5230,14 +5257,17 @@ export default class WoDebriefIMSchildWO extends LightningElement {
     }
 
     /**
-     * @description Orange highlight for a missing instrument picture or Warranty, SVC Warranty, or Courtesy.
+     * @description Orange highlight for an instrument line with fewer than the required pictures,
+     *              or for Warranty, SVC Warranty, or Courtesy.
      * @param {Object} line Line view model
      * @return {boolean}
      */
     _lineUsesOrange(line) {
         const billingType = line?.billingType || line?.editBillingType;
         if (HIGHLIGHT_BILLING_TYPES.has(billingType)) return true;
-        return line?.schema === 'instrument' && line?.hasMobilePictures !== true;
+        return line?.schema === 'instrument'
+            && line?.status !== WOLI_STATUS_CANCELED
+            && (line?.mobilePictureCount || 0) < REQUIRED_PICTURES_PER_LINE;
     }
 
     /**
@@ -5329,7 +5359,6 @@ export default class WoDebriefIMSchildWO extends LightningElement {
             partsQuantity: '',
             usagesException: false,
             allowedUnit: null,
-            criticalPart: null,
             returnable: null,
             deviceTypeId: null,
             deviceType: '',
@@ -5431,7 +5460,6 @@ export default class WoDebriefIMSchildWO extends LightningElement {
         if (editId) {
             this._stageEdit(editId, 'productItemId', null);
             this._stageEdit(editId, 'allowedUnit', null);
-            this._stageEdit(editId, 'criticalPart', null);
         }
     }
 
@@ -5449,7 +5477,6 @@ export default class WoDebriefIMSchildWO extends LightningElement {
     _applyPartsSourceChangeToEdit(editId, partsSource) {
         if (!editId) return;
         this._stageEdit(editId, 'allowedUnit', null);
-        this._stageEdit(editId, 'criticalPart', null);
         this._stageEdit(editId, 'returnable', null);
         this._stageEdit(editId, 'productCode', '');
         this._stageEdit(editId, 'partDescription', '');
@@ -5484,7 +5511,7 @@ export default class WoDebriefIMSchildWO extends LightningElement {
     }
 
     /**
-     * @description Evaluates Allowed Unit / Critical Part for a Product Item via Apex.
+     * @description Evaluates Allowed Unit for a Product Item via Apex.
      *              Apex skips SBOM cross-reference when Root PFCL SBOM Required is not Yes
      *              (GW-4218) or when the Work Order has no Asset; both return evaluated=false.
      */
@@ -5494,7 +5521,7 @@ export default class WoDebriefIMSchildWO extends LightningElement {
     }
 
     /**
-     * @description GW-4311 Evaluates Allowed Unit / Critical Part for a Product2 via Apex.
+     * @description GW-4311 Evaluates Allowed Unit for a Product2 via Apex.
      */
     async _evaluateAllowedUnitForProduct(product2Id, options = {}) {
         const { editId = null, isAddForm = false } = options;
@@ -5515,14 +5542,13 @@ export default class WoDebriefIMSchildWO extends LightningElement {
     /**
      * @description Internal helper: Apply Allowed Unit Result.
      */
-    _applyAllowedUnitResult(allowedUnit, criticalPart, { editId = null, isAddForm = false } = {}) {
+    _applyAllowedUnitResult(allowedUnit, { editId = null, isAddForm = false } = {}) {
         if (isAddForm) {
-            this.addFormState = { ...this.addFormState, allowedUnit, criticalPart };
+            this.addFormState = { ...this.addFormState, allowedUnit };
             return;
         }
         if (editId) {
             this._stageEdit(editId, 'allowedUnit', allowedUnit);
-            this._stageEdit(editId, 'criticalPart', criticalPart);
         }
     }
 
@@ -5794,8 +5820,7 @@ export default class WoDebriefIMSchildWO extends LightningElement {
                 productCode,
                 partDescription,
                 returnable: match.isReturnable ?? null,
-                allowedUnit: null,
-                criticalPart: null
+                allowedUnit: null
             };
             this._onProductItemSelected(productItemId, { isAddForm: true });
             this._toast('Product Item selected', match.productName || productItemId, 'success');
@@ -5810,7 +5835,6 @@ export default class WoDebriefIMSchildWO extends LightningElement {
             this._stageEdit(editId, 'partDescription', partDescription);
             this._stageEdit(editId, 'returnable', match.isReturnable ?? null);
             this._stageEdit(editId, 'allowedUnit', null);
-            this._stageEdit(editId, 'criticalPart', null);
             this._onProductItemSelected(productItemId, { editId });
             this._toast('Product Item selected', match.productName || productItemId, 'success');
         }
@@ -5845,8 +5869,7 @@ export default class WoDebriefIMSchildWO extends LightningElement {
                 productCode,
                 partDescription,
                 returnable,
-                allowedUnit: null,
-                criticalPart: null
+                allowedUnit: null
             };
             this._evaluateAllowedUnitForProduct(product2Id, { isAddForm: true });
             this._toast('Product selected', match.productName || productCode || product2Id, 'success');
@@ -5861,7 +5884,6 @@ export default class WoDebriefIMSchildWO extends LightningElement {
             this._stageEdit(editId, 'partDescription', partDescription);
             this._stageEdit(editId, 'returnable', returnable);
             this._stageEdit(editId, 'allowedUnit', null);
-            this._stageEdit(editId, 'criticalPart', null);
             this._evaluateAllowedUnitForProduct(product2Id, { editId });
             this._toast('Product selected', match.productName || productCode || product2Id, 'success');
         }
@@ -6337,7 +6359,6 @@ export default class WoDebriefIMSchildWO extends LightningElement {
             ? this._showsObrDetailFields(serviceCodeId)
             : this._lineNeedsObrDetails(saved);
         const additionalServices = source?.additionalServices ?? saved.additionalServices ?? false;
-        const pictures = source?.pictures || [];
         return {
             showRepairCenterFields,
             editSerialNumber: source?.serialNumber ?? saved.serialNumber ?? '',
@@ -6354,8 +6375,6 @@ export default class WoDebriefIMSchildWO extends LightningElement {
             editInsulationPowderCoating: this._insulationList(
                 source?.insulationPowderCoating ?? saved.insulationPowderCoating
             ),
-            pictureItems: this._beyondRepairPictureItems(pictures),
-            hasPictureItems: this._beyondRepairPictureItems(pictures).length > 0
         };
     }
 
@@ -8172,6 +8191,9 @@ export default class WoDebriefIMSchildWO extends LightningElement {
                     contentDocumentId: row.contentDocumentId,
                     contentVersionId: row.contentVersionId,
                     title: row.title || 'Mobile Device Picture',
+                    category: row.category || null,
+                    beforeAfter: row.beforeAfter || null,
+                    comment: row.comment || null,
                     previewUrl: this._mobilePicturePreviewUrl(row.contentVersionId, row.contentDocumentId)
                 };
                 const recordKey = this._pictureRecordKey(row.linkedEntityId);
@@ -8210,7 +8232,7 @@ export default class WoDebriefIMSchildWO extends LightningElement {
     _mobilePictureModel(lineId, stagedPictures) {
         void this.mobilePictureVersion;
         const saved = this._isSalesforceWoliId(lineId)
-            ? (this._mobilePicturesByRecordId[this._pictureRecordKey(lineId)] || [])
+            ? this._savedAndUnsavedPictures(lineId)
             : [];
         const pictures = [...saved, ...(stagedPictures || [])].map(picture => this._pictureView(picture));
         const count = pictures.length;
@@ -8245,6 +8267,8 @@ export default class WoDebriefIMSchildWO extends LightningElement {
             contentVersionId: contentVersionId || null,
             localId: picture?.localId || null,
             title: picture?.title || 'Mobile Device Picture',
+            detailLabel: [picture?.category, picture?.beforeAfter].filter(Boolean).join(' · '),
+            comment: picture?.comment || '',
             previewUrl: picture?.previewUrl
                 || this._mobilePicturePreviewUrl(contentVersionId, picture?.contentDocumentId)
         };
@@ -8335,7 +8359,7 @@ export default class WoDebriefIMSchildWO extends LightningElement {
      * @return {Object[]}
      */
     _picturesForLine(lineId) {
-        const saved = this._mobilePicturesByRecordId[this._pictureRecordKey(lineId)] || [];
+        const saved = this._savedAndUnsavedPictures(lineId);
         const pending = this._pendingAdds.find(add => add._tempId === lineId);
         return [...saved, ...(pending?.mobilePictures || [])];
     }
@@ -8350,7 +8374,7 @@ export default class WoDebriefIMSchildWO extends LightningElement {
     _findMobilePicture(scope, lineId, key) {
         let pictures = [];
         if (scope === 'tray') {
-            pictures = this._mobilePicturesByRecordId[this._pictureRecordKey(this.recordId)] || [];
+            pictures = this._savedAndUnsavedPictures(this.recordId);
         } else if (scope === 'add') {
             pictures = this.addFormState?.mobilePictures || [];
         } else {
@@ -8431,6 +8455,9 @@ export default class WoDebriefIMSchildWO extends LightningElement {
             contentDocumentId: saved.contentDocumentId,
             contentVersionId: saved.contentVersionId,
             title: saved.title || 'Mobile Device Picture',
+            category: saved.category || null,
+            beforeAfter: saved.beforeAfter || null,
+            comment: saved.comment || null,
             previewUrl: localPreviewUrl || this._mobilePicturePreviewUrl(saved.contentVersionId, saved.contentDocumentId),
             savedOnDevice: true
         };
@@ -8450,62 +8477,167 @@ export default class WoDebriefIMSchildWO extends LightningElement {
     /**
      * @description Saves the pictures taken on a line before Save All, right after the line itself is saved.
      * @param {string} lineId Saved instrument line Id. Offline this is the draft line Id.
-     * @param {Object} source Staged line with mobilePictures and Beyond Repair pictures
+     * @param {Object} source Staged line with mobilePictures
      */
     async _saveStagedLinePictures(lineId, source) {
-        const staged = [
-            ...(source?.mobilePictures || []).map(picture => ({ picture, kind: PICTURE_KIND_MOBILE })),
-            ...(source?.pictures || []).map(picture => ({ picture, kind: PICTURE_KIND_BEYOND_REPAIR }))
-        ].filter(({ picture }) => picture?.base64Data && !picture.contentDocumentId);
-        for (const { picture, kind } of staged) {
-            try {
-                // eslint-disable-next-line no-await-in-loop
-                const saved = await this._savePictureOnRecord(lineId, picture, kind);
-                if (kind === PICTURE_KIND_MOBILE) {
-                    this._rememberMobilePicture(lineId, saved, picture.previewUrl);
-                }
-            } catch (error) {
-                this._toast('Picture was not saved', this._errorMessage(error), 'error');
-            }
+        const staged = (source?.mobilePictures || [])
+            .filter(picture => picture?.base64Data && !picture.contentDocumentId);
+        for (const picture of staged) {
+            // eslint-disable-next-line no-await-in-loop
+            await this._saveMobilePictureOrKeep(lineId, picture);
         }
     }
 
     /**
-     * @description Saves one picture on a work order or line.
+     * @description Saves pictures that could not be saved earlier. Runs on Save All.
+     */
+    async _retryUnsavedPictures() {
+        const entries = Object.entries(this._unsavedPicturesByRecordId);
+        this._unsavedPicturesByRecordId = {};
+        for (const [, pictures] of entries) {
+            for (const { recordId, picture } of pictures) {
+                // eslint-disable-next-line no-await-in-loop
+                await this._saveMobilePictureOrKeep(recordId, picture);
+            }
+        }
+        this.mobilePictureVersion += 1;
+    }
+
+    /**
+     * @description Saves a Mobile Device Picture. When it cannot be saved, it stays on the record
+     *              and is saved again on the next Save All, so a picture is never lost.
+     * @param {string} recordId Work order or line Id
+     * @param {Object} picture Staged picture with base64Data
+     * @return {Promise<boolean>} True when saved
+     */
+    async _saveMobilePictureOrKeep(recordId, picture) {
+        try {
+            const saved = await this._savePictureOnRecord(recordId, picture);
+            this._rememberMobilePicture(recordId, saved, picture.previewUrl);
+            return true;
+        } catch (error) {
+            this._keepUnsavedPicture(recordId, picture);
+            this._toast(
+                'Picture kept on the line',
+                `${this._errorMessage(error)} It is saved again on Save All.`,
+                'warning'
+            );
+            return false;
+        }
+    }
+
+    /**
+     * @description Holds a picture that failed to save so it stays shown on its record.
+     * @param {string} recordId Work order or line Id
+     * @param {Object} picture Staged picture
+     */
+    _keepUnsavedPicture(recordId, picture) {
+        const recordKey = this._pictureRecordKey(recordId);
+        if (!recordKey) {
+            return;
+        }
+        const current = (this._unsavedPicturesByRecordId[recordKey] || [])
+            .filter(item => item.picture.localId !== picture.localId);
+        this._unsavedPicturesByRecordId = {
+            ...this._unsavedPicturesByRecordId,
+            [recordKey]: [...current, { recordId, picture }]
+        };
+        this.mobilePictureVersion += 1;
+    }
+
+    /**
+     * @description Removes a picture that is waiting to be saved again.
+     * @param {string} localId Local picture Id
+     * @return {boolean} True when a picture was removed
+     */
+    _dropUnsavedPicture(localId) {
+        if (!localId) {
+            return false;
+        }
+        let removed = false;
+        const next = {};
+        Object.entries(this._unsavedPicturesByRecordId).forEach(([recordKey, pictures]) => {
+            const kept = pictures.filter(item => item.picture.localId !== localId);
+            removed = removed || kept.length !== pictures.length;
+            if (kept.length) {
+                next[recordKey] = kept;
+            }
+        });
+        this._unsavedPicturesByRecordId = next;
+        return removed;
+    }
+
+    /**
+     * @description True when a picture is waiting to be saved again.
+     * @return {boolean}
+     */
+    _hasUnsavedPictures() {
+        return Object.keys(this._unsavedPicturesByRecordId).length > 0;
+    }
+
+    /**
+     * @description Saved pictures of a record followed by the ones waiting to be saved again.
+     * @param {string} recordId Work order or line Id
+     * @return {Object[]}
+     */
+    _savedAndUnsavedPictures(recordId) {
+        const recordKey = this._pictureRecordKey(recordId);
+        return [
+            ...(this._mobilePicturesByRecordId[recordKey] || []),
+            ...(this._unsavedPicturesByRecordId[recordKey] || []).map(item => item.picture)
+        ];
+    }
+
+    /**
+     * @description Saves one Mobile Device Picture on a work order or line.
      *              On the mobile app the file and its link are queued behind the line, so this works
      *              offline and on a line that is not synced yet. Where the mobile file adapter is not
      *              available, such as the desktop, the picture is saved through Apex.
      * @param {string} recordId Work order or line Id
      * @param {Object} picture Staged picture with base64Data
-     * @param {string} kind PICTURE_KIND_MOBILE or PICTURE_KIND_BEYOND_REPAIR
      * @return {Promise<Object>} contentDocumentId, contentVersionId, and title
      */
-    async _savePictureOnRecord(recordId, picture, kind) {
-        const isMobilePicture = kind === PICTURE_KIND_MOBILE;
-        const title = isMobilePicture ? MOBILE_DEVICE_PICTURE_TITLE : BEYOND_REPAIR_PICTURE_TITLE;
+    async _savePictureOnRecord(recordId, picture) {
+        const details = this._pictureDetailsJson(picture);
         const queued = await this._queuePictureFile(recordId, picture, {
-            title,
-            description: isMobilePicture ? MOBILE_DEVICE_PICTURE_MARKER : ''
+            title: MOBILE_DEVICE_PICTURE_TITLE,
+            description: details
+                ? `${MOBILE_DEVICE_PICTURE_MARKER}${PICTURE_DETAILS_SEPARATOR}${details}`
+                : MOBILE_DEVICE_PICTURE_MARKER
         });
         if (queued) {
-            return queued;
+            return {
+                ...queued,
+                category: picture.category || null,
+                beforeAfter: picture.beforeAfter || null,
+                comment: picture.comment || null
+            };
         }
         const primaryRecordId = this._apexId(recordId);
         if (!primaryRecordId) {
             throw new Error('Open the work order again, then take the picture.');
         }
-        if (isMobilePicture) {
-            return saveMobileDevicePicture({
-                primaryRecordId,
-                parentWorkOrderId: this._apexId(this._parentWorkOrderId()),
-                base64Data: picture.base64Data,
-                fileName: picture.fileName || 'MobileDevicePicture.jpg'
-            });
-        }
-        return saveBeyondRepairPicture({
+        return saveMobileDevicePictureWithDetails({
             primaryRecordId,
+            parentWorkOrderId: this._apexId(this._parentWorkOrderId()),
             base64Data: picture.base64Data,
-            fileName: picture.fileName || 'BeyondRepairPicture.jpg'
+            fileName: picture.fileName || 'MobileDevicePicture.jpg',
+            pictureDetails: details
+        });
+    }
+
+    /**
+     * @param {Object} picture Staged picture
+     * @return {string} Category, Before/After, and comment as JSON, or an empty string when none is set
+     */
+    _pictureDetailsJson(picture) {
+        if (!picture?.category && !picture?.beforeAfter && !picture?.comment) {
+            return '';
+        }
+        return JSON.stringify({
+            category: picture.category || null,
+            beforeAfter: picture.beforeAfter || null,
+            comment: picture.comment || null
         });
     }
 
@@ -8600,6 +8732,8 @@ export default class WoDebriefIMSchildWO extends LightningElement {
                 this._mobilePicturesByRecordId = next;
                 this.mobilePictureVersion += 1;
                 this._mobilePictureRequest += 1;
+            } else if (this._dropUnsavedPicture(picture.localId)) {
+                this.mobilePictureVersion += 1;
             } else if (scope === 'add') {
                 this.addFormState = {
                     ...this.addFormState,

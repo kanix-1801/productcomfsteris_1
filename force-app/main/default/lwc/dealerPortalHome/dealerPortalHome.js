@@ -1,17 +1,22 @@
 import { LightningElement, api } from 'lwc';
 import { NavigationMixin } from 'lightning/navigation';
+import Toast from 'lightning/toast';
+import basePath from '@salesforce/community/basePath';
 import PIPELINE_ICON from '@salesforce/resourceUrl/DealerPipelineIcon';
 import ACTIVE_ICON from '@salesforce/resourceUrl/DealerActiveIcon';
 import getHome from '@salesforce/apex/DealerOpportunityController.getHome';
 
-const STAGE_BAR = {
-    Evaluation: 'bar-fill bar-gold',
-    Proposal: 'bar-fill bar-green',
-    Commit: 'bar-fill bar-orange'
+const STAGE_COLOR = {
+    Discovery: '#3d92cf',
+    Evaluation: '#2f8f62',
+    Proposal: '#2cb5be',
+    Commit: '#e8882f'
 };
+const UNIT_COLORS = ['#f59e0b', '#3b82f6', '#14b8a6', '#8b5cf6', '#22c55e', '#fb923c'];
+const COLUMN_COLOR = '#2f89e6';
 
 export default class DealerPortalHome extends NavigationMixin(LightningElement) {
-    @api opportunitiesPageApiName = 'My_Opportunities';
+    @api opportunitiesPageApiName = 'My_Opportunities__c';
     pipelineIconUrl = PIPELINE_ICON;
     activeIconUrl = ACTIVE_ICON;
     home;
@@ -53,6 +58,19 @@ export default class DealerPortalHome extends NavigationMixin(LightningElement) 
         return `${this.summary.closedWonCount || 0} won`;
     }
 
+    get stageCountCards() {
+        const counts = new Map((this.summary.stages || []).map((stage) => [stage.stageName, stage.recordCount || 0]));
+        return [
+            { stageName: 'Evaluation', mark: '#', iconClass: 'metric-icon metric-evaluation' },
+            { stageName: 'Proposal', mark: '#', iconClass: 'metric-icon metric-proposal' },
+            { stageName: 'Commit', mark: '#', iconClass: 'metric-icon metric-commit' }
+        ].map((card) => ({
+            ...card,
+            label: `${card.stageName} Opportunities`,
+            count: String(counts.get(card.stageName) || 0)
+        }));
+    }
+
     get recentOpportunities() {
         return this.home?.recentOpportunities || [];
     }
@@ -62,36 +80,75 @@ export default class DealerPortalHome extends NavigationMixin(LightningElement) 
     }
 
     get hasStageChart() {
-        return this.stageBars.length > 0;
+        return this.stageFunnel.length > 0;
     }
 
     get hasQuarterChart() {
-        return this.quarterBars.length > 0;
+        return this.quarterColumns.length > 0;
     }
 
-    get hasCountryChart() {
-        return this.countryBars.length > 0;
+    get hasBusinessUnitChart() {
+        return this.businessUnitBars.length > 0;
     }
 
-    get stageBars() {
-        return toBars(this.home?.stageChart, (item) => item.amount, (item) => ({
-            stageName: item.stageName,
-            className: STAGE_BAR[item.stageName] || 'bar-fill bar-blue',
-            valueLabel: compactCurrency(item.amount)
+    get stageFunnel() {
+        const stages = (this.home?.stageChart || []).filter((item) => Number(item.amount) > 0);
+        const total = stages.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+        return stages.map((item, index) => {
+            const amount = Number(item.amount || 0);
+            const color = STAGE_COLOR[item.stageName] || '#3d92cf';
+            const percent = total === 0 ? 0 : (amount / total) * 100;
+            return {
+                stageName: item.stageName,
+                valueLabel: `${compactCurrency(amount)} (${percent.toFixed(2)}%)`,
+                style: funnelStyle(index, stages.length, color),
+                swatchStyle: `background:${color}`
+            };
+        });
+    }
+
+    get stageTotalLabel() {
+        const total = (this.home?.stageChart || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
+        return compactCurrency(total);
+    }
+
+    get quarterColumns() {
+        const points = (this.home?.quarterChart || []).filter((item) => Number(item.value) > 0);
+        const axisMax = this.quarterAxisMax;
+        return points.map((item) => {
+            const value = Number(item.value) || 0;
+            const height = axisMax === 0 ? 0 : Math.max(2, (value / axisMax) * 100);
+            return {
+                label: item.label,
+                valueLabel: compactCurrency(value),
+                style: `height:${height}%;background:${COLUMN_COLOR}`
+            };
+        });
+    }
+
+    get quarterAxis() {
+        const axisMax = this.quarterAxisMax;
+        return [1, 0.75, 0.5, 0.25, 0].map((ratio) => ({
+            key: String(ratio),
+            label: ratio === 0 ? '$0' : compactCurrency(axisMax * ratio)
         }));
     }
 
-    get quarterBars() {
-        return toBars(this.home?.quarterChart, (item) => item.value, (item) => ({
-            label: item.label,
-            valueLabel: compactCurrency(item.value)
-        }));
+    get quarterAxisMax() {
+        const maxValue = (this.home?.quarterChart || []).reduce(
+            (max, item) => Math.max(max, Number(item.value) || 0),
+            0
+        );
+        return niceAxisMax(maxValue);
     }
 
-    get countryBars() {
-        return toBars(this.home?.countryChart, (item) => item.value, (item) => ({
+    get businessUnitBars() {
+        return toBars(this.home?.businessUnitChart, (item) => item.value, (item) => ({
             label: item.label,
             valueLabel: compactCurrency(item.value)
+        })).map((bar, index) => ({
+            ...bar,
+            style: `${bar.style};background:${UNIT_COLORS[index % UNIT_COLORS.length]}`
         }));
     }
 
@@ -105,6 +162,12 @@ export default class DealerPortalHome extends NavigationMixin(LightningElement) 
 
     handleCreated() {
         this.isCreateOpen = false;
+        Toast.show({
+            label: 'Opportunity created',
+            message: 'The opportunity was created.',
+            variant: 'success',
+            mode: 'dismissible'
+        }, this);
         this.loadHome();
     }
 
@@ -117,12 +180,41 @@ export default class DealerPortalHome extends NavigationMixin(LightningElement) 
     }
 
     openOpportunityPage(pastDue) {
+        const query = pastDue ? '?pastDue=true' : '';
         this[NavigationMixin.Navigate]({
-            type: 'comm__namedPage',
-            attributes: { name: this.opportunitiesPageApiName },
-            state: pastDue ? { pastDue: 'true' } : {}
+            type: 'standard__webPage',
+            attributes: {
+                url: `${basePath}/my-opportunities${query}`
+            }
         });
     }
+}
+
+function funnelStyle(index, count, color) {
+    const taper = count <= 1 ? 18 : 42;
+    const step = taper / Math.max(count, 1);
+    const top = count <= 1 ? 6 : index * step;
+    const bottom = count <= 1 ? 18 : (index + 1) * step;
+    return `--top:${top}%;--bottom:${bottom}%;background:${color}`;
+}
+
+function niceAxisMax(value) {
+    if (value <= 0) {
+        return 1;
+    }
+    const exponent = Math.pow(10, Math.floor(Math.log10(value)));
+    const fraction = value / exponent;
+    let nice = 10;
+    if (fraction <= 1) {
+        nice = 1;
+    } else if (fraction <= 2) {
+        nice = 2;
+    } else if (fraction <= 2.5) {
+        nice = 2.5;
+    } else if (fraction <= 5) {
+        nice = 5;
+    }
+    return nice * exponent;
 }
 
 function toBars(items, valueOf, mapItem) {

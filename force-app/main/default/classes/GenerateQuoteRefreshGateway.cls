@@ -17,6 +17,9 @@ public with sharing class GenerateQuoteRefreshGateway {
     private static final String RESPONSE_RETURN_KEY = 'SO_RETURN';
     private static final String SERVICE_STATUS_KEY = 'SERVICE_STATUS';
 
+    @TestVisible
+    private static Boolean forceHardcodedRefreshResponse = false;
+    
     /**
      * @description Result wrapper returned to the service layer after SO_Callout execution.
      */

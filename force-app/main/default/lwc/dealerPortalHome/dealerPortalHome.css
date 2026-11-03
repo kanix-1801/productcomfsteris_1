@@ -43,6 +43,10 @@ h2 {
     color: #6b7280;
 }
 
+.panel > .empty-copy {
+    padding: 0.35rem 1.25rem 1.15rem;
+}
+
 .metric-row,
 .insight-grid,
 .chart-grid {
@@ -83,13 +87,19 @@ h2 {
     flex: 0 0 auto;
 }
 
-.metric-green {
+.metric-green,
+.metric-evaluation,
+.metric-proposal,
+.metric-commit {
     display: grid;
     place-items: center;
-    background: #dcfce7;
-    color: #15803d;
     font-weight: 700;
 }
+
+.metric-green { background: #dcfce7; color: #15803d; }
+.metric-evaluation { background: #fde68a; color: #92400e; }
+.metric-proposal { background: #c7d2fe; color: #312e81; }
+.metric-commit { background: #1e293b; color: #ffffff; }
 
 .metric-label {
     margin: 0;
@@ -156,12 +166,157 @@ h2 {
 .bar-fill {
     display: block;
     height: 100%;
+    border-radius: 999px;
 }
 
-.bar-blue { background: #3b82f6; }
-.bar-green { background: #14b8a6; }
-.bar-gold { background: #f59e0b; }
-.bar-orange { background: #fb923c; }
+.funnel-total {
+    margin: 0.15rem 0 0;
+    color: #111827;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+.funnel-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.35rem 1.1rem 1.15rem;
+}
+
+.funnel {
+    width: min(100%, 16rem);
+    margin: 0 auto;
+}
+
+.funnel-segment {
+    display: grid;
+    place-items: center;
+    height: 3.15rem;
+    color: #ffffff;
+    font-size: 0.78rem;
+    font-weight: 700;
+    clip-path: polygon(
+        var(--top) 0,
+        calc(100% - var(--top)) 0,
+        calc(100% - var(--bottom)) 100%,
+        var(--bottom) 100%
+    );
+}
+
+.funnel-legend {
+    display: grid;
+    gap: 0.4rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: #374151;
+    font-size: 0.78rem;
+}
+
+.funnel-legend li {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.4rem;
+}
+
+.legend-title {
+    color: #6b7280;
+    font-weight: 600;
+}
+
+.legend-swatch {
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 2px;
+}
+
+.vchart {
+    display: grid;
+    grid-template-columns: 3.4rem minmax(0, 1fr);
+    height: 15rem;
+    padding: 0.35rem 1rem 1rem;
+}
+
+.vchart-axis {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: flex-end;
+    height: calc(100% - 2.3rem);
+    padding-right: 0.35rem;
+    color: #6b7280;
+    font-size: 0.68rem;
+}
+
+.vchart-plot {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    gap: 1.25rem;
+    min-width: 0;
+    overflow-x: auto;
+}
+
+.grid-lines {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    height: calc(100% - 2.3rem);
+    background-image: linear-gradient(to top, #e5e7eb 1px, transparent 1px);
+    background-size: 100% 25%;
+    pointer-events: none;
+}
+
+.vchart-col {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex: 0 0 4.6rem;
+    flex-direction: column;
+    align-items: center;
+    min-width: 0;
+}
+
+.vchart-track {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: flex-end;
+    justify-content: center;
+    width: 100%;
+    padding-top: 1.15rem;
+}
+
+.vchart-bar {
+    position: relative;
+    width: 2.5rem;
+    background: #2f89e6;
+    border-radius: 2px 2px 0 0;
+}
+
+.vchart-amount {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    margin-bottom: 0.15rem;
+    color: #111827;
+    font-size: 0.72rem;
+    font-weight: 700;
+    white-space: nowrap;
+    transform: translateX(-50%);
+}
+
+.vchart-xlabel {
+    height: 2.3rem;
+    margin-top: 0.35rem;
+    color: #374151;
+    font-size: 0.72rem;
+    line-height: 1.15;
+    text-align: center;
+}
 
 .text-button {
     border: 0;
@@ -178,7 +333,12 @@ h2 {
 @media (max-width: 900px) {
     .metric-row,
     .insight-grid,
-    .chart-grid {
+    .chart-grid,
+    .funnel-layout {
         grid-template-columns: 1fr;
+    }
+
+    .funnel-legend li {
+        justify-content: flex-start;
     }
 }

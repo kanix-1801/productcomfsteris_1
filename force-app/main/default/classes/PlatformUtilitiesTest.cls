@@ -82,107 +82,121 @@ private class PlatformUtilitiesTest {
     }
 
     /**
-     * @description GW-4585 - Verifies firstNonBlank helper used by pricing framework.
+     * @description Verifies the cause message is preferred and null is handled.
      */
     @IsTest
-    static void testFirstNonBlank() {
+    static void testResolveExceptionMessage() {
+        // GIVEN
+        DmlException cause = new DmlException('Cause message');
+        DmlException withCause = new DmlException('Outer message', cause);
+        DmlException withoutCause = new DmlException('Outer message');
+
+        // WHEN
         Test.startTest();
-        Assert.areEqual('first', PlatformUtilities.firstNonBlank('first', 'second'));
-        Assert.areEqual('second', PlatformUtilities.firstNonBlank('', 'second'));
-        Assert.areEqual('second', PlatformUtilities.firstNonBlank(null, 'second'));
+        String causeMessage = PlatformUtilities.resolveExceptionMessage(withCause);
+        String outerMessage = PlatformUtilities.resolveExceptionMessage(withoutCause);
+        String nullMessage = PlatformUtilities.resolveExceptionMessage(null);
         Test.stopTest();
+
+        // THEN
+        Assert.areEqual('Cause message', causeMessage, 'Cause message is preferred');
+        Assert.areEqual('Outer message', outerMessage, 'Own message is used without a cause');
+        Assert.isNull(nullMessage, 'Null exception returns null');
     }
 
     /**
-     * @description GW-4637 - Verifies toUpperCase / blankToEmpty helpers used by PrinterService.
+     * @description Verifies typed map and list values are returned only when the type matches.
      */
     @IsTest
-    static void testToUpperCaseAndBlankToEmpty() {
-        Test.startTest();
-        Assert.areEqual('', PlatformUtilities.toUpperCase(null));
-        Assert.areEqual('', PlatformUtilities.toUpperCase(''));
-        Assert.areEqual('', PlatformUtilities.toUpperCase('   '));
-        Assert.areEqual('MON', PlatformUtilities.toUpperCase('mon'));
-        Assert.areEqual('', PlatformUtilities.blankToEmpty(null));
-        Assert.areEqual('', PlatformUtilities.blankToEmpty(''));
-        Assert.areEqual('', PlatformUtilities.blankToEmpty('   '));
-        Assert.areEqual('kept', PlatformUtilities.blankToEmpty('kept'));
-        Test.stopTest();
-    }
-
-    @IsTest
-    static void testResolveExceptionMessage() {
-        Test.startTest();
-        Assert.areEqual(null, PlatformUtilities.resolveExceptionMessage(null));
-        Assert.areEqual(
-            'root',
-            PlatformUtilities.resolveExceptionMessage(new DmlException('root'))
-        );
-        Exception withCause = new TypeException('wrapper');
-        withCause.initCause(new DmlException('cause message'));
-        Assert.areEqual('cause message', PlatformUtilities.resolveExceptionMessage(withCause));
-        Test.stopTest();
-    }
-
-    @IsTest
-    static void testGetActivePicklistOptionsNullField() {
-        Test.startTest();
-        Assert.areEqual(0, PlatformUtilities.getActivePicklistOptions(null).size());
-        Test.stopTest();
-    }
-
-    @IsTest
-    static void testMapAndListValueHelpers() {
-        Map<String, Object> source = new Map<String, Object>{
-            'mapKey' => new Map<String, Object>{ 'inner' => 'value' },
-            'listKey' => new List<Object>{ 'a', 'b' },
-            'textKey' => 'plain'
+    static void testGetMapValueAndGetListValue() {
+        // GIVEN
+        Map<String, Object> sourceMap = new Map<String, Object>{
+            'child' => new Map<String, Object>{ 'key' => 'value' },
+            'items' => new List<Object>{ 1, 2 },
+            'text' => 'plain'
         };
 
+        // WHEN
         Test.startTest();
-        Assert.areEqual(null, PlatformUtilities.getMapValue(null, 'mapKey'));
-        Assert.areEqual(null, PlatformUtilities.getMapValue(source, 'missing'));
-        Assert.areEqual(null, PlatformUtilities.getMapValue(source, 'textKey'));
-        Assert.areEqual('value', PlatformUtilities.getMapValue(source, 'mapKey').get('inner'));
-        Assert.areEqual(null, PlatformUtilities.getListValue(null, 'listKey'));
-        Assert.areEqual(null, PlatformUtilities.getListValue(source, 'missing'));
-        Assert.areEqual(null, PlatformUtilities.getListValue(source, 'textKey'));
-        Assert.areEqual(2, PlatformUtilities.getListValue(source, 'listKey').size());
+        Map<String, Object> childMap = PlatformUtilities.getMapValue(sourceMap, 'child');
+        Map<String, Object> wrongTypeMap = PlatformUtilities.getMapValue(sourceMap, 'text');
+        Map<String, Object> missingMap = PlatformUtilities.getMapValue(null, 'child');
+        List<Object> itemList = PlatformUtilities.getListValue(sourceMap, 'items');
+        List<Object> wrongTypeList = PlatformUtilities.getListValue(sourceMap, 'text');
+        List<Object> missingList = PlatformUtilities.getListValue(sourceMap, 'absent');
         Test.stopTest();
+
+        // THEN
+        Assert.areEqual('value', childMap.get('key'), 'Nested map is returned');
+        Assert.isNull(wrongTypeMap, 'Non-map value returns null');
+        Assert.isNull(missingMap, 'Null source returns null');
+        Assert.areEqual(2, itemList.size(), 'List value is returned');
+        Assert.isNull(wrongTypeList, 'Non-list value returns null');
+        Assert.isNull(missingList, 'Missing key returns null');
     }
 
+    /**
+     * @description Verifies trimToNull and parseId handle blank and invalid values.
+     */
     @IsTest
     static void testTrimToNullAndParseId() {
-        Account account = new Account(
-            Name = 'PlatformUtilities Parse Id',
-            SourceSystemID__c = 'PU-PARSE-1',
-            OrgIDs__c = '82'
-        );
-        insert account;
+        // GIVEN
+        Id userId = UserInfo.getUserId();
 
+        // WHEN
         Test.startTest();
-        Assert.areEqual(null, PlatformUtilities.trimToNull(null));
-        Assert.areEqual(null, PlatformUtilities.trimToNull('   '));
-        Assert.areEqual('abc', PlatformUtilities.trimToNull('  abc '));
-        Assert.areEqual(null, PlatformUtilities.parseId(null));
-        Assert.areEqual(null, PlatformUtilities.parseId('not-an-id'));
-        Assert.areEqual(account.Id, PlatformUtilities.parseId(String.valueOf(account.Id)));
+        String trimmedValue = PlatformUtilities.trimToNull('  value  ');
+        String blankValue = PlatformUtilities.trimToNull('   ');
+        String nullValue = PlatformUtilities.trimToNull(null);
+        Id parsedId = PlatformUtilities.parseId(String.valueOf(userId));
+        Id invalidId = PlatformUtilities.parseId('not-an-id');
+        Id blankId = PlatformUtilities.parseId('');
         Test.stopTest();
+
+        // THEN
+        Assert.areEqual('value', trimmedValue, 'Value is trimmed');
+        Assert.isNull(blankValue, 'Blank value is null');
+        Assert.isNull(nullValue, 'Null stays null');
+        Assert.areEqual(userId, parsedId, 'Valid Id is parsed');
+        Assert.isNull(invalidId, 'Invalid Id is null');
+        Assert.isNull(blankId, 'Blank Id is null');
     }
 
+    /**
+     * @description Verifies the status code and JSON body are written to the REST response.
+     */
     @IsTest
     static void testWriteJson() {
+        // GIVEN
         RestResponse response = new RestResponse();
 
+        // WHEN
         Test.startTest();
-        PlatformUtilities.writeJson(
-            response,
-            200,
-            new Map<String, Object>{ 'ok' => true }
-        );
+        PlatformUtilities.writeJson(response, 201, new Map<String, Object>{ 'status' => 'ok' });
         Test.stopTest();
 
-        Assert.areEqual(200, response.statusCode);
-        Assert.areEqual('{"ok":true}', response.responseBody.toString());
+        // THEN
+        Assert.areEqual(201, response.statusCode, 'Status code is set');
+        Assert.areEqual('{"status":"ok"}', response.responseBody.toString(), 'Body is serialized to JSON');
+    }
+
+    /**
+     * @description GW-5874 - Verifies phone numbers are reduced to 10 digits without the +1 country code.
+     */
+    @IsTest
+    static void testNormalizePhone() {
+        Test.startTest();
+        String internationalPhone = PlatformUtilities.normalizePhone('+1 (555) 123-4567');
+        String dottedPhone = PlatformUtilities.normalizePhone('555.123.4567');
+        String plainPhone = PlatformUtilities.normalizePhone('5551234567');
+        String noDigitPhone = PlatformUtilities.normalizePhone('+-()');
+        Test.stopTest();
+
+        Assert.areEqual('5551234567', internationalPhone, 'Strips +1 and formatting');
+        Assert.areEqual('5551234567', dottedPhone, 'Strips dots');
+        Assert.areEqual('5551234567', plainPhone, 'Leaves 10 digits unchanged');
+        Assert.isNull(noDigitPhone, 'A value with no digits is null');
+        Assert.isNull(PlatformUtilities.normalizePhone(null), 'Null stays null');
+        Assert.isNull(PlatformUtilities.normalizePhone('   '), 'Blank is null');
     }
 }

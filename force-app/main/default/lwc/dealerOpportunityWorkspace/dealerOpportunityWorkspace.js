@@ -1,5 +1,6 @@
 import { LightningElement, wire } from 'lwc';
 import { CurrentPageReference } from 'lightning/navigation';
+import Toast from 'lightning/toast';
 import OPPORTUNITY_ICON from '@salesforce/resourceUrl/DealerOpportunityIcon';
 import PIPELINE_ICON from '@salesforce/resourceUrl/DealerPipelineIcon';
 import ACTIVE_ICON from '@salesforce/resourceUrl/DealerActiveIcon';
@@ -166,6 +167,12 @@ export default class DealerOpportunityWorkspace extends LightningElement {
 
     handleCreated() {
         this.isCreateOpen = false;
+        Toast.show({
+            label: 'Opportunity created',
+            message: 'The opportunity was created.',
+            variant: 'success',
+            mode: 'dismissible'
+        }, this);
         this.loadWorkspace();
     }
 }

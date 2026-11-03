@@ -90,4 +90,37 @@ public with sharing class ContactsSelector {
             ' WITH SECURITY_ENFORCED'
         );
     }
+
+    /**
+     * @description GW-5874 - Finds every Contact whose phone fields contain any of the numbers, in one SOSL search.
+     *              Runs as a system search (see PhoneSearch): the caller strips fields the user cannot read.
+     * @param phoneSet Normalized phone numbers (digits only)
+     * @return Contacts with every phone field, Email and Account Name, ordered by Name
+     */
+    public static List<Contact> searchByPhones(Set<String> phoneSet) {
+        if (phoneSet == null || phoneSet.isEmpty()) {
+            return new List<Contact>();
+        }
+        return new PhoneSearch().search(String.join(new List<String>(phoneSet), ' OR '));
+    }
+
+    /**
+     * @description GW-5874 - Contact Management from SMS must find a customer's Contact whatever the running
+     *              user's record access (agent or Genesys integration user), so this one search runs without sharing.
+     *              It is read-only and limited to phone matching; field access is enforced by the caller.
+     */
+    private without sharing class PhoneSearch {
+        private List<Contact> search(String searchTerm) {
+            List<List<SObject>> searchResultList = [
+                FIND :searchTerm
+                IN PHONE FIELDS
+                RETURNING Contact(
+                    Id, Name, Phone, MobilePhone, HomePhone, OtherPhone, AssistantPhone, Fax,
+                    Email, AccountId, Account.Name
+                    ORDER BY Name
+                )
+            ];
+            return (List<Contact>) searchResultList[0];
+        }
+    }
 }

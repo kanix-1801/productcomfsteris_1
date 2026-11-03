@@ -130,34 +130,6 @@ public with sharing class PlatformUtilities {
     }
 
     /**
-     * @description GW-4585 - Returns the first non-blank string, otherwise the second value.
-     * @param first Preferred value
-     * @param second Fallback value
-     * @return first when non-blank, otherwise second
-     */
-    public static String firstNonBlank(String first, String second) {
-        return String.isNotBlank(first) ? first : second;
-    }
-
-    /**
-     * @description GW-4637 - Uppercases a string for print payloads; blank input becomes empty.
-     * @param value Value to uppercase
-     * @return Uppercased value, or '' when blank
-     */
-    public static String toUpperCase(String value) {
-        return String.isBlank(value) ? '' : value.toUpperCase();
-    }
-
-    /**
-     * @description GW-4637 - Normalizes blank strings to empty for print JSON fields.
-     * @param value Value to normalize
-     * @return Original value, or '' when blank
-     */
-    public static String blankToEmpty(String value) {
-        return String.isBlank(value) ? '' : value;
-    }
-
-    /**
      * @description Trims a string and returns null in place of an empty or blank result,
      *              so callers can treat "no value" and "blank value" the same way.
      * @param value The string to trim.
@@ -200,5 +172,23 @@ public with sharing class PlatformUtilities {
     public static void writeJson(RestResponse response, Integer statusCode, Map<String, Object> body) {
         response.statusCode = statusCode;
         response.responseBody = Blob.valueOf(JSON.serialize(body));
-    }   
+    }
+
+    /**
+     * @description GW-5874 - Reduces a North American phone number to its 10 digits: strips formatting and the
+     *              +1 country code, so '+1 (555) 123-4567' becomes '5551234567'.
+     * @param phone Raw phone number
+     * @return Digits only, or null when the value has no digits
+     */
+    public static String normalizePhone(String phone) {
+        if (String.isBlank(phone)) {
+            return null;
+        }
+
+        String digits = phone.replaceAll('[^0-9]', '');
+        if (digits.length() == 11 && digits.startsWith('1')) {
+            digits = digits.substring(1);
+        }
+        return String.isBlank(digits) ? null : digits;
+    }
 }

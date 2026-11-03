@@ -20,6 +20,35 @@ import BILLING_POSTAL_CODE_FIELD from '@salesforce/schema/Account.BillingPostalC
 import BILLING_COUNTRY_FIELD from '@salesforce/schema/Account.BillingCountry';
 
 // GCL-100 - Identifying fields only. Child records are not part of this header.
+function messageFrom(error) {
+    const body = error?.body;
+    if (Array.isArray(body)) {
+        return body.map((item) => item?.message).filter(Boolean).join(' ');
+    }
+    if (typeof body?.message === 'string') {
+        return body.message;
+    }
+    return error?.message || '';
+}
+
+function isClassAccessDenied(error) {
+    const message = messageFrom(error).toLowerCase();
+    return message.includes('apex class') && message.includes('access');
+}
+
+function inAppBuilder() {
+    try {
+        const href = window.location.href || '';
+        const referrer = document.referrer || '';
+        return href.includes('flexipageEditor')
+            || href.includes('appBuilder.app')
+            || referrer.includes('flexipageEditor')
+            || referrer.includes('appBuilder.app');
+    } catch (e) {
+        return false;
+    }
+}
+
 const HEADER_FIELDS = [
     NAME_FIELD,
     ACCOUNT_NUMBER_FIELD,
@@ -56,6 +85,11 @@ export default class LsAccountHeaderOnly extends LightningElement {
     accessLoaded = false;
     accessError;
     accountResult;
+    inBuilder = false;
+
+    connectedCallback() {
+        this.inBuilder = inAppBuilder();
+    }
 
     @wire(getHeaderView, { accountId: '$recordId' })
     wiredHeader({ data, error }) {
@@ -71,12 +105,19 @@ export default class LsAccountHeaderOnly extends LightningElement {
             this.accessLoaded = true;
         } else if (error) {
             this.headerOnly = false;
-            this.accessError = error.body?.message || 'Unable to load the account header.';
+            // Class access is granted only to LS Inside Sales. Other personas on the
+            // same Account page must not see an error banner.
+            this.accessError = isClassAccessDenied(error)
+                ? undefined
+                : messageFrom(error) || 'Unable to load the account header.';
             this.accessLoaded = true;
         }
     }
 
     get headerRecordId() {
+        if (this.inBuilder && this.recordId) {
+            return this.recordId;
+        }
         return this.headerOnly ? this.recordId : undefined;
     }
 
@@ -86,7 +127,14 @@ export default class LsAccountHeaderOnly extends LightningElement {
     }
 
     get showHeaderOnly() {
+        if (this.inBuilder && this.hasAccount) {
+            return true;
+        }
         return this.headerOnly && this.hasAccount;
+    }
+
+    get showBuilderPlaceholder() {
+        return this.inBuilder && this.accessLoaded && !this.showHeaderOnly && !this.errorMessage;
     }
 
     get isLoading() {
@@ -142,8 +190,12 @@ export default class LsAccountHeaderOnly extends LightningElement {
         return this.displayValue(TYPE_FIELD);
     }
 
-    get ownerName() {
-        return this.value(OWNER_NAME_FIELD);
+    get country() {
+        return this.displayValue(BILLING_COUNTRY_FIELD);
+    }
+
+    get hasCountry() {
+        return Boolean(this.country);
     }
 
     get parentAccountName() {
@@ -157,19 +209,6 @@ export default class LsAccountHeaderOnly extends LightningElement {
     get parentAccountUrl() {
         const parentId = this.value(PARENT_ID_FIELD);
         return parentId ? `/lightning/r/Account/${parentId}/view` : null;
-    }
-
-    get addressDisplay() {
-        const cityLine = [this.value(BILLING_CITY_FIELD), this.value(BILLING_STATE_FIELD), this.value(BILLING_POSTAL_CODE_FIELD)]
-            .filter((part) => part)
-            .join(', ');
-        return [this.value(BILLING_STREET_FIELD), cityLine, this.value(BILLING_COUNTRY_FIELD)]
-            .filter((line) => line)
-            .join('\n');
-    }
-
-    get hasAddress() {
-        return Boolean(this.addressDisplay);
     }
 
     get website() {

@@ -253,14 +253,15 @@ private class LSOpportunityNamingServiceTest {
         );
 
         Test.startTest();
-        insert opp;
+        Database.insert(opp, AccessLevel.SYSTEM_MODE);
         Test.stopTest();
 
-        Opportunity saved = [
-            SELECT Id, Name, LSOpportunityNumber__c, Application__c
-            FROM Opportunity
-            WHERE Id = :opp.Id
-        ];
+        Opportunity saved = (Opportunity) Database.queryWithBinds(
+            'SELECT Id, Name, LSOpportunityNumber__c, Application__c ' +
+            'FROM Opportunity WHERE Id = :oppId',
+            new Map<String, Object>{ 'oppId' => opp.Id },
+            AccessLevel.SYSTEM_MODE
+        )[0];
 
         Assert.isNotNull(saved.LSOpportunityNumber__c);
         Assert.areEqual(

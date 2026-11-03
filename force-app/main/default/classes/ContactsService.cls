@@ -1,111 +1,78 @@
 /**
- * @description Service class for Contact business operations.
- *              Entry point for all Contact-related transactions.
- *              Performs DML directly — no Unit of Work.
+ * @description GW-5874 - Service class for Contact business operations.
+ *              Contact Management from SMS: matches customer phone numbers to Contacts.
+ * @group Contact
  */
 public with sharing class ContactsService {
+    /** Contact phone fields searched by SOSL IN PHONE FIELDS, used to map each match back to its number. */
+    private static final List<Schema.SObjectField> PHONE_FIELD_LIST = new List<Schema.SObjectField>{
+        Contact.Phone,
+        Contact.MobilePhone,
+        Contact.HomePhone,
+        Contact.OtherPhone,
+        Contact.AssistantPhone,
+        Contact.Fax
+    };
+
+    @TestVisible
+    private static Boolean forceException = false;
 
     /**
-     * @description Creates new Contact records with validation.
-     * @param contacts List of Contact records to create.
-     * @throws ContactsServiceException when the operation fails.
+     * @description Finds the Contacts matching each phone number with a single SOSL search, so the call is safe
+     *              for a full trigger batch. Fields the running user cannot read are stripped from the results.
+     * @param phoneSet Normalized phone numbers (see PlatformUtilities.normalizePhone)
+     * @return Matching Contacts by normalized phone; a number with no match has no key
      */
-    public static void createContacts(List<Contact> contacts) {
-        if (contacts == null || contacts.isEmpty()) {
-            return;
+    public static Map<String, List<Contact>> findContactsByPhones(Set<String> phoneSet) {
+        Map<String, List<Contact>> contactsByPhoneMap = new Map<String, List<Contact>>();
+        if (phoneSet == null || phoneSet.isEmpty()) {
+            return contactsByPhoneMap;
         }
-        Logger.setScenario('Contact Management');
-        try {
-            Contacts domain = new Contacts(contacts);
-            // domain.applyDefaults();
-            // domain.validate();
-            insert contacts;
-        } catch (Contacts.ContactsException e) {
-            Logger.error(new LogMessage('ContactsService.createContacts: Validation failed. {0}', e.getMessage()), e);
-            Logger.saveLog();
-            throw new ContactsServiceException(e.getMessage(), e);
-        } catch (Exception e) {
-            Logger.error('ContactsService.createContacts: Unexpected error.', e);
-            Logger.saveLog();
-            throw new ContactsServiceException('An unexpected error occurred while creating Contact records.', e);
-        } finally {
-            Logger.saveLog();
+        if (forceException) {
+            throw new ContactsServiceException('Forced exception for test');
         }
-    }
 
-    /**
-     * @description Updates existing Contact records with validation.
-     * @param contacts List of Contact records to update.
-     * @throws ContactsServiceException when the operation fails.
-     */
-    public static void updateContacts(List<Contact> contacts) {
-        if (contacts == null || contacts.isEmpty()) {
-            return;
-        }
-        Logger.setScenario('Contact Management');
-        try {
-            Contacts domain = new Contacts(contacts);
-            // domain.validate();
-            update contacts;
-        } catch (Contacts.ContactsException e) {
-            Logger.error(new LogMessage('ContactsService.updateContacts: Validation failed. {0}', e.getMessage()), e);
-            Logger.saveLog();
-            throw new ContactsServiceException(e.getMessage(), e);
-        } catch (Exception e) {
-            Logger.error('ContactsService.updateContacts: Unexpected error.', e);
-            Logger.saveLog();
-            throw new ContactsServiceException('An unexpected error occurred while updating Contact records.', e);
-        } finally {
-            Logger.saveLog();
-        }
-    }
+        List<Contact> contactList = ContactsSelector.searchByPhones(phoneSet);
+        List<Contact> readableContactList = (List<Contact>) Security.stripInaccessible(
+                AccessType.READABLE,
+                contactList
+            )
+            .getRecords();
 
-    /**
-     * @description Deletes Contact records by their Ids.
-     * @param contactIds Set of Contact Ids to delete.
-     * @throws ContactsServiceException when the operation fails.
-     */
-    public static void deleteContacts(Set<Id> contactIds) {
-        if (contactIds == null || contactIds.isEmpty()) {
-            return;
-        }
-        Logger.setScenario('Contact Management');
-        try {
-            List<Contact> contactList = ContactsSelector.selectById(contactIds);
-            if (contactList.isEmpty()) {
-                return;
+        for (Integer i = 0; i < contactList.size(); i++) {
+            for (String phone : getNormalizedPhoneSet(contactList[i])) {
+                if (!phoneSet.contains(phone)) {
+                    continue;
+                }
+                if (!contactsByPhoneMap.containsKey(phone)) {
+                    contactsByPhoneMap.put(phone, new List<Contact>());
+                }
+                contactsByPhoneMap.get(phone).add(readableContactList[i]);
             }
-            delete contactList;
-        } catch (Exception e) {
-            Logger.error('ContactsService.deleteContacts: Unexpected error.', e);
-            Logger.saveLog();
-            throw new ContactsServiceException('An unexpected error occurred while deleting Contact records.', e);
-        } finally {
-            Logger.saveLog();
         }
+        return contactsByPhoneMap;
     }
 
     /**
-     * @description Retrieves Contact records by their Ids.
-     * @param contactIds Set of Contact Ids to retrieve.
-     * @return List of Contact records.
-     * @throws ContactsServiceException when the operation fails.
+     * @description Normalized values of every phone field on the Contact. Read from the unstripped record so the
+     *              match does not depend on the running user's field access.
+     * @param contactRecord Contact returned by the search
+     * @return Distinct normalized phone numbers
      */
-    public static List<Contact> getContactsById(Set<Id> contactIds) {
-        if (contactIds == null || contactIds.isEmpty()) {
-            return new List<Contact>();
+    private static Set<String> getNormalizedPhoneSet(Contact contactRecord) {
+        Set<String> phoneSet = new Set<String>();
+        for (Schema.SObjectField phoneField : PHONE_FIELD_LIST) {
+            String phone = PlatformUtilities.normalizePhone((String) contactRecord.get(phoneField));
+            if (phone != null) {
+                phoneSet.add(phone);
+            }
         }
-        try {
-            return ContactsSelector.selectById(contactIds);
-        } catch (Exception e) {
-            Logger.error('ContactsService.getContactsById: Unexpected error.', e);
-            Logger.saveLog();
-            throw new ContactsServiceException('An unexpected error occurred while retrieving Contact records.', e);
-        }
+        return phoneSet;
     }
 
     /**
-     * @description Thrown when a Contact service operation fails.
+     * @description Business exception for Contact operations.
      */
-    public class ContactsServiceException extends Exception {}
+    public class ContactsServiceException extends Exception {
+    }
 }

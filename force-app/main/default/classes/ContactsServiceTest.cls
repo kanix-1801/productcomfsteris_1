@@ -1,260 +1,84 @@
 /**
- * @description Test class for ContactsService.
- *              Covers create, update, delete, and retrieval operations
- *              across positive, negative, bulk, and empty-input scenarios.
+ * @description GW-5874 - Tests for ContactsService.findContactsByPhones.
+ *              SOSL returns nothing in tests unless Test.setFixedSearchResults is used.
+ * @see ContactsService
  */
-@IsTest
+@isTest(SeeAllData=false)
 private class ContactsServiceTest {
+    private static final String OFFICE_PHONE = '5551234567';
+    private static final String MOBILE_PHONE = '5559876543';
 
     @TestSetup
-    static void setupTestData() {
-        // Build and persist an Account, then attach 10 Contacts
-        adb_Account accountBuilder = new adb_Account();
-        accountBuilder.persist();
+    static void setup() {
+        adb_Account accountBuilder = new adb_Account().name('Contacts Service Account');
+        new adb_Contact().lastName('Office Phone').phone('(555) 123-4567').account(accountBuilder);
+        new adb_Contact().lastName('Mobile Phone').email('mobile@test.example').account(accountBuilder);
+        adb_DomainBuilder.save();
 
-        List<Contact> contactList = new List<Contact>();
-        for (Integer i = 0; i < 10; i++) {
-            Contact c = (Contact) new adb_Contact().lastName('TestContact' + i).record;
-            c.AccountId = accountBuilder.id;
-            contactList.add(c);
-        }
-        insert contactList;
-    }
-
-    // ── createContacts ────────────────────────────────────────────────────────
-
-    @IsTest
-    static void shouldCreateContacts_WhenValidListProvided() {
-        /********************************************
-         * SETUP
-         ********************************************/
-        User testUser = new User(id=UserInfo.getUserId()); // Use current user to avoid permission issues in test context
-
-        System.runAs(testUser) {
-            /********************************************
-             * GIVEN
-             ********************************************/
-            List<Contact> contactList = new List<Contact>{
-                (Contact) new adb_Contact().lastName('NewContact1').record,
-                (Contact) new adb_Contact().lastName('NewContact2').record
-            };
-
-            /********************************************
-             * WHEN
-             ********************************************/
-            Test.startTest();
-            ContactsService.createContacts(contactList);
-            Test.stopTest();
-
-            /********************************************
-             * THEN
-             ********************************************/
-            Set<Id> insertedIds = new Map<Id, Contact>(contactList).keySet();
-            List<Contact> insertedList = [SELECT Id FROM Contact WHERE Id IN :insertedIds];
-            Assert.areEqual(2, insertedList.size(), 'createContacts should insert all 2 Contacts');
-        }
+        Contact mobileContact = [SELECT Id FROM Contact WHERE LastName = 'Mobile Phone'];
+        mobileContact.MobilePhone = '+1 555 987 6543';
+        update mobileContact;
     }
 
     @IsTest
-    static void shouldDoNothing_WhenCreateContactsCalledWithNullInput() {
-        /********************************************
-         * SETUP
-         ********************************************/
-        User testUser = new User(id=UserInfo.getUserId()); // Use current user to avoid permission issues in test context
+    static void mapsEachContactToItsPhone() {
+        // GIVEN
+        Map<Id, Contact> contactByIdMap = new Map<Id, Contact>([SELECT Id, LastName FROM Contact]);
+        Test.setFixedSearchResults(new List<Id>(contactByIdMap.keySet()));
 
-        System.runAs(testUser) {
-            /********************************************
-             * GIVEN
-             ********************************************/
-            Integer countBefore = [SELECT COUNT() FROM Contact];
+        // WHEN
+        Test.startTest();
+        Map<String, List<Contact>> contactsByPhoneMap = ContactsService.findContactsByPhones(
+            new Set<String>{ OFFICE_PHONE, MOBILE_PHONE }
+        );
+        Test.stopTest();
 
-            /********************************************
-             * WHEN
-             ********************************************/
-            Test.startTest();
-            ContactsService.createContacts(null);
-            Test.stopTest();
-
-            /********************************************
-             * THEN
-             ********************************************/
-            Integer countAfter = [SELECT COUNT() FROM Contact];
-            Assert.areEqual(countBefore, countAfter, 'createContacts with null should not insert any records');
-        }
-    }
-
-    // ── updateContacts ────────────────────────────────────────────────────────
-
-    @IsTest
-    static void shouldUpdateContacts_WhenValidListProvided() {
-        /********************************************
-         * SETUP
-         ********************************************/
-        User testUser = new User(id=UserInfo.getUserId()); // Use current user to avoid permission issues in test context
-
-        System.runAs(testUser) {
-            /********************************************
-             * GIVEN
-             ********************************************/
-            List<Contact> contactList = [SELECT Id, Title FROM Contact LIMIT 3];
-            for (Contact c : contactList) {
-                c.Title = 'Manager';
-            }
-
-            /********************************************
-             * WHEN
-             ********************************************/
-            Test.startTest();
-            ContactsService.updateContacts(contactList);
-            Test.stopTest();
-
-            /********************************************
-             * THEN
-             ********************************************/
-            Set<Id> updatedIds = new Map<Id, Contact>(contactList).keySet();
-            List<Contact> updatedList = [SELECT Id, Title FROM Contact WHERE Id IN :updatedIds];
-            for (Contact c : updatedList) {
-                Assert.areEqual('Manager', c.Title, 'Title should be updated to Manager');
-            }
-        }
+        // THEN
+        Assert.areEqual(2, contactsByPhoneMap.size(), 'Both numbers match');
+        Assert.areEqual(1, contactsByPhoneMap.get(OFFICE_PHONE).size(), 'Office number matches one Contact');
+        Assert.areEqual(
+            'Office Phone',
+            contactByIdMap.get(contactsByPhoneMap.get(OFFICE_PHONE)[0].Id).LastName,
+            'Office number maps to the Contact holding it in Phone'
+        );
+        Assert.areEqual(
+            'Mobile Phone',
+            contactByIdMap.get(contactsByPhoneMap.get(MOBILE_PHONE)[0].Id).LastName,
+            'Mobile number maps to the Contact holding it in MobilePhone'
+        );
     }
 
     @IsTest
-    static void shouldDoNothing_WhenUpdateContactsCalledWithNullInput() {
-        /********************************************
-         * SETUP
-         ********************************************/
-        User testUser = new User(id=UserInfo.getUserId()); // Use current user to avoid permission issues in test context
+    static void emptyPhoneSetRunsNoSearch() {
+        // WHEN
+        Test.startTest();
+        Map<String, List<Contact>> nullResultMap = ContactsService.findContactsByPhones(null);
+        Map<String, List<Contact>> emptyResultMap = ContactsService.findContactsByPhones(new Set<String>());
+        Integer soslQueryCount = Limits.getSoslQueries();
+        Test.stopTest();
 
-        System.runAs(testUser) {
-            /********************************************
-             * WHEN
-             ********************************************/
-            Test.startTest();
-            ContactsService.updateContacts(null);
-            Test.stopTest();
-
-            /********************************************
-             * THEN
-             ********************************************/
-            Assert.isTrue(true, 'updateContacts with null should complete without error');
-        }
-    }
-
-    // ── deleteContacts ────────────────────────────────────────────────────────
-
-    @IsTest
-    static void shouldDeleteContacts_WhenValidIdsProvided() {
-        /********************************************
-         * SETUP
-         ********************************************/
-        User testUser = new User(id=UserInfo.getUserId()); // Use current user to avoid permission issues in test context
-
-        System.runAs(testUser) {
-            /********************************************
-             * GIVEN
-             ********************************************/
-            Set<Id> contactIdSet = new Map<Id, Contact>([SELECT Id FROM Contact LIMIT 3]).keySet();
-
-            /********************************************
-             * WHEN
-             ********************************************/
-            Test.startTest();
-            ContactsService.deleteContacts(contactIdSet);
-            Test.stopTest();
-
-            /********************************************
-             * THEN
-             ********************************************/
-            Integer remainingCount = [SELECT COUNT() FROM Contact WHERE Id IN :contactIdSet];
-            Assert.areEqual(0, remainingCount, 'deleteContacts should delete all specified Contacts');
-        }
+        // THEN
+        Assert.isTrue(nullResultMap.isEmpty(), 'Null phone set returns no matches');
+        Assert.isTrue(emptyResultMap.isEmpty(), 'Empty phone set returns no matches');
+        Assert.areEqual(0, soslQueryCount, 'No search runs without phone numbers');
     }
 
     @IsTest
-    static void shouldDoNothing_WhenDeleteContactsCalledWithNullInput() {
-        /********************************************
-         * SETUP
-         ********************************************/
-        User testUser = new User(id=UserInfo.getUserId()); // Use current user to avoid permission issues in test context
+    static void forcedExceptionIsThrown() {
+        // GIVEN
+        ContactsService.forceException = true;
 
-        System.runAs(testUser) {
-            /********************************************
-             * GIVEN
-             ********************************************/
-            Integer countBefore = [SELECT COUNT() FROM Contact];
-
-            /********************************************
-             * WHEN
-             ********************************************/
-            Test.startTest();
-            ContactsService.deleteContacts(null);
-            Test.stopTest();
-
-            /********************************************
-             * THEN
-             ********************************************/
-            Integer countAfter = [SELECT COUNT() FROM Contact];
-            Assert.areEqual(countBefore, countAfter, 'deleteContacts with null should not delete any records');
+        // WHEN
+        Exception caughtException;
+        Test.startTest();
+        try {
+            ContactsService.findContactsByPhones(new Set<String>{ OFFICE_PHONE });
+        } catch (ContactsService.ContactsServiceException e) {
+            caughtException = e;
         }
-    }
+        Test.stopTest();
 
-    // ── getContactsById ───────────────────────────────────────────────────────
-
-    @IsTest
-    static void shouldReturnContacts_WhenGetByIdCalledWithValidIds() {
-        /********************************************
-         * SETUP
-         ********************************************/
-        User testUser = new User(id=UserInfo.getUserId()); // Use current user to avoid permission issues in test context
-
-        System.runAs(testUser) {
-            /********************************************
-             * GIVEN
-             ********************************************/
-            Set<Id> contactIdSet = new Map<Id, Contact>([SELECT Id FROM Contact]).keySet();
-
-            /********************************************
-             * WHEN
-             ********************************************/
-            Test.startTest();
-            List<Contact> resultList = ContactsService.getContactsById(contactIdSet);
-            Test.stopTest();
-
-            /********************************************
-             * THEN
-             ********************************************/
-            Assert.areEqual(10, resultList.size(), 'getContactsById should return all 10 Contacts');
-        }
-    }
-
-    @IsTest
-    static void shouldReturnEmpty_WhenGetByIdCalledWithNullInput() {
-        /********************************************
-         * SETUP
-         ********************************************/
-        User testUser = new User(id=UserInfo.getUserId()); // Use current user to avoid permission issues in test context
-
-        System.runAs(testUser) {
-            /********************************************
-             * WHEN
-             ********************************************/
-            Test.startTest();
-            List<Contact> resultList = ContactsService.getContactsById(null);
-            Test.stopTest();
-
-            /********************************************
-             * THEN
-             ********************************************/
-            Assert.isTrue(resultList.isEmpty(), 'getContactsById with null should return an empty list');
-        }
-    }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    private static User buildTestUser() {
-        adb_User builder = new adb_User();
-        builder.persist();
-        return (User) builder.record;
+        // THEN
+        Assert.isNotNull(caughtException, 'Service surfaces the failure to the caller');
     }
 }

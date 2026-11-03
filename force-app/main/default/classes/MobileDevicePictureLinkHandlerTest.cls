@@ -124,26 +124,42 @@ private class MobileDevicePictureLinkHandlerTest {
         User limitedUser = newLimitedUser();
         System.runAs(new User(Id = UserInfo.getUserId())) {
             insert limitedUser;
+            List<PermissionSet> workOrderAccess = [
+                SELECT Id FROM PermissionSet WHERE Name = 'ManageWorkOrders' LIMIT 1
+            ];
+            if (!workOrderAccess.isEmpty()) {
+                insert new PermissionSetAssignment(
+                    AssigneeId = limitedUser.Id,
+                    PermissionSetId = workOrderAccess[0].Id
+                );
+            }
         }
         String token = String.valueOf(Crypto.getRandomInteger()).replace('-', '');
-        Account primary = new Account(
-            Name = 'Owned Picture ' + token,
-            OwnerId = limitedUser.Id,
-            SourceSystemID__c = 'ORACLE-PIC-OWN-' + token
-        );
-        Account parent = new Account(
-            Name = 'Unowned Picture ' + token,
-            OwnerId = UserInfo.getUserId(),
+        Account account = new Account(
+            Name = 'Unowned Site Visit ' + token,
             SourceSystemID__c = 'ORACLE-PIC-UNO-' + token
         );
-        insert new List<Account>{ primary, parent };
+        insert account;
+        WorkOrder siteVisit = new WorkOrder(
+            AccountId = account.Id,
+            OwnerId = UserInfo.getUserId(),
+            Subject = 'Unowned Site Visit ' + token
+        );
+        insert siteVisit;
+        WorkOrder child = new WorkOrder(
+            AccountId = account.Id,
+            ParentWorkOrderId = siteVisit.Id,
+            OwnerId = limitedUser.Id,
+            Subject = 'Owned Child ' + token
+        );
+        insert child;
 
         Id documentId;
         Test.startTest();
         System.runAs(limitedUser) {
             documentId = WoDebriefIMSchildWOController.saveMobileDevicePicture(
-                primary.Id,
-                parent.Id,
+                child.Id,
+                siteVisit.Id,
                 EncodingUtil.base64Encode(Blob.valueOf('unowned-parent')),
                 'MobileDevicePicture.jpg',
                 null
@@ -151,12 +167,13 @@ private class MobileDevicePictureLinkHandlerTest {
         }
         Test.stopTest();
 
+        System.assertNotEquals(UserInfo.getUserId(), limitedUser.Id);
         System.assertEquals(1, [
             SELECT COUNT()
             FROM ContentDocumentLink
             WHERE ContentDocumentId = :documentId
-                AND LinkedEntityId = :parent.Id
-        ]);
+                AND LinkedEntityId = :siteVisit.Id
+        ], 'The picture is linked to a site visit the user does not own');
         System.assertEquals(1, [
             SELECT COUNT()
             FROM ContentVersion
@@ -242,6 +259,49 @@ private class MobileDevicePictureLinkHandlerTest {
             WHERE ContentDocumentId = :otherDocumentId
                 AND LinkedEntityId = :siteVisit.Id
         ], 'Other files are not linked to the site visit work order');
+    }
+
+    /**
+     * @description GW-375 - Details the mobile app sends in the description are moved into their fields.
+     */
+    @IsTest
+    static void completeMobileAppPictureLinks_movesDetailsIntoFields() {
+        String token = String.valueOf(Crypto.getRandomInteger()).replace('-', '');
+        Account account = new Account(
+            Name = 'Picture Details ' + token,
+            SourceSystemID__c = 'ORACLE-PIC-DET-' + token
+        );
+        insert account;
+        WorkOrder child = new WorkOrder(AccountId = account.Id, Subject = 'Picture Details ' + token);
+        insert child;
+        ContentVersion picture = new ContentVersion(
+            Title = WoDebriefIMSchildWOController.MOBILE_DEVICE_PICTURE_TITLE,
+            PathOnClient = 'MobileDevicePicture.jpg',
+            VersionData = Blob.valueOf('offline-picture'),
+            Description = WoDebriefIMSchildWOController.MOBILE_DEVICE_PICTURE_MARKER
+                + WoDebriefIMSchildWOController.PICTURE_DETAILS_SEPARATOR
+                + '{"category":"Care and Handling","beforeAfter":"Before","comment":"Bent tip"}'
+        );
+        insert picture;
+        Id documentId = [SELECT ContentDocumentId FROM ContentVersion WHERE Id = :picture.Id].ContentDocumentId;
+
+        Test.startTest();
+        insert new ContentDocumentLink(ContentDocumentId = documentId, LinkedEntityId = child.Id, ShareType = 'V');
+        Test.stopTest();
+
+        ContentVersion saved = [
+            SELECT Description, PictureCategory__c, BeforeAfter__c, MobileDevicePictureComment__c
+            FROM ContentVersion
+            WHERE Id = :picture.Id
+        ];
+        System.assertEquals('Care and Handling', saved.PictureCategory__c);
+        System.assertEquals('Before', saved.BeforeAfter__c);
+        System.assertEquals('Bent tip', saved.MobileDevicePictureComment__c);
+        System.assertEquals(
+            WoDebriefIMSchildWOController.MOBILE_DEVICE_PICTURE_MARKER,
+            saved.Description,
+            'Only the marker stays in the description'
+        );
     }
 
     /**

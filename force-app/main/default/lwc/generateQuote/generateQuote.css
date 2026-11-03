@@ -138,6 +138,10 @@
     z-index: 2;
 }
 
+.forecast-confidence-placeholder {
+    color: var(--slds-g-color-neutral-base-50, #747474);
+}
+
 .forecast-confidence-select {
     min-width: 7.5rem;
     width: 100%;

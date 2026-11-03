@@ -39,18 +39,25 @@ public with sharing class EsServiceProductConfigController {
     public static LineContext getLineContext(Id quoteId, String lineId) {
         try {
             LineContext ctx = new LineContext();
-            Quote quoteRecord = QuoteSelector.selectById(quoteId, new List<String>{ 'AccountId' });
-            if (quoteRecord != null) {
-                ctx.accountId = quoteRecord.AccountId;
+            if (quoteId != null) {
+                Quote quoteRecord = (Quote) new QuoteSelector()
+                    .selectField('AccountId')
+                    .whereEquals('Id', quoteId)
+                    .first();
+                if (quoteRecord != null) {
+                    ctx.accountId = quoteRecord.AccountId;
+                }
             }
 
             Id qliId = toQuoteLineId(lineId);
             if (qliId != null) {
-                List<QuoteLineItem> rows = QuoteLineItemSelector.selectQuoteLineItemById(qliId, new List<String>{
-                    'Asset__c', 'Asset__r.Name', 'PFCL__c', 'PFCL__r.Name', 'RequestedNumberofPMVisits__c'
-                });
-                if (!rows.isEmpty()) {
-                    QuoteLineItem r = rows[0];
+                QuoteLineItem r = (QuoteLineItem) new QuoteLineItemSelector()
+                    .selectFields(new List<String>{
+                        'Asset__c', 'Asset__r.Name', 'PFCL__c', 'PFCL__r.Name', 'RequestedNumberofPMVisits__c'
+                    })
+                    .whereEquals('Id', qliId)
+                    .first();
+                if (r != null) {
                     LineValues v = new LineValues();
                     v.assetId = r.Asset__c;
                     v.assetName = r.Asset__r?.Name;
@@ -89,8 +96,17 @@ public with sharing class EsServiceProductConfigController {
             // Escape LIKE wildcards in the user's text so they're matched literally.
             String term = '%' + searchText.trim().replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
                           + '%';
-            List<String> fields = new List<String>{ 'Id', 'Name', 'SerialNumber', 'PFCL__c' };
-            for (Asset a : AssetsSelector.searchAssets(accountId, term, fields, SEARCH_LIMIT)) {
+            List<Asset> assetList = (List<Asset>) new AssetsSelector()
+                .selectFields(new List<String>{ 'Id', 'Name', 'SerialNumber', 'PFCL__c' })
+                .whereEquals('AccountId', accountId)
+                .whereField('Name', 'LIKE', term)
+                .whereField('SerialNumber', 'LIKE', term)
+                .whereField('PFCL__c', 'LIKE', term)
+                .withFilterLogic('1 AND (2 OR 3 OR 4)')
+                .orderBy('Name')
+                .limitTo(SEARCH_LIMIT)
+                .execute();
+            for (Asset a : assetList) {
                 AssetOption o = new AssetOption();
                 o.id = a.Id;
                 o.name = a.Name;
@@ -119,11 +135,14 @@ public with sharing class EsServiceProductConfigController {
         try {
             LineValues v = new LineValues();
             v.assetId = assetId;
-            List<Asset> rows = AssetsSelector.selectById(new Set<Id>{ assetId });
-            if (!rows.isEmpty()) {
-                v.assetName = rows[0].Name;
-                v.pfclId = rows[0].Product2?.PFCL__c;
-                v.pfclName = rows[0].Product2?.PFCL__r?.Name;
+            Asset assetRecord = assetId == null ? null : (Asset) new AssetsSelector()
+                .selectFields(new List<String>{ 'Name', 'Product2.PFCL__c', 'Product2.PFCL__r.Name' })
+                .whereEquals('Id', assetId)
+                .first();
+            if (assetRecord != null) {
+                v.assetName = assetRecord.Name;
+                v.pfclId = assetRecord.Product2?.PFCL__c;
+                v.pfclName = assetRecord.Product2?.PFCL__r?.Name;
             }
             return v;
         } catch (Exception e) {
@@ -145,7 +164,15 @@ public with sharing class EsServiceProductConfigController {
     public static Map<String, String> getAttributeIds(List<String> fieldNames) {
         Map<String, String> result = new Map<String, String>();
         try {
-            for (ContextAttribute r : ContextAttributeSelector.selectByTitles(fieldNames)) {
+            List<ContextAttribute> attributeList = new List<ContextAttribute>();
+            if (fieldNames != null && !fieldNames.isEmpty()) {
+                attributeList = (List<ContextAttribute>) new ContextAttributeSelector()
+                    .selectFields(new List<String>{ 'Id', 'Title' })
+                    .whereField('Title', 'IN', fieldNames)
+                    .orderBy('Title')
+                    .execute();
+            }
+            for (ContextAttribute r : attributeList) {
                 String title = r.Title;
                 if (result.containsKey(title)) {
                     Logger.setScenario(SCENARIO);

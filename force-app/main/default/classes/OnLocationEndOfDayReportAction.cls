@@ -5,18 +5,17 @@
  *              current user and their manager in CC. Called from ServiceAppointment_Updated_AfterSave
  *              when the IMS completion mobile flow requests the report, before the completed child Work Orders
  *              are closed, so the report still finds them.
- *              GW-6257 - CRSS site visits use the CRSS template with the inspected asset tables.
+ *              GW-6257 - CRSS site visits use the CRSS template with the inspected asset tables. The Contact is
+ *              optional, and the report can go to several emails separated by ;.
+ *              GW-6191 - CRSS site visits no longer get a report; only the IMS template is used.
  * @group Service Appointment
  * @see OnLocationEndOfDayReportController
- * @see OnLocationCrssEndOfDayReportController
  */
 public without sharing class OnLocationEndOfDayReportAction {
     /** @description Developer name of the IMS Visualforce email template. */
     public static final String TEMPLATE_DEVELOPER_NAME = 'OnLocationEndOfDayReport';
-    /** @description GW-6257 - Developer name of the CRSS Visualforce email template. */
-    public static final String CRSS_TEMPLATE_DEVELOPER_NAME = 'OnLocationCrssEndOfDayReport';
-    /** @description GW-6257 - Site visit Work Order record type that uses the CRSS template. */
-    public static final String CRSS_RECORD_TYPE_DEVELOPER_NAME = 'CRSSFieldRepair';
+    /** @description GW-6257 - Basic email shape check for each typed address. */
+    private static final Pattern EMAIL_PATTERN = Pattern.compile('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$');
 
     /**
      * @description Flow input.
@@ -26,11 +25,11 @@ public without sharing class OnLocationEndOfDayReportAction {
         @InvocableVariable(label='Site Visit Work Order Id' required=true)
         public Id siteVisitWorkOrderId;
 
-        /** @description Contact the technician picked to receive the report. */
-        @InvocableVariable(label='Contact Id' required=true)
+        /** @description Contact the technician picked to receive the report, if any. */
+        @InvocableVariable(label='Contact Id')
         public Id contactId;
 
-        /** @description Email the technician approved or typed; the Contact email is used when blank. */
+        /** @description Emails the technician approved or typed, separated by ;. The Contact email is used when blank. */
         @InvocableVariable(label='Recipient Email')
         public String recipientEmail;
     }
@@ -59,33 +58,16 @@ public without sharing class OnLocationEndOfDayReportAction {
         category='Service Appointment'
     )
     public static List<Result> sendReport(List<Request> requests) {
-        Map<String, Id> templateIdByName = new Map<String, Id>();
-        for (EmailTemplate template : [
-            SELECT Id, DeveloperName
+        List<EmailTemplate> templates = [
+            SELECT Id
             FROM EmailTemplate
-            WHERE DeveloperName IN (:TEMPLATE_DEVELOPER_NAME, :CRSS_TEMPLATE_DEVELOPER_NAME)
-        ]) {
-            templateIdByName.put(template.DeveloperName, template.Id);
-        }
-        Set<Id> siteVisitIds = new Set<Id>();
-        for (Request request : requests) {
-            if (request?.siteVisitWorkOrderId != null) {
-                siteVisitIds.add(request.siteVisitWorkOrderId);
-            }
-        }
-        Map<Id, WorkOrder> siteVisitById = new Map<Id, WorkOrder>([
-            SELECT Id, RecordType.DeveloperName
-            FROM WorkOrder
-            WHERE Id IN :siteVisitIds
-        ]);
+            WHERE DeveloperName = :TEMPLATE_DEVELOPER_NAME
+            LIMIT 1
+        ];
+        Id templateId = templates.isEmpty() ? null : templates[0].Id;
 
         List<Result> results = new List<Result>();
         for (Request request : requests) {
-            WorkOrder siteVisit = request == null ? null : siteVisitById.get(request.siteVisitWorkOrderId);
-            String templateName = siteVisit?.RecordType?.DeveloperName == CRSS_RECORD_TYPE_DEVELOPER_NAME
-                ? CRSS_TEMPLATE_DEVELOPER_NAME
-                : TEMPLATE_DEVELOPER_NAME;
-            Id templateId = templateIdByName.get(templateName);
             results.add(templateId == null
                 ? failure('The End of Day Report email template is missing.')
                 : sendForSiteVisit(templateId, request));
@@ -116,41 +98,75 @@ public without sharing class OnLocationEndOfDayReportAction {
     }
 
     /**
-     * @description Renders the report for the selected Contact and sends it to the approved email with the
-     *              user and manager in CC. The Contact record is not updated.
+     * @description Splits typed emails on ; or , and drops blanks.
+     * @param emails Emails as typed
+     * @return Trimmed addresses
+     */
+    private static List<String> splitEmails(String emails) {
+        List<String> addresses = new List<String>();
+        if (String.isBlank(emails)) {
+            return addresses;
+        }
+        for (String address : emails.split('[;,]')) {
+            if (String.isNotBlank(address)) {
+                addresses.add(address.trim());
+            }
+        }
+        return addresses;
+    }
+
+    /**
+     * @description Renders the report and sends it to the approved emails with the user and manager in CC.
+     *              The Contact, when selected, is the template recipient. The Contact record is not updated.
      * @param templateId End of Day Report template
-     * @param request Site visit, selected Contact, and approved email
+     * @param request Site visit, optional selected Contact, and approved emails
      * @return Send result
      */
     private static Result sendForSiteVisit(Id templateId, Request request) {
         if (request?.siteVisitWorkOrderId == null) {
             return failure('The site visit work order could not be identified.');
         }
-        List<Contact> contacts = [
-            SELECT Id, Name, Email
-            FROM Contact
-            WHERE Id = :request.contactId
-            LIMIT 1
-        ];
-        if (contacts.isEmpty()) {
-            return failure('The selected contact could not be found. The End of Day Report was not sent.');
+        Contact contact;
+        if (request.contactId != null) {
+            List<Contact> contacts = [
+                SELECT Id, Name, Email
+                FROM Contact
+                WHERE Id = :request.contactId
+                LIMIT 1
+            ];
+            if (contacts.isEmpty()) {
+                return failure('The selected contact could not be found. The End of Day Report was not sent.');
+            }
+            contact = contacts[0];
         }
-        String recipientEmail = String.isNotBlank(request.recipientEmail)
-            ? request.recipientEmail.trim()
-            : contacts[0].Email;
-        if (String.isBlank(recipientEmail)) {
-            return failure('The selected contact has no email. The End of Day Report was not sent.');
+        List<String> toAddresses = splitEmails(
+            String.isNotBlank(request.recipientEmail) ? request.recipientEmail : contact?.Email
+        );
+        if (toAddresses.isEmpty()) {
+            return failure(contact == null
+                ? 'No email was entered. The End of Day Report was not sent.'
+                : 'The selected contact has no email. The End of Day Report was not sent.');
+        }
+        List<String> invalidAddresses = new List<String>();
+        for (String address : toAddresses) {
+            if (!EMAIL_PATTERN.matcher(address).matches()) {
+                invalidAddresses.add(address);
+            }
+        }
+        if (!invalidAddresses.isEmpty()) {
+            return failure('These emails are not valid: ' + String.join(invalidAddresses, ', ')
+                + '. The End of Day Report was not sent.');
         }
 
         try {
             Messaging.SingleEmailMessage rendered = Messaging.renderStoredEmailTemplate(
                 templateId,
-                contacts[0].Id,
+                contact?.Id,
                 request.siteVisitWorkOrderId
             );
             List<String> ccAddresses = selectCcAddresses();
             Messaging.SingleEmailMessage message = new Messaging.SingleEmailMessage();
-            message.setToAddresses(new List<String>{ recipientEmail });
+            message.setToAddresses(toAddresses);
             message.setCcAddresses(ccAddresses);
             message.setSubject(rendered.getSubject());
             message.setHtmlBody(rendered.getHtmlBody());
@@ -166,8 +182,10 @@ public without sharing class OnLocationEndOfDayReportAction {
                     + (sendResult.getErrors().isEmpty() ? '' : sendResult.getErrors()[0].getMessage()));
             }
             Result result = new Result();
-            result.sentCount = 1 + ccAddresses.size();
-            result.message = 'The End of Day Report was sent to ' + contacts[0].Name + ' (' + recipientEmail + ')'
+            result.sentCount = toAddresses.size() + ccAddresses.size();
+            result.message = 'The End of Day Report was sent to '
+                + (contact == null ? '' : contact.Name + ' ')
+                + '(' + String.join(toAddresses, ', ') + ')'
                 + (ccAddresses.isEmpty() ? '.' : ' with a copy to ' + String.join(ccAddresses, ', ') + '.');
             return result;
         } catch (Exception ex) {

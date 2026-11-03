@@ -108,48 +108,4 @@ public with sharing class AssetsSelector extends SoqlQueryBuilder{
             LIMIT :SEARCH_LIMIT
         ];
     }
-
-    /**
-     * @description Retrieves Asset records
-     * @param All parameters supports dynamic values
-     * @return List of Asset records
-     */
-    public static List<Asset> selectAssets(List<String> fields, String filterField, List<Object> filterValues, Integer queryLimit) {
-        if (fields == null || fields.isEmpty() || String.isBlank(filterField) || filterValues == null || filterValues.isEmpty()) {
-            return new List<Asset>();
-        }
-
-        return (List<Asset>) SoqlQueryBuilder.fromObject('Asset')
-                                             .selectFields(fields)
-                                             .whereField(filterField, 'IN', filterValues)
-                                             .orderBy('SerialNumber', false, true)
-                                             .orderBy('Name')
-                                             .limitTo(queryLimit)
-                                             .execute();
-    }
-
-    /**
-     * @description Retrieves Asset records
-     * @param accountId Account Id
-     * @param term Search Term by User
-     * @param fields List of fields to fetch
-     * @param SEARCH_LIMIT Limit for records
-     * @return List of Asset records
-     */
-    public static List<Asset> searchAssets(Id accountId, String term, List<String> fields, Integer SEARCH_LIMIT) {
-        if (accountId == null || String.isBlank(term)) {
-            return new List<Asset>();
-        }
-
-        return (List<Asset>) SoqlQueryBuilder.fromObject('Asset')
-                                            .selectFields(fields)
-                                            .whereEquals('AccountId', accountId)
-                                            .whereField('Name', 'LIKE', term)
-                                            .withFilterLogic('1 AND (2 OR 3 OR 4)')
-                                            .whereField('SerialNumber', 'LIKE', term)
-                                            .whereField('PFCL__c', 'LIKE', term)
-                                            .orderBy('Name')
-                                            .limitTo(SEARCH_LIMIT)
-                                            .execute();
-    }
 }

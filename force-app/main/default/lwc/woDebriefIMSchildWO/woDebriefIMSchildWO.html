@@ -102,6 +102,9 @@
                                 data-version-id={picture.contentVersionId}
                                 onerror={handlePicturePreviewError} />
                         </button>
+                        <template lwc:if={picture.detailLabel}>
+                            <div class="picture-detail">{picture.detailLabel}</div>
+                        </template>
                         <lightning-button-icon
                             class="picture-delete"
                             icon-name="utility:delete"
@@ -318,10 +321,6 @@
                                                 <div class="read-only-label">Allowed Part</div>
                                                 <div class="read-only-value">{line.editAllowedUnitLabel}</div>
                                             </div>
-                                            <div class="field-full read-only-field">
-                                                <div class="read-only-label">Critical Part</div>
-                                                <div class="read-only-value">{line.editCriticalPartLabel}</div>
-                                            </div>
                                             <div class="field-full">
                                                 <lightning-input
                                                     type="checkbox"
@@ -460,6 +459,9 @@
                                 data-version-id={picture.contentVersionId}
                                 onerror={handlePicturePreviewError} />
                                                                 </button>
+                                                                <template lwc:if={picture.detailLabel}>
+                                                                    <div class="picture-detail">{picture.detailLabel}</div>
+                                                                </template>
                                                                 <lightning-button-icon
                                                                     class="picture-delete"
                                                                     icon-name="utility:delete"
@@ -570,41 +572,6 @@
                                                         </lightning-dual-listbox>
                                                     </div>
                                                 </template>
-                                                <div class="field-full">
-                                                    <div class="picture-field-label">Picture</div>
-                                                    <div class="picture-field-actions">
-                                                        <label class="mobile-picture-button">
-                                                            <input
-                                                                type="file"
-                                                                accept="image/*"
-                                                                class="mobile-picture-input"
-                                                                data-id={line.Id}
-                                                                onchange={handleBeyondRepairPictureSelected} />
-                                                            Picture
-                                                        </label>
-                                                    </div>
-                                                    <template lwc:if={line.hasPictureItems}>
-                                                        <div class="field-help">Saved with the line on Save All.</div>
-                                                        <div class="picture-strip picture-strip_in-form">
-                                                            <template for:each={line.pictureItems} for:item="picture">
-                                                                <div key={picture.key} class="picture-tile">
-                                                                    <img class="picture-thumb" src={picture.previewUrl} alt="Picture" />
-                                                                    <lightning-button-icon
-                                                                        class="picture-delete"
-                                                                        icon-name="utility:delete"
-                                                                        alternative-text="Remove picture"
-                                                                        title="Remove picture"
-                                                                        variant="border-filled"
-                                                                        size="small"
-                                                                        data-id={line.Id}
-                                                                        data-key={picture.key}
-                                                                        onclick={handleRemoveBeyondRepairPicture}>
-                                                                    </lightning-button-icon>
-                                                                </div>
-                                                            </template>
-                                                        </div>
-                                                    </template>
-                                                </div>
                                             </template>
                                         </div>
                                     </template>
@@ -858,10 +825,6 @@
                                             <div class="read-only-label">Allowed Part</div>
                                             <div class="read-only-value">{addFormAllowedUnitLabel}</div>
                                         </div>
-                                        <div class="field-full read-only-field">
-                                            <div class="read-only-label">Critical Part</div>
-                                            <div class="read-only-value">{addFormCriticalPartLabel}</div>
-                                        </div>
                                         <div class="field-full">
                                             <lightning-input
                                                 type="checkbox"
@@ -992,6 +955,9 @@
                                 data-version-id={picture.contentVersionId}
                                 onerror={handlePicturePreviewError} />
                                                             </button>
+                                                            <template lwc:if={picture.detailLabel}>
+                                                                <div class="picture-detail">{picture.detailLabel}</div>
+                                                            </template>
                                                             <lightning-button-icon
                                                                 class="picture-delete"
                                                                 icon-name="utility:delete"
@@ -1093,39 +1059,6 @@
                                                     </lightning-dual-listbox>
                                                 </div>
                                             </template>
-                                            <div class="field-full">
-                                                <div class="picture-field-label">Picture</div>
-                                                <div class="picture-field-actions">
-                                                    <label class="mobile-picture-button">
-                                                        <input
-                                                            type="file"
-                                                            accept="image/*"
-                                                            class="mobile-picture-input"
-                                                            onchange={handleBeyondRepairPictureSelected} />
-                                                        Picture
-                                                    </label>
-                                                </div>
-                                                <template lwc:if={hasAddFormPictureItems}>
-                                                    <div class="field-help">Saved with the line on Save All.</div>
-                                                    <div class="picture-strip picture-strip_in-form">
-                                                        <template for:each={addFormPictureItems} for:item="picture">
-                                                            <div key={picture.key} class="picture-tile">
-                                                                <img class="picture-thumb" src={picture.previewUrl} alt="Picture" />
-                                                                <lightning-button-icon
-                                                                    class="picture-delete"
-                                                                    icon-name="utility:delete"
-                                                                    alternative-text="Remove picture"
-                                                                    title="Remove picture"
-                                                                    variant="border-filled"
-                                                                    size="small"
-                                                                    data-key={picture.key}
-                                                                    onclick={handleRemoveBeyondRepairPicture}>
-                                                                </lightning-button-icon>
-                                                            </div>
-                                                        </template>
-                                                    </div>
-                                                </template>
-                                            </div>
                                         </template>
                                     </div>
                                 </template>
@@ -1336,10 +1269,65 @@
                     <template lwc:else>
                         <img class="picture-review-image" src={reviewPictureUrl} alt="Mobile Device Picture" />
                     </template>
+                    <template lwc:if={reviewPicture.detailLabel}>
+                        <div class="picture-review-detail">{reviewPicture.detailLabel}</div>
+                    </template>
+                    <template lwc:if={reviewPicture.comment}>
+                        <div class="picture-review-comment">{reviewPicture.comment}</div>
+                    </template>
                 </div>
                 <footer class="slds-modal__footer">
                     <lightning-button label="Delete" variant="destructive" onclick={handleDeleteReviewedPicture}></lightning-button>
                     <lightning-button label="Close" onclick={handleClosePictureReview}></lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open picture-review-backdrop"></div>
+    </template>
+
+    <template lwc:if={showPictureDetails}>
+        <section role="dialog" tabindex="-1" aria-modal="true" aria-labelledby="picture-details-heading" class="slds-modal slds-fade-in-open picture-review-modal">
+            <div class="slds-modal__container">
+                <header class="slds-modal__header">
+                    <h2 id="picture-details-heading" class="slds-modal__title">Picture details</h2>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium picture-details-content">
+                    <template lwc:if={pictureDetailsPreviewUrl}>
+                        <img class="picture-details-preview" src={pictureDetailsPreviewUrl} alt="Mobile Device Picture preview" />
+                    </template>
+                    <lightning-combobox
+                        label="Category"
+                        required
+                        placeholder="Select a Category"
+                        options={pictureCategoryOptions}
+                        value={pictureDetailsDraft.category}
+                        data-field="category"
+                        onchange={handlePictureDetailChange}>
+                    </lightning-combobox>
+                    <lightning-radio-group
+                        label="Before/After"
+                        required
+                        type="button"
+                        options={beforeAfterOptions}
+                        value={pictureDetailsDraft.beforeAfter}
+                        data-field="beforeAfter"
+                        onchange={handlePictureDetailChange}>
+                    </lightning-radio-group>
+                    <lightning-textarea
+                        label="Comments"
+                        max-length={pictureCommentMaxLength}
+                        placeholder="Describe this picture"
+                        value={pictureDetailsDraft.comment}
+                        data-field="comment"
+                        onchange={handlePictureDetailChange}>
+                    </lightning-textarea>
+                    <template lwc:if={pictureDetailsError}>
+                        <div class="slds-text-color_error">{pictureDetailsError}</div>
+                    </template>
+                </div>
+                <footer class="slds-modal__footer">
+                    <lightning-button label="Cancel" onclick={handlePictureDetailsCancel}></lightning-button>
+                    <lightning-button label="Save Picture" variant="brand" onclick={handlePictureDetailsConfirm}></lightning-button>
                 </footer>
             </div>
         </section>

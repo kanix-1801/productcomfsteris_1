@@ -16,6 +16,7 @@ public without sharing class LSTemporaryAccessExceptionEmailService {
     public static final String TYPE_APPROVED = 'Approved';
     public static final String TYPE_REJECTED = 'Rejected';
     public static final String TYPE_EXPIRED = 'Expired';
+    public static final String TYPE_EXPIRING = 'Expiring';
     public static final String TYPE_COVERAGE_GRANTED = 'CoverageGranted';
     public static final String TYPE_COVERAGE_REVOKED = 'CoverageRevoked';
 
@@ -23,6 +24,7 @@ public without sharing class LSTemporaryAccessExceptionEmailService {
     public static final String SUBJECT_GRANTED = 'Temporary Salesforce Access Granted';
     public static final String SUBJECT_REJECTED = 'Temporary Salesforce Access Rejected';
     public static final String SUBJECT_EXPIRED = 'Temporary Salesforce Access has Expired';
+    public static final String SUBJECT_EXPIRING = 'Temporary Salesforce Access Expiring';
     public static final String SUBJECT_COVERAGE_GRANTED = 'Temporary Coverage Access Granted';
     public static final String SUBJECT_COVERAGE_REVOKED = 'Temporary Coverage Access Revoked';
 
@@ -44,6 +46,7 @@ public without sharing class LSTemporaryAccessExceptionEmailService {
     public static Boolean suppressInvocableSend = false;
 
     private static Map<String, Id> templateIdByDeveloperName;
+    private static Map<Id, User> delegatedApproversById = new Map<Id, User>();
 
     public class NotificationInput {
         @InvocableVariable(required=true label='Temporary Access Exception Id')
@@ -147,7 +150,9 @@ public without sharing class LSTemporaryAccessExceptionEmailService {
         String templateName = templateDeveloperName(notificationType);
         Id templateId = templateName == null ? null : templateIds.get(templateName);
 
-        for (TemporaryAccessException__c row : queryRows(new Set<Id>(temporaryAccessExceptionIds))) {
+        List<TemporaryAccessException__c> rows = queryRows(new Set<Id>(temporaryAccessExceptionIds));
+        loadDelegatedApprovers(rows);
+        for (TemporaryAccessException__c row : rows) {
             List<ComposedNotification> rowNotifications = compose(row, notificationType);
             if (templateId != null) {
                 applyTemplate(rowNotifications, templateId, row.Id);
@@ -193,7 +198,8 @@ public without sharing class LSTemporaryAccessExceptionEmailService {
                    BusinessJustification__c, ApprovalComments__c, RequesterName__c, CoverageRepName__c,
                    Requester__c, CoverageRep__c, CreatedById,
                    Requester__r.Email, Requester__r.IsActive, Requester__r.ManagerId,
-                   Requester__r.Manager.Email, Requester__r.Manager.IsActive,
+                   Requester__r.Manager.FirstName, Requester__r.Manager.Email, Requester__r.Manager.IsActive,
+                   Requester__r.Manager.DelegatedApproverId,
                    CoverageRep__r.Email, CoverageRep__r.IsActive,
                    CoverageRep__r.ManagerId, CoverageRep__r.Manager.Email, CoverageRep__r.Manager.IsActive,
                    CreatedBy.Email, CreatedBy.IsActive, CreatedBy.FirstName, CreatedBy.Name
@@ -215,6 +221,9 @@ public without sharing class LSTemporaryAccessExceptionEmailService {
         if (notificationType == TYPE_EXPIRED) {
             return composeCreatedByEmail(row, SUBJECT_EXPIRED, expiredBody(row), false);
         }
+        if (notificationType == TYPE_EXPIRING) {
+            return composeCreatedByEmail(row, SUBJECT_EXPIRING, expiringBody(row), false);
+        }
         if (notificationType == TYPE_COVERAGE_GRANTED) {
             return composeRepEmails(row, SUBJECT_COVERAGE_GRANTED, coverageGrantedBody(row));
         }
@@ -229,36 +238,25 @@ public without sharing class LSTemporaryAccessExceptionEmailService {
     }
 
     /**
-     * The approval step already emails the Rep Needing Coverage's manager.
-     * When the Coverage Rep's manager is a different person, that manager is the To on this email.
-     * CC is the Rep Needing Coverage, the Coverage Rep, and the creator when not already included.
-     * No Word file was supplied for this email, so the built-in body is used.
+     * GCL-95 AC1. To the approver, the Rep Needing Coverage's manager.
+     * CC Created By, Rep Needing Coverage, Coverage Rep, and that manager's
+     * Delegated Approver when one is active. Each person is included once.
      */
     private static List<ComposedNotification> composeApprovalNeeded(TemporaryAccessException__c row) {
-        Id coverageManagerId = managerUserId(row.CoverageRep__r);
-        Id requesterManagerId = managerUserId(row.Requester__r);
-        Id toUserId = coverageManagerId != null ? coverageManagerId : requesterManagerId;
-        if (toUserId == null) {
+        Id approverId = managerUserId(row.Requester__r);
+        if (approverId == null) {
             Logger.warn('LSTemporaryAccessExceptionEmailService.composeApprovalNeeded: no manager for taeId=' + row.Id);
             return new List<ComposedNotification>();
         }
-
-        List<Recipient> parties = new List<Recipient>{
-            userRecipient(row.Requester__c, row.Requester__r),
-            userRecipient(row.CoverageRep__c, row.CoverageRep__r),
-            userRecipient(row.CreatedById, row.CreatedBy)
-        };
-        String htmlBody = approvalNeededBody(row);
-
-        if (toUserId == requesterManagerId) {
-            return emailOtherParties(parties, htmlBody, SUBJECT_APPROVAL_NEEDED);
-        }
-
+        User approver = row.Requester__r.Manager;
         ComposedNotification notification = new ComposedNotification();
-        notification.toUserId = toUserId;
+        notification.toUserId = approverId;
         notification.subject = SUBJECT_APPROVAL_NEEDED;
-        notification.htmlBody = htmlBody;
-        notification.ccAddresses = ccAddresses(managerEmail(row.CoverageRep__r), parties);
+        notification.htmlBody = approvalNeededBody(row, approver);
+        notification.ccAddresses = ccAddresses(
+            approver.Email,
+            standardCopies(row, approver)
+        );
         return new List<ComposedNotification>{ notification };
     }
 
@@ -288,6 +286,7 @@ public without sharing class LSTemporaryAccessExceptionEmailService {
                 userRecipient(row.CoverageRep__c, row.CoverageRep__r),
                 managerRecipient(row.CoverageRep__r)
             };
+        copies.add(delegatedApproverRecipient(row.Requester__r == null ? null : row.Requester__r.Manager));
         ComposedNotification notification = new ComposedNotification();
         notification.toUserId = row.CreatedById;
         notification.subject = subject;
@@ -430,7 +429,7 @@ public without sharing class LSTemporaryAccessExceptionEmailService {
                     notification.subject = rendered.getSubject();
                 }
                 if (String.isNotBlank(rendered.getHtmlBody())) {
-                    notification.htmlBody = rendered.getHtmlBody();
+                    notification.htmlBody = absoluteRecordLinks(rendered.getHtmlBody(), whatId);
                 }
             }
         } catch (Exception e) {
@@ -439,6 +438,21 @@ public without sharing class LSTemporaryAccessExceptionEmailService {
                 whatId + ' ' + e.getMessage()
             );
         }
+    }
+
+    /**
+     * $Api.Partner_Server_URL_500 can be blank when the nightly batch renders a template,
+     * which leaves href="<record Id>". Those links are rewritten to the full record URL.
+     */
+    @TestVisible
+    private static String absoluteRecordLinks(String htmlBody, Id whatId) {
+        if (String.isBlank(htmlBody) || whatId == null) {
+            return htmlBody;
+        }
+        String fullUrl = 'href="' + recordUrl(whatId) + '"';
+        return htmlBody
+            .replace('href="' + String.valueOf(whatId) + '"', fullUrl)
+            .replace('href="/' + String.valueOf(whatId) + '"', fullUrl);
     }
 
     private static Map<String, Id> loadTemplateIds() {
@@ -477,11 +491,61 @@ public without sharing class LSTemporaryAccessExceptionEmailService {
         return null;
     }
 
-    private static String approvalNeededBody(TemporaryAccessException__c row) {
-        return '<p>Hello,</p>' +
-            '<p>A Temporary Salesforce Access request is waiting for your approval.</p>' +
-            detailBlock(row) +
-            '<p>Open the request and approve or reject it. This email does not list accounts or opportunities. Those records are available in Salesforce.</p>';
+    private static String approvalNeededBody(TemporaryAccessException__c row, User approver) {
+        String approverName = approver == null ? '' : approver.FirstName;
+        return '<p>' + escapeHtml(approverName) + ',</p>' +
+            '<p>A request for temporary Salesforce access needs your review. Approve or reject the request.</p>' +
+            detailBlock(row);
+    }
+
+    private static String expiringBody(TemporaryAccessException__c row) {
+        return '<p>Hi ' + escapeHtml(createdByFirstName(row)) + ',</p>' +
+            '<p>Temporary access is expiring in 3 days for the request below.</p>' +
+            detailTable(row, 'Created By', createdByName(row)) +
+            supportFooter();
+    }
+
+    private static List<Recipient> standardCopies(TemporaryAccessException__c row, User approver) {
+        return new List<Recipient>{
+            userRecipient(row.CreatedById, row.CreatedBy),
+            userRecipient(row.Requester__c, row.Requester__r),
+            userRecipient(row.CoverageRep__c, row.CoverageRep__r),
+            delegatedApproverRecipient(approver)
+        };
+    }
+
+    private static Recipient delegatedApproverRecipient(User approver) {
+        Recipient value = new Recipient();
+        if (approver == null || approver.DelegatedApproverId == null) {
+            return value;
+        }
+        User delegate = delegatedApproversById.get(approver.DelegatedApproverId);
+        if (delegate == null || delegate.IsActive != true) {
+            return value;
+        }
+        value.userId = delegate.Id;
+        value.email = delegate.Email;
+        value.isActive = true;
+        return value;
+    }
+
+    /**
+     * User.DelegatedApproverId can point to a User or a Group and has no SOQL relationship,
+     * so delegate users are loaded separately. Group delegates are not copied.
+     */
+    private static void loadDelegatedApprovers(List<TemporaryAccessException__c> rows) {
+        Set<Id> delegateIds = new Set<Id>();
+        for (TemporaryAccessException__c row : rows) {
+            Id delegateId = row.Requester__r == null || row.Requester__r.Manager == null
+                ? null
+                : row.Requester__r.Manager.DelegatedApproverId;
+            if (delegateId != null && delegateId.getSObjectType() == User.SObjectType) {
+                delegateIds.add(delegateId);
+            }
+        }
+        delegatedApproversById = delegateIds.isEmpty()
+            ? new Map<Id, User>()
+            : new Map<Id, User>([SELECT Id, Email, IsActive FROM User WHERE Id IN :delegateIds]);
     }
 
     private static String grantedBody(TemporaryAccessException__c row) {
@@ -543,7 +607,7 @@ public without sharing class LSTemporaryAccessExceptionEmailService {
 
     private static String detailTable(TemporaryAccessException__c row, String createdByLabel, String createdByName) {
         return '<table border="1" cellpadding="6" cellspacing="0">' +
-            rowHtml('Temporary Request ID', escapeHtml(row.Name)) +
+            rowHtml('Temporary Request ID', '<a href="' + recordUrl(row.Id) + '">' + escapeHtml(row.Name) + '</a>') +
             rowHtml('Rep Needing Coverage', escapeHtml(row.RequesterName__c)) +
             rowHtml('Coverage Rep', escapeHtml(row.CoverageRepName__c)) +
             rowHtml(createdByLabel, escapeHtml(createdByName)) +

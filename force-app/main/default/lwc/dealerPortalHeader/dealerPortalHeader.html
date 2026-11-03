@@ -1,9 +1,13 @@
 <template>
     <div class="bar">
-        <img class="logo" src={logoUrl} alt="STERIS Dealer Portal" />
+        <div class="brand">
+            <img class="logo" src={logoUrl} alt="STERIS" />
+            <span class="brand-divider" aria-hidden="true"></span>
+            <span class="brand-title">Dealer Portal</span>
+        </div>
         <nav class="tabs" aria-label="Dealer portal">
             <template for:each={tabs} for:item="tab">
-                <button key={tab.key} type="button" class={tab.className} data-page={tab.name} onclick={openPage}>
+                <button key={tab.key} type="button" class={tab.className} data-path={tab.path} onclick={openPage}>
                     {tab.label}
                 </button>
             </template>

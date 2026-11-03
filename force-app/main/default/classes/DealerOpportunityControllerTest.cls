@@ -67,6 +67,38 @@ private class DealerOpportunityControllerTest {
     }
 
     @IsTest
+    static void getWorkspaceSearchesCountryAmountAndDates() {
+        Opportunity futureShip = [
+            SELECT CloseDate, Expected_Ship_Date__c
+            FROM Opportunity
+            WHERE Name = 'Future Ship Project'
+            LIMIT 1
+        ];
+
+        Test.startTest();
+        DealerOpportunityController.WorkspaceResponse byAmount =
+            DealerOpportunityController.getWorkspace('{"search":"$16,450","pageNumber":1,"pageSize":25}');
+        DealerOpportunityController.WorkspaceResponse byCountry =
+            DealerOpportunityController.getWorkspace('{"search":"United","pageNumber":1,"pageSize":25}');
+        DealerOpportunityController.WorkspaceResponse byCloseDate =
+            DealerOpportunityController.getWorkspace(
+                '{"search":"' + String.valueOf(futureShip.CloseDate) + '","pageNumber":1,"pageSize":25}'
+            );
+        DealerOpportunityController.WorkspaceResponse byShipDate =
+            DealerOpportunityController.getWorkspace(
+                '{"search":"' + String.valueOf(futureShip.Expected_Ship_Date__c) + '","pageNumber":1,"pageSize":25}'
+            );
+        Test.stopTest();
+
+        Assert.areEqual(1, byAmount.totalCount, 'A typed amount should match Opportunity Amount.');
+        Assert.areEqual('Future Ship Project', byAmount.opportunities[0].name, 'The amount search should return that opportunity.');
+        Assert.areEqual(4, byCountry.totalCount, 'Country search should match part of the country name.');
+        Assert.areEqual(1, byCloseDate.totalCount, 'A close date should match Expected Order Date.');
+        Assert.areEqual('Future Ship Project', byCloseDate.opportunities[0].name, 'The close date search should return that opportunity.');
+        Assert.areEqual(1, byShipDate.totalCount, 'A ship date should match Expected Ship Date.');
+    }
+
+    @IsTest
     static void createOpportunityAssignsDealerManager() {
         Account dealerAccount = [SELECT Id FROM Account WHERE Name = 'Authorized Dealer Midwest' LIMIT 1];
         AccountTeamMember dealerManager = [
@@ -77,12 +109,14 @@ private class DealerOpportunityControllerTest {
             AND User.LastName = 'Manager'
             LIMIT 1
         ];
+        String businessUnit = activeBusinessUnit();
         String requestJson = '{' +
             '"name":"New Clinic Opportunity",' +
             '"stageName":"Proposal",' +
             '"endCustomerName":"Cleveland Clinic",' +
             '"description":"Sterile processing expansion",' +
             '"country":"United States",' +
+            '"businessUnits":' + JSON.serialize(businessUnit) + ',' +
             '"amount":18000,' +
             '"currencyCode":"USD",' +
             '"closeDate":"' + String.valueOf(Date.today().addDays(30)) + '",' +
@@ -96,16 +130,48 @@ private class DealerOpportunityControllerTest {
         Test.stopTest();
 
         Opportunity createdOpportunity = [
-            SELECT OwnerId, StageName, CurrencyIsoCode, DealerSubmitter__c, DealerAccountName__c, EndCustomerName__c
+            SELECT OwnerId, StageName, CurrencyIsoCode, DealerSubmitter__c, DealerAccountName__c,
+                EndCustomerName__c, HCBusinessUnit__c
             FROM Opportunity
             WHERE Id = :opportunityId
         ];
         Assert.areEqual(dealerManager.UserId, createdOpportunity.OwnerId, 'The Dealer Manager should own the opportunity.');
         Assert.areEqual('Proposal', createdOpportunity.StageName, 'The stage selected on the form should be saved.');
+        Assert.areEqual(businessUnit, createdOpportunity.HCBusinessUnit__c, 'The selected business unit should be saved.');
         Assert.areEqual('USD', createdOpportunity.CurrencyIsoCode, 'Currency should default from the request.');
         Assert.areEqual(UserInfo.getUserId(), createdOpportunity.DealerSubmitter__c, 'The creator is stored as the submitter.');
         Assert.areEqual('Authorized Dealer Midwest', createdOpportunity.DealerAccountName__c, 'The dealer name should be stamped.');
         Assert.areEqual('Cleveland Clinic', createdOpportunity.EndCustomerName__c, 'The end customer should be stored.');
+    }
+
+    @IsTest
+    static void finalizeCreatedOpportunityAssignsDealerManager() {
+        AccountTeamMember dealerManager = [
+            SELECT UserId
+            FROM AccountTeamMember
+            WHERE Account.Name = 'Authorized Dealer Midwest'
+            AND User.FirstName = 'Dana'
+            AND User.LastName = 'Manager'
+            LIMIT 1
+        ];
+        Opportunity opportunityRecord = [
+            SELECT Id
+            FROM Opportunity
+            WHERE Name = 'Future Ship Project'
+            LIMIT 1
+        ];
+
+        Test.startTest();
+        DealerOpportunityController.finalizeCreatedOpportunity(opportunityRecord.Id);
+        Test.stopTest();
+
+        Opportunity reloaded = [
+            SELECT OwnerId, DealerSubmitter__c
+            FROM Opportunity
+            WHERE Id = :opportunityRecord.Id
+        ];
+        Assert.areEqual(dealerManager.UserId, reloaded.OwnerId, 'The Dealer Manager should own the opportunity.');
+        Assert.areEqual(UserInfo.getUserId(), reloaded.DealerSubmitter__c, 'The creator is stored as the submitter.');
     }
 
     @IsTest
@@ -118,6 +184,12 @@ private class DealerOpportunityControllerTest {
         Assert.areEqual(false, context.partnerUser, 'The running test user is an internal user.');
         Assert.isTrue(context.stages.contains('Evaluation'), 'Dealer stages should be offered on create.');
         Assert.isFalse(context.stages.contains('Discovery'), 'Discovery is not a Dealer record type stage.');
+        Assert.isFalse(context.businessUnits.isEmpty(), 'Business Unit choices should be available on create.');
+        Assert.areEqual(
+            dealerRecordTypeId(),
+            context.recordTypeId,
+            'The standard form should open on the Dealer record type.'
+        );
     }
 
     @IsTest
@@ -173,6 +245,16 @@ private class DealerOpportunityControllerTest {
             );
         }
         Test.stopTest();
+    }
+
+    private static String activeBusinessUnit() {
+        for (Schema.PicklistEntry entry : Opportunity.HCBusinessUnit__c.getDescribe().getPicklistValues()) {
+            if (entry.isActive()) {
+                return entry.getValue();
+            }
+        }
+        Assert.fail('Business Unit should have an active value.');
+        return null;
     }
 
     private static Opportunity buildOpportunity(

@@ -149,20 +149,6 @@ export default class FsrFieldServiceReport extends LightningElement {
 
     @wire(graphql, { query: FSR_QUERY, variables: '$queryVariables' })
     wiredReport({ data, errors }) {
-        if (data) {
-            // eslint-disable-next-line no-console
-            console.table(
-                (data.uiapi.query.WorkOrderLineItem?.edges ?? []).map(({ node }) => ({
-                    id: node.Id,
-                    lineType: node.LineType__c?.value,
-                    expenseType: node.ExpenseType__c?.value,
-                    qty: node.UnitQty__c?.value ?? node.Quantity?.value,
-                    unitPrice: node.UnitPrice__c?.value ?? node.UnitPrice?.value,
-                    total: node.TotalPrice__c?.value ?? node.TotalPrice?.value,
-                    asset: node.Asset?.Name?.value
-                }))
-            );
-        }
         if (errors) {
             this.errorMessage = errors.map((e) => e.message).join('; ');
             return;

@@ -106,17 +106,27 @@ public without sharing class MobileDevicePictureLinkHandler {
             return;
         }
         Set<Id> pictureDocumentIds = new Set<Id>();
-        for (ContentVersion version : [
-            SELECT ContentDocumentId
+        List<ContentVersion> pictureVersions = [
+            SELECT Id, ContentDocumentId, Description
             FROM ContentVersion
             WHERE ContentDocumentId IN :documentIds
                 AND IsLatest = true
-                AND Description = :WoDebriefIMSchildWOController.MOBILE_DEVICE_PICTURE_MARKER
-        ]) {
+                AND (
+                    Description = :WoDebriefIMSchildWOController.MOBILE_DEVICE_PICTURE_MARKER
+                    OR Title = :WoDebriefIMSchildWOController.MOBILE_DEVICE_PICTURE_TITLE
+                )
+        ];
+        for (ContentVersion version : pictureVersions) {
             pictureDocumentIds.add(version.ContentDocumentId);
         }
         if (pictureDocumentIds.isEmpty()) {
             return;
+        }
+        try {
+            WoDebriefIMSchildWOController.applyPictureDetailsFromDescription(pictureVersions);
+        } catch (Exception ex) {
+            Logger.error('MobileDevicePictureLinkHandler.completeMobileAppPictureLinks picture details failed', ex);
+            Logger.saveLog();
         }
         List<ContentDocumentLink> pictureLinks = new List<ContentDocumentLink>();
         Set<Id> lineIds = new Set<Id>();

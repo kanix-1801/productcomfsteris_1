@@ -31,9 +31,11 @@ public without sharing class MockRoomORICalendarSelector {
             'Submitted for Approval',
             'Approved'
         };
+        Date lookbackStart = rangeStart == null ? Date.today().addDays(-366) : rangeStart.addDays(-366);
         return [
-            SELECT Id, Name, Status__c, RecordType.Name,
-                PrimaryRequestedDate__c, BackupRequestedDate__c, ConfirmedDate__c
+            SELECT Id, Name, Status__c, RecordType.Name, Account__r.Name,
+                PrimaryRequestedDate__c, BackupRequestedDate__c, ConfirmedDate__c,
+                EventDurationDays__c
             FROM MockRoomOrORIRequest__c
             WHERE (
                 Status__c IN :sharedStatuses
@@ -44,8 +46,9 @@ public without sharing class MockRoomORICalendarSelector {
                 )
             )
             AND (
-                (PrimaryRequestedDate__c >= :rangeStart AND PrimaryRequestedDate__c <= :rangeEnd)
-                OR (BackupRequestedDate__c >= :rangeStart AND BackupRequestedDate__c <= :rangeEnd)
+                (PrimaryRequestedDate__c >= :lookbackStart AND PrimaryRequestedDate__c <= :rangeEnd)
+                OR (BackupRequestedDate__c >= :lookbackStart AND BackupRequestedDate__c <= :rangeEnd)
+                OR (ConfirmedDate__c >= :lookbackStart AND ConfirmedDate__c <= :rangeEnd)
             )
         ];
     }

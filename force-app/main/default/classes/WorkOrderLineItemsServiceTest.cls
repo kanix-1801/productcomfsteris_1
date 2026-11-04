@@ -1827,8 +1827,11 @@ private class WorkOrderLineItemsServiceTest {
         Assert.isTrue(productMissing, 'Null product should be rejected');
         Assert.isTrue(quantityInvalid, 'Zero quantity should be rejected');
         Assert.isNotNull(lineId, 'Persist should create a Product Serviced line');
-        // GW-5869 - GW-5328 Product Line assert removed: the service does not stamp
-        // ProductLine__c = 'INSTRUMENT' yet (same skip as WorkOrdersServiceTest). Restore with GW-5328.
+        Assert.areEqual(
+            'INSTRUMENT',
+            mappedLine.ProductLine__c,
+            'GW-5328 Product Serviced Product Line should be INSTRUMENT'
+        );
         Assert.isFalse(lines.isEmpty(), 'Instrument Evaluation lines should be readable');
         Assert.areEqual(lineId, syncedId, 'Sync should return the same line');
         Assert.areEqual(

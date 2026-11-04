@@ -50,6 +50,7 @@ public with sharing class MockRoomORICalendarController {
         @AuraEnabled public String requestId;
         @AuraEnabled public String requestName;
         @AuraEnabled public String requestType;
+        @AuraEnabled public String accountName;
         @AuraEnabled public String status;
         @AuraEnabled public Date eventDate;
         @AuraEnabled public String dateRole;

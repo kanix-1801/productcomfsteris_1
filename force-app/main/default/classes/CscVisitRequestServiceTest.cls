@@ -255,7 +255,7 @@ private class CscVisitRequestServiceTest {
     }
 
     @IsTest
-    static void approvedConfirmedDateDoesNotReleaseTheOtherDate() {
+    static void approvedConfirmedDateReleasesTheOtherDate() {
         System.runAs(salesRep()) {
         Date primaryDate = nextWeekday(0);
         Date backupDate = nextWeekday(1);
@@ -272,7 +272,9 @@ private class CscVisitRequestServiceTest {
         List<CscVisitRequestService.UnavailableDate> rows =
             CscVisitRequestService.getUnavailableDates(LOCATION, primaryDate, backupDate);
 
-        System.assertEquals(2, rows.size(), 'The backup date stays held until Status is Confirmed');
+        System.assertEquals(1, rows.size(), 'The other requested date is released when Confirmed Date is set');
+        System.assertEquals(String.valueOf(primaryDate), rows[0].dateValue);
+        System.assertEquals(CscVisitRequestSelector.UNAVAILABLE_PENDING, rows[0].reason);
         }
     }
 

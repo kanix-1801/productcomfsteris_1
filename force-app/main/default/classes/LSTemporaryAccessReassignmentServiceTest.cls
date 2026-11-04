@@ -6,6 +6,7 @@ private class LSTemporaryAccessReassignmentServiceTest {
         User originalRep = insertUser('orig');
         User coverageRep = insertUser('cov');
         stopTemporaryAccessFlows(UserInfo.getUserId());
+        insert new Automation_Setting_Validation_Rule__c(SetupOwnerId = UserInfo.getUserId(), disableAll__c = true);
         Account covered = new Account(Name = 'GCL103 Covered');
         Account other = new Account(Name = 'GCL103 Other');
         insert new List<Account>{ covered, other };
@@ -14,6 +15,8 @@ private class LSTemporaryAccessReassignmentServiceTest {
             SELECT MasterLabel
             FROM OpportunityStage
             WHERE IsActive = true
+              AND IsClosed = false
+            ORDER BY SortOrder
             LIMIT 1
         ].MasterLabel;
         Opportunity coveredOpportunity = new Opportunity(

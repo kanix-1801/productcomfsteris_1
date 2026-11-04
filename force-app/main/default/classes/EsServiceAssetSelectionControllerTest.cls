@@ -30,96 +30,114 @@ private class EsServiceAssetSelectionControllerTest {
 
     @TestSetup
     static void setupTestData() {
-        AutomationControl.setAllDisabled(true);
+        EsServiceTestDataFactory.grantAccess();
+        // The test permission set applies inside runAs, so the data is created as the test user.
+        System.runAs(new User(Id = UserInfo.getUserId())) {
+            AutomationControl.setAllDisabled(true);
 
-        adb_Account parentBuilder = new adb_Account().name('ESPC Parent Account');
-        parentBuilder.persist();
-        adb_Account childBuilder = new adb_Account().name('ESPC Child Account');
-        childBuilder.persist();
+            adb_Account parentBuilder = new adb_Account().name('ESPC Parent Account');
+            parentBuilder.persist();
+            adb_Account childBuilder = new adb_Account().name('ESPC Child Account');
+            childBuilder.persist();
 
-        insert new AccountAccountRelationship__c(
-            ChildAccount__c = childBuilder.id,
-            ParentAccount__c = parentBuilder.id,
-            RelationshipType__c = getFirstActiveValue(AccountAccountRelationship__c.RelationshipType__c.getDescribe())
-        );
+            insert new AccountAccountRelationship__c(
+                ChildAccount__c = childBuilder.id,
+                ParentAccount__c = parentBuilder.id,
+                RelationshipType__c = getFirstActiveValue(
+                    AccountAccountRelationship__c.RelationshipType__c.getDescribe()
+                )
+            );
 
-        Contact primaryContact = new Contact(FirstName = 'ESPC', LastName = 'Contact', AccountId = childBuilder.id);
-        insert primaryContact;
+            Contact primaryContact = new Contact(FirstName = 'ESPC', LastName = 'Contact', AccountId = childBuilder.id);
+            insert primaryContact;
 
-        Id pricebookId = Test.getStandardPricebookId();
-        Opportunity opportunityRecord = new Opportunity(
-            Name = 'ESPC Test Opportunity',
-            AccountId = childBuilder.id,
-            StageName = getFirstActiveValue(Opportunity.StageName.getDescribe()),
-            ForecastConfidenceLevel__c = getFirstActiveValue(Opportunity.ForecastConfidenceLevel__c.getDescribe()),
-            Type = getFirstActiveValue(Opportunity.Type.getDescribe()),
-            PrimaryContact__c = primaryContact.Id,
-            CloseDate = Date.today().addDays(30),
-            Amount = 1000,
-            Probability = 10,
-            Pricebook2Id = pricebookId
-        );
-        insert opportunityRecord;
+            Id pricebookId = Test.getStandardPricebookId();
+            Opportunity opportunityRecord = new Opportunity(
+                Name = 'ESPC Test Opportunity',
+                AccountId = childBuilder.id,
+                StageName = getFirstActiveValue(Opportunity.StageName.getDescribe()),
+                ForecastConfidenceLevel__c = getFirstActiveValue(Opportunity.ForecastConfidenceLevel__c.getDescribe()),
+                Type = getFirstActiveValue(Opportunity.Type.getDescribe()),
+                PrimaryContact__c = primaryContact.Id,
+                CloseDate = Date.today().addDays(30),
+                Amount = 1000,
+                Probability = 10,
+                Pricebook2Id = pricebookId
+            );
+            insert opportunityRecord;
 
-        adb_PFCL pfclBuilder = new adb_PFCL().name(PFCL_NAME).pfcl('ESPC-PFCL');
-        pfclBuilder.persist();
+            adb_PFCL pfclBuilder = new adb_PFCL().name(PFCL_NAME).pfcl('ESPC-PFCL');
+            pfclBuilder.persist();
 
-        Product2 productRecord = new Product2(Name = 'ESPC Test Product', IsActive = true, PFCL__c = pfclBuilder.id);
-        insert productRecord;
-        PricebookEntry pricebookEntryRecord = new PricebookEntry(
-            Pricebook2Id = pricebookId,
-            Product2Id = productRecord.Id,
-            UnitPrice = 100,
-            IsActive = true
-        );
-        insert pricebookEntryRecord;
+            Product2 productRecord = new Product2(
+                Name = 'ESPC Test Product', IsActive = true, PFCL__c = pfclBuilder.id
+            );
+            insert productRecord;
+            PricebookEntry pricebookEntryRecord = new PricebookEntry(
+                Pricebook2Id = pricebookId,
+                Product2Id = productRecord.Id,
+                UnitPrice = 100,
+                IsActive = true
+            );
+            insert pricebookEntryRecord;
 
-        Asset childAsset = new Asset(
-            Name = CHILD_ASSET_NAME,
-            SerialNumber = CHILD_SERIAL,
-            AccountId = childBuilder.id,
-            Product2Id = productRecord.Id,
-            Street = '5960 Heisley Rd',
-            City = 'Mentor',
-            PostalCode = '44060',
-            InstallDate = Date.today().addYears(-1),
-            Status = 'Purchased',
-            Quantity = 1
-        );
-        Asset parentAsset = new Asset(
-            Name = 'ESPC Parent Account Asset',
-            SerialNumber = PARENT_SERIAL,
-            AccountId = parentBuilder.id,
-            Product2Id = productRecord.Id,
-            Status = 'Purchased',
-            Quantity = 1
-        );
-        insert new List<Asset>{ childAsset, parentAsset };
+            Asset childAsset = new Asset(
+                Name = CHILD_ASSET_NAME,
+                SerialNumber = CHILD_SERIAL,
+                AccountId = childBuilder.id,
+                Product2Id = productRecord.Id,
+                Street = '5960 Heisley Rd',
+                City = 'Mentor',
+                PostalCode = '44060',
+                InstallDate = Date.today().addYears(-1),
+                Status = 'Purchased',
+                Quantity = 1
+            );
+            Asset parentAsset = new Asset(
+                Name = 'ESPC Parent Account Asset',
+                SerialNumber = PARENT_SERIAL,
+                AccountId = parentBuilder.id,
+                Product2Id = productRecord.Id,
+                Status = 'Purchased',
+                Quantity = 1
+            );
+            insert new List<Asset>{ childAsset, parentAsset };
 
-        Quote quoteRecord = new Quote(
-            Name = 'ESPC Test Quote',
-            OpportunityId = opportunityRecord.Id,
-            Pricebook2Id = pricebookId
-        );
-        insert quoteRecord;
+            Quote quoteRecord = new Quote(
+                Name = 'ESPC Test Quote',
+                OpportunityId = opportunityRecord.Id,
+                Pricebook2Id = pricebookId
+            );
+            insert quoteRecord;
 
-        insert new QuoteLineItem(
-            QuoteId = quoteRecord.Id,
-            PricebookEntryId = pricebookEntryRecord.Id,
-            Quantity = 1,
-            UnitPrice = 100,
-            Asset__c = childAsset.Id,
-            PFCL__c = pfclBuilder.id,
-            RequestedNumberofPMVisits__c = REQUESTED_VISITS,
-            SelectedAssets__c = JSON.serialize(new List<Id>{ childAsset.Id, parentAsset.Id }),
-            AssetVisits__c = ASSET_VISITS_JSON
-        );
+            insert new QuoteLineItem(
+                QuoteId = quoteRecord.Id,
+                PricebookEntryId = pricebookEntryRecord.Id,
+                Quantity = 1,
+                UnitPrice = 100,
+                Asset__c = childAsset.Id,
+                PFCL__c = pfclBuilder.id,
+                RequestedNumberofPMVisits__c = REQUESTED_VISITS,
+                SelectedAssets__c = JSON.serialize(new List<Id>{ childAsset.Id, parentAsset.Id }),
+                AssetVisits__c = ASSET_VISITS_JSON
+            );
 
-        AutomationControl.setAllDisabled(false);
+            AutomationControl.setAllDisabled(false);
+        }
     }
 
+    // Read as the test user (inside runAs) so the test permission set applies.
     private static QuoteLineItem getLine() {
-        return [SELECT Id, QuoteId, Quote.AccountId, Product2Id, SelectedAssets__c FROM QuoteLineItem LIMIT 1];
+        QuoteLineItem line;
+        System.runAs(new User(Id = UserInfo.getUserId())) {
+            line = [
+                SELECT Id, QuoteId, Quote.AccountId, Product2Id, SelectedAssets__c
+                FROM QuoteLineItem
+                WITH USER_MODE
+                LIMIT 1
+            ];
+        }
+        return line;
     }
 
     /**
@@ -131,7 +149,7 @@ private class EsServiceAssetSelectionControllerTest {
         User contextUser = new User(Id = UserInfo.getUserId());
         QuoteLineItem line = getLine();
 
-        Assert.areEqual(2, [SELECT COUNT() FROM Asset], 'Two assets should exist');
+        Assert.areEqual(2, [SELECT COUNT() FROM Asset WITH USER_MODE], 'Two assets should exist');
 
         EsServiceAssetSelectionController.AssetList result;
         Test.startTest();
@@ -185,7 +203,7 @@ private class EsServiceAssetSelectionControllerTest {
     @IsTest
     static void testGetAssetsByIds() {
         User contextUser = new User(Id = UserInfo.getUserId());
-        Asset childAsset = [SELECT Id FROM Asset WHERE SerialNumber = :CHILD_SERIAL];
+        Asset childAsset = [SELECT Id FROM Asset WHERE SerialNumber = :CHILD_SERIAL WITH USER_MODE];
 
         Assert.isNotNull(childAsset.Id, 'The asset should exist');
 
@@ -235,7 +253,10 @@ private class EsServiceAssetSelectionControllerTest {
     @IsTest
     static void testGetLineAsset() {
         User contextUser = new User(Id = UserInfo.getUserId());
-        QuoteLineItem line = [SELECT Id, Asset__c, AssetName__c, PFCLName__c FROM QuoteLineItem LIMIT 1];
+        QuoteLineItem line;
+        System.runAs(contextUser) {
+            line = [SELECT Id, Asset__c, AssetName__c, PFCLName__c FROM QuoteLineItem WITH USER_MODE LIMIT 1];
+        }
 
         Assert.isTrue(String.isBlank(line.AssetName__c), 'Asset name text should be blank to test the fallback');
 
@@ -306,7 +327,7 @@ private class EsServiceAssetSelectionControllerTest {
             'getLineAsset: unable to load the line asset', line.Id, cause, 'Unable to load this line\'s asset.'
         );
         Test.stopTest();
-        
+
         Assert.areEqual('Unable to load this line\'s asset.', result.getMessage(), 'Message shown in the LWC');
         Assert.areEqual(1, Logger.getBufferSize(), 'The failure should be logged');
     }

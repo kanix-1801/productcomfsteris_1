@@ -6,8 +6,6 @@
  */
 public with sharing class OppEppConversionQuoteService {
     private static final String CLASS_NAME = 'OppEppConversionQuoteService';
-    @TestVisible
-    private static final String CONVERTED_TO_EPP_DISPOSITION = 'Converted to EPP';
 
     public class QuoteRow {
         @AuraEnabled
@@ -195,7 +193,6 @@ public with sharing class OppEppConversionQuoteService {
             quoteIds,
             UserInfo.getUserId()
         );
-        markQuotesConvertedToEpp(quoteIds);
     }
 
     public static void closeAllOpenQuotes(Id opportunityId) {
@@ -226,7 +223,6 @@ public with sharing class OppEppConversionQuoteService {
                 quoteIdsToClose,
                 UserInfo.getUserId()
             );
-            markQuotesConvertedToEpp(quoteIdsToClose);
         }
 
         clearBannerFlag(opportunityId);
@@ -238,50 +234,6 @@ public with sharing class OppEppConversionQuoteService {
         }
 
         clearBannerFlag(opportunityId);
-    }
-
-    private static void markQuotesConvertedToEpp(Set<Id> quoteIds) {
-        if (quoteIds == null || quoteIds.isEmpty()) {
-            return;
-        }
-
-        List<Quote> quotesToUpdate = new List<Quote>();
-        for (Quote quoteRecord : [
-            SELECT Id
-            FROM Quote
-            WHERE Id IN :quoteIds
-              AND Status = :QuoteSelector.CLOSED_STATUS_VALUE
-            WITH SYSTEM_MODE
-        ]) {
-            quotesToUpdate.add(
-                new Quote(
-                    Id = quoteRecord.Id,
-                    ClosureDisposition__c = CONVERTED_TO_EPP_DISPOSITION,
-                    Forecast_Eligible__c = false
-                )
-            );
-        }
-
-        if (quotesToUpdate.isEmpty()) {
-            return;
-        }
-
-        Database.SaveResult[] saveResults = Database.update(
-            quotesToUpdate,
-            false,
-            AccessLevel.SYSTEM_MODE
-        );
-        for (Database.SaveResult saveResult : saveResults) {
-            if (saveResult.isSuccess()) {
-                continue;
-            }
-            String failureDetail = saveResult.getErrors().isEmpty()
-                ? 'Unable to record the EPP conversion quote disposition.'
-                : saveResult.getErrors()[0].getMessage();
-            AuraHandledException dispositionException = new AuraHandledException(failureDetail);
-            dispositionException.setMessage(failureDetail);
-            throw dispositionException;
-        }
     }
 
     private static void clearBannerFlag(Id opportunityId) {

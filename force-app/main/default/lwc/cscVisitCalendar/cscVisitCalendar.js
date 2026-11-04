@@ -9,6 +9,7 @@ import ERROR_DATE_REQUIRED from '@salesforce/label/c.Calendar_Error_Date_Require
 import ERROR_DATES_MUST_DIFFER from '@salesforce/label/c.Calendar_Error_Dates_Must_Differ';
 import PRIMARY_DATE_LABEL from '@salesforce/label/c.CSC_Primary_Requested_Date';
 import BACKUP_DATE_LABEL from '@salesforce/label/c.CSC_Backup_Requested_Date';
+import SELECT_AVAILABLE_DATE from '@salesforce/label/c.CSC_Select_Available_Date';
 
 const TEXT = {
     available: 'Available',
@@ -225,7 +226,7 @@ export default class CscVisitCalendar extends LightningElement {
         }
         if (this.isChangeMode) {
             if (!this._primaryDate) {
-                return { isValid: false, errorMessage: 'Select an available date.' };
+                return { isValid: false, errorMessage: SELECT_AVAILABLE_DATE };
             }
             return { isValid: true };
         }

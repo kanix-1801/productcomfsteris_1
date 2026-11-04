@@ -323,12 +323,16 @@ private class ActionLauncherControllerTest {
         Boolean exceptionThrown = false;
 
         try {
-            throw new ActionLauncherException(expectedMessage);
+            throwActionLauncherException(expectedMessage);
         } catch (ActionLauncherException exceptionValue) {
             exceptionThrown = true;
             System.assertEquals(expectedMessage, exceptionValue.getMessage());
         }
 
         System.assert(exceptionThrown, 'ActionLauncherException should be throwable.');
+    }
+
+    private static void throwActionLauncherException(String expectedMessage) {
+        throw new ActionLauncherException(expectedMessage);
     }
 }

@@ -21,11 +21,17 @@ private class ReturnOrdersSelectorTest {
         returnOrder.AccountId = accountBuilder.id;
         update returnOrder;
 
+        // Outbound RT matches ReturnOrderLineItemsSelectorTest; avoids inaccessible defaults on insert.
+        Id outboundRtId = Schema.SObjectType.ReturnOrderLineItem.getRecordTypeInfosByDeveloperName()
+            .get('Outbound')
+            .getRecordTypeId();
+
         ReturnOrderLineItem lineItem = (ReturnOrderLineItem) new adb_ReturnOrderLineItem()
             .quantityReturned(1)
             .record;
         lineItem.ReturnOrderId = returnOrder.Id;
         lineItem.Product2Id = productBuilder.id;
+        lineItem.RecordTypeId = outboundRtId;
         insert lineItem;
     }
 

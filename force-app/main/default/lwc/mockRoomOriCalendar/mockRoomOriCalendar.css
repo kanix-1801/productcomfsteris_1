@@ -161,6 +161,7 @@
     line-height: 1.35;
     white-space: nowrap;
     text-overflow: ellipsis;
+    text-decoration: none;
 }
 
 .pending {

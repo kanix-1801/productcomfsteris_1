@@ -17,8 +17,8 @@ import GENERATE_QUOTE_REFRESH from '@salesforce/messageChannel/generateQuoteRefr
 import getQuotes from '@salesforce/apex/GenerateQuoteController.getQuotes';
 import refreshQuotes from '@salesforce/apex/GenerateQuoteController.refreshQuotes';
 import createQuote from '@salesforce/apex/LSGenerateQuoteController.createQuote';   //GCL-66
-import copyQuote from '@salesforce/apex/GenerateQuoteController.copyQuote';
-import mergeQuote from '@salesforce/apex/GenerateQuoteController.mergeQuote';
+import copyQuote from '@salesforce/apex/LSGenerateQuoteController.copyQuote';
+import mergeQuote from '@salesforce/apex/LSGenerateQuoteController.mergeQuote';
 import validateQuoteAccess from '@salesforce/apex/LSGenerateQuoteController.validateQuoteAccess';
 import getSalesConnectionQuoteUrl from '@salesforce/apex/GenerateQuoteController.getSalesConnectionQuoteUrl';
 import syncQuoteForecastConfidence from '@salesforce/apex/GenerateQuoteController.syncQuoteForecastConfidence';

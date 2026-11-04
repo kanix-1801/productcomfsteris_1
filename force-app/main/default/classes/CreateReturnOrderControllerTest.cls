@@ -28,6 +28,27 @@ private class CreateReturnOrderControllerTest {
         return 'No, Item is not Disinfected';
     }
 
+    private static Account insertRoutingShipTo(
+        Id parentAccountId,
+        String name,
+        String sourceSystemId,
+        String stateCode
+    ) {
+        Account shipTo = new Account(
+            Name = name,
+            ParentId = parentAccountId,
+            SourceSystemID__c = sourceSystemId,
+            Type = 'Address',
+            ShiptoAddressStatus__c = 'Primary'
+        );
+        if (String.isNotBlank(stateCode)) {
+            shipTo.BillingCountryCode = 'US';
+            shipTo.BillingStateCode = stateCode;
+        }
+        insert shipTo;
+        return shipTo;
+    }
+
     private static String getEstimateRequiredFieldApiName() {
         if (
             Schema.SObjectType.ReturnOrderLineItem.fields.getMap()
@@ -710,9 +731,9 @@ private class CreateReturnOrderControllerTest {
         List<Object> lines = new List<Object>{
             new Map<String, Object>{
                 'serialized' => true,
-                'serialNumber' => 'MANUAL-SN-999',
+                'serialNumber' => 'manual-sn-999',
                 'product2Id' => product.Id,
-                'model' => 'Manual Model',
+                'model' => 'Manual Model abc',
                 'productLine' => 'Surgical',
                 'departmentId' => testDepartment.Id,
                 'contactId' => contact.Id,
@@ -731,13 +752,14 @@ private class CreateReturnOrderControllerTest {
         Test.stopTest();
 
         ReturnOrderLineItem lineItem = [
-            SELECT AssetId, SerialNumber__c
+            SELECT AssetId, Model__c, SerialNumber__c
             FROM ReturnOrderLineItem
             WHERE ReturnOrderId = :result.returnOrderId
             LIMIT 1
         ];
         System.assertEquals(null, lineItem.AssetId);
         System.assertEquals('MANUAL-SN-999', lineItem.SerialNumber__c);
+        System.Assert.areEqual('MANUAL MODEL ABC', lineItem.Model__c);
     }
 
     @isTest
@@ -1416,12 +1438,25 @@ private class CreateReturnOrderControllerTest {
             WHERE Id = :result.contactId
             LIMIT 1
         ];
-        System.assertEquals(account.Id, created.AccountId);
         System.assertEquals('Jane', created.FirstName);
         System.assertEquals('Doe', created.LastName);
         System.assertEquals('jane.doe@example.com', created.Email);
         System.assertEquals('555-0100', created.Phone);
         System.assertEquals('Clinical Engineer', created.Title);
+
+        System.assertEquals(account.Id, created.AccountId);
+
+        List<Contact> eligibleContacts = CreateReturnOrderController.getContactsForAccount(
+            account.Id
+        );
+        Set<Id> eligibleIds = new Set<Id>();
+        for (Contact eligibleContact : eligibleContacts) {
+            eligibleIds.add(eligibleContact.Id);
+        }
+        System.assert(
+            eligibleIds.contains(result.contactId),
+            'Created contact should appear in eligible contact list.'
+        );
     }
 
     @isTest
@@ -1855,8 +1890,12 @@ private class CreateReturnOrderControllerTest {
     @isTest
     static void testBuildReturnOrderPlan_splitsModRequestLine() {
         Account account = [SELECT Id FROM Account LIMIT 1];
-        account.BillingState = 'Ohio';
-        update account;
+        Account shipTo = insertRoutingShipTo(
+            account.Id,
+            'Mod Request Ship-To',
+            'TEST-ORACLE-MOD-SHIPTO',
+            'OH'
+        );
 
         Contact contact = [SELECT Id FROM Contact LIMIT 1];
         Department__c testDepartment = [SELECT Id FROM Department__c LIMIT 1];
@@ -1888,6 +1927,7 @@ private class CreateReturnOrderControllerTest {
                 'departmentId' => testDepartment.Id,
                 'contactId' => contact.Id,
                 'modRequest' => false,
+                'shipToAccountId' => String.valueOf(shipTo.Id),
                 'quantityReturned' => 1
             },
             new Map<String, Object>{
@@ -1898,6 +1938,7 @@ private class CreateReturnOrderControllerTest {
                 'departmentId' => testDepartment.Id,
                 'contactId' => contact.Id,
                 'modRequest' => true,
+                'shipToAccountId' => String.valueOf(shipTo.Id),
                 'quantityReturned' => 1
             }
         };
@@ -2098,10 +2139,351 @@ private class CreateReturnOrderControllerTest {
     }
 
     @isTest
+    static void testBuildReturnOrderPlan_splitsProductLinesAtSameRepairCenter() {
+        Account account = [SELECT Id FROM Account LIMIT 1];
+        Contact contact = [SELECT Id FROM Contact LIMIT 1];
+        Department__c testDepartment = [SELECT Id FROM Department__c LIMIT 1];
+        Product2 rigidProduct = new Product2(
+            Name = 'Rigid Product',
+            ProductType__c = 'Service Asset',
+            ProductLine__c = 'RIGID',
+            IsActive = true
+        );
+        Product2 powerProduct = new Product2(
+            Name = 'Power Product',
+            ProductType__c = 'Service Asset',
+            ProductLine__c = 'POWER',
+            IsActive = true
+        );
+        insert new List<Product2>{ rigidProduct, powerProduct };
+
+        Schema.Location repairCenter = new Schema.Location(
+            Name = 'Shared Product Line Repair Center',
+            LocationType = 'Repair Center'
+        );
+        insert repairCenter;
+
+        insert new List<RepairCenterRoutingRule__c>{
+            new RepairCenterRoutingRule__c(
+                OperatingUnit__c = '82',
+                ProductLine__c = 'RIGID',
+                RepairCenter__c = repairCenter.Id
+            ),
+            new RepairCenterRoutingRule__c(
+                OperatingUnit__c = '82',
+                ProductLine__c = 'POWER',
+                RepairCenter__c = repairCenter.Id
+            )
+        };
+
+        Map<String, Object> header = new Map<String, Object>{
+            'accountId' => account.Id,
+            'operatingUnit' => '82'
+        };
+        List<Object> lines = new List<Object>{
+            new Map<String, Object>{
+                'lineKey' => 'line-rigid',
+                'lineType' => 'serialized',
+                'serialized' => true,
+                'product2Id' => rigidProduct.Id,
+                'productLine' => 'RIGID',
+                'departmentId' => testDepartment.Id,
+                'contactId' => contact.Id,
+                'disinfected' => getDisinfectedYesValueForTest()
+            },
+            new Map<String, Object>{
+                'lineKey' => 'line-power',
+                'lineType' => 'serialized',
+                'serialized' => true,
+                'product2Id' => powerProduct.Id,
+                'productLine' => 'POWER',
+                'departmentId' => testDepartment.Id,
+                'contactId' => contact.Id,
+                'disinfected' => getDisinfectedYesValueForTest()
+            }
+        };
+
+        Test.startTest();
+        List<CreateReturnOrderController.ProposedReturnOrderGroup> groups =
+            CreateReturnOrderController.buildReturnOrderPlan(
+                JSON.serialize(header),
+                JSON.serialize(lines)
+            );
+        Test.stopTest();
+
+        System.Assert.areEqual(
+            2,
+            groups.size(),
+            'Different product lines routed to the same center must use separate return orders.'
+        );
+        for (CreateReturnOrderController.ProposedReturnOrderGroup proposedGroup : groups) {
+            System.Assert.areEqual(1, proposedGroup.lineCount);
+            System.Assert.areEqual(String.valueOf(repairCenter.Id), proposedGroup.repairCenterId);
+        }
+    }
+
+    @isTest
+    static void testBuildReturnOrderPlan_splitsCustomerPoAtSameRepairCenter() {
+        Account account = [SELECT Id FROM Account LIMIT 1];
+        Contact contact = [SELECT Id FROM Contact LIMIT 1];
+        Department__c testDepartment = [SELECT Id FROM Department__c LIMIT 1];
+        Product2 product = new Product2(
+            Name = 'Other PO Split Product',
+            ProductType__c = 'Service Asset',
+            ProductLine__c = 'VIDEO',
+            IsActive = true
+        );
+        insert product;
+
+        Schema.Location repairCenter = new Schema.Location(
+            Name = 'Shared PO Repair Center',
+            LocationType = 'Repair Center'
+        );
+        insert repairCenter;
+
+        insert new RepairCenterRoutingRule__c(
+            OperatingUnit__c = '82',
+            ProductLine__c = 'VIDEO',
+            RepairCenter__c = repairCenter.Id
+        );
+
+        Map<String, Object> header = new Map<String, Object>{
+            'accountId' => account.Id,
+            'operatingUnit' => '82'
+        };
+        List<Object> lines = new List<Object>{
+            new Map<String, Object>{
+                'lineKey' => 'po-100-a',
+                'lineType' => 'other-non-serialized',
+                'serialized' => false,
+                'product2Id' => product.Id,
+                'productLine' => 'VIDEO',
+                'itemType' => 'Cable',
+                'departmentId' => testDepartment.Id,
+                'contactId' => contact.Id,
+                'customerPo' => 'PO-100',
+                'disinfected' => getDisinfectedYesValueForTest(),
+                'reportedProblem' => 'Cable issue',
+                'quantityReturned' => 1
+            },
+            new Map<String, Object>{
+                'lineKey' => 'po-100-b',
+                'lineType' => 'other-non-serialized',
+                'serialized' => false,
+                'product2Id' => product.Id,
+                'productLine' => 'VIDEO',
+                'itemType' => 'Cable',
+                'departmentId' => testDepartment.Id,
+                'contactId' => contact.Id,
+                'customerPo' => 'po-100',
+                'disinfected' => getDisinfectedYesValueForTest(),
+                'reportedProblem' => 'Cable issue two',
+                'quantityReturned' => 1
+            },
+            new Map<String, Object>{
+                'lineKey' => 'po-200',
+                'lineType' => 'other-non-serialized',
+                'serialized' => false,
+                'product2Id' => product.Id,
+                'productLine' => 'VIDEO',
+                'itemType' => 'Cable',
+                'departmentId' => testDepartment.Id,
+                'contactId' => contact.Id,
+                'customerPo' => 'PO-200',
+                'disinfected' => getDisinfectedYesValueForTest(),
+                'reportedProblem' => 'Cable issue three',
+                'quantityReturned' => 1
+            }
+        };
+
+        Test.startTest();
+        List<CreateReturnOrderController.ProposedReturnOrderGroup> groups =
+            CreateReturnOrderController.buildReturnOrderPlan(
+                JSON.serialize(header),
+                JSON.serialize(lines)
+            );
+        Test.stopTest();
+
+        System.Assert.areEqual(
+            2,
+            groups.size(),
+            'Different customer PO numbers must use separate return orders.'
+        );
+        Set<Integer> lineCounts = new Set<Integer>();
+        for (CreateReturnOrderController.ProposedReturnOrderGroup proposedGroup : groups) {
+            lineCounts.add(proposedGroup.lineCount);
+            System.Assert.areEqual(String.valueOf(repairCenter.Id), proposedGroup.repairCenterId);
+        }
+        System.Assert.areEqual(new Set<Integer>{ 1, 2 }, lineCounts);
+    }
+
+    @isTest
+    static void testBuildReturnOrderPlan_splitsShipToAtSameRepairCenter() {
+        Account account = [SELECT Id FROM Account WHERE Name = 'Return Order Test Account' LIMIT 1];
+        Contact contact = [SELECT Id FROM Contact LIMIT 1];
+        Department__c testDepartment = [SELECT Id FROM Department__c LIMIT 1];
+        Asset asset = [SELECT Id, Product2Id FROM Asset LIMIT 1];
+
+        List<Account> shipToAccounts = new List<Account>{
+            new Account(
+                Name = 'Split Primary Ship-To',
+                ParentId = account.Id,
+                SourceSystemID__c = 'TEST-ORACLE-SPLIT-SHIPTO-P',
+                Type = 'Address',
+                ShiptoAddressStatus__c = 'Primary'
+            ),
+            new Account(
+                Name = 'Split Active Ship-To',
+                ParentId = account.Id,
+                SourceSystemID__c = 'TEST-ORACLE-SPLIT-SHIPTO-A',
+                Type = 'Address',
+                ShiptoAddressStatus__c = 'Active'
+            )
+        };
+        insert shipToAccounts;
+
+        Schema.Location repairCenter = new Schema.Location(
+            Name = 'Shared Ship-To Repair Center',
+            LocationType = 'Repair Center'
+        );
+        insert repairCenter;
+
+        insert new RepairCenterRoutingRule__c(
+            OperatingUnit__c = '82',
+            ProductLine__c = 'Surgical',
+            RepairCenter__c = repairCenter.Id
+        );
+
+        Map<String, Object> header = new Map<String, Object>{
+            'accountId' => account.Id,
+            'operatingUnit' => '82'
+        };
+        List<Object> lines = new List<Object>{
+            new Map<String, Object>{
+                'lineKey' => 'line-ship-to-1',
+                'lineType' => 'serialized',
+                'serialized' => true,
+                'product2Id' => asset.Product2Id,
+                'productLine' => 'Surgical',
+                'departmentId' => testDepartment.Id,
+                'contactId' => contact.Id,
+                'disinfected' => getDisinfectedYesValueForTest(),
+                'shipToAccountId' => String.valueOf(shipToAccounts[0].Id)
+            },
+            new Map<String, Object>{
+                'lineKey' => 'line-ship-to-2',
+                'lineType' => 'serialized',
+                'serialized' => true,
+                'product2Id' => asset.Product2Id,
+                'productLine' => 'Surgical',
+                'departmentId' => testDepartment.Id,
+                'contactId' => contact.Id,
+                'disinfected' => getDisinfectedYesValueForTest(),
+                'shipToAccountId' => String.valueOf(shipToAccounts[1].Id)
+            }
+        };
+
+        Test.startTest();
+        List<CreateReturnOrderController.ProposedReturnOrderGroup> groups =
+            CreateReturnOrderController.buildReturnOrderPlan(
+                JSON.serialize(header),
+                JSON.serialize(lines)
+            );
+        Test.stopTest();
+
+        System.Assert.areEqual(
+            2,
+            groups.size(),
+            'Lines with different Ship-To accounts must use separate return orders.'
+        );
+        for (CreateReturnOrderController.ProposedReturnOrderGroup proposedGroup : groups) {
+            System.Assert.areEqual(1, proposedGroup.lineCount);
+            System.Assert.areEqual(String.valueOf(repairCenter.Id), proposedGroup.repairCenterId);
+        }
+    }
+
+    @isTest
+    static void testBuildReturnOrderPlan_keepsSharedShipToAndProductLineTogether() {
+        Account account = [SELECT Id FROM Account WHERE Name = 'Return Order Test Account' LIMIT 1];
+        Contact contact = [SELECT Id FROM Contact LIMIT 1];
+        Department__c testDepartment = [SELECT Id FROM Department__c LIMIT 1];
+        Asset asset = [SELECT Id, Product2Id FROM Asset LIMIT 1];
+
+        Account shipTo = new Account(
+            Name = 'Shared Ship-To',
+            ParentId = account.Id,
+            SourceSystemID__c = 'TEST-ORACLE-SHARED-SHIPTO',
+            Type = 'Address',
+            ShiptoAddressStatus__c = 'Primary'
+        );
+        insert shipTo;
+
+        Schema.Location repairCenter = new Schema.Location(
+            Name = 'Shared Everything Repair Center',
+            LocationType = 'Repair Center'
+        );
+        insert repairCenter;
+
+        insert new RepairCenterRoutingRule__c(
+            OperatingUnit__c = '82',
+            ProductLine__c = 'Surgical',
+            RepairCenter__c = repairCenter.Id
+        );
+
+        Map<String, Object> header = new Map<String, Object>{
+            'accountId' => account.Id,
+            'operatingUnit' => '82'
+        };
+        List<Object> lines = new List<Object>{
+            new Map<String, Object>{
+                'lineKey' => 'line-shared-1',
+                'lineType' => 'serialized',
+                'serialized' => true,
+                'product2Id' => asset.Product2Id,
+                'productLine' => 'Surgical',
+                'departmentId' => testDepartment.Id,
+                'contactId' => contact.Id,
+                'disinfected' => getDisinfectedYesValueForTest(),
+                'shipToAccountId' => String.valueOf(shipTo.Id)
+            },
+            new Map<String, Object>{
+                'lineKey' => 'line-shared-2',
+                'lineType' => 'serialized',
+                'serialized' => true,
+                'product2Id' => asset.Product2Id,
+                'productLine' => 'Surgical',
+                'departmentId' => testDepartment.Id,
+                'contactId' => contact.Id,
+                'disinfected' => getDisinfectedYesValueForTest(),
+                'shipToAccountId' => String.valueOf(shipTo.Id)
+            }
+        };
+
+        Test.startTest();
+        List<CreateReturnOrderController.ProposedReturnOrderGroup> groups =
+            CreateReturnOrderController.buildReturnOrderPlan(
+                JSON.serialize(header),
+                JSON.serialize(lines)
+            );
+        Test.stopTest();
+
+        System.Assert.areEqual(
+            1,
+            groups.size(),
+            'Same Product Line and Ship-To at one repair center should stay on one return order.'
+        );
+        System.Assert.areEqual(2, groups[0].lineCount);
+    }
+
+    @isTest
     static void testBuildReturnOrderPlan_groupsOtherLinesByProductLineRouting() {
         Account account = [SELECT Id FROM Account LIMIT 1];
-        account.BillingState = 'Ohio';
-        update account;
+        Account shipTo = insertRoutingShipTo(
+            account.Id,
+            'Other Routing Ship-To',
+            'TEST-ORACLE-OTHER-SHIPTO',
+            'OH'
+        );
 
         Contact contact = [SELECT Id FROM Contact LIMIT 1];
         Department__c testDepartment = [SELECT Id FROM Department__c LIMIT 1];
@@ -2138,7 +2520,7 @@ private class CreateReturnOrderControllerTest {
         List<Object> lines = new List<Object>{
             new Map<String, Object>{
                 'lineKey' => 'other-line-1',
-                'lineType' => 'other',
+                'lineType' => 'other-non-serialized',
                 'serialized' => false,
                 'product2Id' => endocamProduct.Id,
                 'productLine' => 'ENDOCAM',
@@ -2147,6 +2529,7 @@ private class CreateReturnOrderControllerTest {
                 'contactId' => contact.Id,
                 'disinfected' => getDisinfectedYesValueForTest(),
                 'reportedProblem' => 'Needs repair',
+                'shipToAccountId' => String.valueOf(shipTo.Id),
                 'quantityReturned' => 1
             }
         };
@@ -2161,10 +2544,10 @@ private class CreateReturnOrderControllerTest {
 
         System.assertEquals(1, groups.size(), 'Other lines should route by product line only.');
         System.assertEquals(
-            groupKeyFor('Other', String.valueOf(otherRepairCenter.Id)),
+            groupKeyFor('Other (Non-Serialized)', String.valueOf(otherRepairCenter.Id)),
             groups[0].groupKey
         );
-        System.assertEquals('Other', groups[0].returnOrderType);
+        System.assertEquals('Other (Non-Serialized)', groups[0].returnOrderType);
         System.assertEquals(false, groups[0].requiresRepairCenterSelection);
         System.assertEquals(1, groups[0].lineCount);
     }
@@ -2201,7 +2584,7 @@ private class CreateReturnOrderControllerTest {
         List<Object> lines = new List<Object>{
             new Map<String, Object>{
                 'lineKey' => 'other-yes',
-                'lineType' => 'other',
+                'lineType' => 'other-non-serialized',
                 'serialized' => false,
                 'product2Id' => endocamProduct.Id,
                 'productLine' => 'ENDOCAM',
@@ -2214,7 +2597,7 @@ private class CreateReturnOrderControllerTest {
             },
             new Map<String, Object>{
                 'lineKey' => 'other-no-1',
-                'lineType' => 'other',
+                'lineType' => 'other-non-serialized',
                 'serialized' => false,
                 'product2Id' => endocamProduct.Id,
                 'productLine' => 'ENDOCAM',
@@ -2227,7 +2610,7 @@ private class CreateReturnOrderControllerTest {
             },
             new Map<String, Object>{
                 'lineKey' => 'other-no-2',
-                'lineType' => 'other',
+                'lineType' => 'other-non-serialized',
                 'serialized' => false,
                 'product2Id' => endocamProduct.Id,
                 'productLine' => 'ENDOCAM',
@@ -2257,14 +2640,14 @@ private class CreateReturnOrderControllerTest {
         for (CreateReturnOrderController.ProposedReturnOrderGroup proposedGroup : groups) {
             totalLines += proposedGroup.lineCount;
             if (proposedGroup.groupKey ==
-                groupKeyFor('Other', String.valueOf(otherRepairCenter.Id))) {
+                groupKeyFor('Other (Non-Serialized)', String.valueOf(otherRepairCenter.Id))) {
                 foundYesGroup = true;
                 System.assertEquals(1, proposedGroup.lineCount);
-                System.assertEquals('Other', proposedGroup.returnOrderType);
+                System.assertEquals('Other (Non-Serialized)', proposedGroup.returnOrderType);
             }
             if (proposedGroup.groupKey ==
                 groupKeyFor(
-                    'Other',
+                    'Other (Non-Serialized)',
                     String.valueOf(otherRepairCenter.Id) + '|NOSTERIL'
                 )) {
                 foundNoBatchGroup = true;
@@ -2922,18 +3305,20 @@ private class CreateReturnOrderControllerTest {
     @isTest
     static void testCreateReturnOrder_other_success() {
         Account account = [SELECT Id FROM Account LIMIT 1];
-        account.BillingState = 'Ohio';
+        account.BillingCountryCode = 'US';
+        account.BillingStateCode = 'OH';
         update account;
 
         Contact contact = [SELECT Id FROM Contact LIMIT 1];
         Department__c testDepartment = [SELECT Id FROM Department__c LIMIT 1];
-        Product2 endocamProduct = new Product2(
-            Name = 'Create Other Endocam Product',
+        // GW-5866 removed Endocam from Item Type; use an active Other (Non-Serialized) type.
+        Product2 cableProduct = new Product2(
+            Name = 'Create Other Fiber Optic Cable Product',
             ProductType__c = 'Service Asset',
-            ProductLine__c = 'ENDOCAM',
+            ProductLine__c = 'VIDEO',
             IsActive = true
         );
-        insert endocamProduct;
+        insert cableProduct;
         Schema.Location repairCenter = new Schema.Location(
             Name = 'Bulk Instrument Repair Center',
             LocationType = 'Repair Center'
@@ -2942,7 +3327,7 @@ private class CreateReturnOrderControllerTest {
 
         insert new RepairCenterRoutingRule__c(
             OperatingUnit__c = '82',
-            ProductLine__c = 'ENDOCAM',
+            ProductLine__c = 'VIDEO',
             ShipState__c = 'OH',
             RepairCenter__c = repairCenter.Id
         );
@@ -2954,12 +3339,12 @@ private class CreateReturnOrderControllerTest {
 
         List<Object> lines = new List<Object>{
             new Map<String, Object>{
-                'lineType' => 'other',
+                'lineType' => 'other-non-serialized',
                 'serialized' => false,
-                'product2Id' => endocamProduct.Id,
-                'productLine' => 'ENDOCAM',
+                'product2Id' => cableProduct.Id,
+                'productLine' => 'VIDEO',
                 'hospitalReferencedTrayName' => 'Tray Alpha',
-                'itemType' => 'Endocam',
+                'itemType' => 'Cable: Fiber Optic',
                 'itemDescription' => 'Instrument tray',
                 'departmentId' => testDepartment.Id,
                 'contactId' => contact.Id,
@@ -2993,9 +3378,9 @@ private class CreateReturnOrderControllerTest {
 
         System.assertEquals(false, lineItem.Serialized__c);
         System.assertEquals('Tray Alpha', lineItem.HospitalReferencedTrayName__c);
-        System.assertEquals('Endocam', lineItem.ItemType__c);
-        System.assertEquals('ENDOCAM', lineItem.ProductLine__c);
-        System.assertEquals('Other', lineItem.LineType__c);
+        System.assertEquals('Cable: Fiber Optic', lineItem.ItemType__c);
+        System.assertEquals('VIDEO', lineItem.ProductLine__c);
+        System.assertEquals('Other (Non-Serialized)', lineItem.LineType__c);
         System.assertEquals(3, lineItem.QuantityReturned);
         System.assertEquals('Missing instrument', lineItem.ReportedProblem__c);
     }
@@ -3003,17 +3388,18 @@ private class CreateReturnOrderControllerTest {
     @isTest
     static void testCreateReturnOrder_other_succeedsWithoutHospitalReferencedTrayName() {
         Account account = [SELECT Id FROM Account LIMIT 1];
-        account.BillingState = 'Ohio';
+        account.BillingCountryCode = 'US';
+        account.BillingStateCode = 'OH';
         update account;
 
         Contact contact = [SELECT Id FROM Contact LIMIT 1];
-        Product2 endocamProduct = new Product2(
-            Name = 'Create Other Endocam Product Optional Tray',
+        Product2 cableProduct = new Product2(
+            Name = 'Create Other Fiber Optic Cable Product Optional Tray',
             ProductType__c = 'Service Asset',
-            ProductLine__c = 'ENDOCAM',
+            ProductLine__c = 'VIDEO',
             IsActive = true
         );
-        insert endocamProduct;
+        insert cableProduct;
         Department__c testDepartment = [SELECT Id FROM Department__c LIMIT 1];
         Schema.Location repairCenter = new Schema.Location(
             Name = 'Bulk Instrument Repair Center Optional Tray',
@@ -3023,7 +3409,7 @@ private class CreateReturnOrderControllerTest {
 
         insert new RepairCenterRoutingRule__c(
             OperatingUnit__c = '82',
-            ProductLine__c = 'ENDOCAM',
+            ProductLine__c = 'VIDEO',
             ShipState__c = 'OH',
             RepairCenter__c = repairCenter.Id
         );
@@ -3035,10 +3421,10 @@ private class CreateReturnOrderControllerTest {
 
         List<Object> lines = new List<Object>{
             new Map<String, Object>{
-                'lineType' => 'other',
+                'lineType' => 'other-non-serialized',
                 'serialized' => false,
-                'product2Id' => endocamProduct.Id,
-                'itemType' => 'Endocam',
+                'product2Id' => cableProduct.Id,
+                'itemType' => 'Cable: Fiber Optic',
                 'itemDescription' => 'Scope cable',
                 'departmentId' => testDepartment.Id,
                 'contactId' => contact.Id,
@@ -3084,7 +3470,7 @@ private class CreateReturnOrderControllerTest {
 
         List<Object> lines = new List<Object>{
             new Map<String, Object>{
-                'lineType' => 'other',
+                'lineType' => 'other-non-serialized',
                 'serialized' => false,
                 'product2Id' => asset.Product2Id,
                 'hospitalReferencedTrayName' => 'Tray Beta',
@@ -3282,6 +3668,217 @@ private class CreateReturnOrderControllerTest {
 
         System.assertEquals(1, options.size());
         System.assertEquals(matchingProduct.Id, options[0].value);
+    }
+
+    @isTest
+    static void testGetProductsForReturnOrderLine_filtersByDeviceType() {
+        Product2 stirrupProduct = new Product2(
+            Name = 'Stirrup Filter Product',
+            ProductCode = 'STIRRUP-FILT',
+            ProductLine__c = 'INSTRUMENT',
+            DeviceType__c = 'STIRRUP',
+            IsActive = true
+        );
+        insert stirrupProduct;
+
+        Product2 otherInstrument = new Product2(
+            Name = 'Non Stirrup Instrument Product',
+            ProductCode = 'INST-NO-STIRRUP',
+            ProductLine__c = 'INSTRUMENT',
+            IsActive = true
+        );
+        insert otherInstrument;
+
+        Test.startTest();
+        List<CreateReturnOrderController.ProductPicklistOption> options =
+            CreateReturnOrderController.getProductsForReturnOrderLine(
+                'INSTRUMENT',
+                false,
+                null,
+                'Stirrup'
+            );
+        Test.stopTest();
+
+        Boolean foundStirrup = false;
+        Boolean foundOther = false;
+        for (CreateReturnOrderController.ProductPicklistOption option : options) {
+            if (option.value == stirrupProduct.Id) {
+                foundStirrup = true;
+            }
+            if (option.value == otherInstrument.Id) {
+                foundOther = true;
+            }
+        }
+        System.assertEquals(true, foundStirrup, 'Expected Stirrup device-type product.');
+        System.assertEquals(false, foundOther, 'Non-Stirrup products must be excluded.');
+    }
+
+    @isTest
+    static void testBuildReturnOrderPlan_splitsStirrupLinesOnePerReturnOrder() {
+        Account account = [SELECT Id FROM Account LIMIT 1];
+        Contact contact = [SELECT Id FROM Contact LIMIT 1];
+        Department__c testDepartment = [SELECT Id FROM Department__c LIMIT 1];
+        Product2 stirrupProduct = new Product2(
+            Name = 'Stirrup Split Product',
+            ProductType__c = 'Service Asset',
+            ProductLine__c = 'INSTRUMENT',
+            DeviceType__c = 'STIRRUP',
+            IsActive = true
+        );
+        insert stirrupProduct;
+        Schema.Location repairCenter = new Schema.Location(
+            Name = 'Stirrup Repair Center',
+            LocationType = 'Repair Center'
+        );
+        insert repairCenter;
+        insert new RepairCenterRoutingRule__c(
+            OperatingUnit__c = '82',
+            ProductLine__c = 'INSTRUMENT',
+            RepairCenter__c = repairCenter.Id
+        );
+
+        Map<String, Object> header = new Map<String, Object>{
+            'accountId' => account.Id,
+            'operatingUnit' => '82'
+        };
+        List<Object> lines = new List<Object>{
+            new Map<String, Object>{
+                'lineKey' => 'stirrup-1',
+                'lineType' => 'other-serialized',
+                'serialized' => true,
+                'product2Id' => stirrupProduct.Id,
+                'productLine' => 'INSTRUMENT',
+                'itemType' => 'Stirrup',
+                'serialNumber' => 'STIRRUP-001',
+                'departmentId' => testDepartment.Id,
+                'contactId' => contact.Id,
+                'disinfected' => getDisinfectedYesValueForTest(),
+                'reportedProblem' => 'Pad worn',
+                'quantityReturned' => 1
+            },
+            new Map<String, Object>{
+                'lineKey' => 'stirrup-2',
+                'lineType' => 'other-serialized',
+                'serialized' => true,
+                'product2Id' => stirrupProduct.Id,
+                'productLine' => 'INSTRUMENT',
+                'itemType' => 'Stirrup',
+                'serialNumber' => 'STIRRUP-002',
+                'departmentId' => testDepartment.Id,
+                'contactId' => contact.Id,
+                'disinfected' => getDisinfectedYesValueForTest(),
+                'reportedProblem' => 'Pad torn',
+                'quantityReturned' => 1
+            }
+        };
+
+        Test.startTest();
+        List<CreateReturnOrderController.ProposedReturnOrderGroup> groups =
+            CreateReturnOrderController.buildReturnOrderPlan(
+                JSON.serialize(header),
+                JSON.serialize(lines)
+            );
+        Test.stopTest();
+
+        System.assertEquals(2, groups.size(), 'Each Stirrup line must be its own Return Order.');
+        for (CreateReturnOrderController.ProposedReturnOrderGroup proposedGroup : groups) {
+            System.assertEquals(1, proposedGroup.lineCount);
+            System.assertEquals('Other (Serialized)', proposedGroup.returnOrderType);
+            System.assert(
+                proposedGroup.groupKey.contains('|STIRRUP|'),
+                'Stirrup group key should include STIRRUP suffix.'
+            );
+            System.assertEquals(
+                false,
+                proposedGroup.requiresRepairCenterSelection,
+                'Matched Stirrup routing must not require manual repair center selection.'
+            );
+            System.assertEquals(
+                repairCenter.Id,
+                proposedGroup.repairCenterId,
+                'Stirrup group key suffix must not corrupt the repair center Id.'
+            );
+            System.assertEquals(
+                'Stirrup Repair Center',
+                proposedGroup.repairCenterName,
+                'Review step must show the Location name, not the fallback label.'
+            );
+        }
+    }
+
+    @isTest
+    static void testCreateReturnOrder_otherSerialized_mapsLineAndReturnOrderType() {
+        Account account = [SELECT Id FROM Account LIMIT 1];
+        account.BillingCountryCode = 'US';
+        account.BillingStateCode = 'OH';
+        update account;
+        Contact contact = [SELECT Id FROM Contact LIMIT 1];
+        Department__c testDepartment = [SELECT Id FROM Department__c LIMIT 1];
+        Product2 phacoProduct = new Product2(
+            Name = 'Other Serialized Phaco Product',
+            ProductType__c = 'Service Asset',
+            ProductLine__c = 'OPHTHALMIC',
+            IsActive = true
+        );
+        insert phacoProduct;
+        Schema.Location repairCenter = new Schema.Location(
+            Name = 'Other Serialized Repair Center',
+            LocationType = 'Repair Center'
+        );
+        insert repairCenter;
+        insert new RepairCenterRoutingRule__c(
+            OperatingUnit__c = '82',
+            ProductLine__c = 'OPHTHALMIC',
+            ShipState__c = 'OH',
+            RepairCenter__c = repairCenter.Id
+        );
+
+        Map<String, Object> header = new Map<String, Object>{
+            'accountId' => account.Id,
+            'operatingUnit' => '82'
+        };
+        List<Object> lines = new List<Object>{
+            new Map<String, Object>{
+                'lineType' => 'other-serialized',
+                'roliLineType' => 'Other (Serialized)',
+                'serialized' => true,
+                'product2Id' => phacoProduct.Id,
+                'itemType' => 'Phaco Handpiece',
+                'serialNumber' => 'PHACO-100',
+                'model' => 'PHACO-MODEL',
+                'departmentId' => testDepartment.Id,
+                'contactId' => contact.Id,
+                'reportedProblem' => 'Failed seal',
+                'disinfected' => getDisinfectedYesValueForTest(),
+                'estimateRequired' => 'Pre-Approved',
+                'quantityReturned' => 1
+            }
+        };
+
+        Test.startTest();
+        CreateReturnOrderController.CreateResult result = CreateReturnOrderController.createReturnOrder(
+            JSON.serialize(header),
+            JSON.serialize(lines)
+        );
+        Test.stopTest();
+
+        ReturnOrder createdOrder = [
+            SELECT ReturnOrderType__c
+            FROM ReturnOrder
+            WHERE Id = :result.returnOrderId
+            LIMIT 1
+        ];
+        ReturnOrderLineItem lineItem = [
+            SELECT LineType__c, Serialized__c, SerialNumber__c
+            FROM ReturnOrderLineItem
+            WHERE ReturnOrderId = :result.returnOrderId
+            LIMIT 1
+        ];
+
+        System.assertEquals('Other (Serialized)', createdOrder.ReturnOrderType__c);
+        System.assertEquals('Other (Serialized)', lineItem.LineType__c);
+        System.assertEquals(true, lineItem.Serialized__c);
+        System.assertEquals('PHACO-100', lineItem.SerialNumber__c);
     }
 
     @isTest
@@ -3861,6 +4458,404 @@ private class CreateReturnOrderControllerTest {
     }
 
     @isTest
+    static void testCreateReturnOrders_instruments_modRequestContactAndForm() {
+        Account account = [SELECT Id FROM Account LIMIT 1];
+        Contact contact = [SELECT Id FROM Contact LIMIT 1];
+        contact.Email = 'mod.request.contact@example.com';
+        update contact;
+        Department__c testDepartment = [SELECT Id FROM Department__c LIMIT 1];
+        Schema.Location repairCenter = [SELECT Id, Name FROM Location LIMIT 1];
+        Asset asset = [SELECT Id, Product2Id FROM Asset LIMIT 1];
+
+        ContentVersion contentVersion = new ContentVersion(
+            Title = 'Mod Request Form',
+            PathOnClient = 'mod-request.pdf',
+            VersionData = Blob.valueOf('mod-form-bytes'),
+            IsMajorVersion = true
+        );
+        insert contentVersion;
+        contentVersion = [
+            SELECT ContentDocumentId
+            FROM ContentVersion
+            WHERE Id = :contentVersion.Id
+            LIMIT 1
+        ];
+
+        Map<String, Object> header = new Map<String, Object>{
+            'accountId' => account.Id,
+            'operatingUnit' => '82',
+            'creationSource' => 'Salesforce',
+            'salesRepId' => UserInfo.getUserId()
+        };
+
+        List<Object> lines = new List<Object>{
+            new Map<String, Object>{
+                'lineType' => 'instruments',
+                'serialized' => false,
+                'product2Id' => asset.Product2Id,
+                'productLine' => 'INSTRUMENT',
+                'itemDescription' => 'Mod tray',
+                'disinfected' => getDisinfectedYesValueForTest(),
+                'departmentId' => testDepartment.Id,
+                'reportedProblem' => 'Needs mod',
+                'modRequest' => true,
+                'quantityReturned' => 1,
+                'modFormContentDocumentIds' => new List<String>{
+                    String.valueOf(contentVersion.ContentDocumentId)
+                }
+            }
+        };
+
+        List<Object> groups = new List<Object>{
+            new Map<String, Object>{
+                'groupKey' => 'instruments-mod-group',
+                'repairCenterId' => String.valueOf(repairCenter.Id),
+                'requiresRepairCenterSelection' => false,
+                'lineItemsJson' => JSON.serialize(lines),
+                'orderHeader' => new Map<String, Object>{
+                    'contactId' => String.valueOf(contact.Id),
+                    'estimateContactId' => String.valueOf(contact.Id),
+                    'estimateRequired' => 'Estimate Required',
+                    'modRequestContactId' => String.valueOf(contact.Id),
+                    'hasModRequest' => true
+                }
+            }
+        };
+
+        Test.startTest();
+        CreateReturnOrderController.CreateOrdersResult result =
+            CreateReturnOrderController.createReturnOrders(
+                JSON.serialize(header),
+                JSON.serialize(groups)
+            );
+        Test.stopTest();
+
+        System.assertEquals(1, result.returnOrders.size());
+
+        ReturnOrder created = [
+            SELECT Id, EstimateRequired__c, EstimateContact__c, ModRequestContact__c
+            FROM ReturnOrder
+            WHERE Id = :result.returnOrders[0].returnOrderId
+            LIMIT 1
+        ];
+        System.assertEquals('Estimate Required', created.EstimateRequired__c);
+        System.assertEquals(contact.Id, created.EstimateContact__c);
+        System.assertEquals(contact.Id, created.ModRequestContact__c);
+
+        ReturnOrderLineItem lineItem = [
+            SELECT Id, ModRequest__c
+            FROM ReturnOrderLineItem
+            WHERE ReturnOrderId = :created.Id
+            LIMIT 1
+        ];
+        System.assertEquals(true, lineItem.ModRequest__c);
+
+        List<ContentDocumentLink> links = [
+            SELECT ContentDocumentId
+            FROM ContentDocumentLink
+            WHERE LinkedEntityId = :lineItem.Id
+        ];
+        System.assertEquals(1, links.size());
+        System.assertEquals(contentVersion.ContentDocumentId, links[0].ContentDocumentId);
+    }
+
+    @isTest
+    static void testGetShipToAddressesForAccount_returnsPrimaryAndActive() {
+        Account customer = [SELECT Id FROM Account WHERE Name = 'Return Order Test Account' LIMIT 1];
+        insert new List<Account>{
+            new Account(
+                Name = 'Primary Ship-To',
+                ParentId = customer.Id,
+                SourceSystemID__c = 'TEST-ORACLE-SHIPTO-P',
+                Type = 'Address',
+                ShiptoAddressStatus__c = 'Primary',
+                BillingStreet = '100 Main St',
+                BillingCity = 'Mentor',
+                BillingStateCode = 'OH',
+                BillingPostalCode = '44060',
+                BillingCountryCode = 'US'
+            ),
+            new Account(
+                Name = 'Active Ship-To',
+                ParentId = customer.Id,
+                SourceSystemID__c = 'TEST-ORACLE-SHIPTO-A',
+                Type = 'Address',
+                ShiptoAddressStatus__c = 'Active',
+                BillingStreet = '200 Oak Ave',
+                BillingCity = 'Cleveland',
+                BillingStateCode = 'OH',
+                BillingPostalCode = '44114',
+                BillingCountryCode = 'US'
+            )
+        };
+
+        Test.startTest();
+        List<CreateReturnOrderController.ShipToAddressOption> options =
+            CreateReturnOrderController.getShipToAddressesForAccount(customer.Id);
+        Test.stopTest();
+
+        System.assertEquals(2, options.size());
+        System.assertEquals(true, options[0].isPrimary);
+        System.assertEquals(
+            options[0].name + ' - ' + options[0].addressDisplay,
+            options[0].label,
+            'Ship-To label should show the name and address without status'
+        );
+        System.assertEquals(
+            options[1].name + ' - ' + options[1].addressDisplay,
+            options[1].label,
+            'Active Ship-To label should omit the status'
+        );
+        System.assertEquals(false, options[0].label.contains(' - Primary'));
+        System.assertEquals(false, options[1].label.contains(' - Active'));
+        System.assert(
+            options[0].addressDisplay.contains('100 Main St'),
+            'Option should show billing address'
+        );
+    }
+
+    @isTest
+    static void testCreateReturnOrder_appliesSelectedShipToAddress() {
+        Account customer = [SELECT Id FROM Account WHERE Name = 'Return Order Test Account' LIMIT 1];
+        Contact contact = [SELECT Id FROM Contact LIMIT 1];
+        Schema.Location repairCenter = [SELECT Id FROM Location LIMIT 1];
+        Asset asset = [SELECT Id, Product2Id, Department__c FROM Asset LIMIT 1];
+        Department__c testDepartment = [SELECT Id FROM Department__c LIMIT 1];
+
+        Account shipTo = new Account(
+            Name = 'Active Ship-To',
+            ParentId = customer.Id,
+            SourceSystemID__c = 'TEST-ORACLE-SHIPTO-A2',
+            Type = 'Address',
+            ShiptoAddressStatus__c = 'Active',
+            BillingStreet = '200 Oak Ave',
+            BillingCity = 'Cleveland',
+            BillingStateCode = 'OH',
+            BillingPostalCode = '44114',
+            BillingCountryCode = 'US'
+        );
+        insert shipTo;
+        insert new Account(
+            Name = 'Primary Ship-To',
+            ParentId = customer.Id,
+            SourceSystemID__c = 'TEST-ORACLE-SHIPTO-P2',
+            Type = 'Address',
+            ShiptoAddressStatus__c = 'Primary',
+            BillingStreet = '100 Main St',
+            BillingCity = 'Mentor',
+            BillingStateCode = 'OH',
+            BillingPostalCode = '44060',
+            BillingCountryCode = 'US'
+        );
+
+        Map<String, Object> header = new Map<String, Object>{
+            'accountId' => customer.Id,
+            'operatingUnit' => '82',
+            'creationSource' => 'Salesforce',
+            'salesRepId' => UserInfo.getUserId(),
+            'repairCenterId' => repairCenter.Id
+        };
+        List<Object> lines = new List<Object>{
+            new Map<String, Object>{
+                'assetId' => asset.Id,
+                'product2Id' => asset.Product2Id,
+                'model' => 'Test Model',
+                'departmentId' => testDepartment.Id,
+                'disinfected' => getDisinfectedYesValueForTest(),
+                'contactId' => contact.Id,
+                'estimateRequired' => 'Pre-Approved',
+                'productLine' => 'Surgical',
+                'reportedProblem' => 'Unit not powering on',
+                'shipToAccountId' => String.valueOf(shipTo.Id),
+                'status' => 'Created',
+                'quantityReturned' => 1
+            }
+        };
+
+        Test.startTest();
+        CreateReturnOrderController.CreateResult result = CreateReturnOrderController.createReturnOrder(
+            JSON.serialize(header),
+            JSON.serialize(lines)
+        );
+        Test.stopTest();
+
+        ReturnOrder created = [
+            SELECT
+                Id,
+                ShipToAddressAccount__c,
+                ShipToAddress__Street__s,
+                ShipToAddress__City__s,
+                ShipToAddress__PostalCode__s
+            FROM ReturnOrder
+            WHERE Id = :result.returnOrderId
+            LIMIT 1
+        ];
+        System.assertEquals(shipTo.Id, created.ShipToAddressAccount__c);
+        System.assertEquals('200 Oak Ave', created.ShipToAddress__Street__s);
+        System.assertEquals('Cleveland', created.ShipToAddress__City__s);
+        System.assertEquals('44114', created.ShipToAddress__PostalCode__s);
+    }
+
+    @isTest
+    static void testBuildReturnOrderPlan_routesByShipToStateCode() {
+        Account account = [SELECT Id FROM Account WHERE Name = 'Return Order Test Account' LIMIT 1];
+        Contact contact = [SELECT Id FROM Contact LIMIT 1];
+        Department__c testDepartment = [SELECT Id FROM Department__c LIMIT 1];
+        Asset asset = [SELECT Id, Product2Id FROM Asset LIMIT 1];
+
+        Account ohioShipTo = insertRoutingShipTo(
+            account.Id,
+            'Ohio Routing Ship-To',
+            'TEST-ORACLE-ROUTE-OH',
+            'OH'
+        );
+        Account texasShipTo = new Account(
+            Name = 'Texas Routing Ship-To',
+            ParentId = account.Id,
+            SourceSystemID__c = 'TEST-ORACLE-ROUTE-TX',
+            Type = 'Address',
+            ShiptoAddressStatus__c = 'Active',
+            BillingCountryCode = 'US',
+            BillingStateCode = 'TX'
+        );
+        insert texasShipTo;
+
+        Schema.Location ohioCenter = new Schema.Location(
+            Name = 'Ohio State Repair Center',
+            LocationType = 'Repair Center'
+        );
+        Schema.Location texasCenter = new Schema.Location(
+            Name = 'Texas State Repair Center',
+            LocationType = 'Repair Center'
+        );
+        insert new List<Schema.Location>{ ohioCenter, texasCenter };
+
+        insert new List<RepairCenterRoutingRule__c>{
+            new RepairCenterRoutingRule__c(
+                OperatingUnit__c = '82',
+                ProductLine__c = 'Surgical',
+                ShipState__c = 'OH',
+                RepairCenter__c = ohioCenter.Id
+            ),
+            new RepairCenterRoutingRule__c(
+                OperatingUnit__c = '82',
+                ProductLine__c = 'Surgical',
+                ShipState__c = 'TX',
+                RepairCenter__c = texasCenter.Id
+            )
+        };
+
+        Map<String, Object> header = new Map<String, Object>{
+            'accountId' => account.Id,
+            'operatingUnit' => '82'
+        };
+        List<Object> lines = new List<Object>{
+            new Map<String, Object>{
+                'lineKey' => 'line-oh',
+                'serialized' => true,
+                'product2Id' => asset.Product2Id,
+                'productLine' => 'Surgical',
+                'departmentId' => testDepartment.Id,
+                'contactId' => contact.Id,
+                'disinfected' => getDisinfectedYesValueForTest(),
+                'shipToAccountId' => String.valueOf(ohioShipTo.Id)
+            },
+            new Map<String, Object>{
+                'lineKey' => 'line-tx',
+                'serialized' => true,
+                'product2Id' => asset.Product2Id,
+                'productLine' => 'Surgical',
+                'departmentId' => testDepartment.Id,
+                'contactId' => contact.Id,
+                'disinfected' => getDisinfectedYesValueForTest(),
+                'shipToAccountId' => String.valueOf(texasShipTo.Id)
+            }
+        };
+
+        Test.startTest();
+        List<CreateReturnOrderController.ProposedReturnOrderGroup> groups =
+            CreateReturnOrderController.buildReturnOrderPlan(
+                JSON.serialize(header),
+                JSON.serialize(lines)
+            );
+        Test.stopTest();
+
+        System.Assert.areEqual(2, groups.size(), 'Each Ship-To state code routes separately.');
+        Set<String> repairCenterIds = new Set<String>();
+        for (CreateReturnOrderController.ProposedReturnOrderGroup proposedGroup : groups) {
+            System.Assert.areEqual(1, proposedGroup.lineCount);
+            System.Assert.areEqual(false, proposedGroup.requiresRepairCenterSelection);
+            repairCenterIds.add(proposedGroup.repairCenterId);
+        }
+        System.Assert.isTrue(repairCenterIds.contains(String.valueOf(ohioCenter.Id)));
+        System.Assert.isTrue(repairCenterIds.contains(String.valueOf(texasCenter.Id)));
+    }
+
+    @isTest
+    static void testBuildReturnOrderPlan_doesNotRouteFromCustomerState() {
+        Account account = [SELECT Id FROM Account WHERE Name = 'Return Order Test Account' LIMIT 1];
+        account.BillingStreet = '100 Customer Way';
+        account.BillingCity = 'Mentor';
+        account.BillingStateCode = 'OH';
+        account.BillingPostalCode = '44060';
+        account.BillingCountryCode = 'US';
+        update account;
+
+        Account shipTo = insertRoutingShipTo(
+            account.Id,
+            'No State Ship-To',
+            'TEST-ORACLE-ROUTE-BLANK',
+            null
+        );
+        Contact contact = [SELECT Id FROM Contact LIMIT 1];
+        Department__c testDepartment = [SELECT Id FROM Department__c LIMIT 1];
+        Asset asset = [SELECT Id, Product2Id FROM Asset LIMIT 1];
+        Schema.Location ohioCenter = new Schema.Location(
+            Name = 'Customer State Repair Center',
+            LocationType = 'Repair Center'
+        );
+        insert ohioCenter;
+        insert new RepairCenterRoutingRule__c(
+            OperatingUnit__c = '82',
+            ProductLine__c = 'Surgical',
+            ShipState__c = 'OH',
+            RepairCenter__c = ohioCenter.Id
+        );
+
+        Map<String, Object> header = new Map<String, Object>{
+            'accountId' => account.Id,
+            'operatingUnit' => '82'
+        };
+        List<Object> lines = new List<Object>{
+            new Map<String, Object>{
+                'lineKey' => 'line-blank-state',
+                'serialized' => true,
+                'product2Id' => asset.Product2Id,
+                'productLine' => 'Surgical',
+                'departmentId' => testDepartment.Id,
+                'contactId' => contact.Id,
+                'disinfected' => getDisinfectedYesValueForTest(),
+                'shipToAccountId' => String.valueOf(shipTo.Id)
+            }
+        };
+
+        Test.startTest();
+        List<CreateReturnOrderController.ProposedReturnOrderGroup> groups =
+            CreateReturnOrderController.buildReturnOrderPlan(
+                JSON.serialize(header),
+                JSON.serialize(lines)
+            );
+        Test.stopTest();
+
+        System.Assert.areEqual(1, groups.size());
+        System.Assert.areEqual(
+            true,
+            groups[0].requiresRepairCenterSelection,
+            'Customer Account state must not satisfy a Ship-To state rule.'
+        );
+    }
+
+    @IsTest
     static void testGetSiteVisitRepairCenterLines_returnsMarkedChildLines() {
         Account account = [SELECT Id FROM Account LIMIT 1];
         Contact contact = [SELECT Id FROM Contact LIMIT 1];
@@ -3933,7 +4928,7 @@ private class CreateReturnOrderControllerTest {
         System.assertEquals(Decimal.valueOf(2), lines[0].quantityReturned);
     }
 
-    @isTest
+    @IsTest
     static void testCreateReturnOrder_siteVisitClearsSendToRepairCenter() {
         Account account = [SELECT Id FROM Account LIMIT 1];
         Contact contact = [SELECT Id FROM Contact LIMIT 1];

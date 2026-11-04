@@ -20,7 +20,7 @@ public with sharing class CscVisitStatusAction {
         CSC_Visit_Request__c visit = loadVisit(recordId);
         Boolean isAdmin = FeatureManagement.checkPermission(PERMISSION_ADMIN);
         if (visit.OwnerId != UserInfo.getUserId() && !isAdmin) {
-            throw handledException('Only the visit owner can cancel this request.');
+            throw handledException(System.Label.CSC_Cancel_Owner_Only);
         }
         assertStatus(
             visit,
@@ -30,7 +30,7 @@ public with sharing class CscVisitStatusAction {
                 CscVisitRequestSelector.STATUS_APPROVED,
                 CscVisitRequestSelector.STATUS_CONFIRMED
             },
-            'This visit cannot be cancelled from its current status.'
+            System.Label.CSC_Cancel_Status_Invalid
         );
         if (visit.OwnerId == UserInfo.getUserId()) {
             closePendingApproval(recordId, 'Removed', 'Cancelled by the requester.');
@@ -52,17 +52,15 @@ public with sharing class CscVisitStatusAction {
         CSC_Visit_Request__c visit = loadVisit(recordId);
         Boolean isAdmin = FeatureManagement.checkPermission(PERMISSION_ADMIN);
         if (visit.OwnerId != UserInfo.getUserId() && !isAdmin) {
-            throw handledException('Only the visit owner can confirm this request.');
+            throw handledException(System.Label.CSC_Confirm_Owner_Only);
         }
         assertStatus(
             visit,
             new Set<String>{ CscVisitRequestSelector.STATUS_APPROVED },
-            'Only an approved visit can be confirmed.'
+            System.Label.CSC_Confirm_Status_Approved_Only
         );
         if (visit.Confirmed_Date__c == null) {
-            throw handledException(
-                'The CSC Administrator must enter Confirmed Date before this visit can be confirmed.'
-            );
+            throw handledException(System.Label.CSC_Confirm_Date_Required_Before_Confirm);
         }
         visit.Status__c = CscVisitRequestSelector.STATUS_CONFIRMED;
         saveVisit(visit);
@@ -70,15 +68,16 @@ public with sharing class CscVisitStatusAction {
 
     /**
      * @description Postpones a requested, approved, or confirmed visit. A pending approval
-     *              is rejected first. The active dates are cleared so the calendar date is released.
-     *              The prior dates stay in field history.
+     *              is rejected first. Only Confirmed Date is cleared, so that reservation is released.
+     *              Primary and Backup stay on the record. The after-save path emails the
+     *              requester, account team, visit team, and attendees, and removes the calendar invite.
      * @param recordId Id CSC Visit Request to postpone
      * @return void
      */
     @AuraEnabled
     public static void postponeVisit(Id recordId) {
         if (!FeatureManagement.checkPermission(PERMISSION_ADMIN)) {
-            throw handledException('Only a CSC Administrator can postpone a visit.');
+            throw handledException(System.Label.CSC_Postpone_Admin_Only);
         }
         CSC_Visit_Request__c visit = loadVisit(recordId);
         assertStatus(
@@ -88,18 +87,49 @@ public with sharing class CscVisitStatusAction {
                 CscVisitRequestSelector.STATUS_APPROVED,
                 CscVisitRequestSelector.STATUS_CONFIRMED
             },
-            'Only a requested, approved, or confirmed visit can be postponed.'
+            System.Label.CSC_Postpone_Status_Invalid
         );
         closePendingApproval(recordId, 'Reject', 'Postponed by CSC Administrator.');
         visit.Status__c = CscVisitRequestSelector.STATUS_POSTPONED;
-        clearActiveDates(visit);
+        visit.Confirmed_Date__c = null;
         saveVisit(visit);
     }
 
     /**
-     * @description #GC-3579 Saves one available date as Confirmed Date, clears the requested
-     *              dates, and sets Status to Approved. A pending approval is rejected so the
-     *              record lock does not block the save. No new approval is submitted.
+     * @description #GC-3579 Confirms the first date while the visit is Requested.
+     *              Approves the pending approval, writes Confirmed Date, and sets Status to Approved.
+     * @param recordId Id CSC Visit Request to confirm
+     * @param confirmedDate Date the administrator selected on the calendar
+     * @return void
+     */
+    @AuraEnabled
+    public static void confirmVisitDate(Id recordId, Date confirmedDate) {
+        if (!FeatureManagement.checkPermission(PERMISSION_ADMIN)) {
+            throw handledException(System.Label.CSC_Confirm_Date_Admin_Only);
+        }
+        if (confirmedDate == null) {
+            throw handledException(System.Label.CSC_Select_Available_Date);
+        }
+        CSC_Visit_Request__c visit = loadVisit(recordId);
+        assertStatus(
+            visit,
+            new Set<String>{ CscVisitRequestSelector.STATUS_REQUESTED },
+            System.Label.CSC_Confirm_Date_Wrong_Status
+        );
+        if (CscVisitRequestService.isWeekend(confirmedDate) || confirmedDate < Date.today()) {
+            throw handledException(System.Label.CSC_Select_Available_Weekday);
+        }
+        assertDateAvailable(visit, confirmedDate);
+        visit.Confirmed_Date__c = confirmedDate;
+        saveVisit(visit);
+        closePendingApproval(recordId, 'Approve', 'Date confirmed by CSC Administrator.');
+        visit.Status__c = CscVisitRequestSelector.STATUS_APPROVED;
+        saveVisit(visit);
+    }
+
+    /**
+     * @description #GC-3579 Replaces an existing Confirmed Date and sets Status to Approved.
+     *              The approval is already complete, so this save does not approve, reject, or submit one.
      * @param recordId Id CSC Visit Request to reschedule
      * @param confirmedDate Date the administrator selected on the calendar
      * @return void
@@ -107,28 +137,27 @@ public with sharing class CscVisitStatusAction {
     @AuraEnabled
     public static void changeVisitDate(Id recordId, Date confirmedDate) {
         if (!FeatureManagement.checkPermission(PERMISSION_ADMIN)) {
-            throw handledException('Only a CSC Administrator can change the visit date.');
+            throw handledException(System.Label.CSC_Change_Date_Admin_Only);
         }
         if (confirmedDate == null) {
-            throw handledException('Select an available date.');
+            throw handledException(System.Label.CSC_Select_Available_Date);
         }
         CSC_Visit_Request__c visit = loadVisit(recordId);
+        if (visit.Confirmed_Date__c == null) {
+            throw handledException(System.Label.CSC_Change_Date_Use_Confirm);
+        }
         assertStatus(
             visit,
             new Set<String>{
-                CscVisitRequestSelector.STATUS_REQUESTED,
                 CscVisitRequestSelector.STATUS_APPROVED,
-                CscVisitRequestSelector.STATUS_CONFIRMED,
-                CscVisitRequestSelector.STATUS_POSTPONED
+                CscVisitRequestSelector.STATUS_CONFIRMED
             },
-            'The visit date can be changed only when the visit is Requested, Approved, Confirmed, or Postponed.'
+            System.Label.CSC_Change_Date_Needs_Date
         );
         if (CscVisitRequestService.isWeekend(confirmedDate) || confirmedDate < Date.today()) {
-            throw handledException('Select an available weekday that is today or later.');
+            throw handledException(System.Label.CSC_Select_Available_Weekday);
         }
         assertDateAvailable(visit, confirmedDate);
-        closePendingApproval(recordId, 'Reject', 'Date changed by CSC Administrator.');
-        clearActiveDates(visit);
         visit.Confirmed_Date__c = confirmedDate;
         visit.Status__c = CscVisitRequestSelector.STATUS_APPROVED;
         saveVisit(visit);
@@ -141,7 +170,7 @@ public with sharing class CscVisitStatusAction {
      */
     private static CSC_Visit_Request__c loadVisit(Id recordId) {
         if (recordId == null) {
-            throw handledException('A visit record is required.');
+            throw handledException(System.Label.CSC_Visit_Record_Required);
         }
         List<CSC_Visit_Request__c> rows = [
             SELECT Id, Status__c, OwnerId, VisitType__c, VisitLocation__c,
@@ -151,7 +180,7 @@ public with sharing class CscVisitStatusAction {
             LIMIT 1
         ];
         if (rows.isEmpty()) {
-            throw handledException('The visit request was not found.');
+            throw handledException(System.Label.CSC_Visit_Not_Found);
         }
         return rows[0];
     }
@@ -208,7 +237,7 @@ public with sharing class CscVisitStatusAction {
         for (Approval.ProcessResult result : results) {
             if (!result.isSuccess()) {
                 String detail = result.getErrors().isEmpty()
-                    ? 'The pending approval could not be closed.'
+                    ? System.Label.CSC_Approval_Not_Closed
                     : result.getErrors()[0].getMessage();
                 throw handledException(detail);
             }
@@ -230,20 +259,8 @@ public with sharing class CscVisitStatusAction {
             visit.Id
         );
         if (!occupied.isEmpty()) {
-            throw handledException('That date is no longer available. Select another available date.');
+            throw handledException(System.Label.CSC_Date_No_Longer_Available);
         }
-    }
-
-    /**
-     * @description Clears the dates that hold a calendar day. Confirmed Date is set again
-     *              by Change Date after this call.
-     * @param visit CSC_Visit_Request__c visit being postponed or rescheduled
-     * @return void
-     */
-    private static void clearActiveDates(CSC_Visit_Request__c visit) {
-        visit.Confirmed_Date__c = null;
-        visit.Primary_Requested_Date__c = null;
-        visit.Backup_Requested_Date__c = null;
     }
 
     /**

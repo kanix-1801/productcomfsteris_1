@@ -70,7 +70,7 @@ public with sharing class AccountAccountRelationshipSelector extends SoqlQueryBu
                 OR InverseRelationshipType__c = :RELATIONSHIP_TYPE_HAS_IDN_MEMBER
                 OR InverseRelationshipType__c = :RELATIONSHIP_TYPE_HAS_GPO_MEMBER
               )
-            WITH SECURITY_ENFORCED
+            WITH USER_MODE
             ORDER BY CreatedDate DESC, Id DESC
         ];
         // GC-3213 - END
@@ -100,7 +100,7 @@ public with sharing class AccountAccountRelationshipSelector extends SoqlQueryBu
                 OR RelationshipType__c = :RELATIONSHIP_TYPE_HAS_IDN_MEMBER
                 OR RelationshipType__c = :RELATIONSHIP_TYPE_IS_IDN_MEMBER_OF
                 OR RelationshipType__c = :RELATIONSHIP_TYPE_IS_GPO_MEMBER_OF)
-            WITH SECURITY_ENFORCED
+            WITH USER_MODE
         ];
     }
 
@@ -122,7 +122,7 @@ public with sharing class AccountAccountRelationshipSelector extends SoqlQueryBu
                    ChildAccount__c, RelationshipType__c, InverseRelationshipType__c
             FROM AccountAccountRelationship__c
             WHERE ChildAccount__c IN :accountIdSet
-            WITH SECURITY_ENFORCED
+            WITH USER_MODE
         ];
     }
 
@@ -151,7 +151,7 @@ public with sharing class AccountAccountRelationshipSelector extends SoqlQueryBu
             FROM AccountAccountRelationship__c
             WHERE ParentAccount__c IN :accountIdSet
               AND InverseRelationshipType__c = :expectedRelationshipType
-            WITH SECURITY_ENFORCED
+            WITH USER_MODE
         ];
     }
     

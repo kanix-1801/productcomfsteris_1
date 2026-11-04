@@ -132,4 +132,99 @@ private class WoDebriefAllowedUnitControllerTest {
 
         System.assertEquals(null, result);
     }
+
+    /**
+     * @description GW-6095 - Verifies the pricebook entry of the Work Order price book and currency is returned.
+     */
+    @IsTest
+    static void resolvePricebookEntryId_matchingEntry_returnsEntryId() {
+        // GIVEN: a Work Order on the standard price book and an active entry for the product
+        Id pricebookId = Test.getStandardPricebookId();
+        adb_WorkOrder workOrderBuilder = new adb_WorkOrder()
+            .account(new adb_Account().name('Pricebook Entry Controller Account'))
+            .status('Evaluate & Quote')
+            .subject('Pricebook Entry Controller WO')
+            .setRecordType('RepairCenterInstruments')
+            .pricebook2Id(pricebookId);
+        workOrderBuilder.persist();
+        WorkOrder workOrder = [
+            SELECT Id, CurrencyIsoCode
+            FROM WorkOrder
+            WHERE Id = :workOrderBuilder.record.Id
+        ];
+        Product2 product = new Product2(Name = 'Pricebook Entry Controller Product', IsActive = true);
+        insert product;
+        PricebookEntry pricebookEntry = new PricebookEntry(
+            Pricebook2Id = pricebookId,
+            Product2Id = product.Id,
+            UnitPrice = 1,
+            IsActive = true
+        );
+        if (String.isNotBlank(workOrder.CurrencyIsoCode)) {
+            pricebookEntry.CurrencyIsoCode = workOrder.CurrencyIsoCode;
+        }
+        insert pricebookEntry;
+
+        // WHEN
+        Test.startTest();
+        Id result = WoDebriefAllowedUnitController.resolvePricebookEntryId(workOrder.Id, product.Id);
+        Test.stopTest();
+
+        // THEN
+        System.assertEquals(pricebookEntry.Id, result, 'The matching pricebook entry should be returned');
+    }
+
+    /**
+     * @description GW-6095 - Verifies a Product2 Allowed Unit service failure is surfaced as AuraHandledException.
+     */
+    @IsTest
+    static void testEvaluateAllowedUnitByProduct_serviceException_throwsAuraHandled() {
+        WorkOrderLineItemsService.simulateQueryException = true;
+        Id dummyId = UserInfo.getUserId();
+
+        try {
+            Test.startTest();
+            WoDebriefAllowedUnitController.evaluateAllowedUnitByProduct(dummyId, dummyId);
+            Test.stopTest();
+            System.assert(false, 'Expected AuraHandledException');
+        } catch (AuraHandledException e) {
+            System.assert(String.isNotBlank(e.getMessage()), 'Expected exception message');
+        } finally {
+            WorkOrderLineItemsService.simulateQueryException = false;
+        }
+    }
+
+    /**
+     * @description GW-6095 - Verifies Billing Type defaults to Billable for blank inputs.
+     */
+    @IsTest
+    static void testEvaluateBillingType_blankInputs_returnsBillable() {
+        Test.startTest();
+        String byProduct = WoDebriefAllowedUnitController.evaluateBillingType(null, null);
+        String byProductItem = WoDebriefAllowedUnitController.evaluateBillingTypeForProductItem(null, null);
+        Test.stopTest();
+
+        System.assertEquals('Billable', byProduct, 'Blank inputs should be Billable');
+        System.assertEquals('Billable', byProductItem, 'Blank inputs should be Billable');
+    }
+
+    /**
+     * @description GW-6095 - Verifies a Billing Type service failure is surfaced as AuraHandledException.
+     */
+    @IsTest
+    static void testEvaluateBillingType_serviceException_throwsAuraHandled() {
+        WorkOrderLineItemsService.simulateQueryException = true;
+        Id dummyId = UserInfo.getUserId();
+
+        try {
+            Test.startTest();
+            WoDebriefAllowedUnitController.evaluateBillingType(dummyId, dummyId);
+            Test.stopTest();
+            System.assert(false, 'Expected AuraHandledException');
+        } catch (AuraHandledException e) {
+            System.assert(String.isNotBlank(e.getMessage()), 'Expected exception message');
+        } finally {
+            WorkOrderLineItemsService.simulateQueryException = false;
+        }
+    }
 }

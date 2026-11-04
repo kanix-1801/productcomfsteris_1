@@ -153,20 +153,50 @@ private class PpcCommercialApprovalControllerTest {
         Account accountRecord = new Account(Name = 'PPC Approval Account', RecordTypeId = prospectRecordTypeId);
         insert accountRecord;
 
+        Id pricebookId = Test.getStandardPricebookId();
+        update new Pricebook2(Id = pricebookId, IsActive = true);
+
         Opportunity opportunityRecord = new Opportunity(
             Name = 'PPC Approval',
             AccountId = accountRecord.Id,
             StageName = 'Proposal',
             CloseDate = Date.today().addDays(30),
+            Pricebook2Id = pricebookId,
             RecordTypeId = Schema.SObjectType.Opportunity.getRecordTypeInfosByDeveloperName()
                 .get('HCSalesPayPerClick')
                 .getRecordTypeId(),
             Commercial_Commitment__c = 'Consumable commitment for the placement term.',
             PPC_Pricing_Notes__c = 'Elevated consumable price.',
             FinancialAssessment__c = 'External model supports the placement.',
-            Financial_Assessment_Link__c = 'https://example.com/financial-assessment'
+            Financial_Assessment_Link__c = 'https://example.com/financial-assessment',
+            ExpectedCyclesProceduresperAnnum__c = 100,
+            AnnualCommittedQuantity__c = 10,
+            TotalContractedQuantity__c = 50,
+            TotalAnnualPPCRevenue__c = 1000,
+            TotalPPCContractValue__c = 5000,
+            ApprovedCostPerCycleExcludingService__c = 25,
+            Financial_Analysis_Status__c = 'Completed'
         );
         insert opportunityRecord;
+
+        Product2 productRecord = new Product2(Name = 'PPC Consumable', IsActive = true);
+        insert productRecord;
+        PricebookEntry pricebookEntry = new PricebookEntry(
+            Pricebook2Id = pricebookId,
+            Product2Id = productRecord.Id,
+            UnitPrice = 20,
+            IsActive = true
+        );
+        insert pricebookEntry;
+        insert new OpportunityLineItem(
+            OpportunityId = opportunityRecord.Id,
+            PricebookEntryId = pricebookEntry.Id,
+            Quantity = 1,
+            UnitPrice = 20,
+            Elevated_Price__c = 30,
+            TotalContractTermRevenue__c = 500,
+            ConsumptionFrequency__c = 'Annual'
+        );
         return opportunityRecord;
     }
 

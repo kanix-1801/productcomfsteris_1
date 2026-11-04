@@ -150,7 +150,7 @@ public with sharing class LSGenerateQuoteService {
      * @param opportunityId Opportunity Id.
      * @return Empty list (ack-only; UI shows toast and does not reload quote data).
      */
-    public static List<GenerateQuoteController.QuoteWrapper> refreshQuotes(Id opportunityId) {
+    public static List<LSGenerateQuoteController.QuoteWrapper> refreshQuotes(Id opportunityId) {
         validateOpportunityId(opportunityId);
         validateQuoteAccess(opportunityId);
 
@@ -191,7 +191,7 @@ public with sharing class LSGenerateQuoteService {
             Logger.info(
                 'Refresh Quote callout succeeded (ack-only). opportunityId=' + opportunityId
             ).addTag(LOGGER_TAG);
-            return new List<GenerateQuoteController.QuoteWrapper>();
+            return new List<LSGenerateQuoteController.QuoteWrapper>();
         } catch (GenerateQuoteException exceptionValue) {
             Logger.setScenario(SCENARIO);
             Logger.error('Error refreshing quotes for opportunity.', exceptionValue).addTag(LOGGER_TAG);
@@ -210,7 +210,7 @@ public with sharing class LSGenerateQuoteService {
      * @param opportunityId Opportunity Id.
      * @return Create quote response DTO for the LWC.
      */
-    public static GenerateQuoteController.CreateQuoteResponse createQuote(Id opportunityId) {
+    public static LSGenerateQuoteController.CreateQuoteResponse createQuote(Id opportunityId) {
         return createQuote(opportunityId, QUOTE_TYPE_NORMAL);
     }
 
@@ -220,7 +220,7 @@ public with sharing class LSGenerateQuoteService {
      * @param quoteType Quote Type picklist value to assign on create.
      * @return Create quote response DTO for the LWC.
      */
-    public static GenerateQuoteController.CreateQuoteResponse createQuote(Id opportunityId, String quoteType) {
+    public static LSGenerateQuoteController.CreateQuoteResponse createQuote(Id opportunityId, String quoteType) {
         return createQuote(opportunityId, quoteType, null);
     }
 
@@ -231,7 +231,7 @@ public with sharing class LSGenerateQuoteService {
      * @param trialId Optional Trial record Id for Trial Quote creation.
      * @return Create quote response DTO for the LWC.
      */
-    public static GenerateQuoteController.CreateQuoteResponse createQuote(
+    public static LSGenerateQuoteController.CreateQuoteResponse createQuote(
         Id opportunityId,
         String quoteType,
         Id trialId
@@ -247,7 +247,7 @@ public with sharing class LSGenerateQuoteService {
      * @param sampleId Optional Sample record Id for Sample Quote creation.
      * @return Create quote response DTO for the LWC.
      */
-    public static GenerateQuoteController.CreateQuoteResponse createQuote(
+    public static LSGenerateQuoteController.CreateQuoteResponse createQuote(
         Id opportunityId,
         String quoteType,
         Id trialId,
@@ -268,7 +268,7 @@ public with sharing class LSGenerateQuoteService {
      * @param sfRequest Sales Connection sfrequest value (copy or merge).
      * @return Create quote response DTO for the quick action.
      */
-    public static GenerateQuoteController.CreateQuoteResponse createShellQuoteForSalesConnectionRequest(
+    public static LSGenerateQuoteController.CreateQuoteResponse createShellQuoteForSalesConnectionRequest(
         Id opportunityId,
         String sfRequest
     ) {
@@ -291,7 +291,7 @@ public with sharing class LSGenerateQuoteService {
      * @param sfRequest Sales Connection sfrequest value (create, copy, or merge).
      * @return Create quote response DTO with encrypted Sales Connection URL.
      */
-    private static GenerateQuoteController.CreateQuoteResponse createShellQuoteForSalesConnection(
+    private static LSGenerateQuoteController.CreateQuoteResponse createShellQuoteForSalesConnection(
         Id opportunityId,
         String quoteType,
         Id trialId,
@@ -738,12 +738,12 @@ public with sharing class LSGenerateQuoteService {
         return quoteRecord.LastModifiedDate;
     }
 
-    private static GenerateQuoteController.CreateQuoteResponse mapCreateQuoteResponse(
+    private static LSGenerateQuoteController.CreateQuoteResponse mapCreateQuoteResponse(
         Quote insertedQuote,
         Opportunity opportunityRecord,
         Account accountRecord
     ) {
-        GenerateQuoteController.CreateQuoteResponse response = new GenerateQuoteController.CreateQuoteResponse();
+        LSGenerateQuoteController.CreateQuoteResponse response = new LSGenerateQuoteController.CreateQuoteResponse();
         response.quoteId = insertedQuote.Id;
         response.quoteName = insertedQuote.Name;
         response.quoteNumber = resolveQuoteNumber(insertedQuote);

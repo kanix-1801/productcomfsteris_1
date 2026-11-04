@@ -149,6 +149,8 @@ public with sharing class WorkOrderLineItemsService {
     private static final String WOLI_RECORD_TYPE_REPAIR_CODE = 'RepairCode';
     private static final String WOLI_RECORD_TYPE_PRODUCT_SERVICED = 'ProductServiced';
     private static final String WOLI_LINE_TYPE_PRODUCT_SERVICED = 'Product Serviced';
+    /** GW-5328 - Instrument Evaluation Product Serviced WOLI Product Line. */
+    private static final String WOLI_PRODUCT_LINE_INSTRUMENT = 'INSTRUMENT';
     private static final String COMPONENT_TYPE_CATEGORY_CODE = 'Category Code';
     private static final String COMPONENT_TYPE_SPECIAL_PRICING = 'Special Pricing';
     private static final String COMPONENT_TYPE_OBSERVATION_CODE = 'Observation Code';
@@ -1343,6 +1345,8 @@ public with sharing class WorkOrderLineItemsService {
         // #4 Record Type / #5 Line Type
         productServicedLine.RecordTypeId = productServicedRtId;
         productServicedLine.LineType__c = WOLI_LINE_TYPE_PRODUCT_SERVICED;
+        // GW-5328 - Product Line is always INSTRUMENT for IE Product Serviced lines.
+        productServicedLine.ProductLine__c = WOLI_PRODUCT_LINE_INSTRUMENT;
         // #2 Work Order
         productServicedLine.WorkOrderId = workOrder.Id;
         // #1 Top Level Work Order = WO.Parent Work Order (no self fallback per GW-3938)
@@ -2635,6 +2639,243 @@ public with sharing class WorkOrderLineItemsService {
             LIMIT 1
         ];
         return pricebooks.isEmpty() ? null : pricebooks[0].Id;
+    }
+
+    /****************************************************************************************
+     * GW-6095 - COMPONENT TAGS FOR ALLOWED PARTS
+     * New methods only. They reuse collectServiceBomIdSet / mapProduct2IdsByProductItem and
+     * ProductRelatedMaterialsSelector unchanged; the Allowed Unit methods above are not modified.
+     ****************************************************************************************/
+
+    /**
+     * @description GW-6095 - Component Tag option shown in the Work Order Review - ES (woDebriefES)
+     *              parts form.
+     */
+    public class ComponentTagOption {
+        /** @description ComponentTag__c Id, saved on WorkOrderLineItem.ComponentTag__c. */
+        @AuraEnabled
+        public Id id;
+        /** @description Option label: the Component Tag Name. */
+        @AuraEnabled
+        public String label;
+
+        /**
+         * @description Builds an option from a Component Tag record.
+         * @param componentTag Component Tag with Id and Name queried
+         */
+        public ComponentTagOption(ComponentTag__c componentTag) {
+            this.id = componentTag.Id;
+            this.label = componentTag.Name;
+        }
+    }
+
+    /**
+     * @description GW-6095 - Returns the Component Tag options for one Product2 (Customer Stock)
+     *              on a Work Order.
+     * @param workOrderId Work Order Id
+     * @param product2Id Selected Product2 Id
+     * @return Component Tag options (empty when none apply)
+     * @throws WorkOrderLineItemsServiceException when the lookup fails
+     * @example
+     * List<ComponentTagOption> options =
+     *     WorkOrderLineItemsService.getComponentTagsForProduct(workOrderId, product2Id);
+     */
+    public static List<ComponentTagOption> getComponentTagsForProduct(Id workOrderId, Id product2Id) {
+        if (workOrderId == null || product2Id == null) {
+            return new List<ComponentTagOption>();
+        }
+        List<ComponentTagOption> options =
+            getComponentTagsByProduct(workOrderId, new Set<Id>{ product2Id }).get(product2Id);
+        return options == null ? new List<ComponentTagOption>() : options;
+    }
+
+    /**
+     * @description GW-6095 - Returns the Component Tag options for one Product Item (Trunk Stock)
+     *              on a Work Order.
+     * @param workOrderId Work Order Id
+     * @param productItemId Selected Product Item Id
+     * @return Component Tag options (empty when none apply)
+     * @throws WorkOrderLineItemsServiceException when the lookup fails
+     * @example
+     * List<ComponentTagOption> options =
+     *     WorkOrderLineItemsService.getComponentTagsForProductItem(workOrderId, productItemId);
+     */
+    public static List<ComponentTagOption> getComponentTagsForProductItem(Id workOrderId, Id productItemId) {
+        if (workOrderId == null || productItemId == null) {
+            return new List<ComponentTagOption>();
+        }
+        List<ComponentTagOption> options =
+            getComponentTagsByProductItem(workOrderId, new Set<Id>{ productItemId }).get(productItemId);
+        return options == null ? new List<ComponentTagOption>() : options;
+    }
+
+    /**
+     * @description GW-6095 - Bulk: Component Tag options for Product2 Ids on a Work Order. Uses the
+     *              same Allowed Parts Service BOMs as the Allowed Unit check, finds the BOM Components
+     *              whose Product Component is the part, and returns their Component Tag child records.
+     *              Every requested Product2 gets an entry; it is empty when the Work Order has no Asset,
+     *              SBOM cross-reference is not required, the part is not on the allowed list, or the
+     *              BOM Component has no Component Tags.
+     * @param workOrderId Work Order Id
+     * @param product2IdSet Product2 Ids
+     * @return Map of Product2 Id to Component Tag options ordered by Name
+     * @throws WorkOrderLineItemsServiceException when the lookup fails
+     * @example
+     * Map<Id, List<ComponentTagOption>> optionsByProduct2IdMap =
+     *     WorkOrderLineItemsService.getComponentTagsByProduct(workOrderId, product2IdSet);
+     */
+    public static Map<Id, List<ComponentTagOption>> getComponentTagsByProduct(
+        Id workOrderId,
+        Set<Id> product2IdSet
+    ) {
+        Map<Id, List<ComponentTagOption>> optionsByProduct2IdMap =
+            new Map<Id, List<ComponentTagOption>>();
+
+        try {
+            if (Test.isRunningTest() && simulateQueryException) {
+                throw new QueryException('Simulated query failure');
+            }
+            if (Test.isRunningTest() && simulateGenericException) {
+                throw new IllegalArgumentException('Simulated unexpected failure');
+            }
+
+            if (workOrderId == null || product2IdSet == null || product2IdSet.isEmpty()) {
+                return optionsByProduct2IdMap;
+            }
+            for (Id product2Id : product2IdSet) {
+                if (product2Id != null) {
+                    optionsByProduct2IdMap.put(product2Id, new List<ComponentTagOption>());
+                }
+            }
+            if (optionsByProduct2IdMap.isEmpty()) {
+                return optionsByProduct2IdMap;
+            }
+
+            List<WorkOrder> workOrderList =
+                WorkOrdersSelector.selectByIdsForAllowedUnit(new Set<Id>{ workOrderId });
+            if (workOrderList.isEmpty() || workOrderList[0].AssetId == null) {
+                Logger.debug('Component Tags skipped: Work Order has no Asset');
+                return optionsByProduct2IdMap;
+            }
+
+            Set<Id> serviceBomIdSet = collectServiceBomIdSet(workOrderList[0]);
+            if (serviceBomIdSet == null || serviceBomIdSet.isEmpty()) {
+                Logger.debug('Component Tags skipped: no Service BOM to cross-reference');
+                return optionsByProduct2IdMap;
+            }
+
+            Map<Id, Id> product2IdByBomComponentIdMap = new Map<Id, Id>();
+            for (
+                ProductRelatedMaterial bomComponent :
+                ProductRelatedMaterialsSelector.selectByServiceBomAndProductComponents(
+                    serviceBomIdSet,
+                    optionsByProduct2IdMap.keySet()
+                )
+            ) {
+                if (bomComponent.ProductComponentId != null) {
+                    product2IdByBomComponentIdMap.put(bomComponent.Id, bomComponent.ProductComponentId);
+                }
+            }
+            if (product2IdByBomComponentIdMap.isEmpty()) {
+                return optionsByProduct2IdMap;
+            }
+
+            Integer componentTagCount = 0;
+            for (
+                ComponentTag__c componentTag :
+                ComponentTagsSelector.selectByBomComponentIds(product2IdByBomComponentIdMap.keySet())
+            ) {
+                Id product2Id = product2IdByBomComponentIdMap.get(componentTag.BomComponent__c);
+                if (product2Id != null) {
+                    optionsByProduct2IdMap.get(product2Id).add(new ComponentTagOption(componentTag));
+                    componentTagCount++;
+                }
+            }
+
+            Logger.debug(
+                new LogMessage(
+                    'Component Tags by Product complete bomComponentCount={0} componentTagCount={1}',
+                    product2IdByBomComponentIdMap.size(),
+                    componentTagCount
+                )
+            );
+            return optionsByProduct2IdMap;
+        } catch (QueryException e) {
+            Logger.error('WorkOrderLineItemsService.getComponentTagsByProduct query failed', e);
+            throw new WorkOrderLineItemsServiceException(
+                'Failed to load Component Tags: ' + e.getMessage(),
+                e
+            );
+        } catch (Exception e) {
+            Logger.error('WorkOrderLineItemsService.getComponentTagsByProduct failed', e);
+            throw new WorkOrderLineItemsServiceException(
+                'Failed to load Component Tags: ' + e.getMessage(),
+                e
+            );
+        } finally {
+            Logger.saveLog();
+        }
+    }
+
+    /**
+     * @description GW-6095 - Bulk: Component Tag options for Product Item Ids on a Work Order.
+     *              Resolves each Product Item to its Product2 and delegates to getComponentTagsByProduct.
+     * @param workOrderId Work Order Id
+     * @param productItemIdSet Product Item Ids
+     * @return Map of Product Item Id to Component Tag options ordered by Name
+     * @throws WorkOrderLineItemsServiceException when the lookup fails
+     * @example
+     * Map<Id, List<ComponentTagOption>> optionsByProductItemIdMap =
+     *     WorkOrderLineItemsService.getComponentTagsByProductItem(workOrderId, productItemIdSet);
+     */
+    public static Map<Id, List<ComponentTagOption>> getComponentTagsByProductItem(
+        Id workOrderId,
+        Set<Id> productItemIdSet
+    ) {
+        Map<Id, List<ComponentTagOption>> optionsByProductItemIdMap =
+            new Map<Id, List<ComponentTagOption>>();
+
+        try {
+            if (workOrderId == null || productItemIdSet == null || productItemIdSet.isEmpty()) {
+                return optionsByProductItemIdMap;
+            }
+
+            Map<Id, Id> product2IdByProductItemIdMap = mapProduct2IdsByProductItem(productItemIdSet);
+            Map<Id, List<ComponentTagOption>> optionsByProduct2IdMap = getComponentTagsByProduct(
+                workOrderId,
+                new Set<Id>(product2IdByProductItemIdMap.values())
+            );
+
+            for (Id productItemId : productItemIdSet) {
+                if (productItemId == null) {
+                    continue;
+                }
+                Id product2Id = product2IdByProductItemIdMap.get(productItemId);
+                List<ComponentTagOption> options =
+                    product2Id == null ? null : optionsByProduct2IdMap.get(product2Id);
+                optionsByProductItemIdMap.put(
+                    productItemId,
+                    options == null ? new List<ComponentTagOption>() : options
+                );
+            }
+            return optionsByProductItemIdMap;
+        } catch (WorkOrderLineItemsServiceException e) {
+            throw e;
+        } catch (QueryException e) {
+            Logger.error('WorkOrderLineItemsService.getComponentTagsByProductItem query failed', e);
+            throw new WorkOrderLineItemsServiceException(
+                'Failed to load Component Tags: ' + e.getMessage(),
+                e
+            );
+        } catch (Exception e) {
+            Logger.error('WorkOrderLineItemsService.getComponentTagsByProductItem failed', e);
+            throw new WorkOrderLineItemsServiceException(
+                'Failed to load Component Tags: ' + e.getMessage(),
+                e
+            );
+        } finally {
+            Logger.saveLog();
+        }
     }
 
     /**

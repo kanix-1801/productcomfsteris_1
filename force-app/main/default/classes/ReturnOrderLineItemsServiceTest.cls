@@ -1,7 +1,7 @@
 /**
  * @description Test class for ReturnOrderLineItemsService.
- *              Covers create, update, delete, and retrieval operations
- *              across positive, negative, and empty-input scenarios.
+ *              Covers create, update, delete, retrieval, and GW-5492
+ *              receiving status updates across positive, negative, and empty-input scenarios.
  */
 @IsTest
 private class ReturnOrderLineItemsServiceTest {
@@ -431,6 +431,118 @@ private class ReturnOrderLineItemsServiceTest {
         Assert.areEqual(lines.size() - 1, createdCount, 'Only Created lines should count');
         Assert.areEqual(0, nullCount, 'Null Return Order should return zero');
         Assert.areEqual(createdCount, selectorCount, 'Service should match selector count');
+    }
+
+    // ── GW-5492 receiving status updates ──────────────────────────────────────
+
+    @IsTest
+    static void testMarkLinesReceivedForReceiving_WhenBlank_DoesNothing() {
+        Integer countBefore = [SELECT COUNT() FROM ReturnOrderLineItem WHERE Status__c = 'Received'];
+
+        Test.startTest();
+        ReturnOrderLineItemsService.markLinesReceivedForReceiving(
+            null,
+            UserInfo.getUserId(),
+            Datetime.now(),
+            1
+        );
+        ReturnOrderLineItemsService.markLinesReceivedForReceiving(
+            new Set<Id>(),
+            UserInfo.getUserId(),
+            Datetime.now(),
+            1
+        );
+        Test.stopTest();
+
+        Assert.areEqual(
+            countBefore,
+            [SELECT COUNT() FROM ReturnOrderLineItem WHERE Status__c = 'Received'],
+            'Blank Ids should not mark lines Received'
+        );
+    }
+
+    @IsTest
+    static void testMarkLinesReceivedForReceiving_WhenCreated_UpdatesReceivedFields() {
+        List<ReturnOrderLineItem> lines = [
+            SELECT Id, Status__c, QuantityReturned
+            FROM ReturnOrderLineItem
+            LIMIT 2
+        ];
+        Assert.areEqual(2, lines.size(), 'Setup should provide two lines');
+        lines[0].Status__c = 'Created';
+        lines[1].Status__c = 'Redirected';
+        update lines;
+
+        Datetime receivedAt = Datetime.now();
+        Id receiverId = UserInfo.getUserId();
+
+        Test.startTest();
+        ReturnOrderLineItemsService.markLinesReceivedForReceiving(
+            new Set<Id>{ lines[0].Id, lines[1].Id },
+            receiverId,
+            receivedAt,
+            null
+        );
+        Test.stopTest();
+
+        Map<Id, ReturnOrderLineItem> refreshed = new Map<Id, ReturnOrderLineItem>([
+            SELECT Id, Status__c, Receiver__c, ReceivedDateTime__c, QuantityReceived
+            FROM ReturnOrderLineItem
+            WHERE Id IN :new Set<Id>{ lines[0].Id, lines[1].Id }
+        ]);
+        ReturnOrderLineItem receivedLine = refreshed.get(lines[0].Id);
+        Assert.areEqual('Received', receivedLine.Status__c);
+        Assert.areEqual(receiverId, receivedLine.Receiver__c);
+        Assert.areEqual(receivedAt, receivedLine.ReceivedDateTime__c);
+        Assert.areEqual(
+            lines[0].QuantityReturned != null ? lines[0].QuantityReturned : 1,
+            receivedLine.QuantityReceived,
+            'Null quantityReceived should fall back to QuantityReturned or 1'
+        );
+        Assert.areEqual(
+            'Redirected',
+            refreshed.get(lines[1].Id).Status__c,
+            'Non-Created lines should be skipped'
+        );
+    }
+
+    @IsTest
+    static void testMarkLineRedirectedForReceiving_WhenNull_DoesNothing() {
+        Test.startTest();
+        ReturnOrderLineItemsService.markLineRedirectedForReceiving(null);
+        Test.stopTest();
+        Assert.isTrue(true, 'Null line Id should no-op');
+    }
+
+    @IsTest
+    static void testMarkLinesRedirectedForReceiving_WhenIdsProvided_SetsRedirected() {
+        List<ReturnOrderLineItem> lines = [
+            SELECT Id, Status__c
+            FROM ReturnOrderLineItem
+            LIMIT 2
+        ];
+        Assert.areEqual(2, lines.size(), 'Setup should provide two lines');
+        for (ReturnOrderLineItem lineItem : lines) {
+            lineItem.Status__c = 'Created';
+        }
+        update lines;
+
+        Test.startTest();
+        ReturnOrderLineItemsService.markLinesRedirectedForReceiving(null);
+        ReturnOrderLineItemsService.markLinesRedirectedForReceiving(new Set<Id>());
+        ReturnOrderLineItemsService.markLineRedirectedForReceiving(lines[0].Id);
+        ReturnOrderLineItemsService.markLinesRedirectedForReceiving(
+            new Set<Id>{ lines[1].Id, null }
+        );
+        Test.stopTest();
+
+        Map<Id, ReturnOrderLineItem> refreshed = new Map<Id, ReturnOrderLineItem>([
+            SELECT Id, Status__c
+            FROM ReturnOrderLineItem
+            WHERE Id IN :new Set<Id>{ lines[0].Id, lines[1].Id }
+        ]);
+        Assert.areEqual('Redirected', refreshed.get(lines[0].Id).Status__c);
+        Assert.areEqual('Redirected', refreshed.get(lines[1].Id).Status__c);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

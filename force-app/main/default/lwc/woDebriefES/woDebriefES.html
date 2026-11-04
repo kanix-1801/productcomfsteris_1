@@ -279,6 +279,32 @@
                                                 <div class="read-only-label">Allowed Part</div>
                                                 <div class="read-only-value">{line.editAllowedUnitLabel}</div>
                                             </div>
+                                            <template lwc:if={line.showComponentTagPicker}>
+                                                <div class="field-full">
+                                                    <lightning-combobox
+                                                        label="Component Tag"
+                                                        placeholder="Select a component tag"
+                                                        value={line.editComponentTagId}
+                                                        options={line.componentTagOptions}
+                                                        required
+                                                        data-id={line.Id}
+                                                        data-field="componentTagId"
+                                                        onchange={handleEditFieldChange}>
+                                                    </lightning-combobox>
+                                                </div>
+                                            </template>
+                                            <template lwc:elseif={line.showComponentTagReadOnly}>
+                                                <div class="field-full read-only-field">
+                                                    <div class="read-only-label">Component Tag</div>
+                                                    <div class="read-only-value">{line.componentTagLabel}</div>
+                                                </div>
+                                            </template>
+                                            <template lwc:elseif={line.showNoComponentTagMessage}>
+                                                <div class="field-full read-only-field">
+                                                    <div class="read-only-label">Component Tag</div>
+                                                    <div class="read-only-value component-tag-warning">{line.noComponentTagMessage}</div>
+                                                </div>
+                                            </template>
                                             <template lwc:if={line.showPartExceptionQuestion}>
                                                 <div class="field-full">
                                                     <lightning-radio-group
@@ -763,6 +789,31 @@
                                             <div class="read-only-label">Allowed Part</div>
                                             <div class="read-only-value">{addFormAllowedUnitLabel}</div>
                                         </div>
+                                        <template lwc:if={addFormComponentTag.showComponentTagPicker}>
+                                            <div class="field-full">
+                                                <lightning-combobox
+                                                    label="Component Tag"
+                                                    placeholder="Select a component tag"
+                                                    value={addFormComponentTag.editComponentTagId}
+                                                    options={addFormComponentTag.componentTagOptions}
+                                                    required
+                                                    data-field="componentTagId"
+                                                    onchange={handleAddFieldChange}>
+                                                </lightning-combobox>
+                                            </div>
+                                        </template>
+                                        <template lwc:elseif={addFormComponentTag.showComponentTagReadOnly}>
+                                            <div class="field-full read-only-field">
+                                                <div class="read-only-label">Component Tag</div>
+                                                <div class="read-only-value">{addFormComponentTag.componentTagLabel}</div>
+                                            </div>
+                                        </template>
+                                        <template lwc:elseif={addFormComponentTag.showNoComponentTagMessage}>
+                                            <div class="field-full read-only-field">
+                                                <div class="read-only-label">Component Tag</div>
+                                                <div class="read-only-value component-tag-warning">{addFormComponentTag.noComponentTagMessage}</div>
+                                            </div>
+                                        </template>
                                         <template lwc:if={addFormShowPartExceptionQuestion}>
                                             <div class="field-full">
                                                 <lightning-radio-group

@@ -77,8 +77,7 @@ public without sharing class LSTemporaryAccessReassignmentService {
         ]) {
             Id newOwnerId = newOwnerByCoverageAccount.get(coverageAccountKey(opportunity.OwnerId, opportunity.AccountId));
             if (newOwnerId != null && newOwnerId != opportunity.OwnerId) {
-                opportunity.OwnerId = newOwnerId;
-                updates.add(opportunity);
+                updates.add(new Opportunity(Id = opportunity.Id, OwnerId = newOwnerId));
             }
         }
         saveUpdates(updates, 'Opportunity');
@@ -98,8 +97,7 @@ public without sharing class LSTemporaryAccessReassignmentService {
         ]) {
             Id newOwnerId = newOwnerByCoverageAccount.get(coverageAccountKey(task.OwnerId, task.AccountId));
             if (newOwnerId != null && newOwnerId != task.OwnerId) {
-                task.OwnerId = newOwnerId;
-                updates.add(task);
+                updates.add(new Task(Id = task.Id, OwnerId = newOwnerId));
             }
         }
         saveUpdates(updates, 'Task');
@@ -119,8 +117,7 @@ public without sharing class LSTemporaryAccessReassignmentService {
         ]) {
             Id newOwnerId = newOwnerByCoverageAccount.get(coverageAccountKey(event.OwnerId, event.AccountId));
             if (newOwnerId != null && newOwnerId != event.OwnerId) {
-                event.OwnerId = newOwnerId;
-                updates.add(event);
+                updates.add(new Event(Id = event.Id, OwnerId = newOwnerId));
             }
         }
         saveUpdates(updates, 'Event');
@@ -140,13 +137,16 @@ public without sharing class LSTemporaryAccessReassignmentService {
         ]) {
             Id newOwnerId = newOwnerByCoverageAccount.get(coverageAccountKey(contact.OwnerId, contact.AccountId));
             if (newOwnerId != null && newOwnerId != contact.OwnerId) {
-                contact.OwnerId = newOwnerId;
-                updates.add(contact);
+                updates.add(new Contact(Id = contact.Id, OwnerId = newOwnerId));
             }
         }
         saveUpdates(updates, 'Contact');
     }
 
+    /**
+     * Updates carry only Id and OwnerId. TaskTrigger rejects a Task that still holds the
+     * read-only AccountId from the query.
+     */
     private static void saveUpdates(List<SObject> updates, String objectName) {
         if (updates.isEmpty()) {
             return;

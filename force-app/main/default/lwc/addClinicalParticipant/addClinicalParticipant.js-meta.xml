@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>68.0</apiVersion>
+    <isExposed>true</isExposed>
+    <masterLabel>Add Clinical Participant</masterLabel>
+    <description>GC-3542 - Popup on the Process Review create flow for one or more clinical participants.</description>
+    <targets>
+        <target>lightning__FlowScreen</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightning__FlowScreen">
+            <property name="participantsJson" type="String" label="Participants JSON" />
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

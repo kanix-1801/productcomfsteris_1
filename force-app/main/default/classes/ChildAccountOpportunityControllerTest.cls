@@ -227,13 +227,13 @@ private class ChildAccountOpportunityControllerTest {
 
     private static Id getCustomerRecordTypeId() {
         Map<String, Schema.RecordTypeInfo> recordTypes =
-            Account.SObjectType.getDescribe().getRecordTypeInfosByDeveloperName();
+            Account.SObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).getRecordTypeInfosByDeveloperName();
 
         if (recordTypes.containsKey('Customer')) {
             return recordTypes.get('Customer').getRecordTypeId();
         }
 
-        for (Schema.RecordTypeInfo recordTypeInfo : Account.SObjectType.getDescribe().getRecordTypeInfos()) {
+        for (Schema.RecordTypeInfo recordTypeInfo : Account.SObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).getRecordTypeInfos()) {
             if (!recordTypeInfo.isMaster() && recordTypeInfo.getName() == 'Customer') {
                 return recordTypeInfo.getRecordTypeId();
             }

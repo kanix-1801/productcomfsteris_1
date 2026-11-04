@@ -302,9 +302,6 @@ public with sharing class WorkOrdersService {
         if (workOrderIds == null || workOrderIds.isEmpty()) {
             return new List<WorkOrder>();
         }
-        // Opp insert temp fix — WorkOrdersSelector.selectForApproveRejectQuoteByIds missing in org (GW-5333).
-        return new List<WorkOrder>();
-        /*
         try {
             return WorkOrdersSelector.selectForApproveRejectQuoteByIds(workOrderIds);
         } catch (Exception e) {
@@ -316,7 +313,6 @@ public with sharing class WorkOrdersService {
         } finally {
             Logger.saveLog();
         }
-        */
     }
 
     /**
@@ -1798,12 +1794,8 @@ public with sharing class WorkOrdersService {
         List<DivideInstrumentsBin> bins,
         List<WorkOrder> insertedChildren
     ) {
-        // Opp insert temp fix — service-code selector methods missing in org (GW-5748).
-        List<WorkOrderLineItem> parentServiceCodes = new List<WorkOrderLineItem>();
-        /*
         List<WorkOrderLineItem> parentServiceCodes =
             WorkOrderLineItemsSelector.selectServiceCodeLinesByWorkOrderId(parent.Id);
-        */
         if (parentServiceCodes.isEmpty()) {
             return;
         }
@@ -1813,13 +1805,10 @@ public with sharing class WorkOrdersService {
             return;
         }
 
-        List<WorkOrderLineItem> existingChildLines = new List<WorkOrderLineItem>();
-        /*
         List<WorkOrderLineItem> existingChildLines =
             WorkOrderLineItemsSelector.selectServiceCodeLinesByWorkOrderIds(
                 quantityByChildId.keySet()
             );
-        */
         Map<String, WorkOrderLineItem> existingByChildAndProduct =
             new Map<String, WorkOrderLineItem>();
         for (WorkOrderLineItem existingLine : existingChildLines) {
@@ -7064,16 +7053,12 @@ public with sharing class WorkOrdersService {
         WorkOrder workOrder,
         List<NonconformanceReport__c> reports
     ) {
-        // Opp insert temp fix — selectProductServicedNonAccessoryByWorkOrderId missing in org.
-        Integer productServicedCount = 0;
-        /*
         Integer productServicedCount = workOrder.AssetId == null
             ? WorkOrderLineItemsSelector.selectProductServicedNonAccessoryByWorkOrderId(
                     workOrder.Id
                 )
                 .size()
             : 0;
-        */
         if (!canCreateQualityInspectionNcr(workOrder, reports, productServicedCount)) {
             throw new WorkOrdersServiceException(
                 'Cannot create another Nonconformance Report for this Work Order.'
@@ -7112,17 +7097,12 @@ public with sharing class WorkOrdersService {
             );
         }
         WorkOrderLineItem source;
-        // Opp insert temp fix — selectProductServicedNonAccessoryByWorkOrderId missing in org.
-        List<WorkOrderLineItem> productServicedLines = new List<WorkOrderLineItem>();
-        /*
         for (
             WorkOrderLineItem line :
             WorkOrderLineItemsSelector.selectProductServicedNonAccessoryByWorkOrderId(
                 report.WorkOrder__c
             )
         ) {
-        */
-        for (WorkOrderLineItem line : productServicedLines) {
             if (line.Id == workOrderLineItemId) {
                 source = line;
                 break;
@@ -7169,28 +7149,20 @@ public with sharing class WorkOrdersService {
         Id workOrderId
     ) {
         List<QualityInspectionInstrumentLine> rows = new List<QualityInspectionInstrumentLine>();
-        // Opp insert temp fix — quality-inspection selector methods missing in org.
-        List<WorkOrderLineItem> lines = new List<WorkOrderLineItem>();
-        /*
         List<WorkOrderLineItem> lines =
             WorkOrderLineItemsSelector.selectProductServicedNonAccessoryByWorkOrderId(
                 workOrderId
             );
-        */
         if (lines.isEmpty()) {
             return rows;
         }
         Map<Id, List<QualityInspectionOption>> repairSummaryByParentId =
             new Map<Id, List<QualityInspectionOption>>();
         Set<Id> parentIds = new Map<Id, WorkOrderLineItem>(lines).keySet();
-        List<WorkOrderLineItem> repairCodeChildren = new List<WorkOrderLineItem>();
-        /*
         for (
             WorkOrderLineItem child :
             WorkOrderLineItemsSelector.selectRepairCodeChildrenByParentIds(parentIds)
         ) {
-        */
-        for (WorkOrderLineItem child : repairCodeChildren) {
             if (!repairSummaryByParentId.containsKey(child.ParentWorkOrderLineItemId)) {
                 repairSummaryByParentId.put(
                     child.ParentWorkOrderLineItemId,
@@ -7998,11 +7970,7 @@ public with sharing class WorkOrdersService {
      * @return Count
      */
     public static Integer countByReturnOrderId(Id returnOrderId) {
-        // Opp insert temp fix — WorkOrdersSelector.countByReturnOrderId missing in org (GW-5492).
-        return 0;
-        /*
         return WorkOrdersSelector.countByReturnOrderId(returnOrderId);
-        */
     }
 
     /**

@@ -304,11 +304,6 @@ public without sharing class CscVisitEmailService {
         ) {
             return CscVisitConfirmationService.STATUS_REQUESTED;
         }
-        if (visit.Status__c == CscVisitConfirmationService.STATUS_POSTPONED
-            && priorStatus != CscVisitConfirmationService.STATUS_POSTPONED
-        ) {
-            return CscVisitConfirmationService.STATUS_POSTPONED;
-        }
         if (visit.Status__c == CscVisitConfirmationService.STATUS_CANCELLED
             && priorStatus != CscVisitConfirmationService.STATUS_CANCELLED
         ) {

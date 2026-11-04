@@ -8,11 +8,43 @@ private class LocationsSelectorTest {
      */
     @TestSetup
     static void setupData() {
-        String rackCategory = Schema.Location.Repair_Category__c.getDescribe()
-            .getPicklistValues()[0]
-            .getValue();
+        Id serviceLocationsRtId = [
+            SELECT Id
+            FROM RecordType
+            WHERE SObjectType = 'Location'
+                AND DeveloperName = 'Service_Locations'
+            LIMIT 1
+        ]
+        .Id;
+        // Repair_Category__c is RT-restricted; global describe [0] may not be valid on Service_Locations.
+        Set<String> serviceLocationCategories = new Set<String>{
+            'Bipolar',
+            'Laps',
+            'Machine Shop',
+            'Optics',
+            'Powder Coating',
+            'Power',
+            'Refiber',
+            'Specialty',
+            'Stainless',
+            'Video'
+        };
+        String rackCategory;
+        for (
+            Schema.PicklistEntry picklistEntry : Schema.Location.Repair_Category__c.getDescribe()
+                .getPicklistValues()
+        ) {
+            if (
+                picklistEntry.isActive() &&
+                serviceLocationCategories.contains(picklistEntry.getValue())
+            ) {
+                rackCategory = picklistEntry.getValue();
+                break;
+            }
+        }
         insert new Schema.Location(
             Name = 'GW3891-RACK-001',
+            RecordTypeId = serviceLocationsRtId,
             LocationType = 'Rack',
             Repair_Category__c = rackCategory,
             TrackRackAssignmentHistory__c = true,

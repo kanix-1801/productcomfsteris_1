@@ -11,7 +11,7 @@
 private class SunshineServiceTest {
 
     @IsTest
-    static void search_matchesFirstNameLastNameAndCity() {
+    static void searchMatchesFirstNameLastNameAndCity() {
         SunshineService.SearchResult result = SunshineService.search('jordan', 'HALE', ' Mentor ', null);
 
         System.assertEquals(1, result.matchCount);
@@ -21,7 +21,7 @@ private class SunshineServiceTest {
     }
 
     @IsTest
-    static void search_matchesNpiFromTheDirectory() {
+    static void searchMatchesNpiFromTheDirectory() {
         SunshineService.SearchResult result = SunshineService.search(null, null, null, '1679576722');
 
         System.assertEquals(1, result.matchCount);
@@ -31,7 +31,7 @@ private class SunshineServiceTest {
     }
 
     @IsTest
-    static void search_returnsNoMatchWhenThePhysicianIsNotInTheDirectory() {
+    static void searchReturnsNoMatchWhenThePhysicianIsNotInTheDirectory() {
         SunshineService.SearchResult result = SunshineService.search('Jordan', 'Hale', 'Columbus', null);
 
         System.assertEquals(0, result.matchCount);
@@ -40,7 +40,7 @@ private class SunshineServiceTest {
     }
 
     @IsTest
-    static void search_requiresNameAndCityWhenNpiIsBlank() {
+    static void searchRequiresNameAndCityWhenNpiIsBlank() {
         SunshineService.SearchResult result = SunshineService.search('Jordan', null, 'Mentor', null);
 
         System.assertEquals(0, result.matchCount);
@@ -48,7 +48,7 @@ private class SunshineServiceTest {
     }
 
     @IsTest
-    static void save_storesTaxonomyAndExpensesFromTheDirectory() {
+    static void saveStoresTaxonomyAndExpensesFromTheDirectory() {
         CSC_Visit_Request__c visit = insertVisit();
         SunshineService.SaveRequest request = expenseRequest(visit.Id, '1234567893');
         request.airfare = 100;
@@ -83,7 +83,7 @@ private class SunshineServiceTest {
     }
 
     @IsTest
-    static void save_updatesExpensesAfterThePhysicianIsRecorded() {
+    static void saveUpdatesExpensesAfterThePhysicianIsRecorded() {
         CSC_Visit_Request__c visit = insertVisit();
         Id sunshineId = SunshineService.save(expenseRequest(visit.Id, '1063493807'));
 
@@ -101,7 +101,7 @@ private class SunshineServiceTest {
     }
 
     @IsTest
-    static void save_rejectsADuplicatePhysicianAndANegativeAmount() {
+    static void saveRejectsADuplicatePhysicianAndANegativeAmount() {
         CSC_Visit_Request__c visit = insertVisit();
         SunshineService.save(expenseRequest(visit.Id, '1234567893'));
 
@@ -123,7 +123,7 @@ private class SunshineServiceTest {
     }
 
     @IsTest
-    static void buildPdf_includesThePhysicianAndSterisAttendee() {
+    static void buildPdfIncludesThePhysicianAndSterisAttendee() {
         CSC_Visit_Request__c visit = insertVisit();
         SunshineService.save(expenseRequest(visit.Id, '1679576722'));
         Boolean attendeeInserted = insertAttendee(visit.Id);

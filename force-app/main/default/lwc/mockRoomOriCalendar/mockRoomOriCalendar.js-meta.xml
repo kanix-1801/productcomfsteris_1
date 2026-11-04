@@ -3,7 +3,7 @@
     <apiVersion>66.0</apiVersion>
     <isExposed>true</isExposed>
     <masterLabel>Mock Room / ORI Calendar</masterLabel>
-    <description>GC-3483. Shared calendar for selecting a primary and backup requested date.</description>
+    <description>GC-3483 Sprint 8. Shared calendar for selecting a primary requested date, an optional backup date, and the event duration.</description>
     <targets>
         <target>lightning__FlowScreen</target>
     </targets>
@@ -19,6 +19,8 @@
                 description="GC-3483. True when a selected date already has another event."/>
             <property name="businessJustification" type="String" label="Business Justification"
                 description="GC-3483. Required when a selected date already has another event."/>
+            <property name="eventDuration" type="Integer" label="Event Duration (Days)"
+                description="GC-3483 Sprint 8. Number of days the demonstration is available to the customer. Minimum 1."/>
         </targetConfig>
     </targetConfigs>
 </LightningComponentBundle>

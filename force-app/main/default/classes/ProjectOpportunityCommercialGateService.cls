@@ -64,7 +64,7 @@ public with sharing class ProjectOpportunityCommercialGateService {
     private static void applyClosureProbability(Opportunity opportunity) {
         if (opportunity.StageName == STAGE_CLOSED_WON) {
             opportunity.Probability = 100;
-        } else if (opportunity.StageName == STAGE_CLOSED_LOST) {
+        } else if (opportunity.StageName == STAGE_CLOSED_LOST || opportunity.StageName == STAGE_CANCELLED) {
             opportunity.Probability = 0;
         }
     }

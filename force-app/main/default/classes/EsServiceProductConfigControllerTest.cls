@@ -26,70 +26,78 @@ private class EsServiceProductConfigControllerTest {
 
     @TestSetup
     static void setupTestData() {
-        AutomationControl.setAllDisabled(true);
+        EsServiceTestDataFactory.grantAccess();
+        // The test permission set applies inside runAs, so the data is created as the test user.
+        System.runAs(new User(Id = UserInfo.getUserId())) {
+            AutomationControl.setAllDisabled(true);
 
-        adb_Account accountBuilder = new adb_Account().name('ESPC Test Account');
-        accountBuilder.persist();
+            adb_Account accountBuilder = new adb_Account().name('ESPC Test Account');
+            accountBuilder.persist();
 
-        Contact primaryContact = new Contact(FirstName = 'ESPC', LastName = 'Contact', AccountId = accountBuilder.id);
-        insert primaryContact;
+            Contact primaryContact = new Contact(
+                FirstName = 'ESPC', LastName = 'Contact', AccountId = accountBuilder.id
+            );
+            insert primaryContact;
 
-        Id pricebookId = Test.getStandardPricebookId();
-        Opportunity opportunityRecord = new Opportunity(
-            Name = 'ESPC Test Opportunity',
-            AccountId = accountBuilder.id,
-            StageName = getFirstActiveValue(Opportunity.StageName.getDescribe()),
-            ForecastConfidenceLevel__c = getFirstActiveValue(Opportunity.ForecastConfidenceLevel__c.getDescribe()),
-            Type = getFirstActiveValue(Opportunity.Type.getDescribe()),
-            PrimaryContact__c = primaryContact.Id,
-            CloseDate = Date.today().addDays(30),
-            Amount = 1000,
-            Probability = 10,
-            Pricebook2Id = pricebookId
-        );
-        insert opportunityRecord;
+            Id pricebookId = Test.getStandardPricebookId();
+            Opportunity opportunityRecord = new Opportunity(
+                Name = 'ESPC Test Opportunity',
+                AccountId = accountBuilder.id,
+                StageName = getFirstActiveValue(Opportunity.StageName.getDescribe()),
+                ForecastConfidenceLevel__c = getFirstActiveValue(Opportunity.ForecastConfidenceLevel__c.getDescribe()),
+                Type = getFirstActiveValue(Opportunity.Type.getDescribe()),
+                PrimaryContact__c = primaryContact.Id,
+                CloseDate = Date.today().addDays(30),
+                Amount = 1000,
+                Probability = 10,
+                Pricebook2Id = pricebookId
+            );
+            insert opportunityRecord;
 
-        adb_PFCL pfclBuilder = new adb_PFCL().name(PFCL_NAME).pfcl('ESPC-PFCL');
-        pfclBuilder.persist();
+            adb_PFCL pfclBuilder = new adb_PFCL().name(PFCL_NAME).pfcl('ESPC-PFCL');
+            pfclBuilder.persist();
 
-        Product2 productRecord = new Product2(Name = 'ESPC Test Product', IsActive = true, PFCL__c = pfclBuilder.id);
-        insert productRecord;
-        PricebookEntry pricebookEntryRecord = new PricebookEntry(
-            Pricebook2Id = pricebookId,
-            Product2Id = productRecord.Id,
-            UnitPrice = 100,
-            IsActive = true
-        );
-        insert pricebookEntryRecord;
+            Product2 productRecord = new Product2(
+                Name = 'ESPC Test Product', IsActive = true, PFCL__c = pfclBuilder.id
+            );
+            insert productRecord;
+            PricebookEntry pricebookEntryRecord = new PricebookEntry(
+                Pricebook2Id = pricebookId,
+                Product2Id = productRecord.Id,
+                UnitPrice = 100,
+                IsActive = true
+            );
+            insert pricebookEntryRecord;
 
-        Asset assetRecord = new Asset(
-            Name = ASSET_NAME,
-            SerialNumber = SERIAL_NUMBER,
-            AccountId = accountBuilder.id,
-            Product2Id = productRecord.Id,
-            Status = 'Purchased',
-            Quantity = 1
-        );
-        insert assetRecord;
+            Asset assetRecord = new Asset(
+                Name = ASSET_NAME,
+                SerialNumber = SERIAL_NUMBER,
+                AccountId = accountBuilder.id,
+                Product2Id = productRecord.Id,
+                Status = 'Purchased',
+                Quantity = 1
+            );
+            insert assetRecord;
 
-        Quote quoteRecord = new Quote(
-            Name = 'ESPC Test Quote',
-            OpportunityId = opportunityRecord.Id,
-            Pricebook2Id = pricebookId
-        );
-        insert quoteRecord;
+            Quote quoteRecord = new Quote(
+                Name = 'ESPC Test Quote',
+                OpportunityId = opportunityRecord.Id,
+                Pricebook2Id = pricebookId
+            );
+            insert quoteRecord;
 
-        insert new QuoteLineItem(
-            QuoteId = quoteRecord.Id,
-            PricebookEntryId = pricebookEntryRecord.Id,
-            Quantity = 1,
-            UnitPrice = 100,
-            Asset__c = assetRecord.Id,
-            PFCL__c = pfclBuilder.id,
-            RequestedNumberofPMVisits__c = REQUESTED_VISITS
-        );
+            insert new QuoteLineItem(
+                QuoteId = quoteRecord.Id,
+                PricebookEntryId = pricebookEntryRecord.Id,
+                Quantity = 1,
+                UnitPrice = 100,
+                Asset__c = assetRecord.Id,
+                PFCL__c = pfclBuilder.id,
+                RequestedNumberofPMVisits__c = REQUESTED_VISITS
+            );
 
-        AutomationControl.setAllDisabled(false);
+            AutomationControl.setAllDisabled(false);
+        }
     }
 
     /**
@@ -98,7 +106,10 @@ private class EsServiceProductConfigControllerTest {
     @IsTest
     static void testGetLineContextSavedLine() {
         User contextUser = new User(Id = UserInfo.getUserId());
-        QuoteLineItem line = [SELECT Id, QuoteId, Quote.AccountId, Asset__c, PFCL__c FROM QuoteLineItem LIMIT 1];
+        QuoteLineItem line;
+        System.runAs(contextUser) {
+            line = [SELECT Id, QuoteId, Quote.AccountId, Asset__c, PFCL__c FROM QuoteLineItem WITH USER_MODE LIMIT 1];
+        }
 
         Assert.isNotNull(line.Quote.AccountId, 'The quote should have an account');
 
@@ -124,7 +135,7 @@ private class EsServiceProductConfigControllerTest {
     @IsTest
     static void testGetLineContextUnsavedAndInvalidLine() {
         User contextUser = new User(Id = UserInfo.getUserId());
-        Quote quoteRecord = [SELECT Id, AccountId FROM Quote LIMIT 1];
+        Quote quoteRecord = [SELECT Id, AccountId FROM Quote WITH USER_MODE LIMIT 1];
 
         Assert.isNotNull(quoteRecord.AccountId, 'The quote should have an account');
 
@@ -149,7 +160,7 @@ private class EsServiceProductConfigControllerTest {
     @IsTest
     static void testSearchAssetsBySerialNumber() {
         User contextUser = new User(Id = UserInfo.getUserId());
-        Asset assetRecord = [SELECT Id, AccountId FROM Asset WHERE SerialNumber = :SERIAL_NUMBER];
+        Asset assetRecord = [SELECT Id, AccountId FROM Asset WHERE SerialNumber = :SERIAL_NUMBER WITH USER_MODE];
 
         Assert.isNotNull(assetRecord.AccountId, 'The asset should be on an account');
 
@@ -172,7 +183,7 @@ private class EsServiceProductConfigControllerTest {
     @IsTest
     static void testSearchAssetsInvalidInput() {
         User contextUser = new User(Id = UserInfo.getUserId());
-        Asset assetRecord = [SELECT Id, AccountId FROM Asset WHERE SerialNumber = :SERIAL_NUMBER];
+        Asset assetRecord = [SELECT Id, AccountId FROM Asset WHERE SerialNumber = :SERIAL_NUMBER WITH USER_MODE];
 
         Assert.isNotNull(assetRecord.AccountId, 'The asset should be on an account');
 
@@ -195,7 +206,10 @@ private class EsServiceProductConfigControllerTest {
     @IsTest
     static void testGetAssetDetailsReturnsPfcl() {
         User contextUser = new User(Id = UserInfo.getUserId());
-        Asset assetRecord = [SELECT Id, Product2.PFCL__c FROM Asset WHERE SerialNumber = :SERIAL_NUMBER];
+        Asset assetRecord;
+        System.runAs(contextUser) {
+            assetRecord = [SELECT Id, Product2.PFCL__c FROM Asset WHERE SerialNumber = :SERIAL_NUMBER WITH USER_MODE];
+        }
 
         Assert.isNotNull(assetRecord.Product2.PFCL__c, 'The asset product should have a PFCL');
 
@@ -237,7 +251,7 @@ private class EsServiceProductConfigControllerTest {
      */
     @IsTest
     static void testToAuraException() {
-        Asset assetRecord = [SELECT Id FROM Asset WHERE SerialNumber = :SERIAL_NUMBER];
+        Asset assetRecord = [SELECT Id FROM Asset WHERE SerialNumber = :SERIAL_NUMBER WITH USER_MODE];
         DmlException cause = new DmlException('Simulated failure');
 
         Assert.areEqual(0, Logger.getBufferSize(), 'Nothing logged yet');

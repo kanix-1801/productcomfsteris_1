@@ -1,12 +1,14 @@
 <template>
+    <div class={wizardFrameClass}>
     <lightning-card title={cardTitle} icon-name="standard:return_order">
+        <div class={wizardShellClass}>
         <template if:true={isLoading}>
             <lightning-spinner alternative-text="Loading" size="medium"></lightning-spinner>
         </template>
 
         <template if:false={isLoading}>
             <template if:false={isCreatedPage}>
-            <div class="slds-m-around_medium">
+            <div class="slds-m-around_medium wizard-progress">
                 <lightning-progress-indicator current-step={currentStepValue} type="base" variant="base">
                     <template for:each={progressSteps} for:item="step">
                         <lightning-progress-step
@@ -18,7 +20,31 @@
                 </lightning-progress-indicator>
             </div>
 
-            <template if:true={isHeaderPage}>
+            <template if:true={showMergedTabHeader}>
+                <div class="slds-m-horizontal_medium slds-m-bottom_medium">
+                    <h2 class="slds-text-heading_small slds-m-bottom_x-small">Create Return Order</h2>
+                    <p class="slds-text-body_regular slds-m-bottom_small">{mergedHeaderInstruction}</p>
+                    <lightning-input
+                        data-id="header-serial-number"
+                        type="text"
+                        label="Serial Number"
+                        value={headerSerialNumber}
+                        onchange={handleHeaderSerialInput}
+                        onblur={handleHeaderSerialCommit}
+                        onkeydown={handleHeaderSerialKeydown}
+                        disabled={isLookingUpHeaderSerial}
+                        class="slds-m-bottom_small">
+                    </lightning-input>
+                    <c-create-order-account-information
+                        lwc:ref="createOrderAccountInfo"
+                        show-section-title={showMergedAccountSectionTitle}
+                        lock-account={lockAccount}
+                        onchange={handleAccountInformationChange}>
+                    </c-create-order-account-information>
+                </div>
+            </template>
+
+            <template if:true={showStandardHeader}>
                 <div class="slds-m-horizontal_medium slds-m-bottom_medium">
                     <template if:true={showAssetLaunchHeaderPrompt}>
                         <div class="slds-box slds-theme_info slds-m-bottom_small" role="status">
@@ -30,88 +56,43 @@
                             No child work order lines are marked Send to Repair Center. Enter the return order items manually.
                         </div>
                     </template>
-                    <h2 class="slds-text-heading_small slds-m-bottom_small">Return Order Header Information</h2>
-                    <div class="slds-grid slds-wrap slds-gutters">
-                        <div class="slds-col slds-size_1-of-2">
-                            <template if:true={showLockedAccount}>
+                    <c-create-order-account-information
+                        lwc:ref="createOrderAccountInfo"
+                        section-title="Return Order Header Information"
+                        lock-account={lockAccount}
+                        onchange={handleAccountInformationChange}>
+                    </c-create-order-account-information>
+                    <template if:true={lockWorkOrder}>
+                        <div class="slds-grid slds-wrap slds-gutters slds-m-top_small">
+                            <div class="slds-col slds-size_1-of-2 slds-col_bump-left">
                                 <lightning-input
-                                    type="text"
-                                    label="Account"
-                                    value={accountName}
-                                    disabled>
-                                </lightning-input>
-                            </template>
-                            <template if:true={showAccountPicker}>
-                                <lightning-record-picker
-                                    key={accountPickerKey}
-                                    label="Account"
-                                    placeholder="Search Accounts..."
-                                    object-api-name="Account"
-                                    value={accountId}
-                                    required
-                                    onchange={handleAccountChange}>
-                                </lightning-record-picker>
-                            </template>
-
-                            <lightning-input
-                                class="slds-m-top_small"
-                                type="text"
-                                label="Legacy Customer ID"
-                                value={legacyCustomerId}
-                                disabled>
-                            </lightning-input>
-
-                        </div>
-
-                        <div class="slds-col slds-size_1-of-2">
-                            <lightning-combobox
-                                label="Sales Rep"
-                                value={salesRepId}
-                                options={salesRepOptions}
-                                required
-                                data-field="salesRepId"
-                                onchange={handleFieldChange}>
-                            </lightning-combobox>
-
-                            <lightning-combobox
-                                class="slds-m-top_small"
-                                label="Operating Unit"
-                                value={operatingUnit}
-                                options={operatingUnitOptions}
-                                required
-                                data-field="operatingUnit"
-                                onchange={handleFieldChange}>
-                            </lightning-combobox>
-
-                            <template if:true={lockWorkOrder}>
-                                <lightning-input
-                                    class="slds-m-top_small"
                                     type="text"
                                     label="Work Order"
                                     value={workOrderLabel}
                                     disabled>
                                 </lightning-input>
-                            </template>
-
+                            </div>
                         </div>
-                    </div>
+                    </template>
                 </div>
             </template>
 
             <template if:true={isLinesPage}>
                 <div class="slds-m-horizontal_medium slds-m-bottom_medium return-order-lines">
-                    <div class="slds-grid slds-grid_align-spread slds-m-bottom_small">
-                        <div>
+                    <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-center slds-m-bottom_small">
+                        <div class="section-header__copy">
                             <h2 class="slds-text-heading_small">Return Order Items</h2>
                             <p class="slds-text-body_small slds-text-color_weak slds-m-top_xx-small">
                                 Expand each item to enter asset, contact, and return details. Contacts are limited to the selected account.
                             </p>
                         </div>
-                        <lightning-button
-                            label="Add Item"
-                            icon-name="utility:add"
-                            onclick={handleAddLine}>
-                        </lightning-button>
+                        <div class="section-header__action">
+                            <lightning-button
+                                label="Add Item"
+                                icon-name="utility:add"
+                                onclick={handleAddLine}>
+                            </lightning-button>
+                        </div>
                     </div>
 
                     <template if:true={showLineTypePickerOnLinesPage}>
@@ -223,7 +204,7 @@
                                                         </lightning-input>
                                                         <template if:true={line.showProductResults}>
                                                             <div
-                                                                class="slds-dropdown slds-dropdown_length-5 product-search-results product-search-results--fixed"
+                                                                class="product-search-results product-search-results--fixed"
                                                                 style={line.productSearchDropdownStyle}
                                                                 role="listbox">
                                                                 <ul class="slds-listbox slds-listbox_vertical" role="listbox">
@@ -273,7 +254,7 @@
                                                         </lightning-input>
                                                         <template if:true={line.showAssetResults}>
                                                             <div
-                                                                class="slds-dropdown slds-dropdown_length-5 product-search-results product-search-results--fixed"
+                                                                class="product-search-results product-search-results--fixed"
                                                                 style={line.assetSearchDropdownStyle}
                                                                 role="listbox">
                                                                 <ul class="slds-listbox slds-listbox_vertical" role="listbox">
@@ -335,7 +316,7 @@
                                                         </lightning-input>
                                                         <template if:true={line.showProductResults}>
                                                             <div
-                                                                class="slds-dropdown slds-dropdown_length-5 product-search-results product-search-results--fixed"
+                                                                class="product-search-results product-search-results--fixed"
                                                                 style={line.productSearchDropdownStyle}
                                                                 role="listbox">
                                                                 <ul class="slds-listbox slds-listbox_vertical" role="listbox">
@@ -475,6 +456,48 @@
                                         </template>
                                     </div>
 
+                                    <template if:true={line.showModFormUpload}>
+                                        <div class="slds-text-title_caps slds-m-top_medium slds-m-bottom_x-small">
+                                            Mod Request Form
+                                        </div>
+                                        <div class="line-item-attachments slds-m-bottom_medium">
+                                            <lightning-file-upload
+                                                label="Upload scanned Mod Request form"
+                                                name={line.key}
+                                                accept={acceptedModFormTypes}
+                                                multiple
+                                                data-key={line.key}
+                                                onuploadfinished={handleLineModFormUploadFinished}>
+                                            </lightning-file-upload>
+                                            <template if:true={line.hasModFormAttachments}>
+                                                <ul class="line-item-attachment-list slds-m-top_x-small">
+                                                    <template
+                                                        for:each={line.modFormAttachmentItems}
+                                                        for:item="attachment">
+                                                        <li
+                                                            key={attachment.contentDocumentId}
+                                                            class="line-item-attachment-row">
+                                                            <span
+                                                                class="line-item-attachment-name"
+                                                                title={attachment.name}>
+                                                                {attachment.name}
+                                                            </span>
+                                                            <lightning-button-icon
+                                                                icon-name="utility:close"
+                                                                alternative-text="Remove Mod Request form"
+                                                                title="Remove Mod Request form"
+                                                                variant="bare"
+                                                                data-key={line.key}
+                                                                data-document-id={attachment.contentDocumentId}
+                                                                onclick={handleRemoveLineModFormAttachment}>
+                                                            </lightning-button-icon>
+                                                        </li>
+                                                    </template>
+                                                </ul>
+                                            </template>
+                                        </div>
+                                    </template>
+
                                     <template if:false={line.isInstruments}>
                                     <div class="slds-text-title_caps slds-m-bottom_x-small">Contact &amp; service</div>
                                     <div class="slds-grid slds-wrap slds-gutters_small slds-m-bottom_medium">
@@ -590,6 +613,29 @@
                                                 </lightning-combobox>
                                             </div>
                                         </template>
+                                    </div>
+
+                                    <div class="slds-text-title_caps slds-m-bottom_x-small">Return Address</div>
+                                    <div class="slds-grid slds-wrap slds-gutters_small slds-m-bottom_medium">
+                                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                            <lightning-combobox
+                                                label="Ship-To"
+                                                value={line.shipToAccountId}
+                                                options={shipToComboboxOptions}
+                                                placeholder="Select Ship-To"
+                                                required
+                                                data-key={line.key}
+                                                data-field="shipToAccountId"
+                                                onchange={handleLineFieldChange}>
+                                            </lightning-combobox>
+                                        </div>
+                                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                            <lightning-textarea
+                                                label="Ship To Address"
+                                                value={line.shipToAddressDisplay}
+                                                disabled>
+                                            </lightning-textarea>
+                                        </div>
                                     </div>
 
                                     <div class="slds-text-title_caps slds-m-bottom_x-small">Customer references</div>
@@ -802,18 +848,20 @@
 
             <template if:true={isSummaryPage}>
                 <div class="slds-m-horizontal_medium slds-m-bottom_medium">
-                    <div class="slds-grid slds-grid_align-spread slds-m-bottom_small">
-                        <div>
+                    <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-center slds-m-bottom_small">
+                        <div class="section-header__copy">
                             <h2 class="slds-text-heading_small">Review Return Orders</h2>
                             <p class="slds-text-body_small slds-text-color_weak slds-m-top_xx-small">
                                 Items are grouped by repair center from routing rules. Select a repair center for any group without a match, then approve to create all return orders.
                             </p>
                         </div>
-                        <lightning-button
-                            label="Add Item"
-                            icon-name="utility:add"
-                            onclick={handleAddLineFromSummary}>
-                        </lightning-button>
+                        <div class="section-header__action">
+                            <lightning-button
+                                label="Add Item"
+                                icon-name="utility:add"
+                                onclick={handleAddLineFromSummary}>
+                            </lightning-button>
+                        </div>
                     </div>
 
                     <template if:true={showLineTypeModal}>
@@ -894,8 +942,15 @@
                                 </lightning-combobox>
                             </template>
 
-                            <table class="slds-table slds-table_cell-buffer slds-table_bordered slds-m-top_small">
+                            <table class="slds-table slds-table_cell-buffer slds-table_bordered slds-m-top_small review-lines-table">
                                 <template if:true={group.isInstruments}>
+                                    <colgroup>
+                                        <col class="review-lines-table__col-item-desc" />
+                                        <col class="review-lines-table__col-product-line" />
+                                        <col class="review-lines-table__col-qty" />
+                                        <col class="review-lines-table__col-department" />
+                                        <col class="review-lines-table__col-serial" />
+                                    </colgroup>
                                     <thead>
                                         <tr class="slds-line-height_reset">
                                             <th scope="col"><div class="slds-truncate" title="Item Description">Item Description</div></th>
@@ -909,15 +964,23 @@
                                         <template for:each={group.lines} for:item="line">
                                             <tr key={line.rowKey}>
                                                 <td><div class="slds-truncate" title={line.itemDescription}>{line.itemDescription}</div></td>
-                                                <td><div class="slds-truncate">{line.productLine}</div></td>
-                                                <td><div class="slds-truncate">{line.quantityLabel}</div></td>
-                                                <td><div class="slds-truncate">{line.departmentName}</div></td>
-                                                <td><div class="slds-truncate">{line.serialNumber}</div></td>
+                                                <td><div class="slds-truncate" title={line.productLine}>{line.productLine}</div></td>
+                                                <td><div class="slds-truncate" title={line.quantityLabel}>{line.quantityLabel}</div></td>
+                                                <td><div class="slds-truncate" title={line.departmentName}>{line.departmentName}</div></td>
+                                                <td><div class="slds-truncate" title={line.serialNumber}>{line.serialNumber}</div></td>
                                             </tr>
                                         </template>
                                     </tbody>
                                 </template>
                                 <template if:false={group.isInstruments}>
+                                    <colgroup>
+                                        <col class="review-lines-table__col-serial" />
+                                        <col class="review-lines-table__col-model" />
+                                        <col class="review-lines-table__col-product-line" />
+                                        <col class="review-lines-table__col-qty" />
+                                        <col class="review-lines-table__col-contact" />
+                                        <col class="review-lines-table__col-department" />
+                                    </colgroup>
                                     <thead>
                                         <tr class="slds-line-height_reset">
                                             <th scope="col"><div class="slds-truncate" title="Serial">Serial</div></th>
@@ -931,12 +994,12 @@
                                     <tbody>
                                         <template for:each={group.lines} for:item="line">
                                             <tr key={line.rowKey}>
-                                                <td><div class="slds-truncate">{line.serialNumber}</div></td>
-                                                <td><div class="slds-truncate">{line.model}</div></td>
-                                                <td><div class="slds-truncate">{line.productLine}</div></td>
-                                                <td><div class="slds-truncate">{line.quantityLabel}</div></td>
-                                                <td><div class="slds-truncate">{line.contactName}</div></td>
-                                                <td><div class="slds-truncate">{line.departmentName}</div></td>
+                                                <td><div class="slds-truncate" title={line.serialNumber}>{line.serialNumber}</div></td>
+                                                <td><div class="slds-truncate" title={line.model}>{line.model}</div></td>
+                                                <td><div class="slds-truncate" title={line.productLine}>{line.productLine}</div></td>
+                                                <td><div class="slds-truncate" title={line.quantityLabel}>{line.quantityLabel}</div></td>
+                                                <td><div class="slds-truncate" title={line.contactName}>{line.contactName}</div></td>
+                                                <td><div class="slds-truncate" title={line.departmentName}>{line.departmentName}</div></td>
                                             </tr>
                                         </template>
                                     </tbody>
@@ -1011,6 +1074,8 @@
                                         options={estimateRequiredOptions}
                                         placeholder="Select estimate requirement"
                                         required
+                                        disabled={group.estimateRequiredReadOnly}
+                                        field-level-help={group.estimateRequiredHelpText}
                                         data-group-key={group.groupKey}
                                         data-field="estimateRequired"
                                         onchange={handleOrderHeaderFieldChange}>
@@ -1040,6 +1105,34 @@
                                                 title="Create new estimate contact for this account"
                                                 data-group-key={group.groupKey}
                                                 onclick={handleOpenNewContactForEstimateContact}>
+                                            </lightning-button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <template if:true={group.showModRequestContact}>
+                                <div class="slds-grid slds-wrap slds-gutters_small slds-m-bottom_medium">
+                                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                        <div class="contact-field-row">
+                                            <lightning-record-picker
+                                                class="contact-field-row__combobox"
+                                                label="Mod Request Contact"
+                                                placeholder="Search contacts..."
+                                                object-api-name="Contact"
+                                                value={group.modRequestContactId}
+                                                filter={contactRecordFilter}
+                                                disabled={isContactSearchDisabled}
+                                                required
+                                                data-group-key={group.groupKey}
+                                                onchange={handleOrderHeaderModRequestContactChange}>
+                                            </lightning-record-picker>
+                                            <lightning-button
+                                                class="contact-field-row__button"
+                                                label="New"
+                                                title="Create new Mod Request contact for this account"
+                                                data-group-key={group.groupKey}
+                                                onclick={handleOpenNewContactForModRequestContact}>
                                             </lightning-button>
                                         </div>
                                     </div>
@@ -1095,6 +1188,29 @@
                                 </template>
                             </div>
 
+                            <div class="slds-text-title_caps slds-m-bottom_x-small">Return Address</div>
+                            <div class="slds-grid slds-wrap slds-gutters_small slds-m-bottom_medium">
+                                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                    <lightning-combobox
+                                        label="Ship-To"
+                                        value={group.shipToAccountId}
+                                        options={shipToComboboxOptions}
+                                        placeholder="Select Ship-To"
+                                        required
+                                        data-group-key={group.groupKey}
+                                        data-field="shipToAccountId"
+                                        onchange={handleOrderHeaderFieldChange}>
+                                    </lightning-combobox>
+                                </div>
+                                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                    <lightning-textarea
+                                        label="Ship To Address"
+                                        value={group.shipToAddressDisplay}
+                                        disabled>
+                                    </lightning-textarea>
+                                </div>
+                            </div>
+
                             <div class="slds-text-title_caps slds-m-bottom_x-small">Customer references</div>
                             <div class="slds-grid slds-wrap slds-gutters_small slds-m-bottom_medium">
                                 <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
@@ -1132,7 +1248,7 @@
                 </div>
             </template>
 
-            <div class="slds-m-horizontal_medium slds-m-bottom_medium slds-grid slds-grid_align-end">
+            <div class={wizardFooterClass}>
                 <lightning-button label="Cancel" onclick={handleCancel}></lightning-button>
                 <template if:true={isSummaryPage}>
                     <lightning-button
@@ -1228,9 +1344,15 @@
                             </tbody>
                         </table>
                     </template>
+
+                    <template if:true={isGeneratingPaperwork}>
+                        <div class="slds-m-top_medium slds-box slds-theme_shade">
+                            <p>Generating shipping label and RO Form paperwork…</p>
+                        </div>
+                    </template>
                 </div>
 
-                <div class="slds-m-horizontal_medium slds-m-bottom_medium slds-grid slds-grid_align-end">
+                <div class={wizardFooterClass}>
                     <lightning-button
                         label="Close"
                         variant="brand"
@@ -1243,7 +1365,9 @@
         <template if:true={isSaving}>
             <lightning-spinner alternative-text="Saving" size="medium"></lightning-spinner>
         </template>
+        </div>
     </lightning-card>
+    </div>
 
     <template if:true={showDuplicateWarningModal}>
         <section

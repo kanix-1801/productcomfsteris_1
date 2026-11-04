@@ -1,0 +1,46 @@
+<template>
+    <lightning-modal-header label="Add Clinical Participant"></lightning-modal-header>
+    <lightning-modal-body>
+        <template lwc:if={errorMessage}>
+            <p class="slds-text-color_error slds-m-bottom_small">{errorMessage}</p>
+        </template>
+        <template for:each={rows} for:item="row">
+            <div key={row.key} class="slds-box slds-m-bottom_small">
+                <lightning-record-picker
+                    label="Salesforce User"
+                    placeholder="Search Salesforce users"
+                    object-api-name="User"
+                    value={row.userId}
+                    data-key={row.key}
+                    onchange={handleUserChange}>
+                </lightning-record-picker>
+                <lightning-input
+                    class="slds-m-top_x-small"
+                    label="Name"
+                    value={row.name}
+                    data-key={row.key}
+                    onchange={handleNameChange}>
+                </lightning-input>
+                <lightning-input
+                    class="slds-m-top_x-small"
+                    type="email"
+                    label="Email"
+                    value={row.email}
+                    data-key={row.key}
+                    onchange={handleEmailChange}>
+                </lightning-input>
+                <lightning-button
+                    class="slds-m-top_x-small"
+                    label="Remove"
+                    data-key={row.key}
+                    onclick={removeRow}>
+                </lightning-button>
+            </div>
+        </template>
+        <lightning-button label="Add another" onclick={addRow}></lightning-button>
+    </lightning-modal-body>
+    <lightning-modal-footer>
+        <lightning-button label="Cancel" onclick={handleCancel}></lightning-button>
+        <lightning-button class="slds-m-left_x-small" variant="brand" label="Save" onclick={handleSave}></lightning-button>
+    </lightning-modal-footer>
+</template>

@@ -42,6 +42,7 @@ import WOLI_PRODUCT from '@salesforce/schema/WorkOrderLineItem.Product__c';
 import WOLI_PART_DESCRIPTION from '@salesforce/schema/WorkOrderLineItem.PartDescription__c';
 import WOLI_ALLOWED_UNIT from '@salesforce/schema/WorkOrderLineItem.AllowedUnit__c';
 import WOLI_RETURNABLE from '@salesforce/schema/WorkOrderLineItem.Returnable__c';
+import WOLI_COMPONENT_TAG from '@salesforce/schema/WorkOrderLineItem.ComponentTag__c';
 import WOLI_REMOVED_PART from '@salesforce/schema/WorkOrderLineItem.RemovedPart__c';
 import WOLI_USAGES_EXCEPTION from '@salesforce/schema/WorkOrderLineItem.UsagesException__c';
 import WOLI_APPROVAL_STATUS from '@salesforce/schema/WorkOrderLineItem.ApprovalStatus__c';
@@ -55,6 +56,8 @@ import evaluateAllowedUnit from '@salesforce/apex/WoDebriefAllowedUnitController
 import evaluateAllowedUnitByProduct from '@salesforce/apex/WoDebriefAllowedUnitController.evaluateAllowedUnitByProduct';
 import evaluateBillingType from '@salesforce/apex/WoDebriefAllowedUnitController.evaluateBillingType';
 import evaluateBillingTypeForProductItem from '@salesforce/apex/WoDebriefAllowedUnitController.evaluateBillingTypeForProductItem';
+import getComponentTagsForProduct from '@salesforce/apex/WoDebriefAllowedUnitController.getComponentTagsForProduct';
+import getComponentTagsForProductItem from '@salesforce/apex/WoDebriefAllowedUnitController.getComponentTagsForProductItem';
 import checkProductItemApproval from '@salesforce/apex/PartExceptionService.checkProductItemApproval';
 import findProductItemByProductCode from '@salesforce/apex/WoDebriefProductItemController.findByProductCode';
 import findProductByProductCode from '@salesforce/apex/WoDebriefProductItemController.findProductByProductCode';
@@ -120,6 +123,7 @@ const PART_EXCEPTION_REASON_OPTIONS = [
 const RETURNABLE_PART_ALERT_MESSAGE = 'Please note this is a returnable part.';
 const PARTS_SOURCE_TRUNK = 'TrunkStock';
 const PARTS_SOURCE_CUSTOMER = 'Customer Part';
+const NO_COMPONENT_TAG_MESSAGE = 'No component tag available for this part.';
 const PARTS_SOURCE_ON_ORDER = 'On Order';
 const PARTS_SOURCE_INVENTORY_ISSUE = 'Inventory Issue';
 const PARTS_SOURCE_ALLOWED = new Set([
@@ -335,6 +339,11 @@ const WORK_ORDER_QUERY = gql`
                                         PartDescription__c { value }
                                         AllowedUnit__c { value }
                                         Returnable__c { value }
+                                        ComponentTag__c { value }
+                                        ComponentTag__r {
+                                            Id
+                                            Name { value }
+                                        }
                                         RemovedPart__c { value }
                                         UsagesException__c { value }
                                         BillingType__c { value }
@@ -1542,6 +1551,18 @@ export default class WoDebriefES extends LightningElement {
     }
 
     /**
+     * @description GW-6095 — Component Tag view fields for the Parts add form.
+     */
+    get addFormComponentTag() {
+        return this._componentTagView({
+            allowedUnit: this.addFormState?.allowedUnit,
+            componentTagId: this.addFormState?.componentTagId,
+            componentTagOptions: this.addFormState?.componentTagOptions,
+            componentTagsLoaded: this.addFormState?.componentTagsLoaded
+        });
+    }
+
+    /**
      * @description Add Form Duration Label (legacy getter; duration is now editable).
      */
     get addFormDurationLabel() {
@@ -1928,6 +1949,7 @@ export default class WoDebriefES extends LightningElement {
         if (field === 'partsSource') {
             next.allowedUnit = null;
             next.returnable = null;
+            Object.assign(next, this._clearedComponentTagFields());
             next.removedPartId = null;
             next.productCode = '';
             next.partDescription = '';
@@ -1953,6 +1975,7 @@ export default class WoDebriefES extends LightningElement {
         if (field === 'partsSource') {
             next.allowedUnit = null;
             next.returnable = null;
+            Object.assign(next, this._clearedComponentTagFields());
             next.removedPartId = null;
             next.productCode = '';
             next.partDescription = '';
@@ -2184,6 +2207,7 @@ export default class WoDebriefES extends LightningElement {
                 next.returnable = null;
                 next.allowedUnit = null;
                 next.billingType = '';
+                Object.assign(next, this._clearedComponentTagFields());
             }
             if (field === 'productItemId') {
                 const linkedProduct2Id = recordId
@@ -2204,6 +2228,7 @@ export default class WoDebriefES extends LightningElement {
                     : '';
                 next.allowedUnit = null;
                 next.billingType = '';
+                Object.assign(next, this._clearedComponentTagFields());
                 Object.assign(next, this._clearedPartExceptionFields());
                 this._onProductItemSelected(recordId, { isAddForm: true });
             }
@@ -2225,6 +2250,7 @@ export default class WoDebriefES extends LightningElement {
                     : '';
                 next.allowedUnit = null;
                 next.billingType = '';
+                Object.assign(next, this._clearedComponentTagFields());
                 Object.assign(next, this._clearedPartExceptionFields());
                 if (recordId) this._product2LookupId = recordId;
                 this._evaluateAllowedUnitForProduct(recordId, { isAddForm: true });
@@ -2286,6 +2312,9 @@ export default class WoDebriefES extends LightningElement {
                         ...payload,
                         allowedUnit: this.addFormState.allowedUnit,
                         billingType: this.addFormState.billingType,
+                        componentTagId: this.addFormState.componentTagId ?? null,
+                        componentTagOptions: this.addFormState.componentTagOptions ?? [],
+                        componentTagsLoaded: !!this.addFormState.componentTagsLoaded,
                         returnable: this.addFormState.returnable
                             ?? this._resolveReturnableForProductItem(payload.productItemId)
                     };
@@ -2304,6 +2333,9 @@ export default class WoDebriefES extends LightningElement {
                         ...payload,
                         allowedUnit: this.addFormState.allowedUnit,
                         billingType: this.addFormState.billingType,
+                        componentTagId: this.addFormState.componentTagId ?? null,
+                        componentTagOptions: this.addFormState.componentTagOptions ?? [],
+                        componentTagsLoaded: !!this.addFormState.componentTagsLoaded,
                         returnable: this.addFormState.returnable
                             ?? this._resolveReturnableForProduct2(payload.product2Id)
                     };
@@ -2390,6 +2422,9 @@ export default class WoDebriefES extends LightningElement {
                 partExceptionSubmit: !!payload.partExceptionSubmit,
                 allowedUnit: payload.allowedUnit ?? null,
                 billingType: payload.billingType || 'Billable',
+                componentTagId: payload.componentTagId ?? null,
+                componentTagOptions: payload.componentTagOptions ?? [],
+                componentTagsLoaded: !!payload.componentTagsLoaded,
                 returnable: payload.returnable ?? null,
                 removedPartId: payload.removedPartId ?? null
             };
@@ -2869,6 +2904,16 @@ export default class WoDebriefES extends LightningElement {
             ?? (isCustomerStock
                 ? this._resolveReturnableForProduct2(product2Id)
                 : this._resolveReturnableForProductItem(productItemId));
+        const componentTagView = this._componentTagView({
+            allowedUnit,
+            componentTagId: edit && 'componentTagId' in edit
+                ? edit.componentTagId
+                : (l.ComponentTag__c?.value ?? null),
+            componentTagOptions: edit?.componentTagOptions,
+            componentTagsLoaded: edit?.componentTagsLoaded,
+            savedComponentTagId: l.ComponentTag__c?.value ?? null,
+            savedComponentTagName: l.ComponentTag__r?.Name?.value ?? ''
+        });
         const returnableLabel = this._fmtReturnable(returnable);
         const usagesException = edit?.usagesException ?? l.UsagesException__c?.value ?? false;
         const removedPartId = edit?.removedPartId ?? l.RemovedPart__c?.value ?? null;
@@ -2924,6 +2969,7 @@ export default class WoDebriefES extends LightningElement {
             editReturnableLabel: returnableLabel,
             editAllowedUnitLabel: this._fmtReturnable(allowedUnit),
             editBillingTypeLabel: billingTypeLabel,
+            ...componentTagView,
             editRemovedPartId: state.removedPartId ?? edit?.removedPartId ?? removedPartId,
             editUsagesException: state.usagesException ?? edit?.usagesException ?? usagesException,
             ...this._partExceptionView(state, edit, allowedUnit),
@@ -2964,6 +3010,12 @@ export default class WoDebriefES extends LightningElement {
             ?? (isCustomerStock
                 ? this._resolveReturnableForProduct2(product2Id)
                 : this._resolveReturnableForProductItem(productItemId));
+        const componentTagView = this._componentTagView({
+            allowedUnit,
+            componentTagId: a.componentTagId ?? null,
+            componentTagOptions: a.componentTagOptions,
+            componentTagsLoaded: a.componentTagsLoaded
+        });
         const returnableLabel = this._fmtReturnable(returnable);
         const removedPartId = state.removedPartId ?? a.removedPartId ?? null;
         const billingType = state.billingType ?? a.billingType ?? '';
@@ -3021,6 +3073,7 @@ export default class WoDebriefES extends LightningElement {
             editReturnableLabel: returnableLabel,
             editAllowedUnitLabel: this._fmtReturnable(allowedUnit),
             editBillingTypeLabel: billingTypeLabel,
+            ...componentTagView,
             editRemovedPartId: removedPartId,
             editUsagesException: usagesException,
             ...this._partExceptionView(state, a, allowedUnit),
@@ -3724,7 +3777,8 @@ export default class WoDebriefES extends LightningElement {
                 ...(edit.returnable != null
                     ? { [WOLI_RETURNABLE.fieldApiName]: !!edit.returnable }
                     : {}),
-                [WOLI_REMOVED_PART.fieldApiName]: edit.removedPartId ?? null
+                [WOLI_REMOVED_PART.fieldApiName]: edit.removedPartId ?? null,
+                [WOLI_COMPONENT_TAG.fieldApiName]: edit.componentTagId ?? null
             };
         }
         return { Id: id };
@@ -3798,7 +3852,8 @@ export default class WoDebriefES extends LightningElement {
                     ...(a.returnable != null
                         ? { [WOLI_RETURNABLE.fieldApiName]: !!a.returnable }
                         : {}),
-                    [WOLI_REMOVED_PART.fieldApiName]: a.removedPartId ?? null
+                    [WOLI_REMOVED_PART.fieldApiName]: a.removedPartId ?? null,
+                    [WOLI_COMPONENT_TAG.fieldApiName]: a.componentTagId ?? null
                 }
             };
         }
@@ -4023,6 +4078,7 @@ export default class WoDebriefES extends LightningElement {
                         if (value) {
                             next.allowedUnit = null;
                             Object.assign(next, this._clearedPartExceptionFields());
+                            Object.assign(next, this._clearedComponentTagFields());
                         }
                     } else {
                         next.product2Id = value
@@ -4048,6 +4104,7 @@ export default class WoDebriefES extends LightningElement {
                     if (value) {
                         next.allowedUnit = null;
                         this._product2LookupId = value;
+                        Object.assign(next, this._clearedComponentTagFields());
                     }
                 }
                 if (field === 'repairCodeId') {
@@ -4111,6 +4168,7 @@ export default class WoDebriefES extends LightningElement {
                 ? (this._partDescriptionByProduct2Id[linkedProduct2Id] ?? '')
                 : (value ? '' : (entry.partDescription ?? ''));
             if (value) {
+                Object.assign(entry, this._clearedComponentTagFields());
                 entry.allowedUnit = null;
             }
         }
@@ -4126,6 +4184,7 @@ export default class WoDebriefES extends LightningElement {
             if (value) {
                 entry.allowedUnit = null;
                 this._product2LookupId = value;
+                Object.assign(entry, this._clearedComponentTagFields());
             }
         }
         if (field === 'repairCodeId') {
@@ -4266,6 +4325,7 @@ export default class WoDebriefES extends LightningElement {
                     ?? '',
                 quantity: line.UnitQty__c?.value ?? 0,
                 description: line.Description?.value ?? '',
+                componentTagId: line.ComponentTag__c?.value ?? null,
                 allowedUnit: line.AllowedUnit__c?.value ?? false,
                 returnable: line.Returnable__c?.value
                     ?? (product2Id
@@ -4310,7 +4370,9 @@ export default class WoDebriefES extends LightningElement {
         partExceptionDecision,
         partExceptionResponse,
         partExceptionReason,
-        partExceptionAlreadyApproved
+        partExceptionAlreadyApproved,
+        componentTagId,
+        componentTagOptions
     }) {
         const source = normalizePartsSource(partsSource);
         if (!assignedResourceId) return 'Resource is required.';
@@ -4338,6 +4400,10 @@ export default class WoDebriefES extends LightningElement {
             if (!partExceptionReason) {
                 return 'Part Exception Reason is required.';
             }
+        }
+        // GW-6095: an allowed part with several Component Tags needs one selected.
+        if (allowedUnit === true && (componentTagOptions?.length ?? 0) > 1 && !componentTagId) {
+            return 'Component Tag is required.';
         }
         if (this._isRemovedPartRequired(returnable) && !removedPartId) {
             return 'Removed Part is required when the selected part is returnable.';
@@ -4509,6 +4575,7 @@ export default class WoDebriefES extends LightningElement {
             totalPrice: null,
             usagesException: false,
             ...this._clearedPartExceptionFields(),
+            ...this._clearedComponentTagFields(),
             allowedUnit: null,
             billingType: '',
             removedPartId: null,
@@ -4911,6 +4978,7 @@ export default class WoDebriefES extends LightningElement {
             }
             this._stageEdit(editId, 'allowedUnit', null);
             this._stageEdit(editId, 'billingType', '');
+            this._clearComponentTagForEdit(editId);
         }
     }
 
@@ -4931,6 +4999,7 @@ export default class WoDebriefES extends LightningElement {
         const source = normalizePartsSource(partsSource);
         this._stageEdit(editId, 'allowedUnit', null);
         this._stageEdit(editId, 'billingType', '');
+        this._clearComponentTagForEdit(editId);
         this._stageEdit(editId, 'returnable', null);
         this._stageEdit(editId, 'productCode', '');
         this._stageEdit(editId, 'partDescription', '');
@@ -5153,6 +5222,10 @@ export default class WoDebriefES extends LightningElement {
      */
     async _evaluateAllowedUnitForProductItem(productItemId, options = {}) {
         const { editId = null, isAddForm = false } = options;
+        // GW-6095: no part to evaluate, so clear any Component Tag selection.
+        if (!this.recordId || !productItemId) {
+            this._applyComponentTagFields(this._clearedComponentTagFields(), { editId, isAddForm });
+        }
         if (!productItemId || !this.recordId) {
             await this._applyAllowedUnitResult(null, { editId, isAddForm });
             return;
@@ -5163,6 +5236,7 @@ export default class WoDebriefES extends LightningElement {
                 workOrderId: this.recordId,
                 productItemId
             });
+            await this._refreshComponentTags(result, { productItemId }, { editId, isAddForm });
             // No WO asset, or Root PFCL SBOM Required != Yes → leave fields unset.
             if (!result?.evaluated) {
                 await this._applyAllowedUnitResult(null, { editId, isAddForm });
@@ -5187,6 +5261,10 @@ export default class WoDebriefES extends LightningElement {
      */
     async _evaluateAllowedUnitForProduct(product2Id, options = {}) {
         const { editId = null, isAddForm = false } = options;
+        // GW-6095: no part to evaluate, so clear any Component Tag selection.
+        if (!this.recordId || !product2Id) {
+            this._applyComponentTagFields(this._clearedComponentTagFields(), { editId, isAddForm });
+        }
         if (!product2Id || !this.recordId) {
             await this._applyAllowedUnitResult(null, { editId, isAddForm });
             return;
@@ -5197,6 +5275,7 @@ export default class WoDebriefES extends LightningElement {
                 workOrderId: this.recordId,
                 product2Id
             });
+            await this._refreshComponentTags(result, { product2Id }, { editId, isAddForm });
             if (!result?.evaluated) {
                 await this._applyAllowedUnitResult(null, { editId, isAddForm });
                 return;
@@ -5213,6 +5292,136 @@ export default class WoDebriefES extends LightningElement {
                 variant: 'error'
             }));
         }
+    }
+
+    /**
+     * @description GW-6095 — After the Allowed Unit check, loads the Component Tags of an allowed part
+     *              or clears them when the part is not allowed or the check was skipped.
+     *              One tag is selected automatically; with several, a still-valid selection is kept.
+     * @param {Object} allowedUnitResult AllowedUnitEvaluationDTO returned by Apex
+     * @param {Object} part { productItemId } for Trunk Stock or { product2Id } for Customer Stock
+     * @param {Object} target { editId, isAddForm }
+     */
+    async _refreshComponentTags(
+        allowedUnitResult,
+        { productItemId = null, product2Id = null } = {},
+        { editId = null, isAddForm = false } = {}
+    ) {
+        if (!allowedUnitResult?.evaluated || allowedUnitResult.allowedUnit !== true) {
+            this._applyComponentTagFields(this._clearedComponentTagFields(), { editId, isAddForm });
+            return;
+        }
+
+        let componentTagOptions;
+        try {
+            const tags = productItemId
+                ? await getComponentTagsForProductItem({ workOrderId: this.recordId, productItemId })
+                : await getComponentTagsForProduct({ workOrderId: this.recordId, product2Id });
+            componentTagOptions = (tags ?? []).map(tag => ({ label: tag.label, value: tag.id }));
+        } catch (error) {
+            this._applyComponentTagFields(this._clearedComponentTagFields(), { editId, isAddForm });
+            this._toast(
+                'Component Tag lookup failed',
+                this._apexErrorMessage(error) || 'Unable to load component tags.',
+                'error'
+            );
+            return;
+        }
+
+        // The part may have changed while the tags were loading; ignore a stale response.
+        const target = this._componentTagTarget({ editId, isAddForm });
+        const stillSelected = productItemId
+            ? target?.productItemId === productItemId
+            : target?.product2Id === product2Id;
+        if (target && !stillSelected) {
+            return;
+        }
+
+        const currentId = target?.componentTagId ?? null;
+        let componentTagId = null;
+        if (componentTagOptions.length === 1) {
+            componentTagId = componentTagOptions[0].value;
+        } else if (componentTagOptions.some(option => option.value === currentId)) {
+            componentTagId = currentId;
+        }
+        this._applyComponentTagFields(
+            { componentTagId, componentTagOptions, componentTagsLoaded: true },
+            { editId, isAddForm }
+        );
+    }
+
+    /**
+     * @description GW-6095 — Component Tag fields reset when the part changes or is not allowed.
+     * @return {Object} Cleared Component Tag fields
+     */
+    _clearedComponentTagFields() {
+        return { componentTagId: null, componentTagOptions: [], componentTagsLoaded: false };
+    }
+
+    /**
+     * @description GW-6095 — Clears the Component Tag fields on an edit row or pending add.
+     * @param {String} editId Line Id or pending add temp Id
+     */
+    _clearComponentTagForEdit(editId) {
+        this._applyComponentTagFields(this._clearedComponentTagFields(), { editId });
+    }
+
+    /**
+     * @description GW-6095 — Writes Component Tag fields to the add form, or stages them on an edit row.
+     * @param {Object} fields componentTagId / componentTagOptions / componentTagsLoaded
+     * @param {Object} target { editId, isAddForm }
+     */
+    _applyComponentTagFields(fields, { editId = null, isAddForm = false } = {}) {
+        if (isAddForm) {
+            this.addFormState = { ...this.addFormState, ...fields };
+        } else if (editId) {
+            Object.entries(fields).forEach(([field, value]) => this._stageEdit(editId, field, value));
+        }
+    }
+
+    /**
+     * @description GW-6095 — Current state holding the part and Component Tag for the add form,
+     *              a pending add, or a staged edit.
+     * @param {Object} target { editId, isAddForm }
+     * @return {Object|null} State object, or null when nothing is staged yet
+     */
+    _componentTagTarget({ editId = null, isAddForm = false } = {}) {
+        if (isAddForm) {
+            return this.addFormState;
+        }
+        return this._pendingAdds.find(a => a._tempId === editId) ?? this._pendingEdits[editId] ?? null;
+    }
+
+    /**
+     * @description GW-6095 — View fields for the Component Tag on a parts line or the add form.
+     *              Several tags: required picklist. One tag or a saved tag: read-only name.
+     *              Allowed part without tags: a message, and saving is still allowed.
+     * @param {Object} input Allowed Unit flag, selected tag, options, loaded flag and saved tag
+     * @return {Object} Component Tag view fields for the template
+     */
+    _componentTagView({
+        allowedUnit,
+        componentTagId,
+        componentTagOptions,
+        componentTagsLoaded,
+        savedComponentTagId = null,
+        savedComponentTagName = ''
+    }) {
+        const options = componentTagOptions ?? [];
+        const selected = options.find(option => option.value === componentTagId);
+        const label = selected?.label
+            ?? (componentTagId && componentTagId === savedComponentTagId ? savedComponentTagName : '');
+        const showPicker = allowedUnit === true && options.length > 1;
+        const showNoTagMessage = !!componentTagsLoaded && allowedUnit === true && options.length === 0;
+        return {
+            editComponentTagId: componentTagId ?? null,
+            componentTagOptions: options,
+            componentTagLabel: label,
+            showComponentTagPicker: showPicker,
+            showComponentTagReadOnly: !showPicker && !showNoTagMessage && !!label,
+            showNoComponentTagMessage: showNoTagMessage,
+            noComponentTagMessage: NO_COMPONENT_TAG_MESSAGE
+        };
     }
 
     /**
@@ -5668,6 +5877,7 @@ export default class WoDebriefES extends LightningElement {
                 productCode,
                 partDescription,
                 returnable: match.isReturnable ?? null,
+                ...this._clearedComponentTagFields(),
                 allowedUnit: null,
                 removedPartId: null
             };
@@ -5684,6 +5894,7 @@ export default class WoDebriefES extends LightningElement {
             this._stageEdit(editId, 'partDescription', partDescription);
             this._stageEdit(editId, 'returnable', match.isReturnable ?? null);
             this._stageEdit(editId, 'removedPartId', null);
+            this._clearComponentTagForEdit(editId);
             this._stageEdit(editId, 'allowedUnit', null);
             this._onProductItemSelected(productItemId, { editId });
             this._toast('Product Item selected', match.productName || productItemId, 'success');
@@ -5720,6 +5931,7 @@ export default class WoDebriefES extends LightningElement {
                 productCode,
                 partDescription,
                 returnable,
+                ...this._clearedComponentTagFields(),
                 allowedUnit: null,
                 billingType: '',
                 removedPartId: null
@@ -5740,6 +5952,7 @@ export default class WoDebriefES extends LightningElement {
             this._stageEdit(editId, 'removedPartId', null);
             this._stageEdit(editId, 'allowedUnit', null);
             this._stageEdit(editId, 'billingType', '');
+            this._clearComponentTagForEdit(editId);
             this._evaluateAllowedUnitForProduct(product2Id, { editId });
             this._evaluateBillingType({ product2Id, editId });
             this._toast('Product selected', match.productName || productCode || product2Id, 'success');

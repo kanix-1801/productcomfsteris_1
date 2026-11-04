@@ -26,7 +26,8 @@ private class CscVisitDateChangeActionTest {
     @IsTest
     static void changeDateSavesConfirmedDateAndApproves() {
         Date selectedDate = weekdayAhead(12);
-        CSC_Visit_Request__c visit = insertVisit(CscVisitRequestSelector.STATUS_REQUESTED, selectedDate.addDays(7));
+        Date currentDate = selectedDate.addDays(7);
+        CSC_Visit_Request__c visit = insertVisit(CscVisitRequestSelector.STATUS_APPROVED, currentDate);
         List<CscVisitRequestService.UnavailableDate> openDates =
             CscAvailabilityController.getUnavailableDatesForVisit(
                 CscVisitRequestSelector.REQUEST_CSC,
@@ -53,15 +54,44 @@ private class CscVisitDateChangeActionTest {
         ];
         System.assertEquals(CscVisitRequestSelector.STATUS_APPROVED, visit.Status__c);
         System.assertEquals(selectedDate, visit.Confirmed_Date__c);
-        System.assertEquals(null, visit.Primary_Requested_Date__c);
-        System.assertEquals(null, visit.Backup_Requested_Date__c);
+        System.assertEquals(currentDate, visit.Primary_Requested_Date__c);
+        System.assertEquals(currentDate.addDays(1), visit.Backup_Requested_Date__c);
+    }
+
+    @IsTest
+    static void confirmDateApprovesTheRequestedVisit() {
+        Date selectedDate = weekdayAhead(14);
+        CSC_Visit_Request__c visit = insertVisit(CscVisitRequestSelector.STATUS_REQUESTED, null);
+        visit.Primary_Requested_Date__c = selectedDate.addDays(7);
+        visit.Backup_Requested_Date__c = selectedDate.addDays(8);
+        update visit;
+
+        System.runAs(adminUser()) {
+            CscVisitDateConfirmAction.confirmDates(null);
+            CscVisitDateConfirmAction.confirmDates(new List<CscVisitDateConfirmAction.Request>{ null });
+            CscVisitDateConfirmAction.Request request = new CscVisitDateConfirmAction.Request();
+            request.recordId = visit.Id;
+            request.confirmedDate = selectedDate;
+            CscVisitDateConfirmAction.confirmDates(new List<CscVisitDateConfirmAction.Request>{ request });
+        }
+
+        visit = [
+            SELECT Status__c, Confirmed_Date__c, Primary_Requested_Date__c, Backup_Requested_Date__c
+            FROM CSC_Visit_Request__c
+            WHERE Id = :visit.Id
+        ];
+        System.assertEquals(CscVisitRequestSelector.STATUS_APPROVED, visit.Status__c);
+        System.assertEquals(selectedDate, visit.Confirmed_Date__c);
+        System.assertEquals(selectedDate.addDays(7), visit.Primary_Requested_Date__c);
+        System.assertEquals(selectedDate.addDays(8), visit.Backup_Requested_Date__c);
     }
 
     @IsTest
     static void changeDateRejectsAnOccupiedDate() {
         Date occupiedDate = weekdayAhead(20);
+        Date currentDate = weekdayAhead(8);
         insertVisit(CscVisitRequestSelector.STATUS_CONFIRMED, occupiedDate);
-        CSC_Visit_Request__c visit = insertVisit(CscVisitRequestSelector.STATUS_POSTPONED, null);
+        CSC_Visit_Request__c visit = insertVisit(CscVisitRequestSelector.STATUS_APPROVED, currentDate);
         Boolean threw = false;
 
         System.runAs(adminUser()) {
@@ -79,8 +109,8 @@ private class CscVisitDateChangeActionTest {
             WHERE Id = :visit.Id
         ];
         System.assertEquals(true, threw, 'An occupied date is not saved');
-        System.assertEquals(CscVisitRequestSelector.STATUS_POSTPONED, visit.Status__c);
-        System.assertEquals(null, visit.Confirmed_Date__c);
+        System.assertEquals(CscVisitRequestSelector.STATUS_APPROVED, visit.Status__c);
+        System.assertEquals(currentDate, visit.Confirmed_Date__c);
     }
 
     @IsTest
@@ -99,8 +129,8 @@ private class CscVisitDateChangeActionTest {
         ];
         System.assertEquals(CscVisitRequestSelector.STATUS_POSTPONED, visit.Status__c);
         System.assertEquals(null, visit.Confirmed_Date__c);
-        System.assertEquals(null, visit.Primary_Requested_Date__c);
-        System.assertEquals(null, visit.Backup_Requested_Date__c);
+        System.assertEquals(confirmedDate, visit.Primary_Requested_Date__c);
+        System.assertEquals(confirmedDate.addDays(1), visit.Backup_Requested_Date__c);
     }
 
     private static CSC_Visit_Request__c insertVisit(String statusValue, Date confirmedDate) {

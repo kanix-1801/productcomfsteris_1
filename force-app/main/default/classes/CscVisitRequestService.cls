@@ -117,10 +117,13 @@ public without sharing class CscVisitRequestService {
                     )
                 )
             ) {
-                putPending(reasonByDate, row.Primary_Requested_Date__c);
-                putPending(reasonByDate, row.Backup_Requested_Date__c);
-                if (row.Status__c == CscVisitRequestSelector.STATUS_APPROVED) {
+                if (row.Status__c == CscVisitRequestSelector.STATUS_APPROVED
+                    && row.Confirmed_Date__c != null
+                ) {
                     putPending(reasonByDate, row.Confirmed_Date__c);
+                } else {
+                    putPending(reasonByDate, row.Primary_Requested_Date__c);
+                    putPending(reasonByDate, row.Backup_Requested_Date__c);
                 }
             }
         }

@@ -373,15 +373,94 @@ public with sharing class PpcCommercialApprovalService {
     private static List<String> collectCommercialRequirements(Opportunity opportunityRecord) {
         List<String> missingRequirements = new List<String>();
         if (String.isBlank(opportunityRecord.Commercial_Commitment__c)) {
-            missingRequirements.add('Commercial Commitment is required before submit.');
+            missingRequirements.add(requiredMessage('Commercial Commitment', 'Opportunity'));
+        }
+        if (opportunityRecord.ExpectedCyclesProceduresperAnnum__c == null) {
+            missingRequirements.add(requiredMessage('Expected Cycles / Procedures per Annum', 'Opportunity'));
+        }
+        if (opportunityRecord.AnnualCommittedQuantity__c == null) {
+            missingRequirements.add(requiredMessage('Annual Committed Quantity', 'Opportunity'));
+        }
+        if (opportunityRecord.TotalContractedQuantity__c == null) {
+            missingRequirements.add(requiredMessage('Total Contracted Quantity', 'Opportunity'));
+        }
+        if (opportunityRecord.TotalAnnualPPCRevenue__c == null) {
+            missingRequirements.add(requiredMessage('Total Annual PPC Revenue', 'Opportunity'));
+        }
+        if (opportunityRecord.TotalPPCContractValue__c == null) {
+            missingRequirements.add(requiredMessage('Total PPC Contract Value', 'Opportunity'));
         }
         if (
-            String.isBlank(opportunityRecord.FinancialAssessment__c) &&
-            String.isBlank(opportunityRecord.Financial_Assessment_Link__c)
+            opportunityRecord.ApprovedCostPerCycleExcludingService__c == null &&
+            opportunityRecord.ApprovedCostPerCycleIncludingService__c == null
         ) {
-            missingRequirements.add('Financial Assessment Link is required before submit.');
+            missingRequirements.add(
+                'Approved CostPerCycle –Excluding Service (Opportunity) or Approved CostPerCycle –IncludingService (Opportunity) is required before approval submission.'
+            );
+        }
+        if (
+            opportunityRecord.Financial_Analysis_Status__c != 'Completed' &&
+            opportunityRecord.Financial_Analysis_Status__c != 'Approved'
+        ) {
+            missingRequirements.add(
+                'Financial Analysis Status (Opportunity) must be Completed or Approved.'
+            );
+        }
+        if (
+            String.isBlank(opportunityRecord.Financial_Assessment_Link__c) &&
+            !hasFinancialAnalysisFile(opportunityRecord.Id)
+        ) {
+            missingRequirements.add(
+                'Financial Assessment Link (Opportunity) or a file on the Opportunity is required before approval submission.'
+            );
+        }
+
+        List<OpportunityLineItem> products = [
+            SELECT Id, Product2.Name, UnitPrice, Elevated_Price__c,
+                AnnualCommittedRevenue__c, TotalContractTermRevenue__c
+            FROM OpportunityLineItem
+            WHERE OpportunityId = :opportunityRecord.Id
+        ];
+        if (products.isEmpty()) {
+            missingRequirements.add(
+                'At least one Opportunity Product (Opportunity Product) is required before approval submission.'
+            );
+            return missingRequirements;
+        }
+        for (OpportunityLineItem product : products) {
+            String productName = String.isBlank(product.Product2.Name)
+                ? 'Opportunity Product'
+                : product.Product2.Name;
+            if (product.UnitPrice == null) {
+                missingRequirements.add(productRequiredMessage('Sales Price', productName));
+            }
+            if (product.Elevated_Price__c == null) {
+                missingRequirements.add(productRequiredMessage('Elevated Price', productName));
+            }
+            if (product.AnnualCommittedRevenue__c == null) {
+                missingRequirements.add(productRequiredMessage('Annual Committed Revenue', productName));
+            }
+            if (product.TotalContractTermRevenue__c == null) {
+                missingRequirements.add(productRequiredMessage('Total Contract-Term Revenue', productName));
+            }
         }
         return missingRequirements;
+    }
+
+    private static String requiredMessage(String fieldLabel, String objectLabel) {
+        return fieldLabel + ' (' + objectLabel + ') is required before approval submission.';
+    }
+
+    private static String productRequiredMessage(String fieldLabel, String productName) {
+        return fieldLabel + ' (Opportunity Product) is required on ' + productName + ' before approval submission.';
+    }
+
+    private static Boolean hasFinancialAnalysisFile(Id opportunityId) {
+        return [
+            SELECT COUNT()
+            FROM ContentDocumentLink
+            WHERE LinkedEntityId = :opportunityId
+        ] > 0;
     }
 
     private static void deactivateCurrentApprovers(Id opportunityId) {
@@ -453,7 +532,15 @@ public with sharing class PpcCommercialApprovalService {
                 DealApprovalSubmissionComments__c,
                 FinancialAssessment__c,
                 Financial_Assessment_Link__c,
-                Commercial_Commitment__c
+                Commercial_Commitment__c,
+                ExpectedCyclesProceduresperAnnum__c,
+                AnnualCommittedQuantity__c,
+                TotalContractedQuantity__c,
+                TotalAnnualPPCRevenue__c,
+                TotalPPCContractValue__c,
+                ApprovedCostPerCycleExcludingService__c,
+                ApprovedCostPerCycleIncludingService__c,
+                Financial_Analysis_Status__c
             FROM Opportunity
             WHERE Id = :opportunityId
             LIMIT 1

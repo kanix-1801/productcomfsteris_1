@@ -1,7 +1,73 @@
 <template>
     <lightning-card title="District Zone Alignment" icon-name="standard:location">
         <div class="slds-p-around_medium">
-            <p>This tool will be delivered in a later story.</p>
+            <p class="slds-m-bottom_small">
+                Upload the District Zone Alignment file and click Start Processing. Rows with no Current District # (blank or “-”) create a new district in the Future Zone. 
+                Rows with a Current District # move that district to the Future Zone and update its Territory Manager, number, and name.
+            </p>
+            <p class="slds-text-body_small slds-m-bottom_medium">
+                Required: Current District #, Future District #, Future Zone #, Future ASM
+                Names (the user's full name). Future District Name sets the district name.
+            </p>
+
+            <div class="slds-m-bottom_medium">
+                <lightning-file-upload
+                    label="Upload district assignment file"
+                    name="districtZoneAlignmentUpload"
+                    accept={acceptedFormats}
+                    onuploadfinished={handleUploadFinished}
+                    disabled={isBusy}
+                ></lightning-file-upload>
+                <template lwc:if={uploadedFileName}>
+                    <p class="slds-m-top_x-small slds-text-body_small">Selected file: {uploadedFileName}</p>
+                </template>
+            </div>
+
+            <div class="slds-m-bottom_medium">
+                <lightning-button
+                    variant="brand"
+                    label="Start Upload"
+                    onclick={handleStartUpload}
+                    disabled={isStartDisabled}
+                    class="slds-m-right_small"
+                ></lightning-button>
+                <lightning-button
+                    variant="neutral"
+                    label="Download Template"
+                    onclick={handleDownloadTemplate}
+                    disabled={isBusy}
+                    class="slds-m-right_small"
+                ></lightning-button>
+                <lightning-button
+                    variant="neutral"
+                    label="Download Error File"
+                    onclick={handleDownloadErrorFile}
+                    disabled={isBusy}
+                ></lightning-button>
+            </div>
+
+            <template lwc:if={isBusy}>
+                <lightning-spinner alternative-text="Processing" size="small"></lightning-spinner>
+            </template>
+
+            <template lwc:if={resultSummary}>
+                <div class="slds-box slds-theme_shade slds-m-top_small">
+                    <p>{resultSummary}</p>
+                    <p class="slds-text-body_small slds-m-top_x-small">{emailMessage}</p>
+                    <template lwc:if={hasErrors}>
+                        <ul class="slds-m-top_small">
+                            <template for:each={visibleErrors} for:item="errorItem">
+                                <li key={errorItem.key}>{errorItem.message}</li>
+                            </template>
+                        </ul>
+                        <template lwc:if={hasHiddenErrors}>
+                            <p class="slds-text-body_small slds-m-top_x-small">
+                                Showing the first {visibleErrorLimit} errors. Download the error file for the full list.
+                            </p>
+                        </template>
+                    </template>
+                </div>
+            </template>
         </div>
     </lightning-card>
 </template>

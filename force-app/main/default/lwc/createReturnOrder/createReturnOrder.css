@@ -6,6 +6,25 @@
     display: block;
 }
 
+/* Full-page tab launch: shrink white card to content width and left-align it. */
+.wizard-frame--tab {
+    max-width: 56rem;
+    width: 100%;
+    margin-left: 0;
+    margin-right: auto;
+    box-sizing: border-box;
+}
+
+.wizard-frame--tab lightning-card {
+    display: block;
+}
+
+.wizard-shell--tab .return-order-lines,
+.wizard-shell--tab .created-orders-section,
+.wizard-shell--tab .line-type-add-panel {
+    max-width: none;
+}
+
 .return-order-lines {
     max-width: 56rem;
 }
@@ -17,6 +36,17 @@
 
 .created-order-link {
     font-weight: 600;
+}
+
+.section-header__copy {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.section-header__action {
+    flex: 0 0 auto;
+    margin-left: 0.75rem;
+    align-self: center;
 }
 
 .line-section-actions {
@@ -117,6 +147,44 @@ lightning-accordion-section .slds-accordion__section {
     width: 100%;
 }
 
+/* Review step: every return order on the screen uses the same column widths. */
+table.review-lines-table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+.review-lines-table__col-serial {
+    width: 14%;
+}
+
+.review-lines-table__col-model {
+    width: 16%;
+}
+
+.review-lines-table__col-product-line {
+    width: 22%;
+}
+
+.review-lines-table__col-qty {
+    width: 8%;
+}
+
+.review-lines-table__col-contact {
+    width: 20%;
+}
+
+.review-lines-table__col-department {
+    width: 20%;
+}
+
+.review-lines-table__col-item-desc {
+    width: 36%;
+}
+
+.review-lines-table .slds-truncate {
+    display: block;
+}
+
 .line-type-add-table__type-col {
     width: 11rem;
     min-width: 11rem;
@@ -158,10 +226,17 @@ lightning-accordion-section .slds-accordion__section {
     overflow: visible;
 }
 
+/*
+ * Fixed to the field so the list opens directly beneath it.
+ * Do not use slds-dropdown here — it applies translateX(-50%) and shifts the menu left.
+ */
 .product-search-results--fixed {
     position: fixed;
     display: block;
     z-index: 100000;
+    float: none;
+    transform: none;
+    inset: auto;
     margin-top: 0;
     max-height: 15rem;
     overflow-y: auto;

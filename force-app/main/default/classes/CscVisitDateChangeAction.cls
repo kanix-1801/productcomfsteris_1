@@ -16,13 +16,13 @@ public with sharing class CscVisitDateChangeAction {
     }
 
     /**
-     * @description Saves the selected date and rejects a pending approval when one exists.
+     * @description Saves the selected date. The approval is already complete.
      * @param requests List<Request> visits from the Change Date flow
      * @return void
      */
     @InvocableMethod(
         label='Change CSC Visit Date'
-        description='Saves one confirmed date, rejects a pending approval, and sets the visit to Approved.'
+        description='Replaces an existing confirmed date and sets the visit to Approved.'
     )
     public static void changeDates(List<Request> requests) {
         if (requests == null) {

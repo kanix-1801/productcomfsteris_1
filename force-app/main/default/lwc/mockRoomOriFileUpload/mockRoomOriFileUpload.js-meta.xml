@@ -3,7 +3,7 @@
     <apiVersion>66.0</apiVersion>
     <isExposed>true</isExposed>
     <masterLabel>Mock Room / ORI File Upload</masterLabel>
-    <description>GC-3483. Optional photos and files for a Mock Room or ORI request. Files are uploaded before the request exists and the flow attaches them after create.</description>
+    <description>GC-3483 Sprint 8. Optional supporting documents for a Mock Room or ORI request. Files are uploaded before the request exists and the flow attaches them after create.</description>
     <targets>
         <target>lightning__FlowScreen</target>
     </targets>

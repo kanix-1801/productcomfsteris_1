@@ -1,13 +1,13 @@
 /**
  * @description GC-3521 . Keeps a Master Project Opportunity out of the sales forecast.
  *              Forecast Category is Omitted and Forecast Confidence is cleared.
- *              Probability stays on the stage default, except Deferred keeps the prior probability.
+ *              Probability stays on the stage default, except Deferred / On Hold keeps the prior probability.
  */
 public with sharing class ProjectOpportunityForecastService {
     @TestVisible
     private static final String RECORD_TYPE_DEVELOPER_NAME = 'HCProjectOpportunity';
     @TestVisible
-    private static final String STAGE_DEFERRED = 'Deferred';
+    private static final String STAGE_DEFERRED = 'Deferred / On Hold';
     @TestVisible
     private static final String FORECAST_CATEGORY_OMITTED = 'Omitted';
     private static final String LOGGER_TAG = 'GC-3521';

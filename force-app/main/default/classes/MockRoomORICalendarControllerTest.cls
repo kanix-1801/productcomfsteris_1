@@ -98,6 +98,11 @@ private class MockRoomORICalendarControllerTest {
         System.assertEquals(1, data.events.size(), 'Expected only the confirmed requested date.');
         System.assertEquals(Date.today(), data.events[0].eventDate, 'Expected the primary date that was selected.');
         System.assertEquals('Confirmed', data.events[0].dateRole);
+        System.assertEquals(
+            'GC-3483 Calendar Account',
+            data.events[0].accountName,
+            'Expected the customer name on the calendar entry.'
+        );
         System.assertEquals(1, data.blocks.size(), 'Expected the trade show block.');
         System.assertEquals('Trade Show', data.blocks[0].reason);
     }

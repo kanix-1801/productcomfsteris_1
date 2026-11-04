@@ -61,6 +61,7 @@ public inherited sharing class CscVisitConfirmationService {
     ) {
         confirmVisits(visits, oldVisits);
         notifyCancellation(visits, oldVisits);
+        notifyPostponement(visits, oldVisits);
         removeReleasedCalendar(visits, oldVisits);
         notifyVrArPlanningTeam(visits, oldVisits);
         syncAttendees(readyVisitIds(visits));
@@ -1406,6 +1407,121 @@ public inherited sharing class CscVisitConfirmationService {
             ));
         }
         sendEmails(messages);
+    }
+
+    /**
+     * @description #GC-3579 Emails the requester, account team, visit team, and attendees
+     *              when a visit is postponed and Confirmed Date is cleared. A postponement
+     *              that still has Confirmed Date does not send this email.
+     * @param visits Saved CSC visit records.
+     * @param oldVisits Prior CSC visit records. Null on insert.
+     */
+    private static void notifyPostponement(
+        List<CSC_Visit_Request__c> visits,
+        Map<Id, CSC_Visit_Request__c> oldVisits
+    ) {
+        if (visits == null || visits.isEmpty() || oldVisits == null) {
+            return;
+        }
+
+        Set<Id> postponedIds = new Set<Id>();
+        for (CSC_Visit_Request__c visit : visits) {
+            CSC_Visit_Request__c priorVisit = oldVisits.get(visit.Id);
+            if (priorVisit == null || priorVisit.Status__c == STATUS_POSTPONED) {
+                continue;
+            }
+            if (visit.Status__c == STATUS_POSTPONED && visit.Confirmed_Date__c == null) {
+                postponedIds.add(visit.Id);
+            }
+        }
+        if (postponedIds.isEmpty()) {
+            return;
+        }
+
+        Map<Id, CSC_Visit_Request__c> visitsById = new Map<Id, CSC_Visit_Request__c>(
+            queryStatusVisits(postponedIds)
+        );
+        Map<Id, List<CSCVisitAttendee__c>> attendeesByVisit = queryAttendees(visitsById.keySet());
+        Map<Id, List<AccountTeamMember>> teamByAccount = queryTeam(accountIds(visitsById.values()));
+        Map<Id, List<TeamMember__c>> membersByVisit = postponeTeamMembers(visitsById.keySet());
+        Set<String> adminEmails = cscAdminEmails();
+        List<Messaging.SingleEmailMessage> messages = new List<Messaging.SingleEmailMessage>();
+        for (CSC_Visit_Request__c visit : visitsById.values()) {
+            List<String> recipients = recipientEmails(
+                visit,
+                attendeesByVisit.get(visit.Id),
+                teamByAccount.get(visit.AccountFacility__c),
+                adminEmails
+            );
+            if (visit.VisitRequestor__r != null && visit.VisitRequestor__r.IsActive == true) {
+                addEmail(recipients, emailKeys(recipients), visit.VisitRequestor__r.Email);
+            }
+            List<TeamMember__c> members = membersByVisit.get(visit.Id);
+            if (members != null) {
+                for (TeamMember__c member : members) {
+                    addEmail(recipients, emailKeys(recipients), member.User__r.Email);
+                }
+            }
+            if (recipients.isEmpty()) {
+                continue;
+            }
+            lastEmailsSent.addAll(recipients);
+            String subject = 'CSC Visit # ' + safe(visit.Name) + ' has been Postponed';
+            messages.add(buildEmail(
+                recipients,
+                subject,
+                statusMessage(visit, STATUS_POSTPONED),
+                postponeHtml(visit)
+            ));
+        }
+        sendEmails(messages);
+    }
+
+    /**
+     * @description Active visit team members for the postponement email.
+     * @param visitIds CSC visit Ids.
+     * @return Map<Id, List<TeamMember__c>> team members grouped by visit.
+     */
+    private static Map<Id, List<TeamMember__c>> postponeTeamMembers(Set<Id> visitIds) {
+        Map<Id, List<TeamMember__c>> membersByVisit = new Map<Id, List<TeamMember__c>>();
+        if (visitIds == null || visitIds.isEmpty()) {
+            return membersByVisit;
+        }
+        for (TeamMember__c member : [
+            SELECT CSCVisitRequest__c, User__c, User__r.Email
+            FROM TeamMember__c
+            WHERE CSCVisitRequest__c IN :visitIds
+              AND User__r.IsActive = true
+              AND User__r.Email != null
+        ]) {
+            if (!membersByVisit.containsKey(member.CSCVisitRequest__c)) {
+                membersByVisit.put(member.CSCVisitRequest__c, new List<TeamMember__c>());
+            }
+            membersByVisit.get(member.CSCVisitRequest__c).add(member);
+        }
+        return membersByVisit;
+    }
+
+    /**
+     * @description HTML postponement email. The calendar invite is removed in the same save.
+     * @param visit Postponed CSC visit.
+     * @return String HTML email body.
+     */
+    private static String postponeHtml(CSC_Visit_Request__c visit) {
+        String link = visitLink(visit.Id);
+        String subjectLine = 'CSC Visit # ' + safe(visit.Name)
+            + ' has been Postponed and removed from the CSC calendar';
+        return '<p style="font-style:italic;">This message was auto-generated by Salesforce:</p>'
+            + '<table cellpadding="6" cellspacing="0" border="1" style="border-collapse:collapse;">'
+            + cancellationRow('Subject:', subjectLine)
+            + cancellationRow('Account #:', accountNumber(visit))
+            + cancellationRow(
+                'Account Name:',
+                visit.AccountFacility__r == null ? '' : visit.AccountFacility__r.Name
+            )
+            + cancellationRow('Status:', safe(visit.Status__c))
+            + '</table>'
+            + '<p>You can access the Visit here : <a href="' + html(link) + '">' + html(link) + '</a></p>';
     }
 
     /**

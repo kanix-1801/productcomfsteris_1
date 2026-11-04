@@ -396,13 +396,17 @@ private class OverlayAssignmentControllerTest {
         ********************************************/
         Boolean threw = false;
         try {
-            throw new OverlayAssignmentException(expectedMessage);
+            throwOverlayAssignmentException(expectedMessage);
         } catch (OverlayAssignmentException e) {
             threw = true;
             System.assertEquals(expectedMessage, e.getMessage());
         }
 
         System.assert(threw, 'OverlayAssignmentException should be throwable');
+    }
+
+    private static void throwOverlayAssignmentException(String expectedMessage) {
+        throw new OverlayAssignmentException(expectedMessage);
     }
 
     /**

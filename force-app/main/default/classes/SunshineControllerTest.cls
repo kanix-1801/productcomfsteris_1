@@ -11,7 +11,7 @@
 private class SunshineControllerTest {
 
     @IsTest
-    static void search_returnsTheDirectoryPhysician() {
+    static void searchReturnsTheDirectoryPhysician() {
         SunshineSearchController.SearchRequest request = new SunshineSearchController.SearchRequest();
         request.firstName = 'Riley';
         request.lastName = 'Chen';
@@ -26,7 +26,7 @@ private class SunshineControllerTest {
     }
 
     @IsTest
-    static void save_createsTheSunshineRow() {
+    static void saveCreatesTheSunshineRow() {
         CSC_Visit_Request__c visit = insertVisit();
         SunshineSaveController.SaveRequest request = new SunshineSaveController.SaveRequest();
         request.visitId = visit.Id;
@@ -44,7 +44,7 @@ private class SunshineControllerTest {
     }
 
     @IsTest
-    static void generate_savesThePdfOnTheVisit() {
+    static void generateSavesThePdfOnTheVisit() {
         CSC_Visit_Request__c visit = insertVisit();
         SunshinePdfController.GenerateRequest request = new SunshinePdfController.GenerateRequest();
         request.visitId = visit.Id;
@@ -64,7 +64,7 @@ private class SunshineControllerTest {
     }
 
     @IsTest
-    static void pdfController_loadsTheVisit() {
+    static void pdfControllerLoadsTheVisit() {
         CSC_Visit_Request__c visit = insertVisit();
         ApexPages.StandardController standardController = new ApexPages.StandardController(visit);
 
@@ -76,7 +76,7 @@ private class SunshineControllerTest {
 
     private static CSC_Visit_Request__c insertVisit() {
         CSC_Visit_Request__c visit = new CSC_Visit_Request__c();
-        for (Schema.SObjectField fieldToken : CSC_Visit_Request__c.SObjectType.getDescribe().fields.getMap().values()) {
+        for (Schema.SObjectField fieldToken : CSC_Visit_Request__c.SObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).fields.getMap().values()) {
             Schema.DescribeFieldResult describe = fieldToken.getDescribe();
             if (!describe.isCreateable() || describe.isNillable() || describe.isDefaultedOnCreate() || visit.get(describe.getName()) != null) {
                 continue;

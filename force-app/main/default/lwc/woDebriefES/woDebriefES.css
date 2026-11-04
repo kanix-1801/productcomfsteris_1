@@ -332,6 +332,12 @@
     border: 1px solid #d8dde6;
     border-radius: 0.25rem;
 }
+/* GW-6095: allowed part without Component Tags (same palette as .offline-banner). */
+.read-only-value.component-tag-warning {
+    font-weight: 400;
+    color: #856404;
+    background-color: #fff3cd;
+}
 
 .expense-billable-divider {
     border-top: 1px dashed #dddbda;

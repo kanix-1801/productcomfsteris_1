@@ -11,6 +11,7 @@ export default class MockRoomOriCalendar extends LightningElement {
     _backupDate;
     _businessJustification = '';
     _hasConflict = false;
+    _eventDuration = 1;
 
     monthCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     highlightToday = false;
@@ -41,6 +42,15 @@ export default class MockRoomOriCalendar extends LightningElement {
     }
     set businessJustification(value) {
         this._businessJustification = value || '';
+    }
+
+    @api
+    get eventDuration() {
+        return this._eventDuration;
+    }
+    set eventDuration(value) {
+        const parsed = Number(value);
+        this._eventDuration = Number.isFinite(parsed) && parsed >= 1 ? Math.floor(parsed) : 1;
     }
 
     @api
@@ -88,7 +98,7 @@ export default class MockRoomOriCalendar extends LightningElement {
             if (isToday && this.highlightToday) {
                 classes.push('today-focus');
             }
-            if (iso === this._primaryDate || iso === this._backupDate) {
+            if (this.dateInSelection(iso)) {
                 classes.push('selected');
             }
             let selectionLabel = '';
@@ -153,8 +163,7 @@ export default class MockRoomOriCalendar extends LightningElement {
             this._primaryDate = iso;
             this._backupDate = null;
         } else if (iso === this._primaryDate) {
-            this.message = 'Choose a different day for the backup date.';
-            return;
+            this._backupDate = null;
         } else {
             this._backupDate = iso;
         }
@@ -176,19 +185,25 @@ export default class MockRoomOriCalendar extends LightningElement {
 
     @api
     validate() {
-        if (!this._primaryDate || !this._backupDate) {
+        if (!this._primaryDate) {
             return {
                 isValid: false,
-                errorMessage: 'Select a primary requested date and a backup requested date.'
+                errorMessage: 'Select a primary requested date. The backup requested date is optional.'
             };
         }
-        if (this.isBeforeToday(this._primaryDate) || this.isBeforeToday(this._backupDate)) {
+        if (!this._eventDuration || this._eventDuration < 1) {
+            return {
+                isValid: false,
+                errorMessage: 'Enter an event duration of at least 1 day.'
+            };
+        }
+        if (this.selectionHasPastDate() || (this._backupDate && this.isBeforeToday(this._backupDate))) {
             return {
                 isValid: false,
                 errorMessage: 'A past date cannot be requested. Choose today or a later date.'
             };
         }
-        if (this.blockFor(this._primaryDate) || this.blockFor(this._backupDate)) {
+        if (this.selectionHitsBlock()) {
             return {
                 isValid: false,
                 errorMessage: 'A blocked date cannot be requested. Choose a date Strategic Events has not closed.'
@@ -227,8 +242,8 @@ export default class MockRoomOriCalendar extends LightningElement {
     }
 
     refreshConflict() {
-        const primaryEvents = this.conflictingEvents(this._primaryDate);
-        const backupEvents = this.conflictingEvents(this._backupDate);
+        const primaryEvents = this.conflictingSpan(this._primaryDate);
+        const backupEvents = this.conflictingSpan(this._backupDate);
         this._hasConflict = primaryEvents.length > 0 || backupEvents.length > 0;
         const names = [...primaryEvents, ...backupEvents].map(
             (row) => `${row.requestName} (${row.requestType}, ${row.status})`
@@ -236,11 +251,11 @@ export default class MockRoomOriCalendar extends LightningElement {
         if (this._hasConflict) {
             this.message = `This date already has an event: ${[...new Set(names)].join(', ')}. You can still request it. Enter a business justification. Strategic Events will decide whether it can be supported.`;
         } else if (this._primaryDate && this._backupDate) {
-            this.message = 'Both dates are free of other Mock Room and ORI events.';
+            this.message = 'Primary and backup dates are free of other Mock Room and ORI events.';
         } else if (this._primaryDate) {
-            this.message = 'Primary date selected. Choose the backup date.';
+            this.message = 'Primary date selected. A backup date is optional.';
         } else {
-            this.message = 'Select the primary requested date, then the backup requested date.';
+            this.message = 'Select the primary requested date. A backup date is optional.';
         }
         this.publish();
     }
@@ -250,6 +265,22 @@ export default class MockRoomOriCalendar extends LightningElement {
         this.dispatchEvent(new FlowAttributeChangeEvent('backupDate', this._backupDate));
         this.dispatchEvent(new FlowAttributeChangeEvent('hasConflict', this._hasConflict));
         this.dispatchEvent(new FlowAttributeChangeEvent('businessJustification', this._businessJustification));
+        this.dispatchEvent(new FlowAttributeChangeEvent('eventDuration', this._eventDuration));
+    }
+
+    durationChanged(event) {
+        this.eventDuration = event.target.value;
+        this.refreshConflict();
+    }
+
+    openRequest(event) {
+        event.preventDefault();
+        const requestId = event.currentTarget.dataset.requestId;
+        if (!requestId) {
+            return;
+        }
+        event.stopPropagation();
+        window.open(`/${requestId}`, '_blank');
     }
 
     barsFor(iso) {
@@ -258,21 +289,27 @@ export default class MockRoomOriCalendar extends LightningElement {
         if (block) {
             const start = this.normalizeDate(block.startDate);
             const end = this.normalizeDate(block.endDate);
+            const reason = block.reason || 'Blocked';
             bars.push({
                 key: `block-${iso}`,
-                text: '\u00a0',
-                title: 'Blocked',
+                text: reason,
+                title: reason,
+                href: '#',
+                requestId: null,
                 className: this.barClass('blocked', start, end, iso)
             });
         }
         this.eventsFor(iso).slice(0, 2).forEach((row, index) => {
             const confirmed = row.status === 'Approved';
             const typeLabel = row.requestType === 'ORI Demonstration' ? 'ORI' : 'Mock Room';
-            const text = `${typeLabel} - ${row.requestName}`;
+            const customer = row.accountName || 'Customer';
+            const text = `${row.requestName} - ${customer} - ${typeLabel}`;
             bars.push({
                 key: `${iso}-event-${index}`,
-                text: confirmed ? '\u00a0' : text,
-                title: confirmed ? 'Confirmed' : `${text} (${row.status}, ${row.dateRole})`,
+                text,
+                title: `${text} (${row.status}, ${row.dateRole})`,
+                href: `/${row.requestId}`,
+                requestId: row.requestId,
                 className: confirmed ? 'bar confirmed span-single' : 'bar pending span-single'
             });
         });
@@ -302,6 +339,39 @@ export default class MockRoomOriCalendar extends LightningElement {
 
     conflictingEvents(iso) {
         return this.eventsFor(iso).filter((row) => !this.isRequestBeingEdited(row.requestId));
+    }
+
+    spanDates(startIso) {
+        if (!startIso) {
+            return [];
+        }
+        const dates = [];
+        for (let offset = 0; offset < this._eventDuration; offset += 1) {
+            dates.push(this.shiftIso(startIso, offset));
+        }
+        return dates;
+    }
+
+    dateInSelection(iso) {
+        return this.spanDates(this._primaryDate).includes(iso) || this.spanDates(this._backupDate).includes(iso);
+    }
+
+    selectionHasPastDate() {
+        return [...this.spanDates(this._primaryDate), ...this.spanDates(this._backupDate)]
+            .some((iso) => this.isBeforeToday(iso));
+    }
+
+    selectionHitsBlock() {
+        return [...this.spanDates(this._primaryDate), ...this.spanDates(this._backupDate)]
+            .some((iso) => this.blockFor(iso));
+    }
+
+    conflictingSpan(startIso) {
+        const matches = [];
+        this.spanDates(startIso).forEach((iso) => {
+            this.conflictingEvents(iso).forEach((row) => matches.push(row));
+        });
+        return matches;
     }
 
     isRequestBeingEdited(requestId) {

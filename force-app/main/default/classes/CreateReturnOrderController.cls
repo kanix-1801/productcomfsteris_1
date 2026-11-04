@@ -1,7 +1,5 @@
 /**
  * @description Controller for the Create Return Order LWC wizard (GW-1509).
- *              GW-1353: Site visit creation uses the work order path and instrument lines
- *              from child work order lines marked Send to Repair Center.
  */
 public with sharing class CreateReturnOrderController {
 
@@ -15,6 +13,10 @@ public with sharing class CreateReturnOrderController {
     private static final String NON_STERILIZED_GROUP_SUFFIX = '|NOSTERIL';
     private static final String MOD_REQUEST_GROUP_SUFFIX = '|MODREQUEST';
     private static final String MAX_ITEMS_GROUP_SUFFIX = '|MAXITEMS';
+    private static final String PRODUCT_LINE_GROUP_SUFFIX = '|PRODUCTLINE|';
+    private static final String SHIP_TO_GROUP_SUFFIX = '|SHIPTO|';
+    private static final String CUSTOMER_PO_GROUP_SUFFIX = '|CUSTOMERPO|';
+    private static final String UNSPECIFIED_SPLIT_SEGMENT = 'UNSPECIFIED';
     private static final String FLEXIBLE_SCOPE_PRODUCT_LINE = 'FLEXIBLE SCOPE';
     private static final Set<String> DISINFECTED_NO_VALUES = new Set<String>{
         'No, items has not been cleaned and disinfected or Sterilized',
@@ -26,20 +28,18 @@ public with sharing class CreateReturnOrderController {
     private static final Decimal QUANTITY_RETURNED_DEFAULT = 1;
     private static final String ROLI_LINE_TYPE_SERIALIZED = 'Serialized';
     private static final String ROLI_LINE_TYPE_INSTRUMENT = 'Instrument';
-    private static final String ROLI_LINE_TYPE_OTHER = 'Other';
+    private static final String ROLI_LINE_TYPE_OTHER_SERIALIZED = 'Other (Serialized)';
+    private static final String ROLI_LINE_TYPE_OTHER_NON_SERIALIZED = 'Other (Non-Serialized)';
     private static final String RETURN_ORDER_TYPE_SERIALIZED = 'Serialized';
     private static final String RETURN_ORDER_TYPE_INSTRUMENTS = 'Instruments';
-    private static final String RETURN_ORDER_TYPE_OTHER = 'Other';
+    private static final String RETURN_ORDER_TYPE_OTHER_SERIALIZED = 'Other (Serialized)';
+    private static final String RETURN_ORDER_TYPE_OTHER_NON_SERIALIZED = 'Other (Non-Serialized)';
     private static final String RETURN_ORDER_GROUP_KEY_DELIMITER = '::';
     private static final String ESTIMATE_REQUIRED_QUOTE_VALUE = 'Estimate Required';
     private static final String RETURN_ORDER_TYPE_FIELD = 'ReturnOrderType__c';
-    private static final List<String> ACCOUNT_DETAIL_OPTIONAL_FIELDS = new List<String>{
-        'SystemID__c',
-        'OrgIDs__c',
-        'OperatingUnit__c',
-        'CustomerAddressOperatingUnit__c',
-        'BillingState'
-    };
+    private static final String STIRRUP_ITEM_TYPE = 'Stirrup';
+    private static final String STIRRUP_GROUP_SUFFIX = '|STIRRUP|';
+    private static final String ENDOCAM_ITEM_TYPE = 'Endocam';
 
     /**
      * @description Picklist option for LWC comboboxes.
@@ -87,16 +87,46 @@ public with sharing class CreateReturnOrderController {
     }
 
     /**
+     * @description GW-5320 - Ship-To Address account option for Create Return Order.
+     */
+    public class ShipToAddressOption {
+        @AuraEnabled public String id;
+        @AuraEnabled public String name;
+        @AuraEnabled public String status;
+        @AuraEnabled public String addressDisplay;
+        @AuraEnabled public Boolean isPrimary;
+        @AuraEnabled public String label;
+    }
+
+    /**
      * @description Asset row data for return order lines.
      */
     public class AssetLineData {
         @AuraEnabled public String id;
         @AuraEnabled public String serialNumber;
         @AuraEnabled public String model;
+        @AuraEnabled public String make;
         @AuraEnabled public String departmentId;
         @AuraEnabled public String product2Id;
         @AuraEnabled public String productLine;
         @AuraEnabled public String productName;
+    }
+
+/**
+     * @description Instrument line prefilled from a child work order line (GW-1353).
+     */
+    public class SiteVisitInstrumentLine {
+        @AuraEnabled public String workOrderLineItemId;
+        @AuraEnabled public String product2Id;
+        @AuraEnabled public String productName;
+        @AuraEnabled public String itemDescription;
+        @AuraEnabled public String serialNumber;
+        @AuraEnabled public String model;
+        @AuraEnabled public String departmentId;
+        @AuraEnabled public String reportedProblem;
+        @AuraEnabled public Boolean additionalServices;
+        @AuraEnabled public String insulationPowderCoating;
+        @AuraEnabled public Decimal quantityReturned;
     }
 
     /**
@@ -136,23 +166,6 @@ public with sharing class CreateReturnOrderController {
         @AuraEnabled public String productCode;
         @AuraEnabled public String model;
         @AuraEnabled public String description;
-    }
-
-    /**
-     * @description Instrument line prefilled from a child work order line (GW-1353).
-     */
-    public class SiteVisitInstrumentLine {
-        @AuraEnabled public String workOrderLineItemId;
-        @AuraEnabled public String product2Id;
-        @AuraEnabled public String productName;
-        @AuraEnabled public String itemDescription;
-        @AuraEnabled public String serialNumber;
-        @AuraEnabled public String model;
-        @AuraEnabled public String departmentId;
-        @AuraEnabled public String reportedProblem;
-        @AuraEnabled public Boolean additionalServices;
-        @AuraEnabled public String insulationPowderCoating;
-        @AuraEnabled public Decimal quantityReturned;
     }
 
     /**
@@ -248,20 +261,19 @@ public with sharing class CreateReturnOrderController {
             }
 
             Map<Id, OpenReturnOrderMatch> matchesByReturnOrderId = new Map<Id, OpenReturnOrderMatch>();
-            Set<String> closedStatuses = CLOSED_RETURN_ORDER_STATUSES;
-            // Do not use USER_MODE here: Ops Customer Care can create ROs in Apex but
-            // often cannot query ReturnOrderLineItem in user mode ("sObject type is not supported").
-            List<ReturnOrderLineItem> lineItems = [
+            // List query (not SOQL for-loop): multiple binds in a for-loop SOQL can throw tmpVar1.
+            List<ReturnOrderLineItem> openLineItems = [
                 SELECT
                     ReturnOrderId,
                     ReturnOrder.ReturnOrderNumber,
                     ReturnOrder.Status
                 FROM ReturnOrderLineItem
                 WHERE AssetId = :assetId
-                AND ReturnOrder.Status NOT IN :closedStatuses
+                AND ReturnOrder.Status NOT IN :CLOSED_RETURN_ORDER_STATUSES
+                WITH USER_MODE
                 ORDER BY ReturnOrder.ReturnOrderNumber ASC NULLS LAST
             ];
-            for (ReturnOrderLineItem lineItem : lineItems) {
+            for (ReturnOrderLineItem lineItem : openLineItems) {
                 if (lineItem.ReturnOrderId == null) {
                     continue;
                 }
@@ -319,55 +331,8 @@ public with sharing class CreateReturnOrderController {
             }
 
             return ctx;
-        } catch (AuraHandledException e) {
-            throw e;
         } catch (Exception e) {
             throw new AuraHandledException('Error resolving launch context: ' + e.getMessage());
-        }
-    }
-
-    /**
-     * @description GW-1353 - Child work order lines marked Send to Repair Center for a site visit.
-     *              The site visit work order header still comes from the work order launch path.
-     *              Sharing applies. Field permissions do not block the prefill.
-     * @param workOrderId Site visit work order Id
-     * @return Instrument lines the technician confirms in Create Return Order
-     */
-    @AuraEnabled
-    public static List<SiteVisitInstrumentLine> getSiteVisitRepairCenterLines(Id workOrderId) {
-        try {
-            List<SiteVisitInstrumentLine> lines = new List<SiteVisitInstrumentLine>();
-            if (workOrderId == null) {
-                return lines;
-            }
-
-            for (WorkOrderLineItem lineItem : [
-                SELECT
-                    Id,
-                    Quantity,
-                    Description,
-                    Product2Id,
-                    Product2.Name,
-                    Product2.Description,
-                    Product2.Model__c,
-                    SerialNumber__c,
-                    Model__c,
-                    Department__c,
-                    ReportedProblem__c,
-                    AdditionalServices__c,
-                    InsulationPowderCoating__c
-                FROM WorkOrderLineItem
-                WHERE WorkOrder.ParentWorkOrderId = :workOrderId
-                    AND SendToRepairCenter__c = TRUE
-                ORDER BY WorkOrder.WorkOrderNumber ASC, LineItemNumber ASC NULLS LAST
-            ]) {
-                lines.add(toSiteVisitInstrumentLine(lineItem));
-            }
-            return lines;
-        } catch (Exception e) {
-            throw new AuraHandledException(
-                'Error loading repair center lines: ' + e.getMessage()
-            );
         }
     }
 
@@ -378,16 +343,41 @@ public with sharing class CreateReturnOrderController {
                 return null;
             }
 
-            List<String> selectedFields = new List<String>{ 'Id', 'Name' };
-            selectedFields.addAll(getAccessibleAccountFieldApiNames(ACCOUNT_DETAIL_OPTIONAL_FIELDS));
-            String soql =
-                'SELECT ' +
-                String.join(selectedFields, ', ') +
-                ' FROM Account WHERE Id = :accountId LIMIT 1';
-            List<Account> accounts = Database.query(soql, AccessLevel.USER_MODE);
+            List<Account> accounts = [
+                SELECT
+                    Id,
+                    Name,
+                    SystemID__c,
+                    OrgIDs__c,
+                    BillingState
+                FROM Account
+                WHERE Id = :accountId
+                WITH USER_MODE
+                LIMIT 1
+            ];
             return accounts.isEmpty() ? null : accounts[0];
         } catch (Exception e) {
             throw new AuraHandledException('Error retrieving account: ' + e.getMessage());
+        }
+    }
+
+    /**
+     * @description GW-5320 - Ship-To Address accounts for the Return Order customer.
+     * @param accountId Customer Account Id
+     * @return Eligible Ship-To options, Primary first
+     */
+    @AuraEnabled
+    public static List<ShipToAddressOption> getShipToAddressesForAccount(Id accountId) {
+        try {
+            List<ShipToAddressOption> options = new List<ShipToAddressOption>();
+            for (Account shipTo : AccountService.getShipToAddressAccounts(accountId)) {
+                options.add(toShipToAddressOption(shipTo));
+            }
+            return options;
+        } catch (Exception e) {
+            throw new AuraHandledException(
+                'Error retrieving Ship-To addresses: ' + e.getMessage()
+            );
         }
     }
 
@@ -431,7 +421,15 @@ public with sharing class CreateReturnOrderController {
             List<Product2> products;
             if (requireServiceAsset) {
                 products = [
-                    SELECT Id, Name, Description, ProductLine__c, ProductType__c, ProductCode, Model__c
+                    SELECT
+                        Id,
+                        Name,
+                        Description,
+                        ProductLine__c,
+                        ProductType__c,
+                        ProductCode,
+                        Model__c,
+                        Manufacturer__c
                     FROM Product2
                     WHERE
                         Id = :productId
@@ -442,7 +440,15 @@ public with sharing class CreateReturnOrderController {
                 ];
             } else {
                 products = [
-                    SELECT Id, Name, Description, ProductLine__c, ProductType__c, ProductCode, Model__c
+                    SELECT
+                        Id,
+                        Name,
+                        Description,
+                        ProductLine__c,
+                        ProductType__c,
+                        ProductCode,
+                        Model__c,
+                        Manufacturer__c
                     FROM Product2
                     WHERE Id = :productId AND IsActive = TRUE
                     WITH USER_MODE
@@ -455,11 +461,23 @@ public with sharing class CreateReturnOrderController {
         }
     }
 
-    @AuraEnabled(cacheable=true)
+    /**
+     * @description Apex overload without device-type filter (tests / internal callers).
+     */
     public static List<ProductPicklistOption> getProductsForReturnOrderLine(
         String productLine,
         Boolean requireServiceAssetType,
         String searchTerm
+    ) {
+        return getProductsForReturnOrderLine(productLine, requireServiceAssetType, searchTerm, null);
+    }
+
+    @AuraEnabled(cacheable=true)
+    public static List<ProductPicklistOption> getProductsForReturnOrderLine(
+        String productLine,
+        Boolean requireServiceAssetType,
+        String searchTerm,
+        String deviceType
     ) {
         try {
             Boolean requireServiceAsset = requireServiceAssetType == null
@@ -476,12 +494,13 @@ public with sharing class CreateReturnOrderController {
             String searchLikeTerm = normalizedSearchTerm == null
                 ? null
                 : '%' + normalizedSearchTerm + '%';
+            String normalizedDeviceType = String.isBlank(deviceType) ? null : deviceType.trim();
 
             List<Product2> products;
             if (requireServiceAsset && !filterByProductLine) {
                 if (searchLikeTerm == null) {
                     products = [
-                        SELECT Id, Name, ProductCode, Model__c, Description
+                        SELECT Id, Name, ProductCode, Model__c, Description, DeviceType__c
                         FROM Product2
                         WHERE IsActive = TRUE AND ProductType__c = 'Service Asset'
                         WITH USER_MODE
@@ -490,7 +509,7 @@ public with sharing class CreateReturnOrderController {
                     ];
                 } else {
                     products = [
-                        SELECT Id, Name, ProductCode, Model__c, Description
+                        SELECT Id, Name, ProductCode, Model__c, Description, DeviceType__c
                         FROM Product2
                         WHERE
                             IsActive = TRUE
@@ -506,7 +525,7 @@ public with sharing class CreateReturnOrderController {
             } else if (requireServiceAsset) {
                 if (searchLikeTerm == null) {
                     products = [
-                        SELECT Id, Name, ProductCode, Model__c, Description
+                        SELECT Id, Name, ProductCode, Model__c, Description, DeviceType__c
                         FROM Product2
                         WHERE
                             IsActive = TRUE
@@ -518,7 +537,7 @@ public with sharing class CreateReturnOrderController {
                     ];
                 } else {
                     products = [
-                        SELECT Id, Name, ProductCode, Model__c, Description
+                        SELECT Id, Name, ProductCode, Model__c, Description, DeviceType__c
                         FROM Product2
                         WHERE
                             IsActive = TRUE
@@ -534,7 +553,7 @@ public with sharing class CreateReturnOrderController {
                 }
             } else if (searchLikeTerm == null) {
                 products = [
-                    SELECT Id, Name, ProductCode, Model__c, Description
+                    SELECT Id, Name, ProductCode, Model__c, Description, DeviceType__c
                     FROM Product2
                     WHERE IsActive = TRUE AND ProductLine__c = :normalizedProductLine
                     WITH USER_MODE
@@ -543,7 +562,7 @@ public with sharing class CreateReturnOrderController {
                 ];
             } else {
                 products = [
-                    SELECT Id, Name, ProductCode, Model__c, Description
+                    SELECT Id, Name, ProductCode, Model__c, Description, DeviceType__c
                     FROM Product2
                     WHERE
                         IsActive = TRUE
@@ -559,6 +578,13 @@ public with sharing class CreateReturnOrderController {
 
             List<ProductPicklistOption> options = new List<ProductPicklistOption>();
             for (Product2 product : products) {
+                if (
+                    normalizedDeviceType != null &&
+                    (String.isBlank(product.DeviceType__c) ||
+                    !product.DeviceType__c.equalsIgnoreCase(normalizedDeviceType))
+                ) {
+                    continue;
+                }
                 ProductPicklistOption option = new ProductPicklistOption();
                 option.value = product.Id;
                 option.name = product.Name;
@@ -658,6 +684,7 @@ public with sharing class CreateReturnOrderController {
                 Title = String.isNotBlank(title) ? title.trim() : null
             );
             insert newContact;
+            ensureAccountContactRelation(accountId, newContact.Id);
 
             Contact created = [
                 SELECT Id, Name, Email
@@ -784,7 +811,8 @@ public with sharing class CreateReturnOrderController {
                     Department__c,
                     Product2Id,
                     Product2.ProductLine__c,
-                    Product2.Name
+                    Product2.Name,
+                    Product2.Manufacturer__c
                 FROM Asset
                 WHERE AccountId = :accountId
                 WITH USER_MODE
@@ -866,7 +894,8 @@ public with sharing class CreateReturnOrderController {
                     Department__c,
                     Product2Id,
                     Product2.ProductLine__c,
-                    Product2.Name
+                    Product2.Name,
+                    Product2.Manufacturer__c
                 FROM Asset
                 WHERE Id IN :idSet
                 WITH USER_MODE
@@ -988,8 +1017,7 @@ public with sharing class CreateReturnOrderController {
                 throw new AuraHandledException('Add at least one line item.');
             }
 
-            Account account = getAccountDetails(accountId);
-            String accountShipState = resolveAccountShipState(account);
+            Map<Id, String> shipStateCodeByShipToId = loadShipToStateCodes(accountId);
             List<RepairCenterRoutingRule__c> routingRules = loadRoutingRulesForOperatingUnit(operatingUnit);
             Map<Id, Product2> productsById = loadProductsForRouting(lineObjects);
 
@@ -998,7 +1026,7 @@ public with sharing class CreateReturnOrderController {
                 RepairCenterRoutingRule__c matchedRule = findMatchingRoutingRule(
                     line,
                     productsById.get(parseId(String.valueOf(line.get('product2Id')))),
-                    accountShipState,
+                    resolveLineShipStateCode(line, shipStateCodeByShipToId),
                     routingRules
                 );
 
@@ -1048,43 +1076,52 @@ public with sharing class CreateReturnOrderController {
                 throw new AuraHandledException('Add at least one line item.');
             }
 
-            Account account = getAccountDetails(accountId);
-            String accountShipState = resolveAccountShipState(account);
+            Map<Id, String> shipStateCodeByShipToId = loadShipToStateCodes(accountId);
             List<RepairCenterRoutingRule__c> routingRules = loadRoutingRulesForOperatingUnit(operatingUnit);
             Map<Id, Product2> productsById = loadProductsForRouting(lineObjects);
 
             Map<String, Integer> nonSterilizedCountByRepairCenter =
                 countNonSterilizedLinesByRepairCenter(
                     lineObjects,
-                    accountShipState,
+                    shipStateCodeByShipToId,
                     routingRules,
                     productsById
                 );
 
             Map<String, Integer> maxItemsLineCounters = new Map<String, Integer>();
             Map<String, List<Object>> linesByGroupKey = new Map<String, List<Object>>();
+            Map<String, String> baseGroupKeyByGroupKey = new Map<String, String>();
+            Map<String, Set<String>> splitGroupKeysByBaseGroupKey =
+                new Map<String, Set<String>>();
             for (Object lineObj : lineObjects) {
                 Map<String, Object> line = (Map<String, Object>) lineObj;
                 Product2 product = productsById.get(parseId(String.valueOf(line.get('product2Id'))));
+                String shipToStateCode = resolveLineShipStateCode(line, shipStateCodeByShipToId);
                 String repairCenterKey = resolveRepairCenterGroupKey(
                     line,
                     product,
-                    accountShipState,
+                    shipToStateCode,
                     routingRules
                 );
-                String groupKey = resolveFinalGroupKey(
+                String baseGroupKey = resolveFinalGroupKey(
                     line,
                     product,
                     repairCenterKey,
                     nonSterilizedCountByRepairCenter,
-                    accountShipState,
+                    shipToStateCode,
                     routingRules,
                     maxItemsLineCounters
                 );
+                String groupKey = buildSplitAttributesGroupKey(baseGroupKey, line, product);
                 if (!linesByGroupKey.containsKey(groupKey)) {
                     linesByGroupKey.put(groupKey, new List<Object>());
                 }
                 linesByGroupKey.get(groupKey).add(line);
+                baseGroupKeyByGroupKey.put(groupKey, baseGroupKey);
+                if (!splitGroupKeysByBaseGroupKey.containsKey(baseGroupKey)) {
+                    splitGroupKeysByBaseGroupKey.put(baseGroupKey, new Set<String>());
+                }
+                splitGroupKeysByBaseGroupKey.get(baseGroupKey).add(groupKey);
             }
 
             Map<Id, String> contactNamesById = loadContactNames(lineObjects);
@@ -1093,8 +1130,12 @@ public with sharing class CreateReturnOrderController {
             List<ProposedReturnOrderGroup> groups = new List<ProposedReturnOrderGroup>();
             for (String groupKey : sortGroupKeys(linesByGroupKey.keySet())) {
                 List<Object> groupedLines = linesByGroupKey.get(groupKey);
+                String baseGroupKey = baseGroupKeyByGroupKey.get(groupKey);
                 ProposedReturnOrderGroup proposedGroup = new ProposedReturnOrderGroup();
-                proposedGroup.groupKey = groupKey;
+                proposedGroup.groupKey =
+                    splitGroupKeysByBaseGroupKey.get(baseGroupKey).size() > 1
+                        ? groupKey
+                        : baseGroupKey;
                 proposedGroup.returnOrderType = resolveReturnOrderTypeFromLine(
                     (Map<String, Object>) groupedLines[0]
                 );
@@ -1106,7 +1147,7 @@ public with sharing class CreateReturnOrderController {
                     departmentNamesById
                 );
 
-                String baseRepairCenterKey = extractBaseRepairCenterKey(groupKey);
+                String baseRepairCenterKey = extractBaseRepairCenterKey(baseGroupKey);
                 if (baseRepairCenterKey == UNASSIGNED_REPAIR_CENTER_GROUP) {
                     proposedGroup.requiresRepairCenterSelection = true;
                     proposedGroup.repairCenterName = 'Repair center required';
@@ -1134,172 +1175,94 @@ public with sharing class CreateReturnOrderController {
     @AuraEnabled
     public static CreateOrdersResult createReturnOrders(String headerJson, String groupsJson) {
         try {
-            Map<String, Object> header = (Map<String, Object>) JSON.deserializeUntyped(headerJson);
-            List<Object> groupObjects = groupsJson != null
-                ? (List<Object>) JSON.deserializeUntyped(groupsJson)
-                : new List<Object>();
-
-            if (groupObjects.isEmpty()) {
-                throw new AuraHandledException('No return orders to create.');
-            }
-
             CreateOrdersResult ordersResult = new CreateOrdersResult();
             ordersResult.returnOrders = new List<CreateResult>();
-            List<Object> createdLineObjects = new List<Object>();
-
-            for (Object groupObj : groupObjects) {
-                Map<String, Object> groupPayload = (Map<String, Object>) groupObj;
-                Boolean requiresSelection = toBoolean(
-                    groupPayload.get('requiresRepairCenterSelection')
-                );
-                Id repairCenterId = parseId(
-                    String.valueOf(groupPayload.get('repairCenterId'))
-                );
-
-                if (requiresSelection == true && repairCenterId == null) {
-                    throw new AuraHandledException(
-                        'Select a repair center for lines without a routing rule match.'
-                    );
-                }
-                if (!requiresSelection && repairCenterId == null) {
-                    throw new AuraHandledException(
-                        'Repair center is required for each return order group.'
-                    );
-                }
-
-                String lineItemsJson = (String) groupPayload.get('lineItemsJson');
-                List<Object> lineObjects = String.isNotBlank(lineItemsJson)
-                    ? (List<Object>) JSON.deserializeUntyped(lineItemsJson)
-                    : new List<Object>();
-
-                ordersResult.returnOrders.add(
-                    insertReturnOrder(
-                        header,
-                        repairCenterId,
-                        lineObjects,
-                        (Map<String, Object>) groupPayload.get('orderHeader')
-                    )
-                );
-                createdLineObjects.addAll(lineObjects);
+            for (ReturnOrdersService.GroupedReturnOrderResult created :
+                ReturnOrdersService.createGroupedReturnOrders(headerJson, groupsJson)
+            ) {
+                ordersResult.returnOrders.add(toCreateResult(created));
             }
-
-            clearSendToRepairCenter(createdLineObjects);
+            clearSendToRepairCenter(lineObjectsFromGroupsJson(groupsJson));
             return ordersResult;
-        } catch (AuraHandledException e) {
-            throw e;
-        } catch (DmlException e) {
-            throw new AuraHandledException(
-                'Error creating return orders: ' + e.getDmlMessage(0)
-            );
         } catch (Exception e) {
-            throw new AuraHandledException(
-                'Error creating return orders: ' + e.getMessage()
-            );
+            throw new AuraHandledException(e.getMessage());
         }
     }
 
     @AuraEnabled
     public static CreateResult createReturnOrder(String headerJson, String lineItemsJson) {
         try {
-            Map<String, Object> header = (Map<String, Object>) JSON.deserializeUntyped(headerJson);
-            List<Object> lineObjects = lineItemsJson != null
+            CreateResult result = toCreateResult(
+                ReturnOrdersService.createSingleReturnOrder(headerJson, lineItemsJson)
+            );
+            List<Object> lineObjects = String.isNotBlank(lineItemsJson)
                 ? (List<Object>) JSON.deserializeUntyped(lineItemsJson)
                 : new List<Object>();
-
-            Id repairCenterId = parseId((String) header.get('repairCenterId'));
-            CreateResult result = insertReturnOrder(header, repairCenterId, lineObjects, null);
             clearSendToRepairCenter(lineObjects);
             return result;
-        } catch (AuraHandledException e) {
-            throw e;
-        } catch (DmlException e) {
-            throw new AuraHandledException(
-                'Error creating return order: ' + e.getDmlMessage(0)
-            );
         } catch (Exception e) {
-            throw new AuraHandledException('Error creating return order: ' + e.getMessage());
+            throw new AuraHandledException(e.getMessage());
         }
     }
 
-    private static CreateResult insertReturnOrder(
-        Map<String, Object> header,
-        Id repairCenterId,
-        List<Object> lineObjects,
-        Map<String, Object> orderHeader
-    ) {
-        Id accountId = parseId((String) header.get('accountId'));
-        if (accountId == null) {
-            throw new AuraHandledException('Account is required.');
-        }
-
-        String operatingUnit = resolveOperatingUnit(header);
-        if (String.isBlank(operatingUnit)) {
-            throw new AuraHandledException('Operating Unit is required.');
-        }
-
-        ReturnOrder returnOrder = new ReturnOrder();
-        Schema.RecordTypeInfo customerReturnRt = Schema.SObjectType.ReturnOrder
-            .getRecordTypeInfosByDeveloperName()
-            .get('CustomerReturn');
-        if (customerReturnRt != null && customerReturnRt.isAvailable()) {
-            returnOrder.RecordTypeId = customerReturnRt.getRecordTypeId();
-        }
-        returnOrder.AccountId = accountId;
-        returnOrder.Status = STATUS_CREATED;
-        returnOrder.put('OperatingUnit__c', operatingUnit);
-        returnOrder.CreationSource__c = (String) header.get('creationSource');
-        returnOrder.SalesRep__c = parseId((String) header.get('salesRepId'));
-        returnOrder.CaseId = parseId((String) header.get('caseId'));
-        returnOrder.put('WorkOrder__c', parseId(String.valueOf(header.get('workOrderId'))));
-        returnOrder.DestinationLocationId = repairCenterId;
-        applyReturnOrderType(returnOrder, lineObjects);
-
-        Boolean instrumentOrder = isInstrumentOrder(lineObjects);
-        Boolean useInstrumentOrderHeader = instrumentOrder && hasInstrumentOrderHeader(orderHeader);
-        if (instrumentOrder && useInstrumentOrderHeader) {
-            validateInstrumentOrderHeader(orderHeader);
-            applyInstrumentReturnOrderHeader(returnOrder, orderHeader);
-        }
-        // Temporary: FedEx inbound label reads RO header PO only. Stamp first non-blank
-        // line PO when header is still blank (Serialized / Other). Refine next sprint.
-        stampCustomerPoFromFirstNonBlankLine(returnOrder, lineObjects);
-
-        insert returnOrder;
-
-        List<ReturnOrderLineItem> lineItems = buildLineItems(
-            returnOrder.Id,
-            lineObjects,
-            useInstrumentOrderHeader ? orderHeader : null
-        );
-        if (!lineItems.isEmpty()) {
-            insert lineItems;
-            linkContentDocumentsToLineItems(lineItems, lineObjects);
-        }
-
-        CreateResult result = new CreateResult();
-        result.returnOrderId = returnOrder.Id;
-        result.returnOrderNumber = returnOrder.ReturnOrderNumber;
-        if (String.isBlank(result.returnOrderNumber)) {
-            List<ReturnOrder> createdRows = [
-                SELECT Id, ReturnOrderNumber
-                FROM ReturnOrder
-                WHERE Id = :returnOrder.Id
-                LIMIT 1
-            ];
-            if (!createdRows.isEmpty()) {
-                result.returnOrderNumber = createdRows[0].ReturnOrderNumber;
+    /**
+     * @description GW-1353 - Child work order lines marked Send to Repair Center for a site visit.
+     *              The site visit work order header still comes from the work order launch path.
+     *              Sharing applies. Field permissions do not block the prefill.
+     * @param workOrderId Site visit work order Id
+     * @return Instrument lines the technician confirms in Create Return Order
+     */
+    @AuraEnabled
+    public static List<SiteVisitInstrumentLine> getSiteVisitRepairCenterLines(Id workOrderId) {
+        try {
+            List<SiteVisitInstrumentLine> lines = new List<SiteVisitInstrumentLine>();
+            if (workOrderId == null) {
+                return lines;
             }
+
+            for (WorkOrderLineItem lineItem : [
+                SELECT
+                    Id,
+                    Quantity,
+                    Description,
+                    Product2Id,
+                    Product2.Name,
+                    Product2.Description,
+                    Product2.Model__c,
+                    SerialNumber__c,
+                    Model__c,
+                    Department__c,
+                    ReportedProblem__c,
+                    AdditionalServices__c,
+                    InsulationPowderCoating__c
+                FROM WorkOrderLineItem
+                WHERE WorkOrder.ParentWorkOrderId = :workOrderId
+                    AND SendToRepairCenter__c = TRUE
+                ORDER BY WorkOrder.WorkOrderNumber ASC, LineItemNumber ASC NULLS LAST
+            ]) {
+                lines.add(toSiteVisitInstrumentLine(lineItem));
+            }
+            return lines;
+        } catch (Exception e) {
+            throw new AuraHandledException(
+                'Error loading repair center lines: ' + e.getMessage()
+            );
         }
-        result.returnOrderType = lineObjects == null || lineObjects.isEmpty()
-            ? null
-            : resolveReturnOrderTypeForLines(lineObjects);
-        result.repairCenterName = resolveRepairCenterName(
-            String.valueOf(repairCenterId),
-            new List<RepairCenterRoutingRule__c>()
-        );
-        result.lineCount = lineObjects == null ? 0 : lineObjects.size();
+    }
+
+    private static CreateResult toCreateResult(
+        ReturnOrdersService.GroupedReturnOrderResult created
+    ) {
+        CreateResult result = new CreateResult();
+        result.returnOrderId = created.returnOrderId;
+        result.returnOrderNumber = created.returnOrderNumber;
+        result.returnOrderType = created.returnOrderType;
+        result.repairCenterName = created.repairCenterName;
+        result.lineCount = created.lineCount;
         return result;
     }
+
+    
 
     private static void resolveContextFromObject(
         InitContext ctx,
@@ -1468,52 +1431,20 @@ public with sharing class CreateReturnOrderController {
         }
 
         ctx.accountName = account.Name;
-        ctx.legacyCustomerId = readPopulatedString(account, 'SystemID__c');
+        ctx.legacyCustomerId = account.SystemID__c;
         ctx.defaultOperatingUnit = readAccountOperatingUnit(account);
     }
 
-    private static List<String> getAccessibleAccountFieldApiNames(List<String> fieldApiNames) {
-        List<String> accessibleFieldApiNames = new List<String>();
-        if (fieldApiNames == null) {
-            return accessibleFieldApiNames;
-        }
-
-        Map<String, Schema.SObjectField> accountFields = Schema.sObjectType.Account.fields.getMap();
-        for (String fieldApiName : fieldApiNames) {
-            Schema.SObjectField field = accountFields.get(fieldApiName);
-            if (field != null && field.getDescribe().isAccessible()) {
-                accessibleFieldApiNames.add(field.getDescribe().getName());
-            }
-        }
-        return accessibleFieldApiNames;
-    }
-
-    private static String readPopulatedString(SObject record, String fieldApiName) {
-        if (record == null || String.isBlank(fieldApiName)) {
-            return null;
-        }
-
-        Map<String, Object> populatedFields = record.getPopulatedFieldsAsMap();
-        if (!populatedFields.containsKey(fieldApiName) || populatedFields.get(fieldApiName) == null) {
-            return null;
-        }
-
-        String value = String.valueOf(populatedFields.get(fieldApiName)).trim();
-        return String.isBlank(value) ? null : value;
-    }
-
     private static String readAccountOperatingUnit(Account account) {
-        String operatingUnit = readPopulatedString(account, 'OrgIDs__c');
-        if (String.isNotBlank(operatingUnit)) {
-            return operatingUnit;
+        if (account == null) {
+            return null;
         }
 
-        operatingUnit = readPopulatedString(account, 'OperatingUnit__c');
-        if (String.isNotBlank(operatingUnit)) {
-            return operatingUnit;
+        if (String.isNotBlank(account.OrgIDs__c)) {
+            return account.OrgIDs__c.trim();
         }
 
-        return readPopulatedString(account, 'CustomerAddressOperatingUnit__c');
+        return null;
     }
 
     private static String resolveOperatingUnit(Map<String, Object> header) {
@@ -1534,274 +1465,11 @@ public with sharing class CreateReturnOrderController {
         return readAccountOperatingUnit(getAccountDetails(accountId));
     }
 
-    private static List<ReturnOrderLineItem> buildLineItems(
-        Id returnOrderId,
-        List<Object> lineObjects,
-        Map<String, Object> instrumentOrderHeader
-    ) {
-        List<ReturnOrderLineItem> lineItems = new List<ReturnOrderLineItem>();
-        Boolean useInstrumentOrderHeader = instrumentOrderHeader != null;
-        Id instrumentContactId = useInstrumentOrderHeader
-            ? parseId((String) instrumentOrderHeader.get('contactId'))
-            : null;
+    
 
-        for (Object lineObj : lineObjects) {
-            Map<String, Object> line = (Map<String, Object>) lineObj;
-            Boolean isSerialized = isSerializedLine(line) || isOtherSerializedLine(line);
-            Boolean isOther = isOtherLine(line);
-            ReturnOrderLineItem item = new ReturnOrderLineItem();
-            item.ReturnOrderId = returnOrderId;
-            Schema.RecordTypeInfo inboundRt = Schema.SObjectType.ReturnOrderLineItem
-                .getRecordTypeInfosByDeveloperName()
-                .get('Inbound');
-            if (inboundRt != null && inboundRt.isAvailable()) {
-                item.RecordTypeId = inboundRt.getRecordTypeId();
-            }
-            item.LineType__c = resolveRoliLineType(line);
-            item.Serialized__c = isSerialized;
-            item.QuantityReturned = isSerialized ||
-                isOtherSerializedLine(line) ||
-                isFlexibleScopeProductLine(line)
-                ? QUANTITY_RETURNED_DEFAULT
-                : parseQuantityReturned(line.get('quantityReturned'));
-            item.AssetId = isSerialized ? parseId((String) line.get('assetId')) : null;
+    
 
-            Id product2Id = parseId(String.valueOf(line.get('product2Id')));
-            if (product2Id == null) {
-                throw new AuraHandledException('Product is required on all line items.');
-            }
-            if (isInstrumentsLine(line)) {
-                String serialNumber = (String) line.get('serialNumber');
-                if (String.isNotBlank(serialNumber)) {
-                    Id defaultProductId = resolveDefaultProductId();
-                    if (defaultProductId != null && product2Id == defaultProductId) {
-                        throw new AuraHandledException(
-                            'Default Product cannot be used when Serial Number is provided on instrument lines.'
-                        );
-                    }
-                }
-            }
-            item.Product2Id = product2Id;
-
-            String model = (String) line.get('model');
-            if (isSerialized) {
-                if (String.isBlank(model)) {
-                    throw new AuraHandledException('Model is required on serialized line items.');
-                }
-                item.Model__c = model.trim();
-            } else if (String.isNotBlank(model)) {
-                item.Model__c = model.trim();
-            }
-
-            Id departmentId = parseId((String) line.get('departmentId'));
-            if (departmentId == null) {
-                throw new AuraHandledException('Department is required on all line items.');
-            }
-            item.Department__c = departmentId;
-
-            Boolean instrumentsLine = isInstrumentsLine(line);
-            Id lineContactId;
-            if (instrumentsLine && useInstrumentOrderHeader) {
-                lineContactId = instrumentContactId;
-            } else {
-                lineContactId = parseId((String) line.get('contactId'));
-            }
-            if (lineContactId == null) {
-                throw new AuraHandledException('Contact is required on all line items.');
-            }
-            item.Contact__c = lineContactId;
-
-            String productLine;
-            if (instrumentsLine) {
-                productLine = INSTRUMENT_PRODUCT_LINE;
-            } else if (isOther) {
-                String itemType = (String) line.get('itemType');
-                if (String.isBlank(itemType)) {
-                    throw new AuraHandledException('Item Type is required on Other line items.');
-                }
-                productLine = resolveProductLineForItemType(itemType.trim());
-                if (String.isBlank(productLine)) {
-                    throw new AuraHandledException(
-                        'No Product Line mapping found for Item Type ' + itemType.trim() + '.'
-                    );
-                }
-            } else {
-                productLine = (String) line.get('productLine');
-            }
-            if (String.isBlank(productLine)) {
-                throw new AuraHandledException('Product Line is required on all line items.');
-            }
-            item.ProductLine__c = productLine;
-
-            if (isSerialized) {
-                String serialNumber = (String) line.get('serialNumber');
-                if (String.isNotBlank(serialNumber)) {
-                    item.SerialNumber__c = serialNumber.trim();
-                }
-
-                populateDisinfected(
-                    item,
-                    line,
-                    'Disinfected is required on serialized line items.'
-                );
-
-                String reportedProblem = (String) line.get('reportedProblem');
-                if (String.isBlank(reportedProblem)) {
-                    throw new AuraHandledException(
-                        'Reported Problem is required on serialized line items.'
-                    );
-                }
-                item.ReportedProblem__c = reportedProblem.trim();
-                item.CustomerReference__c = (String) line.get('customerReference');
-                item.CustomerPO__c = (String) line.get('customerPo');
-                item.IsLoanerAsset__c = toBoolean(line.get('isLoanerAsset'));
-                item.LoanerRequested__c = toBoolean(line.get('loanerRequested'));
-            } else {
-                if (!(instrumentsLine && useInstrumentOrderHeader)) {
-                    item.CustomerPO__c = (String) line.get('customerPo');
-                }
-                if (!(instrumentsLine && useInstrumentOrderHeader)) {
-                    String hospitalTrayName = (String) line.get('hospitalReferencedTrayName');
-                    if (String.isNotBlank(hospitalTrayName)) {
-                        item.HospitalReferencedTrayName__c = hospitalTrayName.trim();
-                    }
-                }
-                if (!instrumentsLine) {
-                    String customerReference = (String) line.get('customerReference');
-                    if (String.isNotBlank(customerReference)) {
-                        item.CustomerReference__c = customerReference.trim();
-                    }
-                }
-
-                String reportedProblem = (String) line.get('reportedProblem');
-                if (String.isBlank(reportedProblem)) {
-                    throw new AuraHandledException(
-                        'Reported Problem is required on non-serialized line items.'
-                    );
-                }
-                item.ReportedProblem__c = reportedProblem.trim();
-
-                if (instrumentsLine) {
-                    String itemDescription = (String) line.get('itemDescription');
-                    if (String.isNotBlank(itemDescription)) {
-                        item.ItemDescription__c = itemDescription.trim();
-                    }
-
-                    populateDisinfected(
-                        item,
-                        line,
-                        'Disinfected is required on instrument line items.'
-                    );
-
-                    String serialNumber = (String) line.get('serialNumber');
-                    if (String.isNotBlank(serialNumber)) {
-                        item.SerialNumber__c = serialNumber.trim();
-                    }
-
-                    item.ModRequest__c = toBoolean(line.get('modRequest'));
-                    populateInstrumentAdditionalServiceFields(item, line);
-                } else {
-                    String itemType = (String) line.get('itemType');
-                    if (String.isBlank(itemType)) {
-                        throw new AuraHandledException('Item Type is required on Other line items.');
-                    }
-                    item.ItemType__c = itemType.trim();
-
-                    String itemDescription = (String) line.get('itemDescription');
-                    if (String.isNotBlank(itemDescription)) {
-                        item.ItemDescription__c = itemDescription.trim();
-                    }
-
-                    populateDisinfected(
-                        item,
-                        line,
-                        'Disinfected is required on Other line items.'
-                    );
-
-                    if (isOtherSerializedLine(line)) {
-                        String serialNumber = (String) line.get('serialNumber');
-                        if (String.isBlank(serialNumber)) {
-                            throw new AuraHandledException(
-                                'Serial Number is required on Other (Serialized) line items.'
-                            );
-                        }
-                        item.SerialNumber__c = serialNumber.trim();
-                    }
-                }
-            }
-
-            if (!(instrumentsLine && useInstrumentOrderHeader)) {
-                String estimateRequired = (String) line.get('estimateRequired');
-                if (String.isBlank(estimateRequired)) {
-                    estimateRequired = (String) line.get('estReq');
-                }
-                populateEstimateRequiredFields(item, line);
-                validateLineEstimateContactWhenRequired(line, estimateRequired);
-                populateLineEstimateContact(item, line, estimateRequired);
-                populateRepairWarrantyFields(item, line);
-            }
-
-            item.Status__c = String.isNotBlank((String) line.get('status'))
-                ? (String) line.get('status')
-                : STATUS_CREATED;
-            lineItems.add(item);
-        }
-
-        return lineItems;
-    }
-
-    private static void linkContentDocumentsToLineItems(
-        List<ReturnOrderLineItem> lineItems,
-        List<Object> lineObjects
-    ) {
-        if (lineItems == null || lineItems.isEmpty() || lineObjects == null || lineObjects.isEmpty()) {
-            return;
-        }
-
-        Integer pairCount = Math.min(lineItems.size(), lineObjects.size());
-        List<ContentDocumentLink> links = new List<ContentDocumentLink>();
-
-        for (Integer index = 0; index < pairCount; index++) {
-            ReturnOrderLineItem lineItem = lineItems[index];
-            Map<String, Object> line = (Map<String, Object>) lineObjects[index];
-            List<Id> contentDocumentIds = parseContentDocumentIds(line.get('contentDocumentIds'));
-            // GW-3893: also link dedicated Mod Request form uploads from the instrument line.
-            contentDocumentIds.addAll(
-                parseContentDocumentIds(line.get('modFormContentDocumentIds'))
-            );
-
-            for (Id contentDocumentId : contentDocumentIds) {
-                ContentDocumentLink link = new ContentDocumentLink();
-                link.ContentDocumentId = contentDocumentId;
-                link.LinkedEntityId = lineItem.Id;
-                link.ShareType = 'V';
-                link.Visibility = 'AllUsers';
-                links.add(link);
-            }
-        }
-
-        if (!links.isEmpty()) {
-            Database.insert(links, false, AccessLevel.USER_MODE);
-        }
-    }
-
-    private static List<Id> parseContentDocumentIds(Object value) {
-        List<Id> contentDocumentIds = new List<Id>();
-        if (value == null) {
-            return contentDocumentIds;
-        }
-
-        if (value instanceof List<Object>) {
-            for (Object documentIdValue : (List<Object>) value) {
-                Id contentDocumentId = parseId(String.valueOf(documentIdValue));
-                if (contentDocumentId != null) {
-                    contentDocumentIds.add(contentDocumentId);
-                }
-            }
-        }
-
-        return contentDocumentIds;
-    }
+    
 
     private static Boolean isSerializedLine(Map<String, Object> line) {
         if (line == null) {
@@ -1827,8 +1495,16 @@ public with sharing class CreateReturnOrderController {
     }
 
     private static String resolveReturnOrderTypeFromLine(Map<String, Object> line) {
+        if (isOtherSerializedLine(line)) {
+            return RETURN_ORDER_TYPE_OTHER_SERIALIZED;
+        }
+        if (isOtherNonSerializedLine(line)) {
+            return RETURN_ORDER_TYPE_OTHER_NON_SERIALIZED;
+        }
         if (isOtherLine(line)) {
-            return RETURN_ORDER_TYPE_OTHER;
+            return toBoolean(line.get('serialized'))
+                ? RETURN_ORDER_TYPE_OTHER_SERIALIZED
+                : RETURN_ORDER_TYPE_OTHER_NON_SERIALIZED;
         }
         if (isInstrumentsLine(line)) {
             return RETURN_ORDER_TYPE_INSTRUMENTS;
@@ -1836,50 +1512,11 @@ public with sharing class CreateReturnOrderController {
         return RETURN_ORDER_TYPE_SERIALIZED;
     }
 
-    private static String resolveReturnOrderTypeForLines(List<Object> lineObjects) {
-        if (lineObjects == null || lineObjects.isEmpty()) {
-            throw new AuraHandledException('Add at least one line item.');
-        }
+    
 
-        String returnOrderType = null;
-        for (Object lineObj : lineObjects) {
-            Map<String, Object> line = (Map<String, Object>) lineObj;
-            String lineType = resolveReturnOrderTypeFromLine(line);
-            if (returnOrderType == null) {
-                returnOrderType = lineType;
-            } else if (!returnOrderType.equalsIgnoreCase(lineType)) {
-                throw new AuraHandledException(
-                    'A return order cannot include line items with different types.'
-                );
-            }
-        }
-        return returnOrderType;
-    }
+    
 
-    private static void applyReturnOrderType(
-        ReturnOrder returnOrder,
-        List<Object> lineObjects
-    ) {
-        if (lineObjects == null || lineObjects.isEmpty()) {
-            return;
-        }
-
-        try {
-            returnOrder.put(
-                RETURN_ORDER_TYPE_FIELD,
-                resolveReturnOrderTypeForLines(lineObjects)
-            );
-        } catch (SObjectException e) {
-            if (!isInvalidCustomFieldException(e)) {
-                throw e;
-            }
-        }
-    }
-
-    private static Boolean isInvalidCustomFieldException(SObjectException e) {
-        String message = e == null ? null : e.getMessage();
-        return message != null && message.contains('Invalid field');
-    }
+    
 
     private static String wrapGroupKeyWithReturnOrderType(
         Map<String, Object> line,
@@ -1904,17 +1541,9 @@ public with sharing class CreateReturnOrderController {
         return finalGroupKey;
     }
 
-    private static Boolean isOtherSerializedLine(Map<String, Object> line) {
-        return line != null &&
-            line.containsKey('lineType') &&
-            'other-serialized'.equalsIgnoreCase((String) line.get('lineType'));
-    }
+    
 
-    private static Boolean isOtherNonSerializedLine(Map<String, Object> line) {
-        return line != null &&
-            line.containsKey('lineType') &&
-            'other-non-serialized'.equalsIgnoreCase((String) line.get('lineType'));
-    }
+    
 
     private static Boolean isOtherLine(Map<String, Object> line) {
         if (line == null) {
@@ -1929,19 +1558,29 @@ public with sharing class CreateReturnOrderController {
         return false;
     }
 
-    private static String resolveRoliLineType(Map<String, Object> line) {
-        String payloadLineType = line == null ? null : (String) line.get('roliLineType');
-        if (String.isNotBlank(payloadLineType)) {
-            return payloadLineType.trim();
+    private static Boolean isOtherNonSerializedLine(Map<String, Object> line) {
+        if (line == null || !line.containsKey('lineType')) {
+            return false;
         }
-        if (isSerializedLine(line)) {
-            return ROLI_LINE_TYPE_SERIALIZED;
+        String lineType = ((String) line.get('lineType')).toLowerCase();
+        if (lineType == 'other-non-serialized') {
+            return true;
         }
-        if (isOtherLine(line)) {
-            return ROLI_LINE_TYPE_OTHER;
-        }
-        return ROLI_LINE_TYPE_INSTRUMENT;
+        return lineType == 'other' && !toBoolean(line.get('serialized'));
     }
+
+    private static Boolean isOtherSerializedLine(Map<String, Object> line) {
+        if (line == null || !line.containsKey('lineType')) {
+            return false;
+        }
+        String lineType = ((String) line.get('lineType')).toLowerCase();
+        if (lineType == 'other-serialized') {
+            return true;
+        }
+        return lineType == 'other' && toBoolean(line.get('serialized'));
+    }
+
+    
 
     private static Decimal parseQuantityReturned(Object value) {
         if (value == null) {
@@ -1970,6 +1609,51 @@ public with sharing class CreateReturnOrderController {
 
     private static String defaultYesNo(String value) {
         return String.isNotBlank(value) ? value : YES_NO_DEFAULT;
+    }
+
+    private static void ensureAccountContactRelation(Id accountId, Id contactId) {
+        if (accountId == null || contactId == null) {
+            return;
+        }
+
+        for (AccountContactRelation existingRelation : [
+            SELECT Id
+            FROM AccountContactRelation
+            WHERE AccountId = :accountId AND ContactId = :contactId
+            WITH USER_MODE
+            LIMIT 1
+        ]) {
+            if (existingRelation != null) {
+                return;
+            }
+        }
+
+        try {
+            insert new AccountContactRelation(
+                AccountId = accountId,
+                ContactId = contactId,
+                IsActive = true
+            );
+        } catch (DmlException e) {
+            // When Contact.AccountId is set, Salesforce may already maintain the direct relationship.
+            if (isExistingDirectRelationshipError(e)) {
+                return;
+            }
+            throw e;
+        }
+    }
+
+    private static Boolean isExistingDirectRelationshipError(DmlException e) {
+        if (e == null) {
+            return false;
+        }
+        for (Integer i = 0; i < e.getNumDml(); i++) {
+            String message = e.getDmlMessage(i);
+            if (message != null && message.contains('direct relationship')) {
+                return true;
+            }
+        }
+        return e.getMessage() != null && e.getMessage().contains('direct relationship');
     }
 
     private static Set<Id> getAccountRelatedContactIds(Id accountId) {
@@ -2045,6 +1729,7 @@ public with sharing class CreateReturnOrderController {
         row.id = asset.Id;
         row.serialNumber = asset.SerialNumber;
         row.model = asset.ModelCalculated__c;
+        row.make = asset.Product2 != null ? asset.Product2.Manufacturer__c : null;
         row.departmentId = asset.Department__c;
         row.product2Id = asset.Product2Id;
         row.productLine = asset.Product2 != null ? asset.Product2.ProductLine__c : null;
@@ -2099,7 +1784,7 @@ public with sharing class CreateReturnOrderController {
         for (ROLIItemTypeandProductLine__mdt mapping : [
             SELECT ItemType__c, ProductLine__c
             FROM ROLIItemTypeandProductLine__mdt
-            WHERE ItemType__c != NULL AND ProductLine__c != NULL
+            WHERE ItemType__c != NULL AND ProductLine__c != NULL AND IsActive__c = TRUE
         ]) {
             itemTypeToProductLineCache.put(mapping.ItemType__c, mapping.ProductLine__c);
         }
@@ -2115,26 +1800,24 @@ public with sharing class CreateReturnOrderController {
         for (ROLIItemTypeandProductLine__mdt mapping : [
             SELECT ItemType__c, ROCategory__c
             FROM ROLIItemTypeandProductLine__mdt
-            WHERE ItemType__c != NULL AND ROCategory__c != NULL
+            WHERE ItemType__c != NULL AND ROCategory__c != NULL AND IsActive__c = TRUE
         ]) {
             itemTypeToROCategoryCache.put(mapping.ItemType__c, mapping.ROCategory__c);
         }
         return itemTypeToROCategoryCache;
     }
 
-    private static String resolveProductLineForItemType(String itemType) {
-        if (String.isBlank(itemType)) {
-            return null;
-        }
-        return getItemTypeToProductLineMappings().get(itemType);
-    }
+    
 
     private static List<PicklistOption> getItemTypePicklistOptions() {
         List<PicklistOption> options = new List<PicklistOption>();
         for (ROLIItemTypeandProductLine__mdt mapping : [
             SELECT ItemType__c
             FROM ROLIItemTypeandProductLine__mdt
-            WHERE ItemType__c != NULL
+            WHERE
+                ItemType__c != NULL
+                AND IsActive__c = TRUE
+                AND ItemType__c != :ENDOCAM_ITEM_TYPE
             ORDER BY ItemType__c ASC
         ]) {
             PicklistOption option = new PicklistOption();
@@ -2145,522 +1828,92 @@ public with sharing class CreateReturnOrderController {
         return options;
     }
 
-    private static void populateDisinfected(
-        ReturnOrderLineItem item,
-        Map<String, Object> line,
-        String requiredMessage
-    ) {
-        String disinfected = (String) line.get('disinfected');
-        if (String.isBlank(disinfected)) {
-            throw new AuraHandledException(requiredMessage);
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    private static ShipToAddressOption toShipToAddressOption(Account shipTo) {
+        ShipToAddressOption option = new ShipToAddressOption();
+        option.id = shipTo.Id;
+        option.name = shipTo.Name;
+        option.status = shipTo.ShiptoAddressStatus__c;
+        option.addressDisplay = formatBillingAddress(shipTo);
+        option.isPrimary = shipTo.ShiptoAddressStatus__c == 'Primary';
+        List<String> labelParts = new List<String>{ shipTo.Name };
+        if (String.isNotBlank(option.addressDisplay)) {
+            labelParts.add(option.addressDisplay);
         }
-        item.Disinfected__c = disinfected;
+        option.label = String.join(labelParts, ' - ');
+        return option;
     }
 
-    private static Boolean isInstrumentOrder(List<Object> lineObjects) {
-        if (lineObjects == null || lineObjects.isEmpty()) {
-            return false;
+    private static String formatBillingAddress(Account shipTo) {
+        List<String> parts = new List<String>();
+        if (String.isNotBlank(shipTo.BillingStreet)) {
+            parts.add(shipTo.BillingStreet);
         }
-
-        for (Object lineObj : lineObjects) {
-            if (!isInstrumentsLine((Map<String, Object>) lineObj)) {
-                return false;
-            }
+        List<String> cityState = new List<String>();
+        if (String.isNotBlank(shipTo.BillingCity)) {
+            cityState.add(shipTo.BillingCity);
         }
-        return true;
+        if (String.isNotBlank(shipTo.BillingState)) {
+            cityState.add(shipTo.BillingState);
+        }
+        if (!cityState.isEmpty()) {
+            parts.add(String.join(cityState, ', '));
+        }
+        if (String.isNotBlank(shipTo.BillingPostalCode)) {
+            parts.add(shipTo.BillingPostalCode);
+        }
+        if (String.isNotBlank(shipTo.BillingCountry)) {
+            parts.add(shipTo.BillingCountry);
+        }
+        return String.join(parts, ', ');
     }
 
-    private static Boolean hasInstrumentOrderHeader(Map<String, Object> orderHeader) {
-        return orderHeader != null && !orderHeader.isEmpty();
-    }
+    
 
-    private static void validateInstrumentOrderHeader(Map<String, Object> orderHeader) {
-        if (orderHeader == null) {
-            throw new AuraHandledException(
-                'Return order header details are required for instrument return orders.'
-            );
-        }
+    
 
-        Id contactId = parseId((String) orderHeader.get('contactId'));
-        if (contactId == null) {
-            throw new AuraHandledException('Contact is required on instrument return orders.');
-        }
+    
 
-        String estimateRequired = (String) orderHeader.get('estimateRequired');
-        if (String.isBlank(estimateRequired)) {
-            estimateRequired = (String) orderHeader.get('estReq');
-        }
-        if (String.isBlank(estimateRequired)) {
-            throw new AuraHandledException(
-                'Estimate Required is required on instrument return orders.'
-            );
-        }
+    
 
-        validateEstimateContactWhenRequired(orderHeader, estimateRequired);
-        validateModRequestContactWhenProvided(orderHeader);
+    
 
-        String repairWarranty = (String) orderHeader.get('repairWarranty');
-        if (!'Yes'.equalsIgnoreCase(repairWarranty)) {
-            return;
-        }
+    
 
-        String previousReturnOrder = (String) orderHeader.get('previousReturnOrder');
-        String warrantyNotes = (String) orderHeader.get('warrantyNotes');
-        if (
-            String.isBlank(previousReturnOrder) &&
-            String.isBlank(warrantyNotes)
-        ) {
-            throw new AuraHandledException(
-                'Warranty Notes is required when Repair Warranty is Yes and Previous Return Order is not provided.'
-            );
-        }
-    }
+    
 
-    private static void applyInstrumentReturnOrderHeader(
-        ReturnOrder returnOrder,
-        Map<String, Object> orderHeader
-    ) {
-        if (returnOrder == null || orderHeader == null) {
-            return;
-        }
+    
 
-        Id contactId = parseId((String) orderHeader.get('contactId'));
-        if (contactId != null) {
-            returnOrder.ContactId = contactId;
-        }
+    
 
-        String estimateRequired = (String) orderHeader.get('estimateRequired');
-        if (String.isBlank(estimateRequired)) {
-            estimateRequired = (String) orderHeader.get('estReq');
-        }
-        populateReturnOrderEstimateRequired(returnOrder, estimateRequired);
-        populateReturnOrderEstimateContact(returnOrder, orderHeader, estimateRequired);
-        populateReturnOrderModRequestContact(returnOrder, orderHeader);
+    
 
-        String hospitalTrayName = (String) orderHeader.get('hospitalReferencedTrayName');
-        setReturnOrderCustomFieldValue(
-            returnOrder,
-            'HospitalReferencedTrayName__c',
-            String.isNotBlank(hospitalTrayName) ? hospitalTrayName.trim() : null
-        );
+    
 
-        String customerReference = (String) orderHeader.get('customerReference');
-        setReturnOrderCustomFieldValue(
-            returnOrder,
-            'CustomerReference__c',
-            String.isNotBlank(customerReference) ? customerReference.trim() : null
-        );
+    
 
-        String repairWarranty = (String) orderHeader.get('repairWarranty');
-        if (String.isNotBlank(repairWarranty)) {
-            setReturnOrderCustomFieldValue(
-                returnOrder,
-                'RepairWarranty__c',
-                repairWarranty.trim()
-            );
-        }
+    
 
-        String previousReturnOrder = (String) orderHeader.get('previousReturnOrder');
-        String warrantyNotes = (String) orderHeader.get('warrantyNotes');
-        setReturnOrderCustomFieldValue(
-            returnOrder,
-            'PreviousReturnOrder__c',
-            String.isNotBlank(previousReturnOrder) ? previousReturnOrder.trim() : null
-        );
-        setReturnOrderCustomFieldValue(
-            returnOrder,
-            'WarrantyNotes__c',
-            String.isNotBlank(warrantyNotes) ? warrantyNotes.trim() : null
-        );
+    
 
-        String customerPo = (String) orderHeader.get('customerPo');
-        setReturnOrderCustomFieldValue(
-            returnOrder,
-            'CustomerPO__c',
-            String.isNotBlank(customerPo) ? customerPo.trim() : null
-        );
-    }
+    
 
-    /**
-     * @description Temporary sprint rule: when Return Order Customer PO is blank, copy the
-     *              first non-blank line Customer PO onto the header for FedEx inbound labels.
-     *              Line-level POs remain as entered. Revisit next sprint for multi-PO rules.
-     */
-    private static void stampCustomerPoFromFirstNonBlankLine(
-        ReturnOrder returnOrder,
-        List<Object> lineObjects
-    ) {
-        if (returnOrder == null || lineObjects == null || lineObjects.isEmpty()) {
-            return;
-        }
-        if (String.isNotBlank(returnOrder.CustomerPO__c)) {
-            return;
-        }
+    
 
-        for (Object lineObj : lineObjects) {
-            Map<String, Object> line = (Map<String, Object>) lineObj;
-            if (line == null) {
-                continue;
-            }
-            String customerPo = (String) line.get('customerPo');
-            if (String.isNotBlank(customerPo)) {
-                setReturnOrderCustomFieldValue(returnOrder, 'CustomerPO__c', customerPo.trim());
-                return;
-            }
-        }
-    }
-
-    private static void populateReturnOrderEstimateRequired(
-        ReturnOrder returnOrder,
-        String estimateRequired
-    ) {
-        if (returnOrder == null || String.isBlank(estimateRequired)) {
-            return;
-        }
-
-        Map<String, Schema.SObjectField> returnOrderFields =
-            Schema.SObjectType.ReturnOrder.fields.getMap();
-        if (returnOrderFields.containsKey('EstimateRequired__c')) {
-            returnOrder.EstimateRequired__c = estimateRequired;
-            return;
-        }
-
-        setReturnOrderCustomFieldValue(returnOrder, 'EstReq__c', estimateRequired);
-    }
-
-    private static void validateEstimateContactWhenRequired(
-        Map<String, Object> orderHeader,
-        String estimateRequired
-    ) {
-        if (!ESTIMATE_REQUIRED_QUOTE_VALUE.equalsIgnoreCase(estimateRequired)) {
-            return;
-        }
-
-        Id estimateContactId = resolveEstimateContactId(orderHeader);
-        if (estimateContactId == null) {
-            throw new AuraHandledException(
-                'Estimate Contact is required when Estimate Required is Estimate Required.'
-            );
-        }
-
-        validateContactHasEmail(
-            estimateContactId,
-            'Estimate Contact must have an email address.'
-        );
-    }
-
-    private static Id resolveEstimateContactId(Map<String, Object> orderHeader) {
-        if (orderHeader == null) {
-            return null;
-        }
-
-        Id estimateContactId = parseId((String) orderHeader.get('estimateContactId'));
-        return estimateContactId;
-    }
-
-    private static void validateContactHasEmail(Id contactId, String message) {
-        if (contactId == null) {
-            return;
-        }
-
-        List<Contact> contacts = [
-            SELECT Email
-            FROM Contact
-            WHERE Id = :contactId
-            WITH USER_MODE
-            LIMIT 1
-        ];
-        if (contacts.isEmpty() || String.isBlank(contacts[0].Email)) {
-            throw new AuraHandledException(message);
-        }
-    }
-
-    private static void populateReturnOrderEstimateContact(
-        ReturnOrder returnOrder,
-        Map<String, Object> orderHeader,
-        String estimateRequired
-    ) {
-        if (returnOrder == null) {
-            return;
-        }
-
-        Map<String, Schema.SObjectField> returnOrderFields =
-            Schema.SObjectType.ReturnOrder.fields.getMap();
-        if (!returnOrderFields.containsKey('EstimateContact__c')) {
-            return;
-        }
-
-        if (!ESTIMATE_REQUIRED_QUOTE_VALUE.equalsIgnoreCase(estimateRequired)) {
-            returnOrder.put('EstimateContact__c', null);
-            return;
-        }
-
-        returnOrder.put('EstimateContact__c', resolveEstimateContactId(orderHeader));
-    }
-
-    /**
-     * @description GW-3893 Persists Mod Request Contact on instrument return order headers.
-     */
-    private static void populateReturnOrderModRequestContact(
-        ReturnOrder returnOrder,
-        Map<String, Object> orderHeader
-    ) {
-        if (returnOrder == null) {
-            return;
-        }
-
-        Map<String, Schema.SObjectField> returnOrderFields =
-            Schema.SObjectType.ReturnOrder.fields.getMap();
-        if (!returnOrderFields.containsKey('ModRequestContact__c')) {
-            return;
-        }
-
-        Id modRequestContactId = resolveModRequestContactId(orderHeader);
-        returnOrder.put('ModRequestContact__c', modRequestContactId);
-    }
-
-    private static Id resolveModRequestContactId(Map<String, Object> orderHeader) {
-        if (orderHeader == null) {
-            return null;
-        }
-
-        Id contactId = parseId((String) orderHeader.get('modRequestContactId'));
-        if (contactId == null) {
-            contactId = parseId((String) orderHeader.get('modRequestContact'));
-        }
-        return contactId;
-    }
-
-    private static void validateModRequestContactWhenProvided(Map<String, Object> orderHeader) {
-        Boolean hasModRequest = toBoolean(orderHeader == null ? null : orderHeader.get('hasModRequest'));
-        Id modRequestContactId = resolveModRequestContactId(orderHeader);
-
-        if (hasModRequest && modRequestContactId == null) {
-            throw new AuraHandledException(
-                'Mod Request Contact is required when Mod Request is selected.'
-            );
-        }
-
-        if (modRequestContactId == null) {
-            return;
-        }
-
-        validateContactHasEmail(
-            modRequestContactId,
-            'Mod Request Contact must have an Email address.'
-        );
-    }
-
-    private static void setReturnOrderCustomFieldValue(
-        ReturnOrder returnOrder,
-        String fieldApiName,
-        String value
-    ) {
-        if (returnOrder == null || String.isBlank(fieldApiName) || String.isBlank(value)) {
-            return;
-        }
-
-        try {
-            returnOrder.put(fieldApiName, value.trim());
-        } catch (SObjectException e) {
-            if (!isInvalidCustomFieldException(e)) {
-                throw e;
-            }
-        }
-    }
-
-    private static void populateEstimateRequiredFields(
-        ReturnOrderLineItem item,
-        Map<String, Object> line
-    ) {
-        String estimateRequired = (String) line.get('estimateRequired');
-        if (String.isBlank(estimateRequired)) {
-            estimateRequired = (String) line.get('estReq');
-        }
-        if (String.isBlank(estimateRequired)) {
-            throw new AuraHandledException('Estimate Required is required on all line items.');
-        }
-
-        if (
-            Schema.SObjectType.ReturnOrderLineItem.fields.getMap()
-                .containsKey('estimaterequired__c')
-        ) {
-            item.EstimateRequired__c = estimateRequired;
-            return;
-        }
-
-        setLineItemCustomFieldValue(item, 'EstReq__c', estimateRequired);
-    }
-
-    private static void validateLineEstimateContactWhenRequired(
-        Map<String, Object> line,
-        String estimateRequired
-    ) {
-        if (!ESTIMATE_REQUIRED_QUOTE_VALUE.equalsIgnoreCase(estimateRequired)) {
-            return;
-        }
-
-        Id estimateContactId = resolveLineEstimateContactId(line);
-        if (estimateContactId == null) {
-            throw new AuraHandledException(
-                'Estimate Contact is required when Estimate Required is Estimate Required.'
-            );
-        }
-
-        validateContactHasEmail(
-            estimateContactId,
-            'Estimate Contact must have an email address.'
-        );
-    }
-
-    private static Id resolveLineEstimateContactId(Map<String, Object> line) {
-        if (line == null) {
-            return null;
-        }
-
-        return parseId((String) line.get('estimateContactId'));
-    }
-
-    private static void populateLineEstimateContact(
-        ReturnOrderLineItem item,
-        Map<String, Object> line,
-        String estimateRequired
-    ) {
-        if (item == null || line == null) {
-            return;
-        }
-
-        Map<String, Schema.SObjectField> lineFields =
-            Schema.SObjectType.ReturnOrderLineItem.fields.getMap();
-        if (!lineFields.containsKey('estimatecontact__c')) {
-            return;
-        }
-
-        if (!ESTIMATE_REQUIRED_QUOTE_VALUE.equalsIgnoreCase(estimateRequired)) {
-            item.put('EstimateContact__c', null);
-            return;
-        }
-
-        item.put('EstimateContact__c', resolveLineEstimateContactId(line));
-    }
-
-    private static void populateInstrumentAdditionalServiceFields(
-        ReturnOrderLineItem item,
-        Map<String, Object> line
-    ) {
-        Boolean additionalServices = toBoolean(line.get('additionalServices'));
-        Boolean modRequest = toBoolean(line.get('modRequest'));
-        String serialNumber = (String) line.get('serialNumber');
-        Boolean hasSerialNumber = String.isNotBlank(serialNumber);
-
-        if (additionalServices && modRequest) {
-            setLineItemCustomFieldValue(
-                item,
-                'InsulationPowderCoating__c',
-                (String) line.get('insulationPowderCoating')
-            );
-            return;
-        }
-
-        if (additionalServices && !modRequest && hasSerialNumber) {
-            setLineItemCustomFieldValue(
-                item,
-                'LegPositionersStirrup__c',
-                (String) line.get('legPositionersStirrup')
-            );
-            return;
-        }
-
-        if (additionalServices && !modRequest && !hasSerialNumber) {
-            setLineItemCustomBooleanFieldValue(
-                item,
-                'AdditionalServiceRepair__c',
-                toBoolean(line.get('additionalServiceRepair'))
-            );
-            setLineItemCustomFieldValue(
-                item,
-                'LaserMarking__c',
-                (String) line.get('laserMarking')
-            );
-            setLineItemCustomFieldValue(
-                item,
-                'ColorDipping__c',
-                (String) line.get('colorDipping')
-            );
-            setLineItemCustomFieldValue(
-                item,
-                'NumberOfRings__c',
-                (String) line.get('numberOfRings')
-            );
-        }
-    }
-
-    private static void setLineItemCustomBooleanFieldValue(
-        ReturnOrderLineItem item,
-        String fieldApiName,
-        Boolean value
-    ) {
-        if (value != true) {
-            return;
-        }
-
-        try {
-            item.put(fieldApiName, true);
-        } catch (SObjectException e) {
-            if (!isInvalidCustomFieldException(e)) {
-                throw e;
-            }
-        }
-    }
-
-    private static void setLineItemCustomFieldValue(
-        ReturnOrderLineItem item,
-        String fieldApiName,
-        String value
-    ) {
-        if (String.isBlank(value)) {
-            return;
-        }
-
-        try {
-            item.put(fieldApiName, value.trim());
-        } catch (SObjectException e) {
-            if (!isInvalidCustomFieldException(e)) {
-                throw e;
-            }
-        }
-    }
-
-    private static void populateRepairWarrantyFields(
-        ReturnOrderLineItem item,
-        Map<String, Object> line
-    ) {
-        String repairWarranty = (String) line.get('repairWarranty');
-        if (String.isBlank(repairWarranty)) {
-            return;
-        }
-
-        item.RepairWarranty__c = repairWarranty.trim();
-        String previousReturnOrder = (String) line.get('previousReturnOrder');
-        String warrantyNotes = (String) line.get('warrantyNotes');
-        String trimmedPreviousReturnOrder = String.isNotBlank(previousReturnOrder)
-            ? previousReturnOrder.trim()
-            : null;
-        String trimmedWarrantyNotes = String.isNotBlank(warrantyNotes)
-            ? warrantyNotes.trim()
-            : null;
-        if (
-            'Yes'.equalsIgnoreCase(item.RepairWarranty__c) &&
-            String.isBlank(trimmedPreviousReturnOrder) &&
-            String.isBlank(trimmedWarrantyNotes)
-        ) {
-            throw new AuraHandledException(
-                'Warranty Notes is required when Repair Warranty is Yes and Previous Return Order is not provided.'
-            );
-        }
-        item.PreviousReturnOrder__c = trimmedPreviousReturnOrder;
-        item.WarrantyNotes__c = trimmedWarrantyNotes;
-    }
+    
 
     private static List<PicklistOption> getYesNoFallbackOptions() {
         List<PicklistOption> options = new List<PicklistOption>();
@@ -2740,113 +1993,6 @@ public with sharing class CreateReturnOrderController {
             : c.CaseNumber;
     }
 
-    /**
-     * @description Maps a child work order line onto the instrument return order line fields.
-     * @param lineItem Child work order line marked Send to Repair Center
-     * @return Values Create Return Order shows for confirmation
-     */
-    private static SiteVisitInstrumentLine toSiteVisitInstrumentLine(WorkOrderLineItem lineItem) {
-        SiteVisitInstrumentLine line = new SiteVisitInstrumentLine();
-        line.workOrderLineItemId = lineItem.Id;
-        line.product2Id = lineItem.Product2Id;
-        line.productName = lineItem.Product2Id == null ? null : lineItem.Product2.Name;
-        line.itemDescription = firstNonBlank(
-            lineItem.Description,
-            lineItem.Product2Id == null ? null : lineItem.Product2.Description,
-            line.productName
-        );
-        line.serialNumber = lineItem.SerialNumber__c;
-        line.model = firstNonBlank(
-            lineItem.Model__c,
-            lineItem.Product2Id == null ? null : lineItem.Product2.Model__c,
-            null
-        );
-        line.departmentId = lineItem.Department__c;
-        line.reportedProblem = lineItem.ReportedProblem__c;
-        line.additionalServices = lineItem.AdditionalServices__c == true;
-        line.insulationPowderCoating = line.additionalServices
-            ? firstInsulationValue(lineItem.InsulationPowderCoating__c)
-            : null;
-        line.quantityReturned = lineItem.Quantity != null && lineItem.Quantity > 0
-            ? lineItem.Quantity
-            : QUANTITY_RETURNED_DEFAULT;
-        return line;
-    }
-
-    /**
-     * @description GW-1353 - Clears Send to Repair Center on the lines that were placed on a return order.
-     *              Lines the technician removed stay checked for the next return order.
-     *              The return order is already linked to the site visit through WorkOrder__c.
-     * @param lineObjects Line payloads from the create request
-     */
-    private static void clearSendToRepairCenter(List<Object> lineObjects) {
-        Set<Id> workOrderLineItemIds = sourceWorkOrderLineItemIds(lineObjects);
-        if (workOrderLineItemIds.isEmpty()) {
-            return;
-        }
-
-        List<WorkOrderLineItem> updates = new List<WorkOrderLineItem>();
-        for (WorkOrderLineItem lineItem : [
-            SELECT Id
-            FROM WorkOrderLineItem
-            WHERE Id IN :workOrderLineItemIds AND SendToRepairCenter__c = TRUE
-        ]) {
-            updates.add(new WorkOrderLineItem(
-                Id = lineItem.Id,
-                SendToRepairCenter__c = false
-            ));
-        }
-        if (!updates.isEmpty()) {
-            update updates;
-        }
-    }
-
-    private static Set<Id> sourceWorkOrderLineItemIds(List<Object> lineObjects) {
-        Set<Id> workOrderLineItemIds = new Set<Id>();
-        if (lineObjects == null) {
-            return workOrderLineItemIds;
-        }
-
-        for (Object lineObj : lineObjects) {
-            if (!(lineObj instanceof Map<String, Object>)) {
-                continue;
-            }
-            Map<String, Object> line = (Map<String, Object>) lineObj;
-            Object rawId = line.get('sourceWorkOrderLineItemId');
-            Id workOrderLineItemId = parseId(rawId == null ? null : String.valueOf(rawId));
-            if (workOrderLineItemId != null
-                && workOrderLineItemId.getSobjectType() == WorkOrderLineItem.SObjectType) {
-                workOrderLineItemIds.add(workOrderLineItemId);
-            }
-        }
-        return workOrderLineItemIds;
-    }
-
-    private static String firstInsulationValue(String value) {
-        if (String.isBlank(value)) {
-            return null;
-        }
-        for (String part : value.split(';')) {
-            if (String.isNotBlank(part)) {
-                return part.trim();
-            }
-        }
-        return null;
-    }
-
-    private static String firstNonBlank(String firstValue, String secondValue, String thirdValue) {
-        if (String.isNotBlank(firstValue)) {
-            return firstValue.trim();
-        }
-        if (String.isNotBlank(secondValue)) {
-            return secondValue.trim();
-        }
-        if (String.isNotBlank(thirdValue)) {
-            return thirdValue.trim();
-        }
-        return null;
-    }
-
     private static Id parseId(String value) {
         if (String.isBlank(value)) {
             return null;
@@ -2859,25 +2005,43 @@ public with sharing class CreateReturnOrderController {
     }
 
     /**
-     * @description Account billing state used for routing rule Ship State matching (GW-4134).
-     *              No country fallback — blank BillingState means only blank-rule Ship State matches.
+     * @description State codes from the Ship-To Address accounts selected on return lines.
+     *              Uses BillingStateCode only. A state name is never shortened into a code.
      */
-    private static String resolveAccountShipState(Account account) {
-        if (account == null || String.isBlank(account.BillingState)) {
-            return null;
+    private static Map<Id, String> loadShipToStateCodes(Id customerAccountId) {
+        Map<Id, String> stateCodeByShipToId = new Map<Id, String>();
+        for (Account shipTo : AccountService.getShipToAddressAccounts(customerAccountId)) {
+            stateCodeByShipToId.put(shipTo.Id, normalizeStateCode(shipTo.BillingStateCode));
         }
-        return normalizeShipState(account.BillingState);
+        return stateCodeByShipToId;
     }
 
-    private static String normalizeShipState(String value) {
-        if (String.isBlank(value)) {
+    /**
+     * @description BillingStateCode of the line's selected Ship-To. Blank when the line has no
+     *              eligible Ship-To or that account has no state code.
+     */
+    private static String resolveLineShipStateCode(
+        Map<String, Object> line,
+        Map<Id, String> stateCodeByShipToId
+    ) {
+        if (line == null || stateCodeByShipToId == null || stateCodeByShipToId.isEmpty()) {
             return null;
         }
-        String trimmed = value.trim();
-        if (trimmed.length() <= 2) {
-            return trimmed.toUpperCase();
+        Id shipToAccountId = parseId((String) line.get('shipToAccountId'));
+        if (shipToAccountId == null) {
+            return null;
         }
-        return trimmed.substring(0, 2).toUpperCase();
+        return stateCodeByShipToId.get(shipToAccountId);
+    }
+
+    /**
+     * @description Normalizes a stored state code for comparison. Does not derive a code from a name.
+     */
+    private static String normalizeStateCode(String stateCode) {
+        if (String.isBlank(stateCode)) {
+            return null;
+        }
+        return stateCode.trim().toUpperCase();
     }
 
     private static List<RepairCenterRoutingRule__c> loadRoutingRulesForOperatingUnit(String operatingUnit) {
@@ -2974,9 +2138,11 @@ public with sharing class CreateReturnOrderController {
         return value.trim();
     }
 
+    
+
     private static Map<String, Integer> countNonSterilizedLinesByRepairCenter(
         List<Object> lineObjects,
-        String accountShipState,
+        Map<Id, String> shipStateCodeByShipToId,
         List<RepairCenterRoutingRule__c> routingRules,
         Map<Id, Product2> productsById
     ) {
@@ -2992,12 +2158,13 @@ public with sharing class CreateReturnOrderController {
             String repairCenterKey = resolveRepairCenterGroupKey(
                 line,
                 product,
-                accountShipState,
+                resolveLineShipStateCode(line, shipStateCodeByShipToId),
                 routingRules
             );
-            Integer currentCount = countsByRepairCenter.get(repairCenterKey);
+            String splitCountKey = buildSplitAttributesGroupKey(repairCenterKey, line, product);
+            Integer currentCount = countsByRepairCenter.get(splitCountKey);
             countsByRepairCenter.put(
-                repairCenterKey,
+                splitCountKey,
                 currentCount == null ? 1 : currentCount + 1
             );
         }
@@ -3010,17 +2177,21 @@ public with sharing class CreateReturnOrderController {
         Product2 product,
         String repairCenterKey,
         Map<String, Integer> nonSterilizedCountByRepairCenter,
-        String accountShipState,
+        String shipToStateCode,
         List<RepairCenterRoutingRule__c> routingRules,
         Map<String, Integer> maxItemsLineCounters
     ) {
         String innerGroupKey;
-        if (isModRequestLine(line)) {
+        if (isStirrupLine(line, product)) {
+            // GW-5867: only one Stirrup per Return Order.
+            innerGroupKey = repairCenterKey + STIRRUP_GROUP_SUFFIX + resolveLineKey(line);
+        } else if (isModRequestLine(line)) {
             innerGroupKey = buildModRequestGroupKey(repairCenterKey, resolveLineKey(line));
         } else if (!isSterilizedNo(line)) {
             innerGroupKey = repairCenterKey;
         } else {
-            Integer nonSterilizedCount = nonSterilizedCountByRepairCenter.get(repairCenterKey);
+            String splitCountKey = buildSplitAttributesGroupKey(repairCenterKey, line, product);
+            Integer nonSterilizedCount = nonSterilizedCountByRepairCenter.get(splitCountKey);
             if (nonSterilizedCount != null && nonSterilizedCount > 1) {
                 innerGroupKey = buildNonSterilizedBatchGroupKey(repairCenterKey);
             } else {
@@ -3032,7 +2203,7 @@ public with sharing class CreateReturnOrderController {
             line,
             product,
             innerGroupKey,
-            accountShipState,
+            shipToStateCode,
             routingRules,
             maxItemsLineCounters
         );
@@ -3040,18 +2211,28 @@ public with sharing class CreateReturnOrderController {
         return wrapGroupKeyWithReturnOrderType(line, innerGroupKey);
     }
 
+    private static Boolean isStirrupLine(Map<String, Object> line, Product2 product) {
+        String itemType = line == null ? null : (String) line.get('itemType');
+        if (String.isNotBlank(itemType) && itemType.trim().equalsIgnoreCase(STIRRUP_ITEM_TYPE)) {
+            return true;
+        }
+        return product != null &&
+            String.isNotBlank(product.DeviceType__c) &&
+            product.DeviceType__c.equalsIgnoreCase(STIRRUP_ITEM_TYPE);
+    }
+
     private static String applyMaxItemsPerReturnGroupKey(
         Map<String, Object> line,
         Product2 product,
         String innerGroupKey,
-        String accountShipState,
+        String shipToStateCode,
         List<RepairCenterRoutingRule__c> routingRules,
         Map<String, Integer> maxItemsLineCounters
     ) {
         RepairCenterRoutingRule__c matchedRule = findMatchingRoutingRule(
             line,
             product,
-            accountShipState,
+            shipToStateCode,
             routingRules
         );
         if (
@@ -3063,7 +2244,9 @@ public with sharing class CreateReturnOrderController {
         }
 
         Integer maxItems = matchedRule.MaxItemsPerReturn__c.intValue();
-        String counterKey = innerGroupKey + MAX_ITEMS_GROUP_SUFFIX;
+        String counterKey =
+            buildSplitAttributesGroupKey(innerGroupKey, line, product) +
+            MAX_ITEMS_GROUP_SUFFIX;
         Integer currentCount = maxItemsLineCounters.get(counterKey);
         if (currentCount == null) {
             currentCount = 0;
@@ -3071,18 +2254,46 @@ public with sharing class CreateReturnOrderController {
 
         Integer bucketIndex = currentCount / maxItems;
         maxItemsLineCounters.put(counterKey, currentCount + 1);
-        return counterKey + '|' + bucketIndex;
+        return innerGroupKey + MAX_ITEMS_GROUP_SUFFIX + '|' + bucketIndex;
     }
 
-    private static Boolean isFlexibleScopeProductLine(Map<String, Object> line) {
-        if (line == null) {
-            return false;
+    /**
+     * @description GW-5553 — a return order may hold only one Product Line, one Ship-To,
+     *              and one Customer PO, so all three are appended to the routing group key.
+     */
+    private static String buildSplitAttributesGroupKey(
+        String baseGroupKey,
+        Map<String, Object> line,
+        Product2 product
+    ) {
+        String productLine = line == null ? null : (String) line.get('productLine');
+        if (String.isBlank(productLine) && product != null) {
+            productLine = product.ProductLine__c;
         }
+        String shipToAccountId = line == null ? null : (String) line.get('shipToAccountId');
+        String customerPo = line == null ? null : (String) line.get('customerPo');
 
-        String productLine = (String) line.get('productLine');
-        return String.isNotBlank(productLine) &&
-            FLEXIBLE_SCOPE_PRODUCT_LINE.equalsIgnoreCase(productLine.trim());
+        return baseGroupKey +
+            PRODUCT_LINE_GROUP_SUFFIX +
+            normalizeSplitSegment(productLine, true) +
+            SHIP_TO_GROUP_SUFFIX +
+            normalizeSplitSegment(shipToAccountId, false) +
+            CUSTOMER_PO_GROUP_SUFFIX +
+            normalizeSplitSegment(customerPo, true);
     }
+
+    /**
+     * @description Ids stay case-sensitive so two distinct 15-character Ids cannot collapse
+     *              into one group key.
+     */
+    private static String normalizeSplitSegment(String value, Boolean ignoreCase) {
+        if (String.isBlank(value)) {
+            return UNSPECIFIED_SPLIT_SEGMENT;
+        }
+        return ignoreCase ? value.trim().toUpperCase() : value.trim();
+    }
+
+    
 
     private static String resolveLineKey(Map<String, Object> line) {
         String lineKey = (String) line.get('lineKey');
@@ -3125,6 +2336,12 @@ public with sharing class CreateReturnOrderController {
         Integer modRequestSuffixIndex = innerGroupKey.indexOf(MOD_REQUEST_GROUP_SUFFIX);
         if (modRequestSuffixIndex > 0) {
             return innerGroupKey.substring(0, modRequestSuffixIndex);
+        }
+
+        // GW-5867: Stirrup 1-per-RO keys are repairCenterId|STIRRUP|<lineKey>
+        Integer stirrupSuffixIndex = innerGroupKey.indexOf(STIRRUP_GROUP_SUFFIX);
+        if (stirrupSuffixIndex > 0) {
+            return innerGroupKey.substring(0, stirrupSuffixIndex);
         }
 
         Integer maxItemsSuffixIndex = innerGroupKey.indexOf(MAX_ITEMS_GROUP_SUFFIX);
@@ -3200,13 +2417,13 @@ public with sharing class CreateReturnOrderController {
     private static String resolveRepairCenterGroupKey(
         Map<String, Object> line,
         Product2 product,
-        String accountShipState,
+        String shipToStateCode,
         List<RepairCenterRoutingRule__c> routingRules
     ) {
         RepairCenterRoutingRule__c matchedRule = findMatchingRoutingRule(
             line,
             product,
-            accountShipState,
+            shipToStateCode,
             routingRules
         );
         if (matchedRule != null && matchedRule.RepairCenter__c != null) {
@@ -3218,11 +2435,12 @@ public with sharing class CreateReturnOrderController {
     /**
      * @description GW-4134 — Oracle GET_SHIP_TO_LAB style match: 8 specificity tiers, ship-state
      *              wildcard when rule Ship State is blank, LIKE patterns on rule segments.
+     *              Ship state is the selected Ship-To Account BillingStateCode.
      */
     private static RepairCenterRoutingRule__c findMatchingRoutingRule(
         Map<String, Object> line,
         Product2 product,
-        String accountShipState,
+        String shipToStateCode,
         List<RepairCenterRoutingRule__c> routingRules
     ) {
         if (routingRules == null || routingRules.isEmpty()) {
@@ -3235,7 +2453,7 @@ public with sharing class CreateReturnOrderController {
         String bestTieBreak = null;
 
         for (RepairCenterRoutingRule__c rule : routingRules) {
-            if (!matchesShipState(rule.ShipState__c, accountShipState)) {
+            if (!matchesShipState(rule.ShipState__c, shipToStateCode)) {
                 continue;
             }
 
@@ -3260,15 +2478,15 @@ public with sharing class CreateReturnOrderController {
         return bestRule;
     }
 
-    private static Boolean matchesShipState(String ruleShipState, String accountShipState) {
-        String normalizedRuleState = normalizeShipState(ruleShipState);
+    private static Boolean matchesShipState(String ruleShipState, String shipToStateCode) {
+        String normalizedRuleState = normalizeStateCode(ruleShipState);
         if (String.isBlank(normalizedRuleState)) {
             return true;
         }
-        if (String.isBlank(accountShipState)) {
+        if (String.isBlank(shipToStateCode)) {
             return false;
         }
-        return normalizedRuleState.equalsIgnoreCase(accountShipState);
+        return normalizedRuleState.equalsIgnoreCase(shipToStateCode);
     }
 
     private static Integer resolveRoutingRuleSortOrder(
@@ -3614,5 +2832,140 @@ public with sharing class CreateReturnOrderController {
             summaries.add(summary);
         }
         return summaries;
+    }
+
+    /**
+     * @description Maps a child work order line onto the instrument return order line fields.
+     * @param lineItem Child work order line marked Send to Repair Center
+     * @return Values Create Return Order shows for confirmation
+     */
+    private static SiteVisitInstrumentLine toSiteVisitInstrumentLine(WorkOrderLineItem lineItem) {
+        SiteVisitInstrumentLine line = new SiteVisitInstrumentLine();
+        line.workOrderLineItemId = lineItem.Id;
+        line.product2Id = lineItem.Product2Id;
+        line.productName = lineItem.Product2Id == null ? null : lineItem.Product2.Name;
+        line.itemDescription = firstNonBlank(
+            lineItem.Description,
+            lineItem.Product2Id == null ? null : lineItem.Product2.Description,
+            line.productName
+        );
+        line.serialNumber = lineItem.SerialNumber__c;
+        line.model = firstNonBlank(
+            lineItem.Model__c,
+            lineItem.Product2Id == null ? null : lineItem.Product2.Model__c,
+            null
+        );
+        line.departmentId = lineItem.Department__c;
+        line.reportedProblem = lineItem.ReportedProblem__c;
+        line.additionalServices = lineItem.AdditionalServices__c == true;
+        line.insulationPowderCoating = line.additionalServices
+            ? firstInsulationValue(lineItem.InsulationPowderCoating__c)
+            : null;
+        line.quantityReturned = lineItem.Quantity != null && lineItem.Quantity > 0
+            ? lineItem.Quantity
+            : QUANTITY_RETURNED_DEFAULT;
+        return line;
+    }
+
+    /**
+     * @description Collects line payloads from grouped create JSON.
+     * @param groupsJson Grouped create payload from the LWC
+     * @return Flat list of line maps
+     */
+    private static List<Object> lineObjectsFromGroupsJson(String groupsJson) {
+        List<Object> lineObjects = new List<Object>();
+        if (String.isBlank(groupsJson)) {
+            return lineObjects;
+        }
+        List<Object> groupObjects = (List<Object>) JSON.deserializeUntyped(groupsJson);
+        for (Object groupObj : groupObjects) {
+            if (!(groupObj instanceof Map<String, Object>)) {
+                continue;
+            }
+            Map<String, Object> groupPayload = (Map<String, Object>) groupObj;
+            String lineItemsJson = (String) groupPayload.get('lineItemsJson');
+            if (String.isBlank(lineItemsJson)) {
+                continue;
+            }
+            List<Object> groupLines = (List<Object>) JSON.deserializeUntyped(lineItemsJson);
+            if (groupLines != null) {
+                lineObjects.addAll(groupLines);
+            }
+        }
+        return lineObjects;
+    }
+
+    /**
+     * @description GW-1353 - Clears Send to Repair Center on the lines that were placed on a return order.
+     *              Lines the technician removed stay checked for the next return order.
+     *              The return order is already linked to the site visit through WorkOrder__c.
+     * @param lineObjects Line payloads from the create request
+     */
+    private static void clearSendToRepairCenter(List<Object> lineObjects) {
+        Set<Id> workOrderLineItemIds = sourceWorkOrderLineItemIds(lineObjects);
+        if (workOrderLineItemIds.isEmpty()) {
+            return;
+        }
+
+        List<WorkOrderLineItem> updates = new List<WorkOrderLineItem>();
+        for (WorkOrderLineItem lineItem : [
+            SELECT Id
+            FROM WorkOrderLineItem
+            WHERE Id IN :workOrderLineItemIds AND SendToRepairCenter__c = TRUE
+        ]) {
+            updates.add(new WorkOrderLineItem(
+                Id = lineItem.Id,
+                SendToRepairCenter__c = false
+            ));
+        }
+        if (!updates.isEmpty()) {
+            update updates;
+        }
+    }
+
+    private static Set<Id> sourceWorkOrderLineItemIds(List<Object> lineObjects) {
+        Set<Id> workOrderLineItemIds = new Set<Id>();
+        if (lineObjects == null) {
+            return workOrderLineItemIds;
+        }
+
+        for (Object lineObj : lineObjects) {
+            if (!(lineObj instanceof Map<String, Object>)) {
+                continue;
+            }
+            Map<String, Object> line = (Map<String, Object>) lineObj;
+            Object rawId = line.get('sourceWorkOrderLineItemId');
+            Id workOrderLineItemId = parseId(rawId == null ? null : String.valueOf(rawId));
+            if (workOrderLineItemId != null
+                && workOrderLineItemId.getSobjectType() == WorkOrderLineItem.SObjectType) {
+                workOrderLineItemIds.add(workOrderLineItemId);
+            }
+        }
+        return workOrderLineItemIds;
+    }
+
+    private static String firstNonBlank(String firstValue, String secondValue, String thirdValue) {
+        if (String.isNotBlank(firstValue)) {
+            return firstValue.trim();
+        }
+        if (String.isNotBlank(secondValue)) {
+            return secondValue.trim();
+        }
+        if (String.isNotBlank(thirdValue)) {
+            return thirdValue.trim();
+        }
+        return null;
+    }
+
+    private static String firstInsulationValue(String value) {
+        if (String.isBlank(value)) {
+            return null;
+        }
+        for (String part : value.split(';')) {
+            if (String.isNotBlank(part)) {
+                return part.trim();
+            }
+        }
+        return null;
     }
 }

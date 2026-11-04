@@ -191,4 +191,22 @@ public with sharing class PlatformUtilities {
         }
         return String.isBlank(digits) ? null : digits;
     }
+
+    /**
+     * @description Null-safe uppercase for print/label payloads (used by PrinterService).
+     * @param value Input string
+     * @return Uppercased value, or the original blank/null value
+     */
+    public static String toUpperCase(String value) {
+        return String.isBlank(value) ? value : value.toUpperCase();
+    }
+
+    /**
+     * @description Converts null to empty string for print/map payloads (used by PrinterService).
+     * @param value Input string
+     * @return Empty string when null; otherwise the original value
+     */
+    public static String blankToEmpty(String value) {
+        return value == null ? '' : value;
+    }
 }

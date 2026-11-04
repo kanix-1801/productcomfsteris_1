@@ -2,6 +2,10 @@ import { LightningElement, api } from 'lwc';
 import { notifyRecordUpdateAvailable } from 'lightning/uiRecordApi';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import postponeVisit from '@salesforce/apex/CscVisitStatusAction.postponeVisit';
+import POSTPONE_SUCCESS_TITLE from '@salesforce/label/c.CSC_Postpone_Success_Title';
+import POSTPONE_SUCCESS_MESSAGE from '@salesforce/label/c.CSC_Postpone_Success_Message';
+import POSTPONE_ERROR_TITLE from '@salesforce/label/c.CSC_Postpone_Error_Title';
+import POSTPONE_ERROR_MESSAGE from '@salesforce/label/c.CSC_Postpone_Error_Message';
 
 /**
  * GC-3579: Headless quick action that postpones a visit. CSC Administrator only.
@@ -26,16 +30,16 @@ export default class CscPostponeVisitRequest extends LightningElement {
 
             this.dispatchEvent(
                 new ShowToastEvent({
-                    title: 'Visit postponed',
-                    message: 'The visit status is now Postponed. Use Change Date to select a new date.',
+                    title: POSTPONE_SUCCESS_TITLE,
+                    message: POSTPONE_SUCCESS_MESSAGE,
                     variant: 'success'
                 })
             );
         } catch (error) {
             this.dispatchEvent(
                 new ShowToastEvent({
-                    title: 'Visit not postponed',
-                    message: reduceError(error, 'The visit could not be postponed.'),
+                    title: POSTPONE_ERROR_TITLE,
+                    message: reduceError(error, POSTPONE_ERROR_MESSAGE),
                     variant: 'error',
                     mode: 'sticky'
                 })

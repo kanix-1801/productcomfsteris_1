@@ -245,6 +245,8 @@ private class LSGenerateQuoteServiceTest {
         }
     }
 
+   
+
     @IsTest
     static void testQuoteTypeAndIdentifierHelpers() {
         System.runAs(runningUser()) {
@@ -500,6 +502,7 @@ private class LSGenerateQuoteServiceTest {
             Assert.isTrue(missingOpportunityThrew);
         }
     }
+
 
     @IsTest
     static void testRefreshQuotesWhenRetryIsEnqueued() {

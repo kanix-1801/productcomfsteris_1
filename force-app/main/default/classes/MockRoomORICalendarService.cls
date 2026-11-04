@@ -41,7 +41,7 @@ public without sharing class MockRoomORICalendarService {
                 requestRecord.Status__c == 'Approved' &&
                 requestRecord.ConfirmedDate__c != null
             ) {
-                addRequestDate(
+                addRequestSpan(
                     data,
                     requestRecord,
                     requestRecord.ConfirmedDate__c,
@@ -59,7 +59,7 @@ public without sharing class MockRoomORICalendarService {
             dateRoleByDateMap.remove(null);
 
             for (Date eventDate : dateRoleByDateMap.keySet()) {
-                addRequestDate(
+                addRequestSpan(
                     data,
                     requestRecord,
                     eventDate,
@@ -84,8 +84,8 @@ public without sharing class MockRoomORICalendarService {
     }
 
     /**
-     * @description Adds one calendar date when it falls inside the visible range.
-     * GC-3483. Approved requests add only the confirmed date. Earlier statuses add each requested date as pending.
+     * @description Adds each day of the request span that falls inside the visible range.
+     * GC-3483 Sprint 8. A blank or invalid duration is one day. Approved requests use the confirmed date. Earlier statuses use each requested date.
      *
      * @param data Calendar payload being built.
      * @param requestRecord Request that owns the date.
@@ -94,7 +94,7 @@ public without sharing class MockRoomORICalendarService {
      * @param startDate First visible calendar day.
      * @param endDate Last visible calendar day.
      */
-    private static void addRequestDate(
+    private static void addRequestSpan(
         MockRoomORICalendarController.CalendarData data,
         MockRoomOrORIRequest__c requestRecord,
         Date eventDate,
@@ -102,17 +102,28 @@ public without sharing class MockRoomORICalendarService {
         Date startDate,
         Date endDate
     ) {
-        if (eventDate == null || eventDate < startDate || eventDate > endDate) {
+        if (eventDate == null) {
             return;
         }
-        MockRoomORICalendarController.CalendarEvent eventRow =
-            new MockRoomORICalendarController.CalendarEvent();
-        eventRow.requestId = requestRecord.Id;
-        eventRow.requestName = requestRecord.Name;
-        eventRow.requestType = requestRecord.RecordType.Name;
-        eventRow.status = requestRecord.Status__c;
-        eventRow.eventDate = eventDate;
-        eventRow.dateRole = dateRole;
-        data.events.add(eventRow);
+        Integer durationDays = 1;
+        if (requestRecord.EventDurationDays__c != null && requestRecord.EventDurationDays__c >= 1) {
+            durationDays = requestRecord.EventDurationDays__c.intValue();
+        }
+        for (Integer dayOffset = 0; dayOffset < durationDays; dayOffset++) {
+            Date spanDate = eventDate.addDays(dayOffset);
+            if (spanDate < startDate || spanDate > endDate) {
+                continue;
+            }
+            MockRoomORICalendarController.CalendarEvent eventRow =
+                new MockRoomORICalendarController.CalendarEvent();
+            eventRow.requestId = requestRecord.Id;
+            eventRow.requestName = requestRecord.Name;
+            eventRow.requestType = requestRecord.RecordType.Name;
+            eventRow.accountName = requestRecord.Account__r == null ? null : requestRecord.Account__r.Name;
+            eventRow.status = requestRecord.Status__c;
+            eventRow.eventDate = spanDate;
+            eventRow.dateRole = dateRole;
+            data.events.add(eventRow);
+        }
     }
 }

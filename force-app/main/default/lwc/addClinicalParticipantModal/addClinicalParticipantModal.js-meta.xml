@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>68.0</apiVersion>
+    <isExposed>false</isExposed>
+    <masterLabel>Add Clinical Participant Modal</masterLabel>
+    <description>GC-3542 - Popup used by the Process Review create flow to collect clinical participants.</description>
+</LightningComponentBundle>

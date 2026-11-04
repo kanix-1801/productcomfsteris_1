@@ -34,6 +34,8 @@ public without sharing class UserSelector {
 
     /**
      * @description Returns Healthcare Sales Profile Id (lazy-loaded, cached per transaction).
+     * Profile is read in SYSTEM_MODE because this selector is without sharing and
+     * sales users are not granted Profile access.
      * @return Profile Id, or null when the profile does not exist in the org.
      */
     public static Id getHealthcareSalesProfileId() {
@@ -42,6 +44,7 @@ public without sharing class UserSelector {
                 SELECT Id
                 FROM Profile
                 WHERE Name = :HEALTHCARE_SALES_PROFILE_NAME
+                WITH SYSTEM_MODE
                 LIMIT 1
             ];
             healthcareSalesProfileIdCache = profiles.isEmpty() ? null : profiles[0].Id;
@@ -51,6 +54,8 @@ public without sharing class UserSelector {
 
     /**
      * @description: [GCL-1] Returns Life Sciences Sales Profile Id (lazy-loaded, cached per transaction).
+     * Profile is read in SYSTEM_MODE because this selector is without sharing and
+     * sales users are not granted Profile access.
      * @return Profile Id, or null when the profile does not exist in the org.
      */
     public static Id getLifeSciencesSalesProfileId() {
@@ -59,6 +64,7 @@ public without sharing class UserSelector {
                 SELECT Id
                 FROM Profile
                 WHERE Name = :LIFESCIENCES_SALES_PROFILE_NAME
+                WITH SYSTEM_MODE
                 LIMIT 1
             ];
             lifeSciencesSalesProfileIdCache = profiles.isEmpty() ? null : profiles[0].Id;

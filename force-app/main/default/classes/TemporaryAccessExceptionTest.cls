@@ -489,13 +489,17 @@ private class TemporaryAccessExceptionTest {
         ********************************************/
         Boolean threw = false;
         try {
-            throw new TemporaryAccessExceptionException(expectedMessage);
+            throwTemporaryAccessException(expectedMessage);
         } catch (TemporaryAccessExceptionException e) {
             threw = true;
             System.assertEquals(expectedMessage, e.getMessage());
         }
 
         System.assert(threw, 'TemporaryAccessExceptionException should be throwable');
+    }
+
+    private static void throwTemporaryAccessException(String expectedMessage) {
+        throw new TemporaryAccessExceptionException(expectedMessage);
     }
 
     // --- Selector ---
@@ -558,7 +562,7 @@ private class TemporaryAccessExceptionTest {
         ********************************************/
         System.assertEquals(String.valueOf(accountId) + '|' + String.valueOf(userId), accountKey);
 
-        String oppPrefix = Opportunity.SObjectType.getDescribe().getKeyPrefix();
+        String oppPrefix = Opportunity.SObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).getKeyPrefix();
         Id syntheticOpportunityId = (Id) (oppPrefix + '000000000000');
         String syntheticOpportunityKey = TemporaryAccessExceptionSelector.buildOpportunityTeamKey(
             syntheticOpportunityId,
@@ -2560,7 +2564,7 @@ private class TemporaryAccessExceptionTest {
         ********************************************/
         TestDataFactory.ScenarioContext ctx =
             TestDataFactory.getScenarioContext();
-        String accountPrefix = Account.SObjectType.getDescribe().getKeyPrefix();
+        String accountPrefix = Account.SObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).getKeyPrefix();
         Id syntheticAccountId = (Id) (accountPrefix + '000000000001');
 
         /********************************************

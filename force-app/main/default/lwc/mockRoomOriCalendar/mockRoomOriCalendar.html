@@ -26,10 +26,21 @@
                         <span class="selection">{day.selectionLabel}</span>
                     </template>
                     <template for:each={day.bars} for:item="bar">
-                        <span key={bar.key} class={bar.className} title={bar.title}>{bar.text}</span>
+                        <a key={bar.key} class={bar.className} title={bar.title} href={bar.href} data-request-id={bar.requestId} target="_blank" onclick={openRequest}>{bar.text}</a>
                     </template>
                 </div>
             </template>
+        </div>
+        <div class="duration">
+            <lightning-input
+                type="number"
+                label="Event Duration (Days)"
+                min="1"
+                step="1"
+                required
+                value={eventDuration}
+                onchange={durationChanged}>
+            </lightning-input>
         </div>
         <div class="legend">
             <span class="legend-item"><i class="key free"></i> Free</span>

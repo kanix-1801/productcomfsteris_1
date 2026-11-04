@@ -68,13 +68,14 @@ public with sharing class AccountTeamMemberDetailsController {
             return false;
         }
 
-        return [
-                SELECT Id
-                FROM PermissionSetAssignment
-                WHERE AssigneeId = :UserInfo.getUserId()
-                AND PermissionSetGroupId = :salesOpsPermissionSetGroups[0].Id
-                LIMIT 1
-            ]
-            .size() > 0;
+        List<PermissionSetAssignment> salesOpsAssignments = [
+            SELECT Id
+            FROM PermissionSetAssignment
+            WHERE AssigneeId = :UserInfo.getUserId()
+            AND PermissionSetGroupId = :salesOpsPermissionSetGroups[0].Id
+            LIMIT 1
+        ];
+        Boolean isSalesOpsUser = !salesOpsAssignments.isEmpty();
+        return isSalesOpsUser;
     }
 }

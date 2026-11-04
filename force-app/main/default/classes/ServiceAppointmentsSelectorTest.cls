@@ -7,6 +7,37 @@
  */
 @IsTest
 private class ServiceAppointmentsSelectorTest {
+    /** @description Grants the realignment fields; the selector enforces FLS (USER_MODE). */
+    private static final String PERMISSION_SET_NAME = 'ManageServiceAppointments';
+
+    /**
+     * @description Gives the running user the permission set for the realignment fields when it is missing
+     *              (e.g. the deployment user in QA), so USER_MODE queries can run.
+     */
+    @TestSetup
+    static void setupTestData() {
+        // SETUP
+        User contextUser = new User(Id = UserInfo.getUserId());
+        List<PermissionSet> permissionSetList = [
+            SELECT Id FROM PermissionSet WHERE Name = :PERMISSION_SET_NAME LIMIT 1
+        ];
+        if (permissionSetList.isEmpty()) {
+            return;
+        }
+        Integer assignmentCount = [
+            SELECT COUNT()
+            FROM PermissionSetAssignment
+            WHERE AssigneeId = :contextUser.Id AND PermissionSetId = :permissionSetList[0].Id
+        ];
+        if (assignmentCount == 0) {
+            System.runAs(contextUser) {
+                new adb_PermissionSetAssignment()
+                    .assigneeId(contextUser.Id)
+                    .permissionSetId(permissionSetList[0].Id)
+                    .persist();
+            }
+        }
+    }
     /**
      * @description The realignment query runs (USER_MODE, field validation incl. the Work Order Ship-To path)
      *              and returns no rows for a territory that does not exist.

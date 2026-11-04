@@ -1,5 +1,6 @@
 import { LightningElement, api } from 'lwc';
 import { NavigationMixin } from 'lightning/navigation';
+import basePath from '@salesforce/community/basePath';
 
 const STAGE_CLASS = {
     Discovery: 'stage-discovery',
@@ -103,12 +104,11 @@ export default class DealerOpportunityTable extends NavigationMixin(LightningEle
     }
 
     openOpportunity(event) {
+        const opportunityId = event.currentTarget.dataset.id;
         this[NavigationMixin.Navigate]({
-            type: 'standard__recordPage',
+            type: 'standard__webPage',
             attributes: {
-                recordId: event.currentTarget.dataset.id,
-                objectApiName: 'Opportunity',
-                actionName: 'view'
+                url: `${basePath}/my-opportunities?opportunityId=${opportunityId}`
             }
         });
     }

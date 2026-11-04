@@ -8,6 +8,8 @@
  * Dealer Portal R1 - Assigns the STERIS Dealer Manager as owner and shares the opportunity
  * back to the dealer who created it and to that dealer organisation's partner roles.
  * Without sharing is required because the portal user cannot read Account Team or reassign ownership.
+ * SOQL and DML use SYSTEM_MODE so that system context stays explicit. It matches this class:
+ * sharing is already bypassed, and object and field permissions stay ignored.
  */
 public without sharing class DealerOpportunityShareService {
 
@@ -26,6 +28,7 @@ public without sharing class DealerOpportunityShareService {
             SELECT Name
             FROM Account
             WHERE Id = :accountId
+            WITH SYSTEM_MODE
             LIMIT 1
         ];
         return accounts.isEmpty() ? null : accounts[0].Name;
@@ -48,14 +51,18 @@ public without sharing class DealerOpportunityShareService {
             SELECT Id, AccountId, OwnerId
             FROM Opportunity
             WHERE Id = :opportunityId
+            WITH SYSTEM_MODE
             LIMIT 1
         ];
 
         Id managerId = resolveManagerId(opportunityRecord.AccountId);
         if (managerId != null && managerId != opportunityRecord.OwnerId) {
-            update new Opportunity(
-                Id = opportunityRecord.Id,
-                OwnerId = managerId
+            Database.update(
+                new Opportunity(
+                    Id = opportunityRecord.Id,
+                    OwnerId = managerId
+                ),
+                AccessLevel.SYSTEM_MODE
             );
             opportunityRecord.OwnerId = managerId;
         }
@@ -66,7 +73,7 @@ public without sharing class DealerOpportunityShareService {
         }
         shares.addAll(buildPartnerShares(opportunityRecord.Id, opportunityRecord.AccountId, opportunityRecord.OwnerId));
         if (!shares.isEmpty()) {
-            Database.insert(shares, false);
+            Database.insert(shares, false, AccessLevel.SYSTEM_MODE);
         }
     }
 
@@ -81,6 +88,7 @@ public without sharing class DealerOpportunityShareService {
             WHERE AccountId = :accountId
             AND User.IsActive = true
             AND User.UserType = 'Standard'
+            WITH SYSTEM_MODE
             ORDER BY CreatedDate DESC
         ];
 
@@ -109,6 +117,7 @@ public without sharing class DealerOpportunityShareService {
             SELECT Id
             FROM UserRole
             WHERE PortalAccountId = :accountId
+            WITH SYSTEM_MODE
         ]).keySet();
         if (roleIds.isEmpty()) {
             return shares;
@@ -119,6 +128,7 @@ public without sharing class DealerOpportunityShareService {
             FROM Group
             WHERE Type = 'Role'
             AND RelatedId IN :roleIds
+            WITH SYSTEM_MODE
         ]) {
             if (roleGroup.Id != ownerId) {
                 shares.add(buildShare(opportunityId, roleGroup.Id));

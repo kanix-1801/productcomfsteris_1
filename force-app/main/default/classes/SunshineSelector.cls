@@ -123,7 +123,7 @@ public with sharing class SunshineSelector {
         if (visitId == null) {
             return null;
         }
-        Map<String, Schema.SObjectField> fieldMap = CSC_Visit_Request__c.SObjectType.getDescribe().fields.getMap();
+        Map<String, Schema.SObjectField> fieldMap = CSC_Visit_Request__c.SObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).fields.getMap();
         List<String> selectedFields = new List<String>{ 'Id', 'Name' };
         for (String candidate : VISIT_FIELD_CANDIDATES) {
             if (!fieldMap.containsKey(candidate)) {
@@ -163,13 +163,13 @@ public with sharing class SunshineSelector {
         if (!Schema.getGlobalDescribe().containsKey('CSCVisitAttendee__c')) {
             return null;
         }
-        for (Schema.SObjectField fieldToken : CSCVisitAttendee__c.SObjectType.getDescribe().fields.getMap().values()) {
+        for (Schema.SObjectField fieldToken : CSCVisitAttendee__c.SObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).fields.getMap().values()) {
             Schema.DescribeFieldResult describe = fieldToken.getDescribe();
             if (describe.getType() != Schema.DisplayType.REFERENCE) {
                 continue;
             }
             for (Schema.SObjectType target : describe.getReferenceTo()) {
-                if (target.getDescribe().getName() == 'CSC_Visit_Request__c') {
+                if (target.getDescribe(SObjectDescribeOptions.DEFERRED).getName() == 'CSC_Visit_Request__c') {
                     return describe.getName();
                 }
             }
@@ -203,7 +203,7 @@ public with sharing class SunshineSelector {
 
     private static List<SObject> selectPeople(String objectName, Set<Id> recordIds) {
         Map<String, Schema.SObjectField> fieldMap =
-            Schema.getGlobalDescribe().get(objectName).getDescribe().fields.getMap();
+            Schema.getGlobalDescribe().get(objectName).getDescribe(SObjectDescribeOptions.DEFERRED).fields.getMap();
         List<String> selectedFields = new List<String>{ 'Id' };
         for (String candidate : new List<String>{ 'Name', 'FirstName', 'LastName', 'Title', 'Email', 'Phone' }) {
             if (fieldMap.containsKey(candidate) && fieldMap.get(candidate).getDescribe().isAccessible()) {
@@ -248,7 +248,7 @@ public with sharing class SunshineSelector {
         if (recordId == null) {
             return null;
         }
-        Schema.DescribeSObjectResult describe = recordId.getSObjectType().getDescribe();
+        Schema.DescribeSObjectResult describe = recordId.getSObjectType().getDescribe(SObjectDescribeOptions.DEFERRED);
         if (!describe.fields.getMap().containsKey('name')) {
             return null;
         }
@@ -277,6 +277,6 @@ public with sharing class SunshineSelector {
     }
 
     private static Boolean attendeeFieldExists(String fieldApi) {
-        return CSCVisitAttendee__c.SObjectType.getDescribe().fields.getMap().containsKey(fieldApi);
+        return CSCVisitAttendee__c.SObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).fields.getMap().containsKey(fieldApi);
     }
 }

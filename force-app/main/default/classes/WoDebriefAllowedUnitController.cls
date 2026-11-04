@@ -131,4 +131,50 @@ public with sharing class WoDebriefAllowedUnitController {
             Logger.saveLog();
         }
     }
+
+    // ---- GW-6095 - Component Tags for allowed parts (new methods only) -----------------------
+
+    /**
+     * @description GW-6095 - Component Tag options for a Product2 (Customer Stock) on a Work Order.
+     * @param workOrderId Work Order Id
+     * @param product2Id Selected Product2 Id
+     * @return Component Tag options (empty when none apply)
+     * @throws AuraHandledException when the lookup fails
+     */
+    @AuraEnabled(cacheable=true)
+    public static List<WorkOrderLineItemsService.ComponentTagOption> getComponentTagsForProduct(
+        Id workOrderId,
+        Id product2Id
+    ) {
+        try {
+            return WorkOrderLineItemsService.getComponentTagsForProduct(workOrderId, product2Id);
+        } catch (WorkOrderLineItemsService.WorkOrderLineItemsServiceException e) {
+            Logger.error('WoDebriefAllowedUnitController.getComponentTagsForProduct failed', e);
+            throw new AuraHandledException(e.getMessage());
+        } finally {
+            Logger.saveLog();
+        }
+    }
+
+    /**
+     * @description GW-6095 - Component Tag options for a Product Item (Trunk Stock) on a Work Order.
+     * @param workOrderId Work Order Id
+     * @param productItemId Selected Product Item Id
+     * @return Component Tag options (empty when none apply)
+     * @throws AuraHandledException when the lookup fails
+     */
+    @AuraEnabled(cacheable=true)
+    public static List<WorkOrderLineItemsService.ComponentTagOption> getComponentTagsForProductItem(
+        Id workOrderId,
+        Id productItemId
+    ) {
+        try {
+            return WorkOrderLineItemsService.getComponentTagsForProductItem(workOrderId, productItemId);
+        } catch (WorkOrderLineItemsService.WorkOrderLineItemsServiceException e) {
+            Logger.error('WoDebriefAllowedUnitController.getComponentTagsForProductItem failed', e);
+            throw new AuraHandledException(e.getMessage());
+        } finally {
+            Logger.saveLog();
+        }
+    }
 }

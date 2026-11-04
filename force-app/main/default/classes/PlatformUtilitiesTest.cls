@@ -199,4 +199,24 @@ private class PlatformUtilitiesTest {
         Assert.isNull(PlatformUtilities.normalizePhone(null), 'Null stays null');
         Assert.isNull(PlatformUtilities.normalizePhone('   '), 'Blank is null');
     }
+
+    /**
+     * @description Verifies null-safe uppercase and null-to-empty helpers used by PrinterService.
+     */
+    @IsTest
+    static void testToUpperCaseAndBlankToEmpty() {
+        Test.startTest();
+        String upper = PlatformUtilities.toUpperCase('monday');
+        String blankUpper = PlatformUtilities.toUpperCase('   ');
+        String nullUpper = PlatformUtilities.toUpperCase(null);
+        String emptyFromNull = PlatformUtilities.blankToEmpty(null);
+        String emptyFromValue = PlatformUtilities.blankToEmpty('kept');
+        Test.stopTest();
+
+        Assert.areEqual('MONDAY', upper, 'Value is uppercased');
+        Assert.areEqual('   ', blankUpper, 'Blank value is unchanged');
+        Assert.isNull(nullUpper, 'Null stays null');
+        Assert.areEqual('', emptyFromNull, 'Null becomes empty string');
+        Assert.areEqual('kept', emptyFromValue, 'Non-null value is unchanged');
+    }
 }

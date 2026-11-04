@@ -27,11 +27,8 @@ const ANY_OPTION = { label: 'Any', value: '' };
 // The five fields that describe equipment, in order; a blank field means any value.
 const FIELDS = ['productLine', 'subProductLine', 'productType', 'manufacturer', 'model'];
 const FIELD_LABELS = {
-    productLine: 'Product Line',
-    subProductLine: 'Sub Product Line',
-    productType: 'Device Type', // stored in ContractModifier__c.ProductType__c
-    manufacturer: 'Manufacturer',
-    model: 'Model'
+    productLine: 'Product Line', subProductLine: 'Sub Product Line',
+    productType: 'Device Type', manufacturer: 'Manufacturer', model: 'Model'
 };
 // Inclusion / Exclusion fields picked from a list (Model is free text)
 const PICKLIST_FIELDS = ['productLine', 'subProductLine', 'productType', 'manufacturer'];
@@ -39,7 +36,16 @@ const PICKLIST_FIELDS = ['productLine', 'subProductLine', 'productType', 'manufa
 const SECTION_INC_EXC = 'incExc';
 const SECTION_MODEL_QTY = 'modelQty';
 const SECTION_PRICING = 'pricingPrograms';
+const SECTION_MOBILE_VAN = 'onLocationMobileVan';
 const MIN_PROGRAM_SEARCH_LENGTH = 3;
+// On Location - Mobile Van: instrument service categories (UI only for now, not saved with the configuration)
+const MOBILE_VAN_CATEGORIES = [
+    'Laparoscopic - Basic', 'Laparoscopic - Extensive', 'Stainless',
+    'Case Cart - Basic', 'Case Cart - Extensive', 'Arthroscopic',
+    'Uro/Cysto Instruments', 'Laser Marking', 'iExchange',
+    'Rolling Stock', 'Container - Basic', 'Container - Extensive',
+    'Retractor Systems', 'Positioners'
+];
 const EMPTY_ADJUSTMENTS = { inclusions: [], models: [], pricingPrograms: [], pricingProgram: null };
 
 // A real, saved Quote Line Item Id. New lines in the configurator have temporary "ref_" Ids.
@@ -120,6 +126,9 @@ export default class ModelQtyCoverage extends LightningElement {
     // "Add pricing program" search bar
     programSearchTerm = '';
     selectedProgramNames = [];
+    // On Location - Mobile Van: category filter and the categories checked
+    mobileVanFilter = '';
+    mobileVanSelected = [];
 
     productLineValues = [];
     subProductLineValues = [];
@@ -252,7 +261,7 @@ export default class ModelQtyCoverage extends LightningElement {
             })),
             models: (data?.models || []).map((m) => ({ ...pickCriteria(m), qty: Number(m.qty) })),
             // Not returned by Apex yet: falls back to the dummy sample rows
-            pricingPrograms: (data?.pricingPrograms || PRICING_PROGRAM_SAMPLE_ROWS).map(pickProgram),
+            pricingPrograms: (data?.pricingPrograms || PRICING_PROGRAM_SAMPLE_ROWS).map((p) => this.programDetails(p)),
             pricingProgram: data?.pricingProgram || null
         };
     }
@@ -286,7 +295,11 @@ export default class ModelQtyCoverage extends LightningElement {
             .join(' · ');
         const modelPreview = c.models.map((m) => `${m.model || this.describe(m)} · ${m.qty} max`).join(' · ');
         const pricingPreview = c.pricingPrograms
-            .map((p) => (p.ctCode ? `${this.programLabel(p.program)} (${p.ctCode})` : this.programLabel(p.program)))
+            .map((p) => {
+                const n = p.ctCodes.length;
+                const label = this.programLabel(p.program);
+                return n ? `${label} (${n} CT ${n === 1 ? 'code' : 'codes'})` : label;
+            })
             .join(' · ');
         return [
             {
@@ -306,6 +319,12 @@ export default class ModelQtyCoverage extends LightningElement {
                 label: 'Pricing Programs',
                 count: c.pricingPrograms.length,
                 preview: pricingPreview || 'None configured'
+            },
+            {
+                key: SECTION_MOBILE_VAN,
+                label: 'On Location - Mobile Van',
+                count: 0, // TODO: number of service categories chosen
+                preview: 'None configured'
             }
         ];
     }
@@ -354,6 +373,7 @@ export default class ModelQtyCoverage extends LightningElement {
         if (!this.modelRows.length) this.modelRows = [this.newModelRow()];
         this.pricingRows = c.pricingPrograms.map((p) => this.newPricingRow(p));
         this.resetProgramSearch();
+        this.mobileVanFilter = '';
         this.ensureManufacturers({}); // new rows start at Any / Any
         this.incRules.forEach((r) => {
             this.ensureSubProductLines(r.productLine);
@@ -385,6 +405,9 @@ export default class ModelQtyCoverage extends LightningElement {
     get isPricingSection() {
         return this.activeSection === SECTION_PRICING;
     }
+    get isMobileVanSection() {
+        return this.activeSection === SECTION_MOBILE_VAN;
+    }
 
     get navItems() {
         const incExcCount = this.incRules.reduce(
@@ -396,7 +419,8 @@ export default class ModelQtyCoverage extends LightningElement {
         return [
             { key: SECTION_INC_EXC, label: 'Inclusions / Exclusions', count: incExcCount },
             { key: SECTION_MODEL_QTY, label: 'Model Quantity', count: modelCount },
-            { key: SECTION_PRICING, label: 'Pricing Programs', count: pricingCount }
+            { key: SECTION_PRICING, label: 'Pricing Programs', count: pricingCount },
+            { key: SECTION_MOBILE_VAN, label: 'On Location - Mobile Van', count: this.mobileVanSelected.length }
         ].map((item) => {
             const active = item.key === this.activeSection;
             return {
@@ -700,13 +724,28 @@ export default class ModelQtyCoverage extends LightningElement {
     // One row per program: Program is the program name itself (e.g. "PP-ENDO-01"), shown as plain text.
     // Description and CT Code come from the program list for a known name.
 
-    newPricingRow(source) {
+    // A program's description and CT codes come from the program list (its child CT Code records),
+    // so rows saved earlier with no or old-format CT codes still show the current ones.
+    // The saved values are kept only for a program that is not in the list.
+    programDetails(source) {
         const p = pickProgram(source);
+        const known = (this.pricingPrograms || []).find((k) => k.program === p.program);
+        if (!known) return p;
+        const knownCodes = pickCtCodes(known);
+        return {
+            program: p.program,
+            description: blankToNull(known.description) || p.description,
+            ctCodes: knownCodes.length ? knownCodes : p.ctCodes
+        };
+    }
+
+    newPricingRow(source) {
+        const p = this.programDetails(source);
         return {
             key: this.nextKey('pp'),
             program: p.program || '',
             description: p.description || '',
-            ctCode: p.ctCode || ''
+            ctCodes: p.ctCodes
         };
     }
 
@@ -718,7 +757,7 @@ export default class ModelQtyCoverage extends LightningElement {
                 program: row.program,
                 programLabel: `Pricing Program ${number} Program`,
                 description: row.description || '—',
-                ctCode: row.ctCode || '—',
+                ...ctCodeView(row.ctCodes, row.key),
                 deleteLabel: `Remove Pricing Program ${number}`
             };
         });
@@ -747,12 +786,15 @@ export default class ModelQtyCoverage extends LightningElement {
         const added = new Set(this.pricingRows.map((r) => r.program));
         return this.pricingPrograms
             .filter((p) => !added.has(p.program))
-            .filter((p) =>
-                [p.program, p.ctCode, p.category].some((v) => (v || '').toLowerCase().includes(term))
-            )
+            .filter((p) => {
+                const ctValues = pickCtCodes(p).flatMap((c) => [c.code, c.name]);
+                return [p.program, p.category, ...ctValues].some((v) => (v || '').toLowerCase().includes(term));
+            })
             .map((p) => ({
-                ...p,
+                program: p.program,
+                description: p.description || '—',
                 category: p.category || '—',
+                ...ctCodeView(pickCtCodes(p), `sr-${p.program}`),
                 selected: this.selectedProgramNames.includes(p.program),
                 selectLabel: `Select ${p.program}`
             }));
@@ -802,6 +844,61 @@ export default class ModelQtyCoverage extends LightningElement {
     handleRemovePricingProgram(event) {
         const ruleKey = event.currentTarget.dataset.ruleKey;
         this.pricingRows = this.pricingRows.filter((r) => r.key !== ruleKey);
+    }
+
+    /* =====================  ON LOCATION - MOBILE VAN  ===================== */
+    // Tiles with a checkbox per category. The filter narrows the tiles shown; the count, Select all and Clear
+    // work on the tiles shown.
+
+    get visibleMobileVanCategories() {
+        const term = lower(this.mobileVanFilter);
+        return term ? MOBILE_VAN_CATEGORIES.filter((c) => c.toLowerCase().includes(term)) : MOBILE_VAN_CATEGORIES;
+    }
+
+    get mobileVanTiles() {
+        return this.visibleMobileVanCategories.map((label) => {
+            const checked = this.mobileVanSelected.includes(label);
+            return { key: label, label, checked, tileClass: `ca-tile${checked ? ' ca-tile_checked' : ''}` };
+        });
+    }
+
+    get visibleMobileVanSelectedCount() {
+        return this.visibleMobileVanCategories.filter((c) => this.mobileVanSelected.includes(c)).length;
+    }
+
+    get mobileVanCountLabel() {
+        return `${this.visibleMobileVanSelectedCount} of ${this.visibleMobileVanCategories.length} selected`;
+    }
+
+    get noMobileVanTiles() {
+        return this.visibleMobileVanCategories.length === 0;
+    }
+
+    get mobileVanSelectAllDisabled() {
+        return this.visibleMobileVanSelectedCount === this.visibleMobileVanCategories.length;
+    }
+
+    get mobileVanClearDisabled() {
+        return this.visibleMobileVanSelectedCount === 0;
+    }
+
+    handleMobileVanFilter(event) {
+        this.mobileVanFilter = event.detail.value || '';
+    }
+
+    handleMobileVanToggle(event) {
+        const category = event.target.dataset.category;
+        const others = this.mobileVanSelected.filter((c) => c !== category);
+        this.mobileVanSelected = event.target.checked ? [...others, category] : others;
+    }
+
+    handleMobileVanSelectAll() {
+        this.mobileVanSelected = [...new Set([...this.mobileVanSelected, ...this.visibleMobileVanCategories])];
+    }
+
+    handleMobileVanClear() {
+        const visible = new Set(this.visibleMobileVanCategories);
+        this.mobileVanSelected = this.mobileVanSelected.filter((c) => !visible.has(c));
     }
 
     /* =====================  SAVE (commit)  ===================== */

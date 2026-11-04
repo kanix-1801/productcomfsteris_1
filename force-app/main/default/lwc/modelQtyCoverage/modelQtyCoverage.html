@@ -384,6 +384,45 @@
                                     matches every value.</span>
                             </p>
                         </template>
+                        <!-- On Location - Mobile Van -->
+                        <template lwc:if={isMobileVanSection}>
+                            <div class="ca-section-head">
+                                <div>
+                                    <h3 class="ca-section-title">On Location Mobile Van</h3>
+                                    <p class="ca-section-sub">Choose the instrument service categories covered by
+                                        on-location mobile van service. Each category chosen is saved as one
+                                        adjustment on this line.</p>
+                                </div>
+                            </div>
+
+                            <div class="ca-tile-toolbar">
+                                <div class="ca-tile-filter">
+                                    <lightning-input type="search" variant="label-hidden" label="Filter categories"
+                                        placeholder="Filter categories..." value={mobileVanFilter}
+                                        onchange={handleMobileVanFilter}></lightning-input>
+                                </div>
+                                <span class="ca-count ca-tile-count" aria-live="polite">{mobileVanCountLabel}</span>
+                                <div class="ca-tile-actions">
+                                    <lightning-button variant="base" label="Select all"
+                                        disabled={mobileVanSelectAllDisabled}
+                                        onclick={handleMobileVanSelectAll}></lightning-button>
+                                    <lightning-button variant="base" label="Clear"
+                                        disabled={mobileVanClearDisabled}
+                                        onclick={handleMobileVanClear}></lightning-button>
+                                </div>
+                            </div>
+
+                            <div class="ca-tile-grid" role="group" aria-label="Mobile van service categories">
+                                <template for:each={mobileVanTiles} for:item="tile">
+                                    <label key={tile.key} class={tile.tileClass}>
+                                        <input type="checkbox" class="ca-tile-check" checked={tile.checked}
+                                            data-category={tile.label} onchange={handleMobileVanToggle} />
+                                        <span class="ca-tile-label">{tile.label}</span>
+                                    </label>
+                                </template>
+                            </div>
+                            <p lwc:if={noMobileVanTiles} class="ca-empty">No categories match "{mobileVanFilter}".</p>
+                        </template>
                     </div>
                 </div>
 

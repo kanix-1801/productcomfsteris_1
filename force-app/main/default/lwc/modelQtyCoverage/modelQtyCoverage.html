@@ -83,10 +83,73 @@
                                 </div>
                             </div>
                             <!-- Search Bar -->
-                            <div class="ca-search-bar">
-                                <lightning-input type="search" label="Add pricing program"
-                                    placeholder="Search program, CT code or category..."
-                                    onchange={handlePricingProgramSearch}></lightning-input>
+                            <div class="ca-search-bar slds-size_2-of-3">
+                                <div class="ca-search-row">
+                                    <lightning-input type="search" label="Add pricing program" class="ca-search-input"
+                                        placeholder="Search program, CT code or category..."
+                                        value={programSearchTerm}
+                                        onchange={handlePricingProgramSearch}></lightning-input>
+                                    <lightning-button label={addProgramsLabel} variant="brand" icon-name="utility:add"
+                                        class="ca-search-add" disabled={addProgramsDisabled}
+                                        onclick={handleAddSelectedPrograms}></lightning-button>
+                                </div>
+
+                                <p lwc:if={programSearchTooShort} class="ca-search-hint" aria-live="polite">
+                                    Type at least 3 characters to search.
+                                </p>
+
+                                <div lwc:if={hasProgramSearchResults} class="ca-search-results">
+                                    <table class="ca-table">
+                                        <thead>
+                                            <tr>
+                                                <th class="ca-col-select"><span class="slds-assistive-text">Select</span></th>
+                                                <th class="ca-col-program">Program</th>
+                                                <th>Description</th>
+                                                <th class="ca-col-ctcode">CT Code</th>
+                                                <th>Category</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <template for:each={programSearchResults} for:item="result">
+                                                <tr key={result.program}>
+                                                    <td class="ca-col-select">
+                                                        <lightning-input type="checkbox" variant="label-hidden"
+                                                            label={result.selectLabel} checked={result.selected}
+                                                            data-program={result.program}
+                                                            onchange={handleProgramSelect}></lightning-input>
+                                                    </td>
+                                                    <td class="ca-col-program">{result.program}</td>
+                                                    <td>{result.description}</td>
+                                                    <td class="ca-col-ctcode">
+                                                        <template lwc:if={result.hasCtCodes}>
+                                                            <span class="ca-ct" tabindex="0">
+                                                                <span class="slds-badge ca-ct-pill">{result.ctPillLabel}</span>
+                                                                <div class="ca-ct-pop" role="tooltip">
+                                                                    <table class="ca-ct-table">
+                                                                        <thead>
+                                                                            <tr><th>CT Code</th><th>Name</th></tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            <template for:each={result.ctCodeList} for:item="ct">
+                                                                                <tr key={ct.key}><td>{ct.code}</td><td>{ct.name}</td></tr>
+                                                                            </template>
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </span>
+                                                        </template>
+                                                        <template lwc:else>—</template>
+                                                    </td>
+                                                    <td>{result.category}</td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <p lwc:if={noProgramSearchResults} class="ca-search-hint">
+                                    No pricing programs match "{programSearchTerm}".
+                                </p>
                             </div>
 
                             <table class="ca-table">
@@ -104,7 +167,26 @@
                                             <td class="ca-col-program">{row.program}</td>
                                             <td>{row.description}</td>
                                             <!-- pricing program line items -->
-                                            <td class="ca-col-ctcode">{row.ctCode}</td> 
+                                            <td class="ca-col-ctcode">
+                                                <template lwc:if={row.hasCtCodes}>
+                                                    <span class="ca-ct" tabindex="0">
+                                                        <span class="slds-badge ca-ct-pill">{row.ctPillLabel}</span>
+                                                        <div class="ca-ct-pop" role="tooltip">
+                                                            <table class="ca-ct-table">
+                                                                <thead>
+                                                                    <tr><th>CT Code</th><th>Name</th></tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    <template for:each={row.ctCodeList} for:item="ct">
+                                                                        <tr key={ct.key}><td>{ct.code}</td><td>{ct.name}</td></tr>
+                                                                    </template>
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </span>
+                                                </template>
+                                                <template lwc:else>—</template>
+                                            </td>
                                             <td class="ca-col-action">
                                                 <lightning-button-icon icon-name="utility:delete"
                                                     variant="border-filled" size="small"

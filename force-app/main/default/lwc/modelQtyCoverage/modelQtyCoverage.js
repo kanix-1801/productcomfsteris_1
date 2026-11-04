@@ -39,6 +39,7 @@ const PICKLIST_FIELDS = ['productLine', 'subProductLine', 'productType', 'manufa
 const SECTION_INC_EXC = 'incExc';
 const SECTION_MODEL_QTY = 'modelQty';
 const SECTION_PRICING = 'pricingPrograms';
+const MIN_PROGRAM_SEARCH_LENGTH = 3;
 const EMPTY_ADJUSTMENTS = { inclusions: [], models: [], pricingPrograms: [], pricingProgram: null };
 
 // A real, saved Quote Line Item Id. New lines in the configurator have temporary "ref_" Ids.
@@ -51,12 +52,30 @@ const pickCriteria = (source) => Object.fromEntries(FIELDS.map((f) => [f, blankT
 const hasAnyValue = (criteria) => FIELDS.some((f) => !!clean(criteria[f]));
 const criteriaKey = (criteria) => FIELDS.map((f) => lower(criteria[f])).join('|');
 const manufacturerKey = (row) => `${lower(row?.productLine)}|${lower(row?.subProductLine)}`;
-// Pricing Program row as stored in the JSON: program, description, CT code
+// A program's CT codes (its child records) as { code, name }; an older single "ctCode" string is read as one code
+const pickCtCodes = (source) => {
+    const list = Array.isArray(source?.ctCodes) ? source.ctCodes : source?.ctCode ? [{ code: source.ctCode }] : [];
+    return list
+        .map((c) => ({ code: clean(c?.code), name: clean(c?.name) }))
+        .filter((c) => c.code);
+};
+// Pricing Program row as stored in the JSON: program, description, CT codes
 const pickProgram = (source) => ({
     program: blankToNull(source?.program),
     description: blankToNull(source?.description),
-    ctCode: blankToNull(source?.ctCode)
+    ctCodes: pickCtCodes(source)
 });
+// CT Code pill: "3 CT Codes · 4410, 4412, 4415" (cut off with an ellipsis by CSS); hover/focus shows the full list
+const ctCodeView = (ctCodes, keyPrefix) => {
+    const codes = ctCodes || [];
+    const count = codes.length;
+    return {
+        hasCtCodes: count > 0,
+        ctCount: count,
+        ctPillLabel: `${count} CT ${count === 1 ? 'Code' : 'Codes'} · ${codes.map((c) => c.code).join(', ')}`,
+        ctCodeList: codes.map((c, i) => ({ key: `${keyPrefix}-ct-${i}`, code: c.code, name: c.name || '—' }))
+    };
+};
 
 export default class ModelQtyCoverage extends LightningElement {
     // configuratorContext > transactionLineId: the configuration's root line
@@ -95,9 +114,12 @@ export default class ModelQtyCoverage extends LightningElement {
     modelRows = [];
     pricingRows = [];
     _seq = 0;
-
+ 
     // Known Pricing Programs: name, description, CT code (dummy JSON for now, see pricingProgramsMockData.js)
     pricingPrograms = PRICING_PROGRAMS;
+    // "Add pricing program" search bar
+    programSearchTerm = '';
+    selectedProgramNames = [];
 
     productLineValues = [];
     subProductLineValues = [];
@@ -331,6 +353,7 @@ export default class ModelQtyCoverage extends LightningElement {
         this.modelRows = c.models.map((m) => this.newModelRow(m, m.qty));
         if (!this.modelRows.length) this.modelRows = [this.newModelRow()];
         this.pricingRows = c.pricingPrograms.map((p) => this.newPricingRow(p));
+        this.resetProgramSearch();
         this.ensureManufacturers({}); // new rows start at Any / Any
         this.incRules.forEach((r) => {
             this.ensureSubProductLines(r.productLine);
@@ -703,6 +726,77 @@ export default class ModelQtyCoverage extends LightningElement {
 
     get noPricingRows() {
         return this.pricingRows.length === 0;
+    }
+
+    /* ---------- Add pricing program: search + select ---------- */
+    // Searches the known programs by program name, CT code or category once 3+ characters are typed.
+    // Checked results are added as rows by the Add button; programs already in the table are not offered.
+
+    get programSearchTooShort() {
+        const len = this.programSearchTerm.length;
+        return len > 0 && len < MIN_PROGRAM_SEARCH_LENGTH;
+    }
+
+    get isProgramSearchActive() {
+        return this.programSearchTerm.length >= MIN_PROGRAM_SEARCH_LENGTH;
+    }
+
+    get programSearchResults() {
+        if (!this.isProgramSearchActive) return [];
+        const term = this.programSearchTerm.toLowerCase();
+        const added = new Set(this.pricingRows.map((r) => r.program));
+        return this.pricingPrograms
+            .filter((p) => !added.has(p.program))
+            .filter((p) =>
+                [p.program, p.ctCode, p.category].some((v) => (v || '').toLowerCase().includes(term))
+            )
+            .map((p) => ({
+                ...p,
+                category: p.category || '—',
+                selected: this.selectedProgramNames.includes(p.program),
+                selectLabel: `Select ${p.program}`
+            }));
+    }
+
+    get hasProgramSearchResults() {
+        return this.programSearchResults.length > 0;
+    }
+
+    get noProgramSearchResults() {
+        return this.isProgramSearchActive && !this.hasProgramSearchResults;
+    }
+
+    get addProgramsDisabled() {
+        return this.selectedProgramNames.length === 0;
+    }
+
+    get addProgramsLabel() {
+        const n = this.selectedProgramNames.length;
+        return n ? `Add (${n})` : 'Add';
+    }
+
+    resetProgramSearch() {
+        this.programSearchTerm = '';
+        this.selectedProgramNames = [];
+    }
+
+    handlePricingProgramSearch(event) {
+        this.programSearchTerm = clean(event.detail.value);
+    }
+
+    handleProgramSelect(event) {
+        const program = event.target.dataset.program;
+        const others = this.selectedProgramNames.filter((name) => name !== program);
+        this.selectedProgramNames = event.target.checked ? [...others, program] : others;
+    }
+
+    handleAddSelectedPrograms() {
+        const added = new Set(this.pricingRows.map((r) => r.program));
+        const toAdd = this.pricingPrograms.filter(
+            (p) => this.selectedProgramNames.includes(p.program) && !added.has(p.program)
+        );
+        this.pricingRows = [...this.pricingRows, ...toAdd.map((p) => this.newPricingRow(p))];
+        this.resetProgramSearch();
     }
 
     handleRemovePricingProgram(event) {

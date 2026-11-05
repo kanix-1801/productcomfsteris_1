@@ -201,7 +201,7 @@ Field rules (enforced on both sides):
 | Import | What for |
 |---|---|
 | `lightning/messageService` + `lightning__productConfigurator_notification` | Listen for configurator `navigate` messages, and send `valueChanged` |
-| `getObjectInfo`, `getPicklistValues` | Picklist values for `ContractModifier__c.ProductLine__c / SubProductLine__c / ProductType__c` |
+| `getObjectInfo`, `getPicklistValues` | Picklist values for `ContractModifier__c.ProductLine__c / SubProductLine__c / ProductType__c`, and for `ContractAdjustment__c.InstrumentServices__c` (Mobile Van categories) |
 | `getAttributeIds` (EsServiceProductConfigController) | Id of the `ModelQtyCoverage__c` context attribute, needed for the save message |
 | `getCoverage`, `getAssetCatalog`, `getManufacturers`, `getSubProductLines` | ModelQtyCoverageController |
 | `PRICING_PROGRAMS`, `PRICING_PROGRAM_SAMPLE_ROWS` | Mock data file |
@@ -216,7 +216,6 @@ Key constants:
 | `MODEL_MAX_LENGTH` / `QTY_MAX` | 100 / 99999 | Field limits, matching the Apex side |
 | `SECTION_*` | `incExc`, `modelQty`, `pricingPrograms`, `onLocationMobileVan` | Tab keys |
 | `MIN_PROGRAM_SEARCH_LENGTH` | 3 | Pricing program search starts at 3 characters |
-| `MOBILE_VAN_CATEGORIES` | 14 hard-coded names | Mobile Van tiles (Laparoscopic - Basic, Stainless, …) |
 | `EMPTY_ADJUSTMENTS` | all empty | Used when there is no line |
 
 ### 5.3 Module-level helper functions
@@ -247,7 +246,8 @@ Key constants:
 | `incRules`, `modelRows`, `pricingRows` | **Working copies** edited in the modal |
 | `pricingPrograms` | The list of known programs (mock for now) |
 | `programSearchTerm`, `selectedProgramNames` | "Add pricing program" search |
-| `mobileVanFilter`, `mobileVanSelected` | Mobile Van filter and checked categories |
+| `mobileVanFilter`, `mobileVanSelected` | Mobile Van filter and checked categories (picklist **API values**) |
+| `mobileVanCategories`, `mobileVanCategoriesLoaded`, `mobileVanError` | `InstrumentServices__c` picklist values (`{label, value}`), whether they have loaded, and any load error |
 | `productLineValues`, `subProductLineValues`, `productTypeValues` | Picklist values from the wires |
 | `subProductLinesByLine` | Cache: Product Line → its valid Sub Product Lines |
 | `manufacturersByLine` | Cache: "PL|SPL" → manufacturers on the account's assets |
@@ -260,6 +260,7 @@ Key constants:
 - `objectInfo` → `ContractModifier__c` object info (gives the default record type for the picklist wires).
 - `wiredProductLines`, `wiredSubProductLineValues`, `wiredProductTypes` → picklist values.
 - `wiredAssetCatalog` → `getAssetCatalog({ quoteId: transactionId })` → `assetGroups`.
+- `contractAdjustmentInfo` → `ContractAdjustment__c` object info. `wiredInstrumentServices` uses its **`defaultRecordTypeId`** (the running user's default record type) to get the `InstrumentServices__c` picklist values → `mobileVanCategories`.
 
 **`connectedCallback()`**
 1. Subscribes to the configurator message channel (application scope).
@@ -360,12 +361,14 @@ Key constants:
 
 ### 5.11 Tab 4: On Location - Mobile Van (UI only)
 
-**Data:** `MOBILE_VAN_CATEGORIES` (14 fixed names), `mobileVanSelected[]`, `mobileVanFilter`.
+**Data:** `mobileVanCategories` (the active values of the restricted picklist **`ContractAdjustment__c.InstrumentServices__c`**, loaded through `uiObjectInfoApi` for the user's **default record type**; 14 values in `steris-cbmdev`), `mobileVanSelected[]` (API values), `mobileVanFilter`.
 
 | Method | Behaviour |
 |---|---|
-| `visibleMobileVanCategories` | Categories that match the filter |
-| `mobileVanTiles` | One tile per category, each with a checkbox and checked styling |
+| `wiredInstrumentServices` | Stores the picklist values. On error, sets `mobileVanError`, which shows **inside this tab only** so the other tabs keep working |
+| `visibleMobileVanCategories` | Categories whose **label** matches the filter |
+| `mobileVanTiles` | One tile per category: shows the label, the checkbox carries the value |
+| `mobileVanEmptyMessage` | "Loading categories...", the load error, "No instrument service categories are available.", or "No categories match …" |
 | `mobileVanCountLabel` | "3 of 14 selected" (counts only the tiles shown) |
 | `handleMobileVanToggle` | Ticks or clears one category |
 | `handleMobileVanSelectAll` / `handleMobileVanClear` | Act on the **tiles shown** |

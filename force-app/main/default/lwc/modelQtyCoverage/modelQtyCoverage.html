@@ -416,12 +416,12 @@
                                 <template for:each={mobileVanTiles} for:item="tile">
                                     <label key={tile.key} class={tile.tileClass}>
                                         <input type="checkbox" class="ca-tile-check" checked={tile.checked}
-                                            data-category={tile.label} onchange={handleMobileVanToggle} />
+                                            data-category={tile.value} onchange={handleMobileVanToggle} />
                                         <span class="ca-tile-label">{tile.label}</span>
                                     </label>
                                 </template>
                             </div>
-                            <p lwc:if={noMobileVanTiles} class="ca-empty">No categories match "{mobileVanFilter}".</p>
+                            <p lwc:if={noMobileVanTiles} class="ca-empty">{mobileVanEmptyMessage}</p>
                         </template>
                     </div>
                 </div>

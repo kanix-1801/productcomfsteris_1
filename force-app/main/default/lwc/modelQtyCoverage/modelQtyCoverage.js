@@ -14,6 +14,8 @@ import CONTRACT_MODIFIER_OBJECT from '@salesforce/schema/ContractModifier__c';
 import PRODUCT_LINE_FIELD from '@salesforce/schema/ContractModifier__c.ProductLine__c';
 import SUB_PRODUCT_LINE_FIELD from '@salesforce/schema/ContractModifier__c.SubProductLine__c';
 import PRODUCT_TYPE_FIELD from '@salesforce/schema/ContractModifier__c.ProductType__c';
+import CONTRACT_ADJUSTMENT_OBJECT from '@salesforce/schema/ContractAdjustment__c';
+import INSTRUMENT_SERVICES_FIELD from '@salesforce/schema/ContractAdjustment__c.InstrumentServices__c';
 import getManufacturers from '@salesforce/apex/ModelQtyCoverageController.getManufacturers';
 import getSubProductLines from '@salesforce/apex/ModelQtyCoverageController.getSubProductLines';
 import getAssetCatalog from '@salesforce/apex/ModelQtyCoverageController.getAssetCatalog';
@@ -38,14 +40,6 @@ const SECTION_MODEL_QTY = 'modelQty';
 const SECTION_PRICING = 'pricingPrograms';
 const SECTION_MOBILE_VAN = 'onLocationMobileVan';
 const MIN_PROGRAM_SEARCH_LENGTH = 3;
-// On Location - Mobile Van: instrument service categories (UI only for now, not saved with the configuration)
-const MOBILE_VAN_CATEGORIES = [
-    'Laparoscopic - Basic', 'Laparoscopic - Extensive', 'Stainless',
-    'Case Cart - Basic', 'Case Cart - Extensive', 'Arthroscopic',
-    'Uro/Cysto Instruments', 'Laser Marking', 'iExchange',
-    'Rolling Stock', 'Container - Basic', 'Container - Extensive',
-    'Retractor Systems', 'Positioners'
-];
 const EMPTY_ADJUSTMENTS = { inclusions: [], models: [], pricingPrograms: [], pricingProgram: null };
 
 // A real, saved Quote Line Item Id. New lines in the configurator have temporary "ref_" Ids.
@@ -128,7 +122,12 @@ export default class ModelQtyCoverage extends LightningElement {
     selectedProgramNames = [];
     // On Location - Mobile Van: category filter and the categories checked
     mobileVanFilter = '';
-    mobileVanSelected = [];
+    mobileVanSelected = []; // picklist API values
+    // On Location - Mobile Van categories: ContractAdjustment__c.InstrumentServices__c picklist values
+    // ({ label, value }) for the user's default record type. UI only for now, not saved with the configuration.
+    mobileVanCategories = [];
+    mobileVanCategoriesLoaded = false;
+    mobileVanError;
 
     productLineValues = [];
     subProductLineValues = [];
@@ -166,6 +165,25 @@ export default class ModelQtyCoverage extends LightningElement {
     wiredProductTypes({ data, error }) {
         if (data) this.productTypeValues = data.values;
         else if (error) this.errorMessage = reduceError(error);
+    }
+
+    // Contract Adjustment object info: its defaultRecordTypeId drives the Instrument Services picklist values
+    @wire(getObjectInfo, { objectApiName: CONTRACT_ADJUSTMENT_OBJECT })
+    contractAdjustmentInfo;
+
+    @wire(getPicklistValues, {
+        recordTypeId: '$contractAdjustmentInfo.data.defaultRecordTypeId',
+        fieldApiName: INSTRUMENT_SERVICES_FIELD
+    })
+    wiredInstrumentServices({ data, error }) {
+        if (data) {
+            this.mobileVanCategories = data.values.map((v) => ({ label: v.label, value: v.value }));
+            this.mobileVanCategoriesLoaded = true;
+        } else if (error) {
+            // Shown in the Mobile Van tab only: the other tabs still work without this object
+            this.mobileVanCategoriesLoaded = true;
+            this.mobileVanError = reduceError(error);
+        }
     }
 
     @wire(getAssetCatalog, { quoteId: '$transactionId' })
@@ -850,20 +868,30 @@ export default class ModelQtyCoverage extends LightningElement {
     // Tiles with a checkbox per category. The filter narrows the tiles shown; the count, Select all and Clear
     // work on the tiles shown.
 
+    // Categories ({ label, value }) whose label matches the filter
     get visibleMobileVanCategories() {
         const term = lower(this.mobileVanFilter);
-        return term ? MOBILE_VAN_CATEGORIES.filter((c) => c.toLowerCase().includes(term)) : MOBILE_VAN_CATEGORIES;
+        return term
+            ? this.mobileVanCategories.filter((c) => c.label.toLowerCase().includes(term))
+            : this.mobileVanCategories;
     }
 
     get mobileVanTiles() {
-        return this.visibleMobileVanCategories.map((label) => {
-            const checked = this.mobileVanSelected.includes(label);
-            return { key: label, label, checked, tileClass: `ca-tile${checked ? ' ca-tile_checked' : ''}` };
+        return this.visibleMobileVanCategories.map(({ label, value }) => {
+            const checked = this.mobileVanSelected.includes(value);
+            return { key: value, label, value, checked, tileClass: `ca-tile${checked ? ' ca-tile_checked' : ''}` };
         });
     }
 
     get visibleMobileVanSelectedCount() {
-        return this.visibleMobileVanCategories.filter((c) => this.mobileVanSelected.includes(c)).length;
+        return this.visibleMobileVanCategories.filter((c) => this.mobileVanSelected.includes(c.value)).length;
+    }
+
+    get mobileVanEmptyMessage() {
+        if (!this.mobileVanCategoriesLoaded) return 'Loading categories...';
+        if (this.mobileVanError) return `Unable to load the instrument service categories: ${this.mobileVanError}`;
+        if (!this.mobileVanCategories.length) return 'No instrument service categories are available.';
+        return `No categories match "${this.mobileVanFilter}".`;
     }
 
     get mobileVanCountLabel() {
@@ -893,11 +921,12 @@ export default class ModelQtyCoverage extends LightningElement {
     }
 
     handleMobileVanSelectAll() {
-        this.mobileVanSelected = [...new Set([...this.mobileVanSelected, ...this.visibleMobileVanCategories])];
+        const visible = this.visibleMobileVanCategories.map((c) => c.value);
+        this.mobileVanSelected = [...new Set([...this.mobileVanSelected, ...visible])];
     }
 
     handleMobileVanClear() {
-        const visible = new Set(this.visibleMobileVanCategories);
+        const visible = new Set(this.visibleMobileVanCategories.map((c) => c.value));
         this.mobileVanSelected = this.mobileVanSelected.filter((c) => !visible.has(c));
     }
 

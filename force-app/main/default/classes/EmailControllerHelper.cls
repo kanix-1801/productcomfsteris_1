@@ -917,6 +917,59 @@ public static List<CaseContactRole> getReceivingAndInstallContacts(Id caseId) {
         }
     }
     
+    public static DateTime firstNonPreInstallScheduleDate(Id caseId) {
+        try {
+            
+            // Used to simulate exception scenarios during test execution, if applicable.
+            throwIfTestException(caseId);
+
+            // Fetch scheduled equipment Order Items related to the Case.
+            List<Order> orderList = [SELECT id, FirstScheduledDateNonPreinstall__c from Order WHERE ParentCase__c =: caseId];
+            return (DateTime)orderList[0].FirstScheduledDateNonPreinstall__c;
+            
+        } catch (Exception ex) {
+            // Log exception details for troubleshooting and rethrow to preserve existing behavior.
+            ErrorLogger.logException(ex, 'EmailControllerHelper', 'firstNonPreInstallScheduleDate');
+            throw ex;
+        }
+    } 
+    
+    public static List<OrderItem> equipmentScheduleDetail(Id caseId) {
+        try {
+            // Return an empty list if Case Id is not provided.
+            if (caseId == null) {
+                return new List<OrderItem>();
+            }
+
+            // Used to simulate exception scenarios during test execution, if applicable.
+            throwIfTestException(caseId);
+
+            // Fetch scheduled equipment Order Items related to the Case.
+            return [
+                SELECT Id,
+                    LineNumber__c,
+                    Product2.ProductCode,
+                    Product2.Description,
+                    Quantity,
+                    ScheduledDate__c, 
+                    ShipToAddressID__r.Street, ShipToAddressID__r.City, ShipToAddressID__r.State, ShipToAddressID__r.PostalCode, ShipToAddressID__r.Country
+                FROM OrderItem
+                WHERE OrderLineType__c = 'Trade In Lines'
+                AND ScheduledDate__c != null
+                AND ScheduledDate__c != 2049-12-31
+                AND ActualShipmentDate__c = null
+                AND Order.ParentCase__c = :caseId
+                AND OrderLineStatus__c NOT IN ('Cancelled', 'Closed')
+                AND OrderLineNumber__c != 0
+                ORDER BY OrderLineNumber__c ASC
+            ];
+        } catch (Exception ex) {
+            // Log exception details for troubleshooting and rethrow to preserve existing behavior.
+            ErrorLogger.logException(ex, 'EmailControllerHelper', 'equipmentScheduleDetail');
+            throw ex;
+        }
+    }
+    
     /**
      * @description Calculates Scheduled ship date based on product line and lead-time rules.
      * @param caseId Controller property used to identify the Case

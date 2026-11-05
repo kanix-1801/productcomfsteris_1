@@ -5,6 +5,8 @@ public with sharing class CreateReturnOrderController {
 
     private static final String STATUS_CREATED = 'Created';
     private static final String LOCATION_TYPE_REPAIR_CENTER = 'Repair Center';
+    /** @description GW-6017 - CRSS work orders hold their repair-center lines directly, without child work orders. */
+    private static final String CRSS_WORK_ORDER_RECORD_TYPE = 'CRSSFieldRepair';
     private static final Set<String> CLOSED_RETURN_ORDER_STATUSES = new Set<String>{
         'Canceled',
         'Closed'
@@ -1182,7 +1184,9 @@ public with sharing class CreateReturnOrderController {
             ) {
                 ordersResult.returnOrders.add(toCreateResult(created));
             }
-            clearSendToRepairCenter(lineObjectsFromGroupsJson(groupsJson));
+            List<Object> lineObjects = lineObjectsFromGroupsJson(groupsJson);
+            clearSendToRepairCenter(lineObjects);
+            clearCrssSendToRepairCenterByAsset(headerJson, lineObjects);
             return ordersResult;
         } catch (Exception e) {
             throw new AuraHandledException(e.getMessage());
@@ -1199,6 +1203,7 @@ public with sharing class CreateReturnOrderController {
                 ? (List<Object>) JSON.deserializeUntyped(lineItemsJson)
                 : new List<Object>();
             clearSendToRepairCenter(lineObjects);
+            clearCrssSendToRepairCenterByAsset(headerJson, lineObjects);
             return result;
         } catch (Exception e) {
             throw new AuraHandledException(e.getMessage());
@@ -1354,7 +1359,8 @@ public with sharing class CreateReturnOrderController {
                 ContactId,
                 Contact.Name,
                 AssetId,
-                WorkOrderNumber
+                WorkOrderNumber,
+                RecordType.DeveloperName
             FROM WorkOrder
             WHERE Id = :workOrderId
             WITH USER_MODE
@@ -1370,7 +1376,83 @@ public with sharing class CreateReturnOrderController {
         ctx.workOrderLabel = workOrder.WorkOrderNumber;
         ctx.lockWorkOrder = true;
 
-        addWorkOrderAssetIds(ctx, workOrderId, workOrder.AssetId);
+        if (workOrder.RecordType?.DeveloperName == CRSS_WORK_ORDER_RECORD_TYPE) {
+            addCrssRepairCenterAssetIds(ctx, workOrderId);
+        } else {
+            addWorkOrderAssetIds(ctx, workOrderId, workOrder.AssetId);
+        }
+    }
+
+    /**
+     * @description GW-6017 - CRSS work orders return only the lines marked Send to Repair Center.
+     * @param ctx Wizard context
+     * @param workOrderId CRSS Work Order Id
+     */
+    private static void addCrssRepairCenterAssetIds(InitContext ctx, Id workOrderId) {
+        Set<Id> addedAssetIds = new Set<Id>();
+        for (WorkOrderLineItem lineItem : [
+            SELECT AssetId
+            FROM WorkOrderLineItem
+            WHERE WorkOrderId = :workOrderId
+                AND AssetId != NULL
+                AND SendToRepairCenter__c = TRUE
+            WITH USER_MODE
+            ORDER BY LineItemNumber ASC NULLS LAST, CreatedDate ASC
+        ]) {
+            if (addedAssetIds.add(lineItem.AssetId)) {
+                ctx.assetIds.add(String.valueOf(lineItem.AssetId));
+            }
+        }
+    }
+
+    /**
+     * @description GW-6017 - Clears Send to Repair Center on CRSS lines whose asset was placed on a return order.
+     *              CRSS lines reach the wizard as assets, so they carry no source line id.
+     * @param headerJson Header payload from the LWC
+     * @param lineObjects Line payloads from the create request
+     */
+    @TestVisible
+    private static void clearCrssSendToRepairCenterByAsset(String headerJson, List<Object> lineObjects) {
+        if (String.isBlank(headerJson) || lineObjects == null || lineObjects.isEmpty()) {
+            return;
+        }
+        Object header = JSON.deserializeUntyped(headerJson);
+        if (!(header instanceof Map<String, Object>)) {
+            return;
+        }
+        Object rawWorkOrderId = ((Map<String, Object>) header).get('workOrderId');
+        Id workOrderId = parseId(rawWorkOrderId == null ? null : String.valueOf(rawWorkOrderId));
+        if (workOrderId == null || workOrderId.getSobjectType() != WorkOrder.SObjectType) {
+            return;
+        }
+        Set<Id> assetIds = new Set<Id>();
+        for (Object lineObj : lineObjects) {
+            if (!(lineObj instanceof Map<String, Object>)) {
+                continue;
+            }
+            Object rawAssetId = ((Map<String, Object>) lineObj).get('assetId');
+            Id assetId = parseId(rawAssetId == null ? null : String.valueOf(rawAssetId));
+            if (assetId != null) {
+                assetIds.add(assetId);
+            }
+        }
+        if (assetIds.isEmpty()) {
+            return;
+        }
+        List<WorkOrderLineItem> updates = new List<WorkOrderLineItem>();
+        for (WorkOrderLineItem lineItem : [
+            SELECT Id
+            FROM WorkOrderLineItem
+            WHERE WorkOrderId = :workOrderId
+                AND WorkOrder.RecordType.DeveloperName = :CRSS_WORK_ORDER_RECORD_TYPE
+                AND AssetId IN :assetIds
+                AND SendToRepairCenter__c = TRUE
+        ]) {
+            updates.add(new WorkOrderLineItem(Id = lineItem.Id, SendToRepairCenter__c = false));
+        }
+        if (!updates.isEmpty()) {
+            update updates;
+        }
     }
 
     private static void addWorkOrderAssetIds(

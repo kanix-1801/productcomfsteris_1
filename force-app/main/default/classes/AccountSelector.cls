@@ -554,4 +554,38 @@ public with sharing class AccountSelector extends SoqlQueryBuilder {
             .limitTo(1)
             .execute();
     }
+
+    /**
+     * @description GW-2710 - Address accounts for Tech Account Alignment, matched by Oracle Address Id.
+     * @param oracleAddressIds Address IDs from the upload file.
+     * @return Address accounts, including the parent fields the distributor check reads.
+     */
+    public static List<Account> selectAddressAccountsByOracleAddressIds(Set<String> oracleAddressIds) {
+        if (oracleAddressIds == null || oracleAddressIds.isEmpty()) {
+            return new List<Account>();
+        }
+        List<String> addressIds = new List<String>();
+        addressIds.addAll(oracleAddressIds);
+        return (List<Account>) new AccountSelector()
+            .selectFields(
+                new List<String>{
+                    'Id',
+                    'Name',
+                    'Type',
+                    'ParentId',
+                    'OracleAddressId__c',
+                    'ShiptoAddressStatus__c',
+                    'BilltoAddressStatus__c',
+                    'NotServiceable__c',
+                    'SMI__c',
+                    'CustomerProfileClass__c',
+                    'Parent.Type',
+                    'Parent.SMI__c',
+                    'Parent.CustomerProfileClass__c'
+                }
+            )
+            .whereEquals('Type', 'Address')
+            .whereIn('OracleAddressId__c', addressIds)
+            .execute();
+    }
 }

@@ -1,0 +1,121 @@
+<template>
+    <div class={formElementClass}>
+        <div class="label-row" if:true={label}>
+            <label class="picker-label">
+                <abbr if:true={required} class="required-mark" title="required">*</abbr>
+                {label}
+            </label>
+            <lightning-helptext content={helpText}></lightning-helptext>
+        </div>
+
+        <div class="picker-control">
+            <div class={comboboxClass} data-id="combobox">
+                <!-- Multi-select -->
+                <template if:true={allowMultiple}>
+                    <div class={multiInputShellClass}>
+                        <template for:each={selectionItems} for:item="item">
+                            <lightning-pill
+                                key={item.id}
+                                class="selection-pill"
+                                label={item.name}
+                                name={item.id}
+                                onremove={handlePillRemove}
+                            ></lightning-pill>
+                        </template>
+                        <input
+                            type="text"
+                            class="search-input"
+                            data-id="search-input"
+                            role="combobox"
+                            aria-autocomplete="list"
+                            aria-expanded={dropdownOpen}
+                            aria-haspopup="listbox"
+                            autocomplete="off"
+                            placeholder={resolvedPlaceholder}
+                            value={searchTerm}
+                            onfocus={handleFocus}
+                            onblur={handleBlur}
+                            oninput={handleSearchInput}
+                            onkeydown={handleSearchKeyDown}
+                        />
+                        <lightning-icon
+                            class="search-icon"
+                            icon-name="utility:search"
+                            size="x-small"
+                            alternative-text="Search"
+                        ></lightning-icon>
+                    </div>
+                </template>
+
+                <!-- Single-select -->
+                <template if:false={allowMultiple}>
+                    <template if:true={hasSingleSelection}>
+                        <div class="input-shell selected-shell" data-id="selected-shell">
+                            <lightning-pill
+                                class="selection-pill"
+                                label={singleSelectionName}
+                                name={singleSelectionId}
+                                onremove={handlePillRemove}
+                            ></lightning-pill>
+                        </div>
+                    </template>
+                    <template if:false={hasSingleSelection}>
+                        <div class={inputShellClass}>
+                            <input
+                                type="text"
+                                class="search-input search-input_full"
+                                data-id="search-input"
+                                role="combobox"
+                                aria-autocomplete="list"
+                                aria-expanded={dropdownOpen}
+                                aria-haspopup="listbox"
+                                autocomplete="off"
+                                placeholder={resolvedPlaceholder}
+                                value={searchTerm}
+                                onfocus={handleFocus}
+                                onblur={handleBlur}
+                                oninput={handleSearchInput}
+                                onkeydown={handleSearchKeyDown}
+                            />
+                            <lightning-icon
+                                class="search-icon"
+                                icon-name="utility:search"
+                                size="x-small"
+                                alternative-text="Search"
+                            ></lightning-icon>
+                        </div>
+                    </template>
+                </template>
+
+                <template if:true={showDropdown}>
+                    <div class="dropdown-panel" role="listbox" data-id="dropdown-panel">
+                        <template if:true={isLoading}>
+                            <div class="dropdown-option dropdown-option_muted">Searching…</div>
+                        </template>
+                        <template for:each={displayOptions} for:item="option">
+                            <div
+                                key={option.id}
+                                class="dropdown-option"
+                                role="option"
+                                data-id="option"
+                                data-record-id={option.id}
+                                data-record-name={option.name}
+                                onmousedown={handleOptionMouseDown}
+                                onclick={handleSelectOption}
+                            >
+                                <span class={option.optionClass} title={option.label}>{option.label}</span>
+                            </div>
+                        </template>
+                        <template if:true={showEmptyState}>
+                            <div class="dropdown-option dropdown-option_muted">No matches found</div>
+                        </template>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <template if:true={errorMessage}>
+            <div class="error-text" data-id="error" role="alert">{errorMessage}</div>
+        </template>
+    </div>
+</template>

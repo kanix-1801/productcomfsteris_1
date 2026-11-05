@@ -52,4 +52,35 @@ public with sharing class AddressResourcePreferencesSelector extends SoqlQueryBu
             .whereEquals('PreferenceLevel__c', preferenceLevel)
             .execute();
     }
+
+    /**
+     * @description GW-2710 - Existing preferences for the Address accounts in an alignment file.
+     * @param addressAccountIds Address Account Ids being assigned.
+     * @return Existing preference records.
+     */
+    public static List<AddressResourcePreference__c> selectByAddressAccountIds(Set<Id> addressAccountIds) {
+        List<String> accountIds = new List<String>();
+        if (addressAccountIds != null) {
+            for (Id addressAccountId : addressAccountIds) {
+                if (addressAccountId != null) {
+                    accountIds.add(addressAccountId);
+                }
+            }
+        }
+        if (accountIds.isEmpty()) {
+            return new List<AddressResourcePreference__c>();
+        }
+        return (List<AddressResourcePreference__c>) new AddressResourcePreferencesSelector()
+            .selectFields(
+                new List<String>{
+                    'Id',
+                    'AddressAccount__c',
+                    'ServiceResource__c',
+                    'TerritoryType__c',
+                    'WorkType__c'
+                }
+            )
+            .whereIn('AddressAccount__c', accountIds)
+            .execute();
+    }
 }

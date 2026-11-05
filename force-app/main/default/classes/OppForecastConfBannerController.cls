@@ -5,6 +5,9 @@
  * @description Apex controller for the Opportunity forecast confidence propagation banner LWC.
  */
 public with sharing class OppForecastConfBannerController {
+    @TestVisible
+    private static Boolean forceExceptionForTest = false;
+
     /**
      * @description Returns banner visibility and applicable quotes for an Opportunity.
      * @param opportunityId Opportunity record Id.
@@ -13,6 +16,10 @@ public with sharing class OppForecastConfBannerController {
     @AuraEnabled(cacheable=true)
     public static OppForecastConfPropagateService.BannerContext getBannerContext(Id opportunityId) {
         try {
+            if (Test.isRunningTest() && forceExceptionForTest == true) {
+                throw new QueryException('Forced test exception for getBannerContext.');
+            }
+
             return OppForecastConfPropagateService.getBannerContext(opportunityId);
         } catch (Exception exceptionValue) {
             ErrorLogger.logException(
@@ -32,6 +39,10 @@ public with sharing class OppForecastConfBannerController {
     @AuraEnabled
     public static void propagateSelectedQuotes(Id opportunityId, List<Id> quoteIds) {
         try {
+            if (Test.isRunningTest() && forceExceptionForTest == true) {
+                throw new QueryException('Forced test exception for propagateSelectedQuotes.');
+            }
+
             OppForecastConfPropagateService.propagateSelectedQuotes(opportunityId, quoteIds);
         } catch (AuraHandledException exceptionValue) {
             throw exceptionValue;

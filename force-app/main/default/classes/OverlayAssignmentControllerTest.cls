@@ -8,6 +8,7 @@
  * Unit tests for OverlayAssignmentController, OverlayAssignmentService, selectors, and OverlayAssignmentException.
  * Covers territory/account/user search, account retrieval, assignment summary, submit flows, exception paths, and selector queries.
  * GC-3352 - Overlay ATM insert copies coverage fields from a matching source Order Line Contact.
+ * Also covers AccountAccountRelationshipSelector (GW-4861).
  */
 @IsTest(SeeAllData=false)
 private class OverlayAssignmentControllerTest {
@@ -396,17 +397,13 @@ private class OverlayAssignmentControllerTest {
         ********************************************/
         Boolean threw = false;
         try {
-            throwOverlayAssignmentException(expectedMessage);
+            throw new OverlayAssignmentException(expectedMessage);
         } catch (OverlayAssignmentException e) {
             threw = true;
             System.assertEquals(expectedMessage, e.getMessage());
         }
 
         System.assert(threw, 'OverlayAssignmentException should be throwable');
-    }
-
-    private static void throwOverlayAssignmentException(String expectedMessage) {
-        throw new OverlayAssignmentException(expectedMessage);
     }
 
     /**

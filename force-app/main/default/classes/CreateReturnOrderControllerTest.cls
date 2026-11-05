@@ -654,6 +654,78 @@ private class CreateReturnOrderControllerTest {
         System.assertEquals(String.valueOf(lineAsset.Id), ctx.assetIds[1]);
     }
 
+    /**
+     * @description GW-6017 - A CRSS work order returns only lines marked Send to Repair Center,
+     *              and the mark is cleared once the asset is placed on a return order.
+     */
+    @isTest
+    static void testCrssWorkOrderReturnsMarkedLinesOnly() {
+        Account account = [SELECT Id FROM Account LIMIT 1];
+        Asset headerAsset = [SELECT Id, Product2Id, Department__c FROM Asset LIMIT 1];
+        WorkOrder workOrder = new WorkOrder(
+            AccountId = account.Id,
+            AssetId = headerAsset.Id,
+            Status = 'New',
+            RecordTypeId = Schema.SObjectType.WorkOrder
+                .getRecordTypeInfosByDeveloperName()
+                .get('CRSSFieldRepair')
+                .getRecordTypeId()
+        );
+        insert workOrder;
+
+        Asset markedAsset = new Asset(
+            Name = 'CRSS Marked Asset',
+            AccountId = account.Id,
+            SerialNumber = 'SN-CRSS-001',
+            Product2Id = headerAsset.Product2Id,
+            Department__c = headerAsset.Department__c
+        );
+        Asset unmarkedAsset = new Asset(
+            Name = 'CRSS Unmarked Asset',
+            AccountId = account.Id,
+            SerialNumber = 'SN-CRSS-002',
+            Product2Id = headerAsset.Product2Id,
+            Department__c = headerAsset.Department__c
+        );
+        insert new List<Asset>{ markedAsset, unmarkedAsset };
+
+        Id productServicedRecordTypeId = Schema.SObjectType.WorkOrderLineItem
+            .getRecordTypeInfosByDeveloperName()
+            .get('ProductServiced')
+            .getRecordTypeId();
+        WorkOrderLineItem markedLine = new WorkOrderLineItem(
+            WorkOrderId = workOrder.Id,
+            RecordTypeId = productServicedRecordTypeId,
+            AssetId = markedAsset.Id,
+            LineType__c = 'Product Serviced',
+            SendToRepairCenter__c = true
+        );
+        WorkOrderLineItem unmarkedLine = new WorkOrderLineItem(
+            WorkOrderId = workOrder.Id,
+            RecordTypeId = productServicedRecordTypeId,
+            AssetId = unmarkedAsset.Id,
+            LineType__c = 'Product Serviced'
+        );
+        insert new List<WorkOrderLineItem>{ markedLine, unmarkedLine };
+
+        Test.startTest();
+        CreateReturnOrderController.InitContext ctx =
+            CreateReturnOrderController.getInitialContext(workOrder.Id, 'WorkOrder', null);
+        CreateReturnOrderController.clearCrssSendToRepairCenterByAsset(
+            JSON.serialize(new Map<String, Object>{ 'workOrderId' => workOrder.Id }),
+            new List<Object>{ new Map<String, Object>{ 'assetId' => String.valueOf(markedAsset.Id) } }
+        );
+        Test.stopTest();
+
+        System.assertEquals(1, ctx.assetIds.size(), 'Only the marked line asset should be returned.');
+        System.assertEquals(String.valueOf(markedAsset.Id), ctx.assetIds[0]);
+        System.assertEquals(
+            false,
+            [SELECT SendToRepairCenter__c FROM WorkOrderLineItem WHERE Id = :markedLine.Id].SendToRepairCenter__c,
+            'Send to Repair Center should be cleared after the return order is created.'
+        );
+    }
+
     @isTest
     static void testCreateReturnOrder_fromWorkOrderHeader() {
         Account account = [SELECT Id FROM Account LIMIT 1];

@@ -27,7 +27,7 @@
                     Quotes ({quoteCount})
                 </h3>
 
-                <div class="header-actions">
+                <div class="header-actions" if:true={showHeaderActions}>
                     <lightning-button
                         label={generateActionLabel}
                         onclick={handleGenerateQuote}
@@ -107,10 +107,15 @@
                         <col class="quote-table-col" />
                         <col class="quote-table-col" />
                         <col class="quote-table-col" />
+                        <template if:false={isDealerPortal}>
+                            <col class="quote-table-col" />
+                        </template>
                         <col class="quote-table-col" />
                         <col class="quote-table-col" />
                         <col class="quote-table-col" />
-                        <col class="quote-table-col" />
+                        <template if:false={isDealerPortal}>
+                            <col class="quote-table-col" />
+                        </template>
                     </colgroup>
 
                     <thead>
@@ -123,10 +128,15 @@
                             </th>
                             <th class="col-status">Status</th>
                             <th class="col-approval">Approval Status</th>
-                            <th class="col-forecast-confidence">Quote Forecast Confidence</th>
+                            <template if:false={isDealerPortal}>
+                                <th class="col-forecast-confidence">Quote Forecast Confidence</th>
+                            </template>
                             <th class="col-total">Total w/o Freight</th>
+                            <th class="col-currency">Currency</th>
                             <th class="col-modified">Last Modified Date</th>
-                            <th class="col-sync-confidence"></th>
+                            <template if:false={isDealerPortal}>
+                                <th class="col-sync-confidence"></th>
+                            </template>
                         </tr>
                     </thead>
 
@@ -182,6 +192,7 @@
                                         <div class="truncate" title={quote.approvalStatus}>{quote.approvalStatus}</div>
                                     </td>
 
+                                    <template if:false={isDealerPortal}>
                                     <td class="col-forecast-confidence">
                                         <template if:true={quote.hideQuoteForecastConfidence}>
                                             <div class="forecast-confidence-placeholder" aria-hidden="true">—</div>
@@ -205,10 +216,17 @@
                                             </select>
                                         </template>
                                     </td>
+                                    </template>
 
                                     <td>
                                         <div class="truncate" title={quote.totalWithoutFreight}>
                                             {quote.totalWithoutFreight}
+                                        </div>
+                                    </td>
+
+                                    <td>
+                                        <div class="truncate" title={quote.currencyCode}>
+                                            {quote.currencyCode}
                                         </div>
                                     </td>
 
@@ -218,6 +236,7 @@
                                         </div>
                                     </td>
 
+                                    <template if:false={isDealerPortal}>
                                     <td class="col-sync-confidence">
                                         <template if:false={quote.hideQuoteForecastConfidence}>
                                             <div class="sync-action">
@@ -254,12 +273,13 @@
                                             </div>
                                         </template>
                                     </td>
+                                    </template>
                                 </tr>
 
                                 <!-- Child Row: Product Subgroup summary accordion -->
                                 <template if:true={quote.isExpanded}>
                                     <tr key={quote.childKey} class={quote.childRowClass}>
-                                        <td colspan="7" class="child-cell">
+                                        <td colspan={headerColumnCount} class="child-cell">
                                             <div class="child-container">
                                                 <template if:true={quote.description}>
                                                     <p class="quote-description slds-m-bottom_small">
@@ -277,9 +297,11 @@
                                                             <th scope="col" class="child-col-subgroup">
                                                                 {groupColumnLabel}
                                                             </th>
-                                                            <th scope="col" class="child-col-total">
-                                                                <span class="child-col-total-label">Total Extended Unit Price</span>
-                                                            </th>
+                                                            <template if:true={quote.showPricing}>
+                                                                <th scope="col" class="child-col-total">
+                                                                    <span class="child-col-total-label">Total Extended Unit Price</span>
+                                                                </th>
+                                                            </template>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
@@ -304,25 +326,33 @@
                                                                         </span>
                                                                     </button>
                                                                 </td>
-                                                                <td class="child-col-total">
-                                                                    {subgroup.totalUnitPriceFormatted}
-                                                                </td>
+                                                                <template if:true={quote.showPricing}>
+                                                                    <td class="child-col-total">
+                                                                        {subgroup.totalUnitPriceFormatted}
+                                                                    </td>
+                                                                </template>
                                                             </tr>
 
                                                             <template if:true={subgroup.isExpanded}>
                                                                 <tr key={subgroup.linesKey} class="line-item-row">
-                                                                    <td colspan="2" class="line-item-cell">
+                                                                    <td colspan={quote.lineDetailColspan} class="line-item-cell">
                                                                         <div class="line-item-table-wrapper">
                                                                         <table class="slds-table slds-table_bordered slds-table_cell-buffer line-item-table">
                                                                             <colgroup>
+                                                                                <col class="line-item-col-code" />
                                                                                 <col class="line-item-col-product" />
                                                                                 <col class="line-item-col-uom" />
                                                                                 <col class="line-item-col-qty" />
-                                                                                <col class="line-item-col-unit" />
-                                                                                <col class="line-item-col-total" />
+                                                                                <template if:true={quote.showPricing}>
+                                                                                    <col class="line-item-col-unit" />
+                                                                                    <col class="line-item-col-total" />
+                                                                                </template>
                                                                             </colgroup>
                                                                             <thead>
                                                                                 <tr>
+                                                                                    <th scope="col" class="line-item-col-code">
+                                                                                        <span class="line-item-header-label">Product Code</span>
+                                                                                    </th>
                                                                                     <th scope="col">
                                                                                         <span class="line-item-header-label">Product Name</span>
                                                                                     </th>
@@ -332,17 +362,22 @@
                                                                                     <th scope="col" class="line-item-col-qty">
                                                                                         <span class="line-item-header-label">Quantity</span>
                                                                                     </th>
-                                                                                    <th scope="col" class="line-item-col-unit">
-                                                                                        <span class="line-item-header-label">Unit Price</span>
-                                                                                    </th>
-                                                                                    <th scope="col" class="line-item-col-total">
-                                                                                        <span class="line-item-col-total-label">Extended Unit Price</span>
-                                                                                    </th>
+                                                                                    <template if:true={quote.showPricing}>
+                                                                                        <th scope="col" class="line-item-col-unit">
+                                                                                            <span class="line-item-header-label">Unit Price</span>
+                                                                                        </th>
+                                                                                        <th scope="col" class="line-item-col-total">
+                                                                                            <span class="line-item-col-total-label">Extended Unit Price</span>
+                                                                                        </th>
+                                                                                    </template>
                                                                                 </tr>
                                                                             </thead>
                                                                             <tbody>
                                                                                 <template for:each={subgroup.quoteLines} for:item="line">
                                                                                     <tr key={line.rowKey}>
+                                                                                        <td class="line-item-col-code truncate" title={line.productCode}>
+                                                                                            {line.productCode}
+                                                                                        </td>
                                                                                         <td class="truncate" title={line.productName}>
                                                                                             <template if:true={line.hasRecordLink}>
                                                                                                 <a
@@ -364,12 +399,14 @@
                                                                                         <td class="line-item-col-qty">
                                                                                             {line.quantityFormatted}
                                                                                         </td>
-                                                                                        <td class="line-item-col-unit">
-                                                                                            {line.unitPriceFormatted}
-                                                                                        </td>
-                                                                                        <td class="line-item-col-total">
-                                                                                            {line.lineTotalFormatted}
-                                                                                        </td>
+                                                                                        <template if:true={quote.showPricing}>
+                                                                                            <td class="line-item-col-unit">
+                                                                                                {line.unitPriceFormatted}
+                                                                                            </td>
+                                                                                            <td class="line-item-col-total">
+                                                                                                {line.lineTotalFormatted}
+                                                                                            </td>
+                                                                                        </template>
                                                                                     </tr>
                                                                                 </template>
                                                                             </tbody>
@@ -382,7 +419,7 @@
 
                                                         <template if:true={quote.hasNoProductSubgroupSummary}>
                                                             <tr>
-                                                                <td colspan="2" class="slds-text-align_center slds-p-around_small">
+                                                                <td colspan={quote.lineDetailColspan} class="slds-text-align_center slds-p-around_small">
                                                                     No product subgroup summary available
                                                                 </td>
                                                             </tr>
@@ -499,6 +536,9 @@
                                 <th scope="col" class="existing-quotes-col-total">
                                     <div class="slds-truncate" title="Total w/o Freight">Total w/o Freight</div>
                                 </th>
+                                <th scope="col" class="existing-quotes-col-currency">
+                                    <div class="slds-truncate" title="Currency">Currency</div>
+                                </th>
                                 <th scope="col" class="existing-quotes-col-modified">
                                     <div class="slds-truncate" title="Last Modified Date">Last Modified Date</div>
                                 </th>
@@ -549,6 +589,9 @@
                                     </td>
                                     <td>
                                         <div class="truncate" title={q.totalWithoutFreight}>{q.totalWithoutFreight}</div>
+                                    </td>
+                                    <td>
+                                        <div class="truncate" title={q.currencyCode}>{q.currencyCode}</div>
                                     </td>
                                     <td>
                                         <div class="truncate" title={q.lastModifiedDate}>{q.lastModifiedDate}</div>

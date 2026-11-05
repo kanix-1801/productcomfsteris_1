@@ -37,8 +37,10 @@
 
         /**
          * @description GCL-2 - Selects Account Team Members for the Life Sciences
-         *              Coverage Panel. Returns TAS-assigned core territory reps, temporary reps and
-         *              Salesforce-managed overlay users. Email, phone, and sales
+         *              Coverage Panel. Returns TAS-assigned core territory reps and
+         *              Salesforce-managed overlay users. GCL-326 selects TerritoryCode__c
+         *              for the Territory Number column. That value is stored from
+         *              OrderLineContact.TerritoryNumber__c. Email, phone, and sales
          *              category code are excluded from the panel.
          * @param accountId Account Id.
          * @return List<AccountTeamMember> ordered by User.Name.
@@ -53,7 +55,7 @@
                        User.Name,
                        TeamMemberRole,
                        AssignmentType__c,
-                       IsTemporaryAccess__c,
+                       TerritoryCode__c,
                        SalesCategoryDescription__c
                 FROM AccountTeamMember
                 WHERE AccountId = :accountId

@@ -129,11 +129,19 @@ public with sharing class WoliMicroscopeCaptureMobileCtrl {
             }
             imageFileList.sort();
             return imageFileList;
-        } catch (ContentDocumentLinksService.ContentDocumentLinksServiceException e) {
-            // Already logged by the service
-            throw toAuraHandledException(ERROR_LIST_FILES);
         } catch (Exception e) {
-            logError('listAnnotatableImageFiles', workOrderLineItemId, e);
+            Logger.setScenario(LOG_SCENARIO);
+            Logger.error(
+                    new LogMessage(
+                        'WoliMicroscopeCaptureMobileCtrl.listAnnotatableImageFiles failed for Work Order Line Item {0}: {1}',
+                        workOrderLineItemId,
+                        e.getMessage()
+                    ),
+                    e
+                )
+                .setRecord(workOrderLineItemId)
+                .addTag('WorkOrderLineItem')
+                .addTag('ContentVersion');
             throw toAuraHandledException(ERROR_LIST_FILES);
         } finally {
             Logger.saveLog();
@@ -159,18 +167,23 @@ public with sharing class WoliMicroscopeCaptureMobileCtrl {
             ContentVersion latestVersion = getValidatedLatestVersion(workOrderLineItemId, contentDocumentId);
             ContentVersion details = queryAnnotationDetails(latestVersion.Id);
             return toAnnotationImage(contentDocumentId, latestVersion, details);
-        } catch (PhotoCaptureValidationException e) {
-            logWarning('getImageFileForAnnotation', workOrderLineItemId, e.getMessage());
-            throw toAuraHandledException(e.getMessage());
-        } catch (ContentDocumentLinksService.ContentDocumentLinksServiceException e) {
-            // Already logged by the service
-            throw toAuraHandledException(ERROR_LOAD_FILE);
-        } catch (ContentVersionsService.ContentVersionsServiceException e) {
-            // Already logged by the service
-            throw toAuraHandledException(ERROR_LOAD_FILE);
         } catch (Exception e) {
-            logError('getImageFileForAnnotation', workOrderLineItemId, e);
-            throw toAuraHandledException(ERROR_LOAD_FILE);
+            Logger.setScenario(LOG_SCENARIO);
+            Logger.error(
+                    new LogMessage(
+                        'WoliMicroscopeCaptureMobileCtrl.getImageFileForAnnotation failed for Work Order Line Item {0}: {1}',
+                        workOrderLineItemId,
+                        e.getMessage()
+                    ),
+                    e
+                )
+                .setRecord(workOrderLineItemId)
+                .addTag('WorkOrderLineItem')
+                .addTag('ContentVersion');
+            // Validation messages are written for the user; anything else gets the generic message.
+            throw toAuraHandledException(
+                e instanceof PhotoCaptureValidationException ? e.getMessage() : ERROR_LOAD_FILE
+            );
         } finally {
             Logger.saveLog();
         }
@@ -284,52 +297,6 @@ public with sharing class WoliMicroscopeCaptureMobileCtrl {
             return MIME_TYPE_BY_EXTENSION.get(extension);
         }
         return String.isNotBlank(fileType) && fileType.contains('/') ? fileType.toLowerCase() : DEFAULT_IMAGE_MIME_TYPE;
-    }
-
-    /**
-     * @description Logs an unexpected error at ERROR level, linked to the Work Order Line Item.
-     *              Saved by Logger.saveLog() in the caller's finally block.
-     * @param methodName Controller method that failed
-     * @param workOrderLineItemId Work Order Line Item the request was for
-     * @param error Exception that was caught
-     */
-    @TestVisible
-    private static void logError(String methodName, Id workOrderLineItemId, Exception error) {
-        Logger.setScenario(LOG_SCENARIO);
-        Logger.error(
-                new LogMessage(
-                    'WoliMicroscopeCaptureMobileCtrl.{0} failed for Work Order Line Item {1}: {2}',
-                    methodName,
-                    workOrderLineItemId,
-                    error.getMessage()
-                ),
-                error
-            )
-            .setRecord(workOrderLineItemId)
-            .addTag('WorkOrderLineItem')
-            .addTag('ContentVersion');
-    }
-
-    /**
-     * @description Logs a rejected request at WARN level (invalid data that stops the request).
-     *              Saved by Logger.saveLog() in the caller's finally block.
-     * @param methodName Controller method
-     * @param workOrderLineItemId Work Order Line Item the request was for
-     * @param message Message returned to the user
-     */
-    private static void logWarning(String methodName, Id workOrderLineItemId, String message) {
-        Logger.setScenario(LOG_SCENARIO);
-        Logger.warn(
-                new LogMessage(
-                    'WoliMicroscopeCaptureMobileCtrl.{0} rejected for Work Order Line Item {1}: {2}',
-                    methodName,
-                    workOrderLineItemId,
-                    message
-                )
-            )
-            .setRecord(workOrderLineItemId)
-            .addTag('WorkOrderLineItem')
-            .addTag('ContentVersion');
     }
 
     /**

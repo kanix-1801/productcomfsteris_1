@@ -1,0 +1,21 @@
+<template>
+    <div class="email-field">
+        <div class="label-row">
+            <template lwc:if={required}>
+                <abbr class="slds-required" title="required">*</abbr>
+            </template>
+            <span class="field-label">External email (notification only)</span>
+            <lightning-helptext
+                class="field-help"
+                content="Use this for someone who does not have Salesforce access. Leave User blank. External recipients are awareness only and cannot approve.">
+            </lightning-helptext>
+        </div>
+        <lightning-input
+            type="text"
+            variant="label-hidden"
+            label="External email (notification only)"
+            value={value}
+            onchange={handleChange}>
+        </lightning-input>
+    </div>
+</template>

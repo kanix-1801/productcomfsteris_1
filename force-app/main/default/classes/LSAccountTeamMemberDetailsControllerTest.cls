@@ -44,7 +44,7 @@ private class LSAccountTeamMemberDetailsControllerTest {
             CaseAccessLevel = 'Read',
             ContactAccessLevel = 'Read',
             AssignmentType__c = getActiveAssignmentType(),
-            IsTemporaryAccess__c = true
+            TerritoryCode__c = 'L66301'
         );
         insert atm;
 
@@ -81,8 +81,8 @@ private class LSAccountTeamMemberDetailsControllerTest {
     }
 
     /**
-     * @description Returns the Life Sciences panel fields, including Temporary Access
-     *              from IsTemporaryAccess__c, and leaves Healthcare-only fields empty.
+     * @description Returns the Life Sciences panel fields, including Territory Number
+     *              from TerritoryCode__c, and leaves Healthcare-only fields empty.
      */
     @IsTest
     static void testGetLifeSciencesAccountTeamMembers() {
@@ -96,7 +96,7 @@ private class LSAccountTeamMemberDetailsControllerTest {
             Test.stopTest();
 
             System.assertEquals(1, result.size(), 'Expected the Account Team Member on the Account.');
-            System.assertEquals(true, result[0].temporaryAccessIndicator);
+            System.assertEquals('L66301', result[0].territoryCode);
             System.assertNotEquals(null, result[0].teamMember);
             System.assertNotEquals(null, result[0].teamRole);
             System.assertEquals(null, result[0].email);

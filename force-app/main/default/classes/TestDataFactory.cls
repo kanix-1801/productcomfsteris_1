@@ -598,7 +598,7 @@ public class TestDataFactory {
     private static void assignFieldRepPermissionSetGroup(Id userId) {
         try {
             List<PermissionSetGroup> permissionSetGroups = [
-                SELECT Id
+                SELECT Id, Status
                 FROM PermissionSetGroup
                 WHERE DeveloperName = 'SalesFieldRepAccountManagerPSG'
                 LIMIT 1
@@ -606,6 +606,10 @@ public class TestDataFactory {
             if (permissionSetGroups.isEmpty()) {
                 return;
             }
+            
+            // Force the group to "Updated" so assignments are allowed in test context
+            Test.calculatePermissionSetGroup(permissionSetGroups[0].Id);
+
             insert new PermissionSetAssignment(
                 AssigneeId = userId,
                 PermissionSetGroupId = permissionSetGroups[0].Id
@@ -1095,7 +1099,7 @@ public class TestDataFactory {
     @TestVisible
     private static void assignSalesCustomerOpsPermissionSetGroup(Id userId) {
         List<PermissionSetGroup> psGroups = [
-            SELECT Id
+            SELECT Id, Status
             FROM PermissionSetGroup
             WHERE DeveloperName = 'SalesCustomerOpsSalesSupportSalesAdminPSG'
             LIMIT 1
@@ -1103,7 +1107,10 @@ public class TestDataFactory {
         if (psGroups.isEmpty()) {
             return;
         }
+        
+        // Force the group to "Updated" so assignments are allowed in test context
         Test.calculatePermissionSetGroup(psGroups[0].Id);
+        
         insert new PermissionSetAssignment(
             AssigneeId = userId,
             PermissionSetGroupId = psGroups[0].Id

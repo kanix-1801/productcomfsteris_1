@@ -36,7 +36,14 @@ export default class AddClinicalParticipant extends LightningElement {
             this.summary = 'No clinical participants added.';
             return;
         }
-        const names = rows.map((row) => row.name).filter((name) => name);
-        this.summary = `${rows.length} added: ${names.join(', ')}`;
+        const labels = rows
+            .map((row) => {
+                if (row.name && row.email) {
+                    return `${row.name} (${row.email})`;
+                }
+                return row.name || row.email;
+            })
+            .filter((label) => label);
+        this.summary = `${rows.length} added: ${labels.join(', ')}`;
     }
 }

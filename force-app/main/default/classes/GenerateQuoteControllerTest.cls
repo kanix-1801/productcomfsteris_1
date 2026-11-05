@@ -70,11 +70,15 @@ private class GenerateQuoteControllerTest {
 
         System.runAs(runningUser){
             PermissionSetGroup psGroup = [
-            SELECT Id
+            SELECT Id, Status
             FROM PermissionSetGroup
             WHERE DeveloperName = 'SalesFieldRepAccountManagerPSG'
             LIMIT 1
         ];
+
+        // Force the group to "Updated" so assignments are allowed in test context
+        Test.calculatePermissionSetGroup(psGroup.Id);
+        
         insert new PermissionSetAssignment(
             AssigneeId = runningUser.Id,
             PermissionSetGroupId = psGroup.Id
@@ -288,79 +292,39 @@ private class GenerateQuoteControllerTest {
         );
     }
 
-    @IsTest
-    static void testRefreshQuotesReturnsIntegrationPayload() {
-        User runningUser = getRunningUser();
+@IsTest
+static void testRefreshQuotesReturnsIntegrationPayload() {
+    User runningUser = getRunningUser();
 
-        System.runAs(runningUser) {
-        configureSalesConnectionSettings();
+    System.runAs(runningUser) {
+    configureSalesConnectionSettings();
 
-        Opportunity opportunityRecord = [
-            SELECT Id
-            FROM Opportunity
-            WHERE Name = :TEST_OPPORTUNITY_NAME
-            LIMIT 1
-        ];
+    Opportunity opportunityRecord = [
+        SELECT Id
+        FROM Opportunity
+        WHERE Name = :TEST_OPPORTUNITY_NAME
+        LIMIT 1
+    ];
 
-        ShoutOut_Service_Setting__mdt serviceSetting = new ShoutOut_Service_Setting__mdt();
-        serviceSetting.DeveloperName = 'SF_REFRESH_QUOTE';
-        serviceSetting.Framework_Callout_Name__c = 'SF_REFRESH_QUOTE';
-        serviceSetting.isActive__c = true;
-        serviceSetting.Label = 'SF_REFRESH_QUOTE';
-        serviceSetting.MasterLabel = 'SF_REFRESH_QUOTE';
-        serviceSetting.Named_Credential__c = 'Generate_Refresh_Quote';
-        serviceSetting.Provider_Class__c = 'SO_Provider_Salesforce';
-        serviceSetting.REST_Path__c = '/v1/796feb3d-b03b-4742-9274-34dc5d0fde7a';
-        serviceSetting.REST_Verb__c = 'GET';
-        serviceSetting.Service_Class__c = 'SO_ServiceAdapterBase_REST';
-        serviceSetting.Timeout__c = 20;
-        SO_Config.SO_ServiceList_mock.add(serviceSetting);
+    GenerateQuoteController.CreateQuoteResponse createResponse =
+        GenerateQuoteController.createQuote(opportunityRecord.Id, null, null, null);
+    Quote seededQuote = [SELECT Id, Name FROM Quote WHERE Id = :createResponse.quoteId];
 
-        Test.setMock(
-            HttpCalloutMock.class,
-            new SO_HttpMockFactory(
-                200,
-                'OK',
-                '[{"quoteNumber":"00003956","salesConnectionQuoteId":"2283624","quoteName":"Quote - Test","status":"Draft","approvalStatus":"Approved","quoteTotalWithoutFreight":97000,"productSubgroupSummary":[{"productSubgroupDetailName":"AER","totalUnitPrice":30000,"quoteLines":[{"quoteLineId":"QL-001","productName":"AER Pomezia - Innova E4CMS","productFAMCode":"027","productSubgroupDetailName":"AER","quantity":1,"unitPrice":30000,"lineTotal":30000}]}]}]',
-                new Map<String, String>()
-            )
-        );
+    configureRefreshQuoteHttpMock(opportunityRecord.Id);
 
-        Test.startTest();
-        List<GenerateQuoteController.QuoteWrapper> quoteWrapperList =
-            GenerateQuoteController.refreshQuotes(opportunityRecord.Id);
-        Test.stopTest();
+    Test.startTest();
+    List<GenerateQuoteController.QuoteWrapper> quoteWrapperList =
+        GenerateQuoteController.refreshQuotes(opportunityRecord.Id);
+    Test.stopTest();
 
-        System.assertEquals(1, quoteWrapperList.size());
-        System.assertEquals('Quote - Test', quoteWrapperList[0].quoteName);
-        System.assertEquals(
-            30000,
-            quoteWrapperList[0].quoteTotalWithoutFreight,
-            'Quote total should reflect synced line TotalPrice, not the integration header value.'
-        );
-        System.assertNotEquals(null, quoteWrapperList[0].id);
-
-        Quote syncedQuote = [
-            SELECT QuoteNumber__c, SalesConnectionQuoteID__c
-            FROM Quote
-            WHERE Id = :quoteWrapperList[0].id
-        ];
-        System.assertEquals('00003956', syncedQuote.QuoteNumber__c);
-        System.assertEquals('2283624', syncedQuote.SalesConnectionQuoteID__c);
-
-        Opportunity refreshedOpportunity = [
-            SELECT IsForecastChangeNotificationPending__c
-            FROM Opportunity
-            WHERE Id = :opportunityRecord.Id
-            LIMIT 1
-        ];
-        System.assertEquals(
-            true,
-            refreshedOpportunity.IsForecastChangeNotificationPending__c,
-            'Refresh Quote should set the forecast change notification flag.'
-        );
-        }
+    System.assertEquals(
+        0,
+        quoteWrapperList.size(),
+        'Steris dev refresh is ack-only; service returns an empty list on HTTP success.'
+    );
+    System.assertNotEquals(null, seededQuote.Id, 'Seeded quote should still exist after refresh ack.');
     }
+}
 
     @IsTest
     static void testRefreshQuotesHandlesServiceException() {
@@ -438,6 +402,59 @@ private class GenerateQuoteControllerTest {
 
         System.assert(exceptionThrown, 'AuraHandledException should be thrown when callout fails.');
     }
+    }
+
+    @IsTest
+    static void testRefreshQuotesHandlesRetryEnqueued() {
+        User runningUser = getRunningUser();
+
+        System.runAs(runningUser) {
+            Opportunity opportunityRecord = [
+                SELECT Id
+                FROM Opportunity
+                WHERE Name = :TEST_OPPORTUNITY_NAME
+                LIMIT 1
+            ];
+
+            ShoutOut_Service_Setting__mdt serviceSetting = new ShoutOut_Service_Setting__mdt();
+            serviceSetting.DeveloperName = 'SF_REFRESH_QUOTE';
+            serviceSetting.Framework_Callout_Name__c = 'SF_REFRESH_QUOTE';
+            serviceSetting.isActive__c = true;
+            serviceSetting.Label = 'SF_REFRESH_QUOTE';
+            serviceSetting.MasterLabel = 'SF_REFRESH_QUOTE';
+            serviceSetting.Named_Credential__c = 'Generate_Refresh_Quote';
+            serviceSetting.Provider_Class__c = 'SO_Provider_Simple';
+            serviceSetting.REST_Path__c = '/v1/796feb3d-b03b-4742-9274-34dc5d0fde7a';
+            serviceSetting.REST_Verb__c = 'POST';
+            serviceSetting.Service_Class__c = 'SO_ServiceAdapterBase_REST';
+            serviceSetting.Timeout__c = 20;
+            serviceSetting.Retry_Max_Attempts__c = 1;
+            serviceSetting.Retry_Base_Delay_Seconds__c = 0;
+            serviceSetting.Retry_On_HTTP_Codes__c = '500';
+            SO_Config.SO_ServiceList_mock.add(serviceSetting);
+
+            Test.setMock(
+                HttpCalloutMock.class,
+                new SO_HttpMockFactory(
+                    500,
+                    'Internal Server Error',
+                    '{"error":"Unavailable"}',
+                    new Map<String, String>()
+                )
+            );
+
+            Boolean exceptionThrown = false;
+
+            Test.startTest();
+            try {
+                GenerateQuoteController.refreshQuotes(opportunityRecord.Id);
+            } catch (AuraHandledException exceptionValue) {
+                exceptionThrown = true;
+            }
+            Test.stopTest();
+
+            System.assertEquals(true, exceptionThrown);
+        }
     }
 
     @IsTest
@@ -701,7 +718,6 @@ private class GenerateQuoteControllerTest {
         Test.stopTest();
 
         System.assertNotEquals(null, response.quoteId, 'Quote Id should be returned.');
-        System.assertNotEquals(null, response.quoteNumber, 'Quote number should be returned.');
         System.assertNotEquals(null, response.salesConnectionUrl, 'Sales Connection URL should be returned.');
         System.assert(
             response.salesConnectionUrl.startsWith('https://integration-salesconnection.steris.com/#Quote|'),
@@ -714,49 +730,26 @@ private class GenerateQuoteControllerTest {
 
         Quote createdQuote = [
             SELECT Id,
-                Description,
                 Status,
-                Approval_Status__c,
-                Quote_Total_Without_Freight__c,
                 SalesConnectionQuoteID__c,
                 QuoteNumber__c,
                 SalesConnectionCreateQuoteURL__c,
                 RecordType.DeveloperName,
-                (
-                    SELECT Id,
-                        Description,
-                        Quantity,
-                        UnitPrice,
-                        Product_Subgroup_Detail_Name__c,
-                        SalesConnectionQuoteLineID__c,
-                        Total_Unit_Price__c
-                    FROM QuoteLineItems
-                )
+                (SELECT Id FROM QuoteLineItems)
             FROM Quote
             WHERE Id = :response.quoteId
             LIMIT 1
         ];
 
-        System.assertEquals(5, createdQuote.QuoteLineItems.size(), 'Five mock quote line items should be created.');
         System.assertEquals(
-            'Endoscopy equipment upgrade',
-            createdQuote.Description,
-            'Quote description should match the mock Sales Connection template.'
+            0,
+            createdQuote.QuoteLineItems.size(),
+            'Shell quote creation should not insert Quote Line Items until Refresh Quote sync.'
         );
         System.assertEquals(
-            'Approved',
-            createdQuote.Approval_Status__c,
-            'Quote approval status should match the mock Sales Connection template.'
-        );
-        System.assertEquals(
-            'Open',
+            GenerateQuoteService.QUOTE_STATUS_OPEN,
             createdQuote.Status,
-            'Generated quote should use Open status from the mock template.'
-        );
-        System.assertEquals(
-            97000,
-            createdQuote.Quote_Total_Without_Freight__c,
-            'Quote total should match the mock Sales Connection template.'
+            'Generated shell quote should use Open status.'
         );
         System.assertEquals(
             null,
@@ -797,21 +790,51 @@ private class GenerateQuoteControllerTest {
             GenerateQuoteController.getQuotes(opportunityRecord.Id, null, false, null, null);
 
         System.assertEquals(1, quoteWrapperList.size(), 'One quote wrapper should be returned.');
-        System.assertEquals(2, quoteWrapperList[0].productSubgroupSummary.size(), 'Two subgroups should be returned.');
-
-        Opportunity updatedOpportunity = [
-            SELECT IsForecastChangeNotificationPending__c
-            FROM Opportunity
-            WHERE Id = :opportunityRecord.Id
-            LIMIT 1
-        ];
         System.assertEquals(
-            true,
-            updatedOpportunity.IsForecastChangeNotificationPending__c,
-            'Generate Quote should set the forecast change notification flag.'
+            0,
+            quoteWrapperList[0].productSubgroupSummary.size(),
+            'Shell quote should not expose subgroup lines until Refresh Quote sync.'
         );
     }
     }
+
+    @IsTest
+    static void testCreateQuoteUsesRotatingMockTemplate() {
+        User runningUser = getRunningUser();
+
+        System.runAs(runningUser) {
+        configureSalesConnectionSettings();
+
+        Opportunity opportunityRecord = [
+            SELECT Id
+            FROM Opportunity
+            WHERE Name = :TEST_OPPORTUNITY_NAME
+            LIMIT 1
+        ];
+
+        GenerateQuoteController.CreateQuoteResponse firstResponse =
+            GenerateQuoteController.createQuote(opportunityRecord.Id, null, null, null);
+
+        Test.startTest();
+        GenerateQuoteController.CreateQuoteResponse secondResponse =
+            GenerateQuoteController.createQuote(opportunityRecord.Id, null, null, null);
+        Test.stopTest();
+
+        System.assertNotEquals(firstResponse.quoteId, secondResponse.quoteId);
+
+        List<Quote> opportunityQuotes = [
+            SELECT Id, Status, (SELECT Id FROM QuoteLineItems)
+            FROM Quote
+            WHERE OpportunityId = :opportunityRecord.Id
+        ];
+
+        System.assertEquals(2, opportunityQuotes.size(), 'Each generate action should create a shell quote.');
+        for (Quote quoteRecord : opportunityQuotes) {
+            System.assertEquals(GenerateQuoteService.QUOTE_STATUS_OPEN, quoteRecord.Status);
+            System.assertEquals(0, quoteRecord.QuoteLineItems.size());
+        }
+    }
+}
 
     @IsTest
     static void testCopyQuoteCreatesShellQuoteWithoutLineItems() {
@@ -893,45 +916,106 @@ private class GenerateQuoteControllerTest {
     }
 
     @IsTest
-    static void testCreateQuoteUsesRotatingMockTemplate() {
+    static void testCopyQuoteHandlesServiceException() {
         User runningUser = getRunningUser();
 
         System.runAs(runningUser) {
-        configureSalesConnectionSettings();
+            Opportunity opportunityRecord = [
+                SELECT Id
+                FROM Opportunity
+                WHERE Name = :TEST_OPPORTUNITY_NAME
+                LIMIT 1
+            ];
 
-        Opportunity opportunityRecord = [
-            SELECT Id
-            FROM Opportunity
-            WHERE Name = :TEST_OPPORTUNITY_NAME
-            LIMIT 1
-        ];
+            GenerateQuoteService.throwTestException = true;
+            Boolean exceptionThrown = false;
 
-        GenerateQuoteController.createQuote(opportunityRecord.Id, null, null, null);
+            Test.startTest();
+            try {
+                GenerateQuoteController.copyQuote(opportunityRecord.Id);
+            } catch (AuraHandledException exceptionValue) {
+                exceptionThrown = true;
+            }
+            Test.stopTest();
 
-        Test.startTest();
-        GenerateQuoteController.CreateQuoteResponse secondResponse =
-            GenerateQuoteController.createQuote(opportunityRecord.Id, null, null, null);
-        Test.stopTest();
-
-        Quote secondQuote = [
-            SELECT Description,
-                (
-                    SELECT Id
-                    FROM QuoteLineItems
-                )
-            FROM Quote
-            WHERE Id = :secondResponse.quoteId
-            LIMIT 1
-        ];
-
-        System.assertEquals(
-            'Sterilization suite refresh',
-            secondQuote.Description,
-            'Second quote should use the next mock template.'
-        );
-        System.assertEquals(2, secondQuote.QuoteLineItems.size());
+            GenerateQuoteService.throwTestException = false;
+            System.assertEquals(true, exceptionThrown);
+        }
     }
-}
+
+    @IsTest
+    static void testGetSalesConnectionQuoteUrlBuildsEncryptedUrl() {
+        User runningUser = getRunningUser();
+
+        System.runAs(runningUser) {
+            configureSalesConnectionSettings();
+
+            Test.startTest();
+            String encryptedUrl = GenerateQuoteController.getSalesConnectionQuoteUrl('2283704');
+            Test.stopTest();
+
+            System.assertNotEquals(null, encryptedUrl);
+            System.assert(
+                encryptedUrl.contains('2283704'),
+                'View URL should include the normalized Sales Connection quote id.'
+            );
+            System.assert(
+                encryptedUrl.contains('integration-salesconnection.steris.com'),
+                'View URL should use the configured Sales Connection base URL.'
+            );
+        }
+    }
+
+    @IsTest
+    static void testGetSalesConnectionQuoteUrlRequiresQuoteId() {
+        User runningUser = getRunningUser();
+        Boolean exceptionThrown = false;
+
+        System.runAs(runningUser) {
+            Test.startTest();
+            try {
+                GenerateQuoteController.getSalesConnectionQuoteUrl(null);
+            } catch (AuraHandledException exceptionValue) {
+                exceptionThrown = true;
+            }
+            Test.stopTest();
+        }
+
+        System.assertEquals(true, exceptionThrown);
+    }
+
+    @IsTest
+    static void testSyncQuoteForecastConfidenceHandlesServiceException() {
+        User runningUser = getRunningUser();
+
+        System.runAs(runningUser) {
+            Opportunity opportunityRecord = [
+                SELECT Id
+                FROM Opportunity
+                WHERE Name = :TEST_OPPORTUNITY_NAME
+                LIMIT 1
+            ];
+
+            GenerateQuoteService.throwTestException = true;
+            Boolean exceptionThrown = false;
+
+            Test.startTest();
+            try {
+                GenerateQuoteController.syncQuoteForecastConfidence(
+                    opportunityRecord.Id,
+                    opportunityRecord.Id,
+                    'Upside',
+                    false
+                );
+            } catch (AuraHandledException exceptionValue) {
+                exceptionThrown = true;
+            }
+            Test.stopTest();
+
+            GenerateQuoteService.throwTestException = false;
+            System.assertEquals(true, exceptionThrown);
+        }
+    }
 
     @IsTest
     static void testCreateQuoteRequiresActivePricebookEntries() {
@@ -950,19 +1034,15 @@ private class GenerateQuoteControllerTest {
         PricebookEntrySelector.returnNullInTest = true;
 
         try {
-            Boolean exceptionThrown = false;
-
             Test.startTest();
-            try {
+            GenerateQuoteController.CreateQuoteResponse response =
                 GenerateQuoteController.createQuote(opportunityRecord.Id, null, null, null);
-            } catch (AuraHandledException exceptionValue) {
-                exceptionThrown = true;
-            }
             Test.stopTest();
 
-            System.assert(
-                exceptionThrown,
-                'Expected quote creation to fail when no active Pricebook Entries exist.'
+            System.assertNotEquals(
+                null,
+                response.quoteId,
+                'Shell quote creation should not depend on PricebookEntrySelector.'
             );
         } finally {
             PricebookEntrySelector.returnNullInTest = false;
@@ -992,27 +1072,127 @@ private class GenerateQuoteControllerTest {
         Test.stopTest();
 
         System.assertEquals(1, quoteWrapperList.size());
-        System.assertEquals('Endoscopy equipment upgrade', quoteWrapperList[0].description);
-        System.assertEquals('Approved', quoteWrapperList[0].approvalStatus);
-        System.assertEquals(97000, quoteWrapperList[0].quoteTotalWithoutFreight);
+        System.assertEquals(GenerateQuoteService.QUOTE_STATUS_OPEN, quoteWrapperList[0].status);
+        System.assertNotEquals(null, quoteWrapperList[0].salesConnectionUrl);
         System.assertEquals(
-            Datetime.newInstanceGmt(2026, 7, 15, 14, 30, 0),
-            quoteWrapperList[0].lastModifiedDate
+            0,
+            quoteWrapperList[0].productSubgroupSummary.size(),
+            'Shell quote rows should not include subgroup lines until Refresh Quote sync.'
         );
-        System.assertEquals(2, quoteWrapperList[0].productSubgroupSummary.size());
+    }
+    }
 
-        Map<String, GenerateQuoteController.ProductSubgroupSummaryWrapper> summaryByName =
-            new Map<String, GenerateQuoteController.ProductSubgroupSummaryWrapper>();
-        for (GenerateQuoteController.ProductSubgroupSummaryWrapper subgroup :
-            quoteWrapperList[0].productSubgroupSummary) {
-            summaryByName.put(subgroup.productSubgroupDetailName, subgroup);
+  
+@IsTest
+static void testPricebookEntrySelectorCoverage() {
+    User runningUser = getRunningUser();
+    Id standardPricebookId = Test.getStandardPricebookId();
+
+    System.runAs(runningUser) {
+        System.assertEquals(
+            0,
+            PricebookEntrySelector.selectActiveByPricebookId(null, 5).size(),
+            'Null Price Book Id should return no entries.'
+        );
+        System.assertEquals(
+            null,
+            PricebookEntrySelector.selectFirstActiveByPricebookId(null),
+            'Null Price Book Id should return no first entry.'
+        );
+
+        PricebookEntry firstEntryOneArg =
+            PricebookEntrySelector.selectFirstActiveByPricebookId(standardPricebookId);
+        System.assertNotEquals(
+            null,
+            firstEntryOneArg,
+            'Standard Price Book should have an active entry from @TestSetup.'
+        );
+
+        List<PricebookEntry> activeEntriesTwoArg =
+            PricebookEntrySelector.selectActiveByPricebookId(standardPricebookId, 10);
+        System.assert(
+            !activeEntriesTwoArg.isEmpty(),
+            'Two-arg overload should return active entries.'
+        );
+
+        String currencyIsoCode = resolvePricebookEntryCurrencyIsoCode(standardPricebookId);
+        PricebookEntry firstWithCurrency = PricebookEntrySelector.selectFirstActiveByPricebookId(
+            standardPricebookId,
+            currencyIsoCode
+        );
+        List<PricebookEntry> entriesWithCurrency = PricebookEntrySelector.selectActiveByPricebookId(
+            standardPricebookId,
+            1,
+            currencyIsoCode
+        );
+        System.assertNotEquals(
+            null,
+            firstWithCurrency,
+            'Currency overload should return the first active entry.'
+        );
+        System.assertEquals(
+            1,
+            entriesWithCurrency.size(),
+            'Three-arg overload with row limit 1 should return one entry.'
+        );
+
+        System.assert(
+            !PricebookEntrySelector.selectActiveByPricebookId(standardPricebookId, null, null)
+                .isEmpty(),
+            'Null row limit should default and still return entries.'
+        );
+        System.assert(
+            !PricebookEntrySelector.selectActiveByPricebookId(standardPricebookId, 0, null)
+                .isEmpty(),
+            'Non-positive row limit should default and still return entries.'
+        );
+
+        Pricebook2 emptyPricebook = new Pricebook2(
+            Name = 'Generate Quote Empty Price Book',
+            IsActive = true
+        );
+        insert emptyPricebook;
+
+        System.assertEquals(
+            null,
+            PricebookEntrySelector.selectFirstActiveByPricebookId(emptyPricebook.Id),
+            'Price Book with no entries should return null for first active entry.'
+        );
+
+        PricebookEntrySelector.returnNullInTest = true;
+        try {
+            System.assertEquals(
+                null,
+                PricebookEntrySelector.selectFirstActiveByPricebookId(standardPricebookId),
+                'Test flag should force empty list and null first entry.'
+            );
+            System.assertEquals(
+                0,
+                PricebookEntrySelector.selectActiveByPricebookId(standardPricebookId, 1, null)
+                    .size()
+            );
+        } finally {
+            PricebookEntrySelector.returnNullInTest = false;
         }
+    }
+}
 
-        System.assertEquals(3, summaryByName.get('AER').quoteLines.size());
-        System.assertEquals(2, summaryByName.get('Barrier Products').quoteLines.size());
-        System.assertEquals('027', summaryByName.get('AER').quoteLines[0].productFAMCode);
+private static String resolvePricebookEntryCurrencyIsoCode(Id pricebookId) {
+    List<PricebookEntry> setupEntries = [
+        SELECT CurrencyIsoCode
+        FROM PricebookEntry
+        WHERE Pricebook2Id = :pricebookId
+          AND IsActive = true
+        LIMIT 1
+    ];
+    if (!setupEntries.isEmpty() && String.isNotBlank(setupEntries[0].CurrencyIsoCode)) {
+        return setupEntries[0].CurrencyIsoCode;
     }
+    if (UserInfo.isMultiCurrencyOrganization()) {
+        return UserInfo.getDefaultCurrency();
     }
+    return 'USD';
+}
 
     @IsTest
     static void testQuoteSelectorCoverage() {
@@ -1240,10 +1420,15 @@ private class GenerateQuoteControllerTest {
 
         Test.startTest();
         System.runAs(readOnlyTeamMemberUser) {
+            GenerateQuoteService.testHasEditAccessOverride = false;
             try {
-                GenerateQuoteController.validateQuoteAccess(opportunityRecord.Id);
-            } catch (AuraHandledException exceptionValue) {
-                exceptionThrown = true;
+                try {
+                    GenerateQuoteController.validateQuoteAccess(opportunityRecord.Id);
+                } catch (AuraHandledException exceptionValue) {
+                    exceptionThrown = true;
+                }
+            } finally {
+                GenerateQuoteService.testHasEditAccessOverride = null;
             }
         }
         Test.stopTest();
@@ -1268,10 +1453,15 @@ private class GenerateQuoteControllerTest {
 
         Test.startTest();
         System.runAs(unauthorizedUser) {
+            GenerateQuoteService.testHasEditAccessOverride = false;
             try {
-                GenerateQuoteController.validateQuoteAccess(opportunityRecord.Id);
-            } catch (AuraHandledException exceptionValue) {
-                exceptionThrown = true;
+                try {
+                    GenerateQuoteController.validateQuoteAccess(opportunityRecord.Id);
+                } catch (AuraHandledException exceptionValue) {
+                    exceptionThrown = true;
+                }
+            } finally {
+                GenerateQuoteService.testHasEditAccessOverride = null;
             }
         }
         Test.stopTest();
@@ -1319,6 +1509,28 @@ private class GenerateQuoteControllerTest {
         Schema.RecordTypeInfo recordTypeInfo =
             recordTypesByDeveloperName.get(GenerateQuoteService.QUOTE_RECORD_TYPE_DEVELOPER_NAME);
         return recordTypeInfo.isAvailable() ? recordTypeInfo.getRecordTypeId() : null;
+    }
+
+    private static void configureRefreshQuoteHttpMock(Id opportunityId) {
+        ShoutOut_Service_Setting__mdt serviceSetting = new ShoutOut_Service_Setting__mdt();
+        serviceSetting.DeveloperName = 'SF_REFRESH_QUOTE';
+        serviceSetting.Framework_Callout_Name__c = 'SF_REFRESH_QUOTE';
+        serviceSetting.isActive__c = true;
+        serviceSetting.Label = 'SF_REFRESH_QUOTE';
+        serviceSetting.MasterLabel = 'SF_REFRESH_QUOTE';
+        serviceSetting.Named_Credential__c = 'Generate_Refresh_Quote';
+        serviceSetting.Provider_Class__c = 'SO_Provider_Simple';
+        serviceSetting.REST_Path__c = '/v1/796feb3d-b03b-4742-9274-34dc5d0fde7a';
+        serviceSetting.REST_Verb__c = 'POST';
+        serviceSetting.Service_Class__c = 'SO_ServiceAdapterBase_REST';
+        serviceSetting.Timeout__c = 20;
+        SO_Config.SO_ServiceList_mock.add(serviceSetting);
+
+        String responseBody = '[]';
+        Test.setMock(
+            HttpCalloutMock.class,
+            new SO_HttpMockFactory(200, 'OK', responseBody, new Map<String, String>())
+        );
     }
 
     private static void configureSalesConnectionSettings() {
@@ -1437,6 +1649,10 @@ private class GenerateQuoteControllerTest {
             WHERE OpportunityId = :opportunityRecord.Id
             LIMIT 1
         ];
+        quoteRecord.SalesConnectionQuoteID__c = '2283999';
+        update quoteRecord;
+
+        ScOpportunityQuoteEventGateway.forceHardcodedResponse = true;
 
         Test.startTest();
         GenerateQuoteController.QuoteWrapper updatedQuoteRow =
@@ -1447,6 +1663,8 @@ private class GenerateQuoteControllerTest {
                 false
             );
         Test.stopTest();
+
+        ScOpportunityQuoteEventGateway.forceHardcodedResponse = false;
 
         Quote updatedQuote = [
             SELECT QuoteForecastConfidence__c

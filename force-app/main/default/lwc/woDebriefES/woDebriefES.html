@@ -23,6 +23,9 @@
         <template lwc:if={hasValidEquipment}>
 
         <div class="wo-header">
+            <template lwc:if={coverageBadge}>
+                <div class={coverageBadgeClass} role="status">{coverageBadge}</div>
+            </template>
             <div class="header-fields">
                 <div class="header-field">
                     <div class="field-label">WO #</div>

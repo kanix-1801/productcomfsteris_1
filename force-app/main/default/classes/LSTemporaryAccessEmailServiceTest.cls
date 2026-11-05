@@ -270,12 +270,14 @@ private class LSTemporaryAccessEmailServiceTest {
     }
 
     private static void stopTemporaryAccessFlows(Id userId) {
-        insert new Automation_Setting_Flow__c(
-            SetupOwnerId = userId,
-            TemporaryAccessSubmitForApproval__c = true,
-            TemporaryAccessApprovalProcess__c = true,
-            LSTemporaryAccessApprovalProcess__c = true
-        );
+        System.runAs(new User(Id = UserInfo.getUserId())) {
+            insert new Automation_Setting_Flow__c(
+                SetupOwnerId = userId,
+                TemporaryAccessSubmitForApproval__c = true,
+                TemporaryAccessApprovalProcess__c = true,
+                LSTemporaryAccessApprovalProcess__c = true
+            );
+        }
     }
 
     private static Id nonLifeScienceProfileId() {

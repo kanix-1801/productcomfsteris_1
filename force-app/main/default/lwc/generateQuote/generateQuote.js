@@ -26,6 +26,7 @@ import getQuoteForecastConfidenceOptions from '@salesforce/apex/QuoteForecastCon
 import QUOTE_NUMBER_HELP_TEXT from '@salesforce/label/c.Quote_Number_Helptext';
 import QUOTE_FORECAST_INELIGIBLE_HELP_TEXT from '@salesforce/label/c.QuoteForecastIneligibleHelptext';
 import REFRESH_QUOTE_SUCCESS_MESSAGE from '@salesforce/label/c.RefreshQuoteSuccessMessage';
+import { FlowNavigationFinishEvent } from 'lightning/flowSupport'; //GC-3609
 
 const QUOTES_PAGE_SIZE = 5;
 const OPPORTUNITY_RECORD_TYPE_GOODWILL = 'HC_Sales_Customer_Goodwill_Support';
@@ -35,6 +36,7 @@ const QUOTE_TYPE_SAMPLE = 'Sample Quote';
 
 export default class GenerateQuote extends LightningElement {
     @api recordId;
+    @api isDealerPortal = false;
     @api opportunityRecordId;
     @api launchMode;
     /** Record-page context for Trial or Sample quote lists. Values: trial, sample. */
@@ -546,6 +548,9 @@ export default class GenerateQuote extends LightningElement {
                 detail: { refresh: refreshRecordPage }
             })
         );
+        if (this.launchMode && !this.actionModeFromPageRef) {
+            this.dispatchEvent(new FlowNavigationFinishEvent());
+        }
     }
 
     get quoteCount() {
@@ -596,6 +601,14 @@ export default class GenerateQuote extends LightningElement {
         return `Showing ${startIndex}-${endIndex} of ${this.allQuotes.length}`;
     }
 
+    get showHeaderActions() {
+        return this.isDealerPortal !== true;
+    }
+
+    get headerColumnCount() {
+        return this.isDealerPortal === true ? 6 : 8;
+    }
+
     get groupColumnLabel() {
         return this.groupBySalesCategory ? 'Sales Category' : 'Product Subgroup Detail Name';
     }
@@ -630,7 +643,7 @@ export default class GenerateQuote extends LightningElement {
         this.allQuotes = this.allQuotes.map((quote) => this.applyActiveGroupingSummary(quote));
     }
 
-    enrichGroupingSummary(quote, summaryRows, summaryPrefix) {
+    enrichGroupingSummary(quote, summaryRows, summaryPrefix, showPricing) {
         return (summaryRows || []).map((subgroup, subgroupIndex) => {
             const quoteLines = (subgroup.quoteLines || []).map((line, lineIndex) => {
                 const recordId = line.id || null;
@@ -641,12 +654,13 @@ export default class GenerateQuote extends LightningElement {
                         recordId ||
                         `${subgroup.id || quote.id}-${summaryPrefix}-${subgroupIndex}-line-${lineIndex}`,
                     recordId,
+                    productCode: line.productCode || '',
                     recordUrl: this.buildQuoteLineRecordUrl(recordId),
-                    hasRecordLink: !!recordId,
+                    hasRecordLink: this.isDealerPortal === true ? false : !!recordId,
                     uomDisplay: this.formatUom(line.uom),
                     quantityFormatted: this.formatQuantity(line.quantity),
-                    unitPriceFormatted: this.formatCurrency(line.unitPrice),
-                    lineTotalFormatted: this.formatCurrency(line.lineTotal)
+                    unitPriceFormatted: showPricing ? this.formatCurrency(line.unitPrice) : '',
+                    lineTotalFormatted: showPricing ? this.formatCurrency(line.lineTotal) : ''
                 };
             });
 
@@ -656,7 +670,7 @@ export default class GenerateQuote extends LightningElement {
                 // GC-3292: default to expanded when quotes are (re)loaded
                 isExpanded: true,
                 lineIcon: 'utility:chevrondown',
-                totalUnitPriceFormatted: this.formatCurrency(subgroup.totalUnitPrice),
+                totalUnitPriceFormatted: showPricing ? this.formatCurrency(subgroup.totalUnitPrice) : '',
                 quoteLines,
                 hasQuoteLines: quoteLines.length > 0,
                 linesKey: subgroup.linesKey || `${quote.id}-${summaryPrefix}-${subgroupIndex}-lines`
@@ -686,16 +700,19 @@ export default class GenerateQuote extends LightningElement {
     }
 
     buildQuoteViewModel(quote) {
-        const salesConnectionUrl = quote.salesConnectionUrl || '';
+        const salesConnectionUrl = this.isDealerPortal === true ? '' : (quote.salesConnectionUrl || '');
+        const showPricing = this.isDealerPortal !== true || this.isApprovedStatus(quote.approvalStatus);
         const psamSubgroupSummary = this.enrichGroupingSummary(
             quote,
             quote.productSubgroupSummary,
-            'psam-subgroup'
+            'psam-subgroup',
+            showPricing
         );
         const salesCategorySummary = this.enrichGroupingSummary(
             quote,
             quote.salesCategorySummary,
-            'sales-category'
+            'sales-category',
+            showPricing
         );
         const activeSummary = this.groupBySalesCategory ? salesCategorySummary : psamSubgroupSummary;
 
@@ -715,7 +732,10 @@ export default class GenerateQuote extends LightningElement {
             description: quote.description || '',
             status: quote.status || '—',
             approvalStatus: quote.approvalStatus || '—',
-            totalWithoutFreight: this.formatCurrency(quote.quoteTotalWithoutFreight),
+            showPricing,
+            lineDetailColspan: showPricing ? 2 : 1,
+            totalWithoutFreight: showPricing ? this.formatCurrency(quote.quoteTotalWithoutFreight) : '',
+            currencyCode: quote.currencyIsoCode || '',
             lastModifiedDate: this.formatDateTime(quote.lastModifiedDate),
             isForecastIneligible,
             hideQuoteForecastConfidence,
@@ -1118,7 +1138,8 @@ export default class GenerateQuote extends LightningElement {
                 quoteTypeFilter: null,
                 excludeForecastIneligible: false,
                 trialIdFilter: this.trialIdFilter,
-                sampleIdFilter: this.sampleIdFilter
+                sampleIdFilter: this.sampleIdFilter,
+                forDealerPortal: this.isDealerPortal === true
             });
 
             if (requestId !== this.loadRequestId) {
@@ -1150,7 +1171,8 @@ export default class GenerateQuote extends LightningElement {
             quoteTypeFilter: this.quoteTypeFilter,
             excludeForecastIneligible: this.excludeForecastIneligibleForModal,
             trialIdFilter: this.trialIdFilter,
-            sampleIdFilter: this.sampleIdFilter
+            sampleIdFilter: this.sampleIdFilter,
+            forDealerPortal: this.isDealerPortal === true
         });
 
         this.modalQuotes = (result || []).map((quote) => this.buildQuoteViewModel(quote));
@@ -1475,11 +1497,13 @@ export default class GenerateQuote extends LightningElement {
         }
 
         return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD',
             minimumFractionDigits: 2,
             maximumFractionDigits: 2
         }).format(num);
+    }
+
+    isApprovedStatus(approvalStatus) {
+        return String(approvalStatus || '').trim().toLowerCase() === 'approved';
     }
 
     formatQuantity(value) {

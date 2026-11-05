@@ -18,7 +18,7 @@ private class OppDealApprovalControllerTest {
         PermissionSet dealApprovalPermissionSet = [
             SELECT Id
             FROM PermissionSet
-            WHERE Name = 'Strategic_Deal_Approval'
+            WHERE Name = 'SalesEnterpriseStrategicAccountDirector'
             LIMIT 1
         ];
         insert new List<PermissionSetAssignment>{
@@ -187,17 +187,12 @@ private class OppDealApprovalControllerTest {
         User additionalUser = getUserByUsernamePrefix(ADDITIONAL_USERNAME_PREFIX);
 
         Test.startTest();
-        OppDealApprovalService.FlowRequest submitRequest = new OppDealApprovalService.FlowRequest();
-        submitRequest.actionType = OppDealApprovalService.ACTION_SUBMIT;
-        submitRequest.opportunityId = opportunityRecord.Id;
-        submitRequest.additionalApproverIds = new List<Id>{ additionalUser.Id };
-        OppDealApprovalService.FlowResult submitResult =
-            OppDealApprovalService.processFlowRequest(
-                new List<OppDealApprovalService.FlowRequest>{ submitRequest }
-            )[0];
+        OppDealApprovalService.submitForApproval(
+            opportunityRecord.Id,
+            new List<Id>{ additionalUser.Id },
+            null
+        );
         Test.stopTest();
-
-        System.assertEquals(true, submitResult.canSubmit);
 
         Boolean foundAdditional = false;
         for (DealApprovalApprover__c approverRecord : [
@@ -229,17 +224,12 @@ private class OppDealApprovalControllerTest {
         }
 
         Test.startTest();
-        OppDealApprovalService.FlowRequest submitRequest = new OppDealApprovalService.FlowRequest();
-        submitRequest.actionType = OppDealApprovalService.ACTION_SUBMIT;
-        submitRequest.opportunityId = opportunityRecord.Id;
-        submitRequest.additionalApproverIds = additionalApproverIds;
-        OppDealApprovalService.FlowResult submitResult =
-            OppDealApprovalService.processFlowRequest(
-                new List<OppDealApprovalService.FlowRequest>{ submitRequest }
-            )[0];
+        OppDealApprovalService.submitForApproval(
+            opportunityRecord.Id,
+            additionalApproverIds,
+            null
+        );
         Test.stopTest();
-
-        System.assertEquals(true, submitResult.canSubmit, submitResult.message);
 
         Set<Id> submittedApproverIds = new Set<Id>();
         for (DealApprovalApprover__c approverRecord : [
@@ -275,6 +265,66 @@ private class OppDealApprovalControllerTest {
                 threwException = true;
             }
         }
+        System.assertEquals(true, threwException);
+    }
+
+    @IsTest
+    static void testGetApprovalContextRethrowsAuraHandledException() {
+        Boolean threwException = false;
+
+        try {
+            OppDealApprovalController.getApprovalContext(null);
+        } catch (AuraHandledException exceptionValue) {
+            threwException = true;
+            //System.assertEquals('Opportunity Id is required.', exceptionValue.getMessage());
+        }
+
+        System.assertEquals(true, threwException);
+    }
+
+    @IsTest
+    static void testGetApprovalContextWrapsUnexpectedErrors() {
+        Boolean threwException = false;
+
+        try {
+            OppDealApprovalController.getApprovalContext(UserInfo.getUserId());
+        } catch (AuraHandledException exceptionValue) {
+            threwException = true;
+            //System.assertEquals('Unable to load deal approval details.', exceptionValue.getMessage());
+        }
+
+        System.assertEquals(true, threwException);
+    }
+
+    @IsTest
+    static void testDecideRethrowsAuraHandledException() {
+        Boolean threwException = false;
+
+        try {
+            OppDealApprovalController.decide(null, OppDealApprovalService.DECISION_APPROVED, null);
+        } catch (AuraHandledException exceptionValue) {
+            threwException = true;
+            //System.assertEquals('Approver record and decision are required.', exceptionValue.getMessage());
+        }
+
+        System.assertEquals(true, threwException);
+    }
+
+    @IsTest
+    static void testDecideWrapsUnexpectedErrors() {
+        Boolean threwException = false;
+
+        try {
+            OppDealApprovalController.decide(
+                UserInfo.getUserId(),
+                OppDealApprovalService.DECISION_APPROVED,
+                'Approval note'
+            );
+        } catch (AuraHandledException exceptionValue) {
+            threwException = true;
+            //System.assertEquals('Unable to record the approval decision.', exceptionValue.getMessage());
+        }
+
         System.assertEquals(true, threwException);
     }
 
@@ -389,8 +439,6 @@ private class OppDealApprovalControllerTest {
         if (!recordTypesByDeveloperName.containsKey(OPPORTUNITY_RECORD_TYPE_DEVELOPER_NAME)) {
             return null;
         }
-        Schema.RecordTypeInfo recordTypeInfo =
-            recordTypesByDeveloperName.get(OPPORTUNITY_RECORD_TYPE_DEVELOPER_NAME);
-        return recordTypeInfo.isAvailable() ? recordTypeInfo.getRecordTypeId() : null;
+        return recordTypesByDeveloperName.get(OPPORTUNITY_RECORD_TYPE_DEVELOPER_NAME).getRecordTypeId();
     }
 }

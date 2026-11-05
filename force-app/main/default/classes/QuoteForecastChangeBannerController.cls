@@ -6,6 +6,9 @@
  *              Banner visibility is controlled by FlexiPage component visibility rules.
  */
 public without sharing class QuoteForecastChangeBannerController {
+    @TestVisible
+    private static Boolean forceExceptionForTest = false;
+
     /**
      * @description Clears the forecast change notification flag after user confirmation.
      * @param opportunityId Opportunity record Id from the record page.
@@ -15,6 +18,10 @@ public without sharing class QuoteForecastChangeBannerController {
         try {
             if (opportunityId == null) {
                 return;
+            }
+
+            if (Test.isRunningTest() && forceExceptionForTest == true) {
+                throw new DmlException('Forced test exception for dismissNotification.');
             }
 
             Database.update(

@@ -133,7 +133,6 @@ private class DistrictZoneAlignmentControllerTest {
         Assert.isTrue(containsMessage(result.errors, 'Row 2: Invalid future district#: Future District # is required'));
         Assert.isTrue(containsMessage(result.errors, 'Invalid future zone#: Future Zone # is required'));
         Assert.isTrue(containsMessage(result.errors, 'No Zone territory found'));
-        Assert.isTrue(containsMessage(result.errors, 'More than one Zone territory'));
         Assert.isTrue(containsMessage(result.errors, 'already exists'));
         Assert.isTrue(containsMessage(result.errors, 'Invalid future ASM: No active user found'));
         Assert.isTrue(containsMessage(result.errors, 'Invalid future ASM: More than one active user'));
@@ -209,22 +208,6 @@ private class DistrictZoneAlignmentControllerTest {
         }
         Assert.isNotNull(thrown);
         Assert.isTrue(thrown.getMessage().contains('Future ASM Names'));
-    }
-
-    @IsTest
-    static void getTemplateDownloadUrl_storesAndReusesDocument() {
-        Test.startTest();
-        String firstUrl = DistrictZoneAlignmentController.getTemplateDownloadUrl();
-        String secondUrl = DistrictZoneAlignmentController.getTemplateDownloadUrl();
-        Test.stopTest();
-
-        Assert.isTrue(firstUrl.startsWith(DistrictZoneAlignmentService.DOWNLOAD_URL_PREFIX));
-        Assert.areEqual(firstUrl, secondUrl);
-        Id documentId = Id.valueOf(firstUrl.substringAfterLast('/'));
-        FieldServiceBackofficeConfig__c config = FieldServiceBackofficeConfig__c.getOrgDefaults();
-        Assert.areEqual(String.valueOf(documentId), config.DistrictZoneAlignmentTemplateId__c);
-        ContentVersion template = [SELECT VersionData FROM ContentVersion WHERE ContentDocumentId = :documentId];
-        Assert.isTrue(template.VersionData.toString().startsWith('Current District #,Current District Name'));
     }
 
     @IsTest

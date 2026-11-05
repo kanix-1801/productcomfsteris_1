@@ -121,9 +121,9 @@ private class LSGenerateQuoteServiceTest {
             configureSalesConnectionSettings();
             Opportunity opportunityRecord = opportunityRecord();
 
-            GenerateQuoteController.CreateQuoteResponse oneArgument =
+            LSGenerateQuoteController.CreateQuoteResponse oneArgument =
                 LSGenerateQuoteService.createQuote(opportunityRecord.Id);
-            GenerateQuoteController.CreateQuoteResponse shellRequest =
+            LSGenerateQuoteController.CreateQuoteResponse shellRequest =
                 LSGenerateQuoteService.createShellQuoteForSalesConnectionRequest(
                     opportunityRecord.Id,
                     LSSalesConnectionUrlService.SF_REQUEST_COPY
@@ -218,7 +218,7 @@ private class LSGenerateQuoteServiceTest {
         System.runAs(runningUser()) {
             registerRefreshMock(200, refreshSuccessBody());
             Test.startTest();
-            List<GenerateQuoteController.QuoteWrapper> refreshed =
+            List<LSGenerateQuoteController.QuoteWrapper> refreshed =
                 LSGenerateQuoteService.refreshQuotes(opportunityRecord().Id);
             Test.stopTest();
             Assert.areEqual(0, refreshed.size());
@@ -341,7 +341,7 @@ private class LSGenerateQuoteServiceTest {
                 unsupportedRequestThrew = true;
             }
             Assert.isTrue(unsupportedRequestThrew);
-            LSGenerateQuoteService.validateSalesConnectionSfRequest(SalesConnectionUrlService.SF_REQUEST_MERGE);
+            LSGenerateQuoteService.validateSalesConnectionSfRequest(LSSalesConnectionUrlService.SF_REQUEST_MERGE);
             Assert.isNull(LSGenerateQuoteService.resolveQuoteNumberLabel(null));
             Assert.isNull(LSGenerateQuoteService.resolveSalesConnectionQuoteId(null));
             Assert.isNull(LSGenerateQuoteService.resolveSalesConnectionViewQuoteId(null));
@@ -431,7 +431,7 @@ private class LSGenerateQuoteServiceTest {
             );
             insert sampleRecord;
 
-            GenerateQuoteController.CreateQuoteResponse sampleResponse =
+            LSGenerateQuoteController.CreateQuoteResponse sampleResponse =
                 LSGenerateQuoteService.createQuote(
                     opportunityRecord.Id,
                     LSGenerateQuoteService.QUOTE_TYPE_SAMPLE,
@@ -449,7 +449,7 @@ private class LSGenerateQuoteServiceTest {
             Assert.isTrue(sampleQuote.Name.startsWith('Sample Quote - '));
 
             SalesConnectionUrlService.testSettingsOverride = new ExternalSystemEndpoint__mdt();
-            GenerateQuoteController.CreateQuoteResponse goodwillResponse =
+            LSGenerateQuoteController.CreateQuoteResponse goodwillResponse =
                 LSGenerateQuoteService.createQuote(
                     opportunityRecord.Id,
                     LSGenerateQuoteService.QUOTE_TYPE_GOODWILL

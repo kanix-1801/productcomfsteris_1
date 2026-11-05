@@ -65,7 +65,7 @@ public with sharing class TechAccountAlignmentService {
         if (config != null && String.isNotBlank(config.TechAccountAlignmentTemplateId__c)) {
             try {
                 Id storedId = Id.valueOf(config.TechAccountAlignmentTemplateId__c);
-                List<ContentDocument> storedDocs = TechAccountAlignmentSelector.selectDocumentsById(storedId);
+                List<ContentDocument> storedDocs = ContentDocumentsSelector.selectIdAndTitleByIds(new Set<Id>{ storedId });
                 if (!storedDocs.isEmpty()) {
                     return storedDocs[0].Id;
                 }
@@ -74,13 +74,13 @@ public with sharing class TechAccountAlignmentService {
             }
         }
 
-        List<ContentDocument> titledDocs = TechAccountAlignmentSelector.selectDocumentsByTitle(TEMPLATE_TITLE);
+        List<ContentDocument> titledDocs = ContentDocumentsSelector.selectLatestByTitle(TEMPLATE_TITLE);
         if (!titledDocs.isEmpty()) {
             persistTemplateDocumentId(titledDocs[0].Id);
             return titledDocs[0].Id;
         }
 
-        List<StaticResource> resources = TechAccountAlignmentSelector.selectTemplateResource(TEMPLATE_RESOURCE_NAME);
+        List<StaticResource> resources = StaticResourcesSelector.selectByName(TEMPLATE_RESOURCE_NAME);
         if (resources.isEmpty() || resources[0].Body == null) {
             throw auraError('Tech Account Alignment template is not available.');
         }
@@ -92,11 +92,7 @@ public with sharing class TechAccountAlignmentService {
         version.IsMajorVersion = true;
         insert version;
 
-        Id documentId = [
-            SELECT ContentDocumentId
-            FROM ContentVersion
-            WHERE Id = :version.Id
-        ].ContentDocumentId;
+        Id documentId = ContentVersionsSelector.selectDocumentIdByVersionId(version.Id)[0].ContentDocumentId;
         persistTemplateDocumentId(documentId);
         return documentId;
     }
@@ -113,7 +109,7 @@ public with sharing class TechAccountAlignmentService {
             throw auraError('Upload a file before clicking Start Upload.');
         }
 
-        List<ContentVersion> versions = TechAccountAlignmentSelector.selectLatestVersion(contentDocumentId);
+        List<ContentVersion> versions = ContentVersionsSelector.selectLatestForAlignmentUpload(contentDocumentId);
         if (versions.isEmpty() || versions[0].VersionData == null) {
             throw auraError('The uploaded file could not be read.');
         }
@@ -141,17 +137,17 @@ public with sharing class TechAccountAlignmentService {
         }
 
         Map<String, Account> accountByOracleId = new Map<String, Account>();
-        for (Account addressAccount : TechAccountAlignmentSelector.selectAddressAccountsByOracleAddressIds(oracleAddressIds)) {
+        for (Account addressAccount : AccountSelector.selectAddressAccountsByOracleAddressIds(oracleAddressIds)) {
             accountByOracleId.put(addressAccount.OracleAddressId__c, addressAccount);
         }
 
         Map<Id, ServiceResource> resourceByUserId = new Map<Id, ServiceResource>();
-        for (ServiceResource resource : TechAccountAlignmentSelector.selectActiveResourcesByUserIds(userIds)) {
+        for (ServiceResource resource : ServiceResourcesSelector.selectActiveByRelatedRecordIds(userIds)) {
             resourceByUserId.put(resource.RelatedRecordId, resource);
         }
 
         Map<String, WorkType> workTypeByName = new Map<String, WorkType>();
-        for (WorkType workType : TechAccountAlignmentSelector.selectWorkTypesByNames(workTypeNames)) {
+        for (WorkType workType : WorkTypesSelector.selectByNames(workTypeNames)) {
             workTypeByName.put(workType.Name.toLowerCase(), workType);
         }
 
@@ -161,7 +157,7 @@ public with sharing class TechAccountAlignmentService {
         }
 
         Set<String> existingKeys = new Set<String>();
-        for (AddressResourcePreference__c existing : TechAccountAlignmentSelector.selectExistingPreferences(addressAccountIds)) {
+        for (AddressResourcePreference__c existing : AddressResourcePreferencesSelector.selectByAddressAccountIds(addressAccountIds)) {
             existingKeys.add(preferenceKey(existing.AddressAccount__c, existing.ServiceResource__c, existing.TerritoryType__c, existing.WorkType__c));
         }
 
@@ -327,11 +323,11 @@ public with sharing class TechAccountAlignmentService {
         if (String.isBlank(value)) {
             return null;
         }
-        try {
-            return Id.valueOf(value.trim());
-        } catch (Exception e) {
+        String trimmed = value.trim();
+        if (!PlatformUtilities.isSalesforceId(trimmed)) {
             return null;
         }
+        return Id.valueOf(trimmed);
     }
 
     private static String preferenceKey(Id addressAccountId, Id serviceResourceId, String territoryType, Id workTypeId) {

@@ -5,9 +5,16 @@
  * @description Apex controller for the Closed Lost quote closure banner LWC.
  */
 public with sharing class OppClosedLostQuoteBannerController {
+    @TestVisible
+    private static Boolean forceExceptionForTest = false;
+
     @AuraEnabled(cacheable=true)
     public static OppClosedLostQuoteService.BannerContext getBannerContext(Id opportunityId) {
         try {
+            if (Test.isRunningTest() && forceExceptionForTest == true) {
+                throw new QueryException('Forced test exception for getBannerContext.');
+            }
+
             return OppClosedLostQuoteService.getBannerContext(opportunityId);
         } catch (Exception exceptionValue) {
             ErrorLogger.logException(
@@ -22,6 +29,10 @@ public with sharing class OppClosedLostQuoteBannerController {
     @AuraEnabled
     public static void closeAllOpenQuotes(Id opportunityId) {
         try {
+            if (Test.isRunningTest() && forceExceptionForTest == true) {
+                throw new QueryException('Forced test exception for closeAllOpenQuotes.');
+            }
+
             OppClosedLostQuoteService.closeAllOpenQuotes(opportunityId);
         } catch (AuraHandledException exceptionValue) {
             throw exceptionValue;
@@ -38,6 +49,10 @@ public with sharing class OppClosedLostQuoteBannerController {
     @AuraEnabled
     public static void dismissBanner(Id opportunityId) {
         try {
+            if (Test.isRunningTest() && forceExceptionForTest == true) {
+                throw new QueryException('Forced test exception for dismissBanner.');
+            }
+
             OppClosedLostQuoteService.dismissBanner(opportunityId);
         } catch (AuraHandledException exceptionValue) {
             throw exceptionValue;

@@ -1,0 +1,57 @@
+<template>
+    <template for:each={rows} for:item="row">
+        <section key={row.key} class="recipient-card" data-key={row.key}>
+            <lightning-input
+                type="checkbox"
+                label="This person exists in Salesforce. Disable this if user does not exist in Salesforce"
+                checked={row.existsInSalesforce}
+                data-key={row.key}
+                onchange={handleExistsChange}>
+            </lightning-input>
+
+            <template lwc:if={row.existsInSalesforce}>
+                <lightning-record-picker
+                    class="field-gap"
+                    label="User"
+                    placeholder="Search People..."
+                    object-api-name="User"
+                    value={row.userId}
+                    required
+                    data-key={row.key}
+                    onchange={handleUserChange}>
+                </lightning-record-picker>
+            </template>
+            <template lwc:else>
+                <c-mock-room-ori-external-email
+                    class="field-gap"
+                    value={row.email}
+                    required
+                    data-key={row.key}
+                    onemailchange={handleEmailChange}>
+                </c-mock-room-ori-external-email>
+            </template>
+
+            <lightning-combobox
+                class="field-gap"
+                label="Receives the request as"
+                value={row.role}
+                placeholder="Select an Option"
+                options={roleOptions}
+                required
+                data-key={row.key}
+                onchange={handleRoleChange}>
+            </lightning-combobox>
+
+            <div class="remove-row">
+                <lightning-button
+                    label="Remove"
+                    variant="brand-outline"
+                    disabled={onlyOneRow}
+                    data-key={row.key}
+                    onclick={handleRemove}>
+                </lightning-button>
+            </div>
+        </section>
+    </template>
+    <lightning-button label="Add" onclick={handleAdd}></lightning-button>
+</template>

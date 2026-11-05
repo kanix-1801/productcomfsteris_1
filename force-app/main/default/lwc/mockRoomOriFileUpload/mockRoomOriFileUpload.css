@@ -1,4 +1,21 @@
-.hint,
+.label-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.125rem;
+}
+
+.field-label {
+    color: var(--slds-g-color-neutral-base-30, #444444);
+    font-size: 0.75rem;
+    line-height: 1.5;
+    margin-right: 0.25rem;
+}
+
+.field-help {
+    display: inline-flex;
+    line-height: 1;
+}
+
 .saved,
 .error {
     margin-bottom: 0.75rem;

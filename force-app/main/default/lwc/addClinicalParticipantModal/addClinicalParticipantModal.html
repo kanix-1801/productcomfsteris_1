@@ -1,46 +1,66 @@
 <template>
     <lightning-modal-header label="Add Clinical Participant"></lightning-modal-header>
     <lightning-modal-body>
+        <p class="intro">Search for a Salesforce user. If this person does not have a Salesforce login, check the box and enter their name and email.</p>
         <template lwc:if={errorMessage}>
             <p class="slds-text-color_error slds-m-bottom_small">{errorMessage}</p>
         </template>
         <template for:each={rows} for:item="row">
-            <div key={row.key} class="slds-box slds-m-bottom_small">
-                <lightning-record-picker
-                    label="Salesforce User"
-                    placeholder="Search Salesforce users"
-                    object-api-name="User"
-                    value={row.userId}
-                    data-key={row.key}
-                    onchange={handleUserChange}>
-                </lightning-record-picker>
+            <div key={row.key} class="participant-card">
                 <lightning-input
-                    class="slds-m-top_x-small"
-                    label="Name"
-                    value={row.name}
+                    type="checkbox"
+                    label="This person is not a Salesforce user"
+                    checked={row.isExternal}
                     data-key={row.key}
-                    onchange={handleNameChange}>
+                    onchange={handleExternalChange}>
                 </lightning-input>
-                <lightning-input
-                    class="slds-m-top_x-small"
-                    type="email"
-                    label="Email"
-                    value={row.email}
-                    data-key={row.key}
-                    onchange={handleEmailChange}>
-                </lightning-input>
-                <lightning-button
-                    class="slds-m-top_x-small"
-                    label="Remove"
-                    data-key={row.key}
-                    onclick={removeRow}>
-                </lightning-button>
+                <template lwc:if={row.isSalesforceUser}>
+                    <lightning-record-picker
+                        class="field-block"
+                        label="Salesforce user"
+                        placeholder="Search Salesforce users"
+                        object-api-name="User"
+                        value={row.userId}
+                        data-key={row.key}
+                        onchange={handleUserChange}>
+                    </lightning-record-picker>
+                    <template lwc:if={row.name}>
+                        <p class="hint">{row.name}</p>
+                        <p>{row.email}</p>
+                        <p class="slds-text-body_small">Name and email are taken from this Salesforce user.</p>
+                    </template>
+                </template>
+                <template lwc:if={row.isExternal}>
+                    <p class="hint">Enter their name and email. This person does not have a Salesforce login.</p>
+                    <lightning-input
+                        class="field-block"
+                        label="Name"
+                        value={row.name}
+                        data-key={row.key}
+                        onchange={handleNameChange}>
+                    </lightning-input>
+                    <lightning-input
+                        class="field-block"
+                        type="email"
+                        label="Email"
+                        value={row.email}
+                        data-key={row.key}
+                        onchange={handleEmailChange}>
+                    </lightning-input>
+                </template>
+                <div class="participant-actions">
+                    <lightning-button
+                        label="Remove"
+                        data-key={row.key}
+                        onclick={removeRow}>
+                    </lightning-button>
+                </div>
             </div>
         </template>
-        <lightning-button label="Add another" onclick={addRow}></lightning-button>
+        <lightning-button class="add-another" label="Add another" onclick={addRow}></lightning-button>
     </lightning-modal-body>
     <lightning-modal-footer>
         <lightning-button label="Cancel" onclick={handleCancel}></lightning-button>
-        <lightning-button class="slds-m-left_x-small" variant="brand" label="Save" onclick={handleSave}></lightning-button>
+        <lightning-button class="slds-m-left_x-small" variant="brand" label="Save" disabled={saveDisabled} onclick={handleSave}></lightning-button>
     </lightning-modal-footer>
 </template>

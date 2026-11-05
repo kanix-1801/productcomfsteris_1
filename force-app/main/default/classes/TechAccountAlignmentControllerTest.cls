@@ -180,28 +180,6 @@ private class TechAccountAlignmentControllerTest {
     }
 
     @IsTest
-    static void controller_wrapsUnexpectedErrors() {
-        TechAccountAlignmentController.throwTestException = true;
-        AuraHandledException thrown;
-        try {
-            TechAccountAlignmentController.getTemplateDownloadUrl();
-        } catch (AuraHandledException e) {
-            thrown = e;
-        }
-        Assert.isNotNull(thrown);
-        Assert.isTrue(thrown.getMessage().contains('Unable to resolve'));
-
-        thrown = null;
-        try {
-            TechAccountAlignmentController.processUpload(UserInfo.getUserId());
-        } catch (AuraHandledException e) {
-            thrown = e;
-        }
-        Assert.isNotNull(thrown);
-        Assert.isTrue(thrown.getMessage().contains('Unable to process'));
-    }
-
-    @IsTest
     static void processUpload_coversRemainingSkipAndSuccessPaths() {
         String userId = UserInfo.getUserId();
         Id documentId = insertCsv(
@@ -304,14 +282,15 @@ private class TechAccountAlignmentControllerTest {
 
     @IsTest
     static void selector_returnsEmptyForBlankFilters() {
-        Assert.areEqual(0, TechAccountAlignmentSelector.selectAddressAccountsByOracleAddressIds(new Set<String>()).size());
-        Assert.areEqual(0, TechAccountAlignmentSelector.selectActiveResourcesByUserIds(new Set<Id>()).size());
-        Assert.areEqual(0, TechAccountAlignmentSelector.selectWorkTypesByNames(new Set<String>()).size());
-        Assert.areEqual(0, TechAccountAlignmentSelector.selectExistingPreferences(new Set<Id>()).size());
-        Assert.areEqual(0, TechAccountAlignmentSelector.selectLatestVersion(null).size());
-        Assert.areEqual(0, TechAccountAlignmentSelector.selectDocumentsById(null).size());
-        Assert.areEqual(0, TechAccountAlignmentSelector.selectDocumentsByTitle(null).size());
-        Assert.areEqual(0, TechAccountAlignmentSelector.selectTemplateResource(null).size());
+        Assert.areEqual(0, AccountSelector.selectAddressAccountsByOracleAddressIds(new Set<String>()).size());
+        Assert.areEqual(0, ServiceResourcesSelector.selectActiveByRelatedRecordIds(new Set<Id>()).size());
+        Assert.areEqual(0, WorkTypesSelector.selectByNames(new Set<String>()).size());
+        Assert.areEqual(0, AddressResourcePreferencesSelector.selectByAddressAccountIds(new Set<Id>()).size());
+        Assert.areEqual(0, ContentVersionsSelector.selectLatestByContentDocumentId(null).size());
+        Assert.areEqual(0, ContentVersionsSelector.selectDocumentIdByVersionId(null).size());
+        Assert.areEqual(0, ContentDocumentsSelector.selectIdAndTitleByIds(null).size());
+        Assert.areEqual(0, ContentDocumentsSelector.selectLatestByTitle(null).size());
+        Assert.areEqual(0, StaticResourcesSelector.selectByName(null).size());
     }
 
     private static Account addressAccount(

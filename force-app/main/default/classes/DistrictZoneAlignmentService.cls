@@ -1,13 +1,11 @@
 /**
- * @description GW-2706 - Creates or updates district Service Territories and their parent zone from a
- *              District Zone Alignment file, writes the user's error file and emails it to them.
- *              Row logic follows "Territory Assignment Logic - District to Zone":
- *              1. Current District # blank: Future District # and Future Zone # are required; create a district
- *                 territory under the zone with Future ASM as Territory Manager.
- *              2. Current District # set: it must match a territory; Future District # and Future Zone # are
- *                 required; update Territory Manager, parent zone, District # and name where they differ.
- *              Any other row is skipped and written to the error file. A cell holding only a dash ("-") is blank.
- *              Current District Name, Current Zone #, Current Zone Name and Zone Name are reference columns only.
+ * @description GW-2706 - Creates or updates district Service Territories and their parent zones
+ *              from a District Zone Alignment file. Generates and emails a user-specific error file.
+ *              Blank or "-" Current District # creates a new district under the Future Zone,
+ *              with Future ASM as Territory Manager. Otherwise, the existing district is updated
+ *              with the Future ASM, Future Zone, District # and name wherever they differ.
+ *              Invalid rows are skipped and logged in the error file. Current District Name,
+ *              Current Zone #, Current Zone Name and Zone Name are reference-only columns.
  */
 public with sharing class DistrictZoneAlignmentService {
     public static final String TEMPLATE_TITLE = 'District Zone Alignment Template';

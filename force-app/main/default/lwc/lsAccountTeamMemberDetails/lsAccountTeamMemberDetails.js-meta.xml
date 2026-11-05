@@ -3,7 +3,7 @@
     <apiVersion>60.0</apiVersion>
     <isExposed>true</isExposed>
     <masterLabel>LS Account Team Member Details</masterLabel>
-    <description>Life Sciences Coverage Panel. Displays Team Member, Account Team Role, Assignment Type, Temporary Access, and Sales Category Description.</description>
+    <description>Life Sciences Coverage Panel. Displays Team Member, Account Team Role, Assignment Type, Territory Number, and Sales Category Description.</description>
     <targets>
         <target>lightning__RecordPage</target>
     </targets>

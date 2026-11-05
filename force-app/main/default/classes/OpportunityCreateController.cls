@@ -15,7 +15,7 @@ public with sharing class OpportunityCreateController {
      * @param opportunityType Selected Opportunity Type value.
      * @return List of matching open Opportunities.
      */
-   /* @AuraEnabled(cacheable=false)
+    @AuraEnabled(cacheable=false)
     public static List<Opportunity> checkDuplicateOpportunity(
         Id addressId,
         Id primaryContactId,
@@ -103,7 +103,7 @@ public with sharing class OpportunityCreateController {
         } finally {
             Logger.saveLog();
         }
-    } */
+    }
 
     /**
      * @description Wrapper returned to LWC containing field configuration for a record type.

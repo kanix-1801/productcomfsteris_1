@@ -124,11 +124,11 @@ public with sharing class LSGenerateQuoteController {
      * @return Create quote response DTO with encrypted Sales Connection URL.
      */
     @AuraEnabled
-    public static GenerateQuoteController.CreateQuoteResponse copyQuote(Id opportunityId) {
+    public static LSGenerateQuoteController.CreateQuoteResponse copyQuote(Id opportunityId) {
         try {
-            return GenerateQuoteService.createShellQuoteForSalesConnectionRequest(
+            return LSGenerateQuoteService.createShellQuoteForSalesConnectionRequest(
                 opportunityId,
-                SalesConnectionUrlService.SF_REQUEST_COPY
+                LSSalesConnectionUrlService.SF_REQUEST_COPY
             );
         } catch (Exception exceptionValue) {
             handleException('Unable to copy quote.', exceptionValue);
@@ -144,11 +144,11 @@ public with sharing class LSGenerateQuoteController {
      * @return Create quote response DTO with encrypted Sales Connection URL.
      */
     @AuraEnabled
-    public static GenerateQuoteController.CreateQuoteResponse mergeQuote(Id opportunityId) {
+    public static LSGenerateQuoteController.CreateQuoteResponse mergeQuote(Id opportunityId) {
         try {
-            return GenerateQuoteService.createShellQuoteForSalesConnectionRequest(
+            return LSGenerateQuoteService.createShellQuoteForSalesConnectionRequest(
                 opportunityId,
-                SalesConnectionUrlService.SF_REQUEST_MERGE
+                LSSalesConnectionUrlService.SF_REQUEST_MERGE
             );
         } catch (Exception exceptionValue) {
             handleException('Unable to merge quote.', exceptionValue);

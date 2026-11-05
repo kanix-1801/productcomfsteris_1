@@ -7,7 +7,7 @@ const LS_COLUMNS = [
       typeAttributes: { label: { fieldName: 'teamMember' }, target: '_self' } },
     { label: 'Account Team Role', fieldName: 'teamRole' },
     { label: 'Assignment Type', fieldName: 'assignmentType' },
-    { label: 'Temporary Access', fieldName: 'temporaryAccessIndicator', type: 'boolean' },
+    { label: 'Territory Number', fieldName: 'territoryCode' },
     { label: 'Sales Category Description', fieldName: 'salesCategoryDescription' }
 ];
 

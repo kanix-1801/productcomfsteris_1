@@ -16,7 +16,7 @@
  * - Null Opportunity Id
  */
 @IsTest
-private class OraclePricingIntegrationTest {
+public class OraclePricingIntegrationTest {
 
     private static final String CUSTOMER_RT = 'Customer';
     private static final String OPP_RT = 'HCSalesConsumables';
@@ -1904,6 +1904,173 @@ static void testUpdateProspectOpportunityProducts() {
 
         System.assertEquals(true, prospectResult.calloutSuccess);
         System.assertEquals(63.61, prospectResult.parsedResponse.priceInfo[0].price);
+    }
+
+    // Gateway success, empty body, retry, null map, and exception paths.
+    // A test provider returns the response map. SO_Provider_Salesforce plus a
+    // failing callout never sets SO_SUCCESS, so sendUnitPriceRequest returns
+    // inside the Test.isRunningTest fallback and skips these lines.
+    private static Map<String, Object> gatewayResponseOverride;
+
+    @IsTest
+    static void gatewayParsesRealUnitAndProspectBodies() {
+        OraclePricingRequest request = sampleGatewayRequest();
+        String prospectId = String.valueOf(request.prospectId);
+
+        useGatewayProvider(new Map<String, Object>{
+            'SO_SUCCESS' => true,
+            'SERVICE_STATUS' => 200,
+            'SERVICE_DATA' =>
+                '{"OutputParameters":{"P_MESSAGEKEY":"Success","P_ERRORCODE":"0","P_ITEMS_TBL":[{"P_ITEMS_TBL_ITEM":[{"PARTNUMBER":"PART-1","PRICE":"10.5","LIST_PRICE":"12","MESSAGEKEY":"Success","ERRORCODE":"0"}]}]}}'
+        });
+
+        Test.startTest();
+        OracleUnitPricingGateway.CalloutResult unitResult =
+            OracleUnitPricingGateway.sendUnitPriceRequest(request);
+
+        useGatewayProvider(new Map<String, Object>{
+            'SO_SUCCESS' => true,
+            'SERVICE_STATUS' => 200,
+            'SERVICE_DATA' =>
+                '{"opportunityId":"' + prospectId + '","prospectId":"' + prospectId +
+                '","partNumbers":[{"partNumber":"PART-1","messageKey":"Success","errorCode":"0","listPrice":"8.25","currency":"USD"}]}'
+        });
+        OracleUnitPricingGateway.CalloutResult prospectResult =
+            OracleUnitPricingGateway.sendProspectPriceRequest(request);
+        Test.stopTest();
+
+        System.assertEquals(null, unitResult.errorDetail);
+        System.assertEquals(true, unitResult.calloutSuccess);
+        System.assertEquals(false, unitResult.retryEnqueued);
+        System.assertEquals(10.5, unitResult.parsedResponse.priceInfo[0].price);
+
+        System.assertEquals(null, prospectResult.errorDetail);
+        System.assertEquals(true, prospectResult.calloutSuccess);
+        System.assertEquals(8.25, prospectResult.parsedResponse.priceInfo[0].price);
+    }
+
+    @IsTest
+    static void gatewaySubstitutesMockWhenParsedPriceInfoIsEmpty() {
+        OraclePricingRequest request = sampleGatewayRequest();
+
+        useGatewayProvider(new Map<String, Object>{
+            'SO_SUCCESS' => true,
+            'SERVICE_DATA' => '{"OutputParameters":{"P_MESSAGEKEY":"Success","P_ERRORCODE":"0"}}'
+        });
+
+        Test.startTest();
+        OracleUnitPricingGateway.CalloutResult unitResult =
+            OracleUnitPricingGateway.sendUnitPriceRequest(request);
+
+        useGatewayProvider(new Map<String, Object>{
+            'SO_SUCCESS' => true,
+            'SERVICE_DATA' => '{"opportunityId":"' + String.valueOf(request.prospectId) + '","partNumbers":[]}'
+        });
+        OracleUnitPricingGateway.CalloutResult prospectResult =
+            OracleUnitPricingGateway.sendProspectPriceRequest(request);
+        Test.stopTest();
+
+        System.assertEquals('Oracle returned empty pricing response', unitResult.errorDetail);
+        System.assertEquals(true, unitResult.calloutSuccess);
+        System.assertEquals(130, unitResult.parsedResponse.priceInfo[0].price);
+
+        System.assertEquals('Boomi returned empty pricing response', prospectResult.errorDetail);
+        System.assertEquals(true, prospectResult.calloutSuccess);
+        System.assertEquals(63.61, prospectResult.parsedResponse.priceInfo[0].price);
+    }
+
+    @IsTest
+    static void gatewayHandlesInvalidPricingJson() {
+        OraclePricingRequest request = sampleGatewayRequest();
+        Map<String, Object> invalidBody = new Map<String, Object>{
+            'SO_SUCCESS' => true,
+            'SERVICE_DATA' => 'not-json'
+        };
+
+        useGatewayProvider(invalidBody);
+
+        Test.startTest();
+        OracleUnitPricingGateway.CalloutResult unitResult =
+            OracleUnitPricingGateway.sendUnitPriceRequest(request);
+
+        useGatewayProvider(invalidBody);
+        OracleUnitPricingGateway.CalloutResult prospectResult =
+            OracleUnitPricingGateway.sendProspectPriceRequest(request);
+        Test.stopTest();
+
+        System.assertEquals(false, unitResult.calloutSuccess);
+        System.assert(String.isNotBlank(unitResult.errorDetail));
+        System.assertEquals(null, unitResult.parsedResponse);
+
+        System.assertEquals(true, prospectResult.calloutSuccess);
+        System.assertEquals(63.61, prospectResult.parsedResponse.priceInfo[0].price);
+    }
+
+    @IsTest
+    static void gatewayHandlesNullResponseMapAndRetry() {
+        OraclePricingRequest request = sampleGatewayRequest();
+
+        useGatewayProvider(null);
+
+        Test.startTest();
+        OracleUnitPricingGateway.CalloutResult nullUnit =
+            OracleUnitPricingGateway.sendUnitPriceRequest(request);
+        OracleUnitPricingGateway.CalloutResult nullProspect =
+            OracleUnitPricingGateway.sendProspectPriceRequest(request);
+
+        useGatewayProvider(new Map<String, Object>{
+            'SO_SUCCESS' => false,
+            'SO_RETURN' => 'retry scheduled',
+            SO_Constants.RETRY_ENQUEUED => true
+        });
+        OracleUnitPricingGateway.CalloutResult retryResult =
+            OracleUnitPricingGateway.sendUnitPriceRequest(request);
+        Test.stopTest();
+
+        System.assertEquals(null, nullUnit.serviceResponseMap);
+        System.assertEquals(null, nullProspect.serviceResponseMap);
+        System.assertEquals(true, retryResult.retryEnqueued);
+    }
+
+    private static OraclePricingRequest sampleGatewayRequest() {
+        OraclePricingRequest request = new OraclePricingRequest();
+        request.sfOpportunityId = String.valueOf(UserInfo.getUserId());
+        request.prospectId = UserInfo.getUserId();
+        request.operatingUnit = '83';
+        request.accountType = 'Account';
+        request.priceList = '6125';
+        request.sourceSystem = 'SFDC';
+        request.productPartNumbers = new List<OraclePricingRequest.ProductPartNumber>{
+            new OraclePricingRequest.ProductPartNumber('PART-1', 1)
+        };
+        return request;
+    }
+
+    private static void useGatewayProvider(Map<String, Object> responseMap) {
+        gatewayResponseOverride = responseMap;
+        SO_Config.SO_ServiceList_mock.clear();
+        SO_Config.SO_ServiceList_mock.add(gatewayProviderSetting('SF_GET_UNIT_PRICE'));
+        SO_Config.SO_ServiceList_mock.add(gatewayProviderSetting('SF_GET_PROSPECT_PRICE'));
+    }
+
+    private static ShoutOut_Service_Setting__mdt gatewayProviderSetting(String settingName) {
+        ShoutOut_Service_Setting__mdt serviceSetting = new ShoutOut_Service_Setting__mdt();
+        serviceSetting.DeveloperName = settingName;
+        serviceSetting.MasterLabel = settingName;
+        serviceSetting.Label = settingName;
+        serviceSetting.Framework_Callout_Name__c = settingName;
+        serviceSetting.Provider_Class__c =
+            'OraclePricingIntegrationTest.UnitPricingCalloutProvider';
+        serviceSetting.isActive__c = true;
+        serviceSetting.REST_Verb__c = 'POST';
+        serviceSetting.Service_Class__c = 'SO_ServiceAdapterBase_REST';
+        return serviceSetting;
+    }
+
+    public class UnitPricingCalloutProvider extends SO_Provider_Base {
+        public override Map<String, Object> makeCallout(SO_Callout callout) {
+            return gatewayResponseOverride;
+        }
     }
 
 }

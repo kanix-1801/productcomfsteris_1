@@ -9,7 +9,7 @@
  *              - AccountCustomerTasIntegrationService
  *              - AccountCustomerTasGateway
  *              - TasCustomerAccountRequest
-     *              - TasCustomerAccountResponse
+ *              - TasCustomerAccountResponse
  *              - Healthcare Sales User resolution
  *              - AccountTeamMember creation
  *              - Duplicate prevention
@@ -68,8 +68,22 @@ public class AccountCustomerTasServiceTest {
             tasRepOne,
             tasRepTwo
         };
+            
+            PermissionSetGroup psGroup = [
+            SELECT Id, Status
+            FROM PermissionSetGroup
+            WHERE DeveloperName = 'SalesCustomerOpsSalesSupportSalesAdminPSG'
+            LIMIT 1
+        ];
 
-        TestDataFactory.assignSalesCustomerOpsPermissionSetGroup(runningUser.Id);
+        // Force the group to "Updated" so assignments are allowed in test context
+        Test.calculatePermissionSetGroup(psGroup.Id);
+        
+        insert new PermissionSetAssignment(
+            AssigneeId = runningUser.Id,
+            PermissionSetGroupId = psGroup.Id
+        );
+
     }
 
     /**

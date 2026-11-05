@@ -2585,7 +2585,6 @@ private class WorkOrderLineItemsServiceTest {
         Product2 product = new Product2(
             Name = 'GW5968 WOLI Disinfection ' + productCode,
             IsActive = true,
-            Status__c = 'Active',
             ProductCode = productCode,
             ProductLine__c = productLine,
             ServiceCodeType__c = 'Disinfection'
@@ -2671,5 +2670,143 @@ private class WorkOrderLineItemsServiceTest {
         Assert.areEqual(3, lineItem.Quantity);
         Assert.areEqual(product.Id, lineItem.Product__c);
         Assert.areEqual('Service Code', lineItem.LineType__c);
+    }
+
+    // ── GW-1738 / GW-2001 billing type + GW-3600 / GW-4117 / GW-6095 coverage ─
+
+    @IsTest
+    static void testEvaluateBillingType_WhenBlankOrNoAsset_ReturnsBillable() {
+        Account account = new Account(
+            Name = 'WOLIS Billing Account',
+            SystemID__c = 'WOLISBILL1',
+            SourceSystemID__c = 'WOLISBILL1S',
+            OrgIDs__c = '82'
+        );
+        insert account;
+        WorkOrder workOrder = new WorkOrder(
+            AccountId = account.Id,
+            Subject = 'WOLIS Billing No Asset'
+        );
+        insert workOrder;
+        Product2 product = new Product2(Name = 'WOLIS Billing Part', IsActive = true);
+        insert product;
+
+        Test.startTest();
+        String nullResult = WorkOrderLineItemsService.evaluateBillingType(null, product.Id);
+        String nullProduct = WorkOrderLineItemsService.evaluateBillingType(workOrder.Id, null);
+        String noAsset = WorkOrderLineItemsService.evaluateBillingType(workOrder.Id, product.Id);
+        String nullProductItem =
+            WorkOrderLineItemsService.evaluateBillingTypeForProductItem(workOrder.Id, null);
+        Test.stopTest();
+
+        Assert.areEqual(WorkOrderLineItemsService.BILLING_TYPE_BILLABLE, nullResult);
+        Assert.areEqual(WorkOrderLineItemsService.BILLING_TYPE_BILLABLE, nullProduct);
+        Assert.areEqual(WorkOrderLineItemsService.BILLING_TYPE_BILLABLE, noAsset);
+        Assert.areEqual(WorkOrderLineItemsService.BILLING_TYPE_BILLABLE, nullProductItem);
+    }
+
+    @IsTest
+    static void testEvaluateBillingType_WhenExceptionHooks_ThrowsServiceException() {
+        Account account = new Account(
+            Name = 'WOLIS Billing Ex Account',
+            SystemID__c = 'WOLISBEX1',
+            SourceSystemID__c = 'WOLISBEX1S',
+            OrgIDs__c = '82'
+        );
+        insert account;
+        WorkOrder workOrder = new WorkOrder(AccountId = account.Id, Subject = 'WOLIS Billing Ex');
+        insert workOrder;
+        Product2 product = new Product2(Name = 'WOLIS Billing Ex Part', IsActive = true);
+        insert product;
+
+        WorkOrderLineItemsService.simulateQueryException = true;
+        Boolean queryThrew = false;
+        try {
+            WorkOrderLineItemsService.evaluateBillingType(workOrder.Id, product.Id);
+        } catch (WorkOrderLineItemsService.WorkOrderLineItemsServiceException e) {
+            queryThrew = e.getMessage().contains('Unable to evaluate billing type');
+        } finally {
+            WorkOrderLineItemsService.simulateQueryException = false;
+        }
+
+        WorkOrderLineItemsService.simulateGenericException = true;
+        Boolean genericThrew = false;
+        try {
+            WorkOrderLineItemsService.evaluateBillingType(workOrder.Id, product.Id);
+        } catch (WorkOrderLineItemsService.WorkOrderLineItemsServiceException e) {
+            genericThrew = e.getMessage().contains('Unable to evaluate billing type');
+        } finally {
+            WorkOrderLineItemsService.simulateGenericException = false;
+        }
+
+        Assert.isTrue(queryThrew);
+        Assert.isTrue(genericThrew);
+    }
+
+    @IsTest
+    static void testSelectForRepairCenterDocumentAndPreApproval_GuardsAndHappyPath() {
+        WorkOrder workOrder = [SELECT Id FROM WorkOrder LIMIT 1];
+        WorkOrderLineItem lineItem = [
+            SELECT Id
+            FROM WorkOrderLineItem
+            WHERE WorkOrderId = :workOrder.Id
+            LIMIT 1
+        ];
+
+        Test.startTest();
+        // Document-generation SELECT includes TurnTime__c (FLS-sensitive on some profiles);
+        // cover the null guard only here.
+        List<WorkOrderLineItem> nullDoc =
+            WorkOrderLineItemsService.selectForRepairCenterDocumentGeneration(null);
+        List<WorkOrderLineItem> nullPre =
+            WorkOrderLineItemsService.selectForRepairCenterPreApproval(null);
+        List<WorkOrderLineItem> emptyPre =
+            WorkOrderLineItemsService.selectForRepairCenterPreApproval(new Set<Id>());
+        List<WorkOrderLineItem> preRows =
+            WorkOrderLineItemsService.selectForRepairCenterPreApproval(new Set<Id>{ lineItem.Id });
+        Test.stopTest();
+
+        Assert.isTrue(nullDoc.isEmpty());
+        Assert.isTrue(nullPre.isEmpty());
+        Assert.isTrue(emptyPre.isEmpty());
+        Assert.areEqual(1, preRows.size());
+        Assert.areEqual(lineItem.Id, preRows[0].Id);
+    }
+
+    @IsTest
+    static void testGetComponentTags_WhenBlankOrStubbed_ReturnsEmptyOptions() {
+        WorkOrder workOrder = [SELECT Id FROM WorkOrder LIMIT 1];
+        Product2 product = new Product2(Name = 'WOLIS Tag Part', IsActive = true);
+        insert product;
+
+        Test.startTest();
+        List<WorkOrderLineItemsService.ComponentTagOption> nullProduct =
+            WorkOrderLineItemsService.getComponentTagsForProduct(null, product.Id);
+        List<WorkOrderLineItemsService.ComponentTagOption> nullItem =
+            WorkOrderLineItemsService.getComponentTagsForProductItem(workOrder.Id, null);
+        Map<Id, List<WorkOrderLineItemsService.ComponentTagOption>> byProduct =
+            WorkOrderLineItemsService.getComponentTagsByProduct(
+                workOrder.Id,
+                new Set<Id>{ product.Id }
+            );
+        Map<Id, List<WorkOrderLineItemsService.ComponentTagOption>> byProductBlank =
+            WorkOrderLineItemsService.getComponentTagsByProduct(null, new Set<Id>{ product.Id });
+        Map<Id, List<WorkOrderLineItemsService.ComponentTagOption>> byItem =
+            WorkOrderLineItemsService.getComponentTagsByProductItem(
+                workOrder.Id,
+                new Set<Id>{ product.Id }
+            );
+        Map<Id, List<WorkOrderLineItemsService.ComponentTagOption>> byItemBlank =
+            WorkOrderLineItemsService.getComponentTagsByProductItem(workOrder.Id, new Set<Id>());
+        Test.stopTest();
+
+        Assert.isTrue(nullProduct.isEmpty());
+        Assert.isTrue(nullItem.isEmpty());
+        Assert.isTrue(byProduct.containsKey(product.Id));
+        Assert.isTrue(byProduct.get(product.Id).isEmpty(), 'CBMQA stub returns empty tag lists');
+        Assert.isTrue(byProductBlank.isEmpty());
+        Assert.isTrue(byItem.containsKey(product.Id));
+        Assert.isTrue(byItem.get(product.Id).isEmpty());
+        Assert.isTrue(byItemBlank.isEmpty());
     }
 }

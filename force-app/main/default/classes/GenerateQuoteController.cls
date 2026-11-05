@@ -17,6 +17,7 @@ public with sharing class GenerateQuoteController {
     public class QuoteLineDetailWrapper {
         @AuraEnabled public Id id;
         @AuraEnabled public String quoteLineId;
+        @AuraEnabled public String productCode;
         @AuraEnabled public String productName;
         @AuraEnabled public String uom;
         @AuraEnabled public String productFAMCode;
@@ -53,6 +54,7 @@ public with sharing class GenerateQuoteController {
         @AuraEnabled public String status;
         @AuraEnabled public String approvalStatus;
         @AuraEnabled public Decimal quoteTotalWithoutFreight;
+        @AuraEnabled public String currencyIsoCode;
         @AuraEnabled public Datetime lastModifiedDate;
         @AuraEnabled public Boolean isForecastIneligible;
         @AuraEnabled public String quoteType;
@@ -81,7 +83,6 @@ public with sharing class GenerateQuoteController {
      * @param sampleIdFilter Optional Sample__c Id to limit results to one Sample record.
      * @return Quote DTOs for the LWC.
      */
-    @AuraEnabled
     public static List<QuoteWrapper> getQuotes(
         Id opportunityId,
         String quoteTypeFilter,
@@ -89,13 +90,43 @@ public with sharing class GenerateQuoteController {
         Id trialIdFilter,
         Id sampleIdFilter
     ) {
+        return getQuotes(
+            opportunityId,
+            quoteTypeFilter,
+            excludeForecastIneligible,
+            trialIdFilter,
+            sampleIdFilter,
+            false
+        );
+    }
+
+    /**
+     * @description Retrieves quotes for an Opportunity. Portal calls omit prices until the quote is Approved.
+     * @param opportunityId Opportunity Id.
+     * @param quoteTypeFilter Optional QuoteType__c value to filter results.
+     * @param excludeForecastIneligible When true, omit forecast-ineligible quotes.
+     * @param trialIdFilter Optional Trial__c Id to limit results to one Trial record.
+     * @param sampleIdFilter Optional Sample__c Id to limit results to one Sample record.
+     * @param forDealerPortal When true, pricing is returned only for Approved quotes.
+     * @return Quote DTOs for the LWC.
+     */
+    @AuraEnabled
+    public static List<QuoteWrapper> getQuotes(
+        Id opportunityId,
+        String quoteTypeFilter,
+        Boolean excludeForecastIneligible,
+        Id trialIdFilter,
+        Id sampleIdFilter,
+        Boolean forDealerPortal
+    ) {
         try {
             return GenerateQuoteService.getQuotes(
                 opportunityId,
                 quoteTypeFilter,
                 excludeForecastIneligible == true,
                 trialIdFilter,
-                sampleIdFilter
+                sampleIdFilter,
+                forDealerPortal == true
             );
         } catch (Exception exceptionValue) {
             handleException('Unable to retrieve quotes.', exceptionValue);

@@ -428,8 +428,10 @@ public inherited sharing class OpportunityService {
     /**
      * Adds active Sales Ops / Contracting public group users
      * to Opportunity Team Member records when eligible
-     * Opportunities are updated to Proposal stage.
-     * GC-2641
+     * Opportunities are updated to Proposal stage, then writes
+     * Opportunity_Team_Member_Count__c with the number of Opportunity Team
+     * members on each eligible Opportunity.
+     * GC-2641,GC-3523
      *
      * @param newOpportunities List of Opportunities from Trigger.new.
      * @param oldOpportunityMap Map of old Opportunity values from Trigger.oldMap.
@@ -470,53 +472,84 @@ public inherited sharing class OpportunityService {
             publicGroupDeveloperName
         );
 
-        if (publicGroupUserIds.isEmpty()) { return;
-        }
-
         Set<Id> activeUserIds = new Set<Id>();
 
-        for (User userRecord : UserSelector.getActiveUsersByIds(publicGroupUserIds)) {
-            activeUserIds.add(userRecord.Id);
+        if (!publicGroupUserIds.isEmpty()) {
+            for (User userRecord : UserSelector.getActiveUsersByIds(publicGroupUserIds)) {
+                activeUserIds.add(userRecord.Id);
+            }
         }
 
-        if (activeUserIds.isEmpty()) { return;
-        }
+        if (!activeUserIds.isEmpty()) {
+            Set<String> existingTeamMemberKeys = new Set<String>();
 
-        Set<String> existingTeamMemberKeys = new Set<String>();
+            for (
+                OpportunityTeamMember existingMember : TeamMemberSelector.getOpportunityTeamMembersByOpportunityIdsAndUserIds(
+                    eligibleOpportunityIds,
+                    activeUserIds
+                )
+            ) {
+                existingTeamMemberKeys.add( existingMember.OpportunityId + '-' + existingMember.UserId );
+            }
 
-        for (
-            OpportunityTeamMember existingMember : TeamMemberSelector.getOpportunityTeamMembersByOpportunityIdsAndUserIds(
-                eligibleOpportunityIds,
-                activeUserIds
-            )
-        ) {
-            existingTeamMemberKeys.add( existingMember.OpportunityId + '-' + existingMember.UserId );
-        }
+            List<OpportunityTeamMember> membersToInsert = new List<OpportunityTeamMember>();
 
-        List<OpportunityTeamMember> membersToInsert = new List<OpportunityTeamMember>();
+            for (Id opportunityId : eligibleOpportunityIds) {
+                for (Id userId : activeUserIds) {
+                    String uniqueKey = opportunityId + '-' + userId;
 
-        for (Id opportunityId : eligibleOpportunityIds) {
-            for (Id userId : activeUserIds) {
-                String uniqueKey = opportunityId + '-' + userId;
+                    if (existingTeamMemberKeys.contains(uniqueKey)) {
+                        continue;
+                    }
 
-                if (existingTeamMemberKeys.contains(uniqueKey)) {
-                    continue;
+                    membersToInsert.add(new OpportunityTeamMember(
+                        OpportunityId = opportunityId,
+                        UserId = userId,
+                        TeamMemberRole = TEAM_MEMBER_ROLE,
+                        OpportunityAccessLevel = OPPORTUNITY_ACCESS_LEVEL
+                    ));
                 }
+            }
 
-                membersToInsert.add(new OpportunityTeamMember(
-                    OpportunityId = opportunityId,
-                    UserId = userId,
-                    TeamMemberRole = TEAM_MEMBER_ROLE,
-                    OpportunityAccessLevel = OPPORTUNITY_ACCESS_LEVEL
-                ));
+            if (!membersToInsert.isEmpty()) {
+                insert membersToInsert;
+                if (sendNotifications) {
+                    notifyAddedTeamMembers(membersToInsert);
+                }
             }
         }
 
-        if (!membersToInsert.isEmpty()) {
-            insert membersToInsert;
-            if (sendNotifications) {
-                notifyAddedTeamMembers(membersToInsert);
-            }
+        updateOpportunityTeamMemberCounts(eligibleOpportunityIds);
+    }
+
+    private static void updateOpportunityTeamMemberCounts(Set<Id> opportunityIds) {
+        Map<Id, Integer> memberCountByOpportunityId = new Map<Id, Integer>();
+        for (Id opportunityId : opportunityIds) {
+            memberCountByOpportunityId.put(opportunityId, 0);
+        }
+
+        for (AggregateResult aggregateResult : [
+            SELECT OpportunityId, COUNT(Id) memberCount
+            FROM OpportunityTeamMember
+            WHERE OpportunityId IN :opportunityIds
+            GROUP BY OpportunityId
+        ]) {
+            memberCountByOpportunityId.put(
+                (Id) aggregateResult.get('OpportunityId'),
+                Integer.valueOf(aggregateResult.get('memberCount'))
+            );
+        }
+
+        List<Opportunity> opportunitiesToUpdate = new List<Opportunity>();
+        for (Id opportunityId : memberCountByOpportunityId.keySet()) {
+            opportunitiesToUpdate.add(new Opportunity(
+                Id = opportunityId,
+                Opportunity_Team_Member_Count__c = memberCountByOpportunityId.get(opportunityId)
+            ));
+        }
+
+        if (!opportunitiesToUpdate.isEmpty()) {
+            update opportunitiesToUpdate;
         }
     }
 

@@ -2,13 +2,19 @@
  * @author Himanshu Chaurasia
  * @date 2026/09/30
  *
- * @description GC-3457 - Tests Opportunity / Quote SC event mapping, enqueue rules,
- *              and gateway hardcoded responses (no live Boomi endpoint).
+ * @description Test coverage for ScOpportunityQuoteEventService (GC-3457 Opportunity / Quote SC events).
+ *              Also exercises ScOpportunityQuoteEventGateway, ScOpportunityQuoteEventMapper,
+ *              ScOpportunityQuoteEventRequest, ScOpportunityQuoteEventResponse,
+ *              ScOpportunityQuoteEventApplyService, and ScOpportunityQuoteEventQueueable.
+ *              Uses gateway hardcoded responses and HTTP mocks — no live Boomi endpoint.
  */
 @IsTest
 private class ScOpportunityQuoteEventServiceTest {
     private static final String TEST_OPPORTUNITY_NAME =
         'SC Opportunity Quote Event Test Opportunity';
+    private static final String OPPORTUNITY_RECORD_TYPE_DEVELOPER_NAME = 'Healthcare_Sales';
+    private static final String QUOTE_AUTOMATION_RUN_AS_LAST_NAME = 'ScOppQuoteEventRunAs';
+    private static final String SALES_FIELD_REP_PSG_DEVELOPER_NAME = 'SalesFieldRepAccountManagerPSG';
 
     private static Integer mockCallCount = 0;
 
@@ -50,6 +56,17 @@ private class ScOpportunityQuoteEventServiceTest {
             standardPricebookId,
             resolveValidForecastConfidenceLevel('Pipeline')
         );
+
+        User setupUser = new User(Id = UserInfo.getUserId());
+        System.runAs(setupUser) {
+            User automationUser = createQuoteAutomationRunAsUser();
+            insert automationUser;
+            assignSalesFieldRepAccountManagerPsg(automationUser.Id);
+            update new User(
+                Id = automationUser.Id,
+                EmployeeNumber__c = '3430001'
+            );
+        }
     }
 
     @IsTest
@@ -131,11 +148,10 @@ private class ScOpportunityQuoteEventServiceTest {
         ScOpportunityQuoteEventGateway.forceHardcodedResponse = true;
 
         Test.startTest();
-        ScOpportunityQuoteEventService.synchronizeForecastConfidenceUpdate(
+        synchronizeForecastConfidenceAsAutomationUser(
             opportunityRecord.Id,
             'Upside',
-            new Set<Id>{ quoteRecord.Id },
-            UserInfo.getUserId()
+            new Set<Id>{ quoteRecord.Id }
         );
         Test.stopTest();
 
@@ -156,10 +172,9 @@ private class ScOpportunityQuoteEventServiceTest {
         ScOpportunityQuoteEventGateway.forceHardcodedResponse = true;
 
         Test.startTest();
-        ScOpportunityQuoteEventService.synchronizeClosedLostQuoteClosure(
+        synchronizeClosedLostQuoteClosureAsAutomationUser(
             opportunityRecord.Id,
-            new Set<Id>{ quoteRecord.Id },
-            UserInfo.getUserId()
+            new Set<Id>{ quoteRecord.Id }
         );
         Test.stopTest();
 
@@ -181,11 +196,10 @@ private class ScOpportunityQuoteEventServiceTest {
 
         Test.startTest();
         try {
-            ScOpportunityQuoteEventService.synchronizeForecastConfidenceUpdate(
+            synchronizeForecastConfidenceAsAutomationUser(
                 opportunityRecord.Id,
                 'Upside',
-                new Set<Id>{ quoteRecord.Id },
-                UserInfo.getUserId()
+                new Set<Id>{ quoteRecord.Id }
             );
         } catch (Exception exceptionValue) {
             exceptionThrown = true;
@@ -203,10 +217,9 @@ private class ScOpportunityQuoteEventServiceTest {
 
         Test.startTest();
         try {
-            ScOpportunityQuoteEventService.synchronizeClosedLostQuoteClosure(
+            synchronizeClosedLostQuoteClosureAsAutomationUser(
                 opportunityRecord.Id,
-                new Set<Id>{ quoteRecord.Id },
-                UserInfo.getUserId()
+                new Set<Id>{ quoteRecord.Id }
             );
         } catch (Exception exceptionValue) {
             exceptionThrown = true;
@@ -221,12 +234,7 @@ private class ScOpportunityQuoteEventServiceTest {
         Boolean exceptionThrown = false;
 
         try {
-            ScOpportunityQuoteEventService.synchronizeForecastConfidenceUpdate(
-                null,
-                'Upside',
-                new Set<Id>(),
-                UserInfo.getUserId()
-            );
+            synchronizeForecastConfidenceAsAutomationUser(null, 'Upside', new Set<Id>());
         } catch (Exception exceptionValue) {
             exceptionThrown = true;
         }
@@ -240,7 +248,7 @@ private class ScOpportunityQuoteEventServiceTest {
         Quote quoteRecord = insertQuote(opportunityRecord, 'SC Event Quote Apply 1', 'Open');
         String expectedConfidence = getValidQuoteForecastConfidence();
 
-        ScOpportunityQuoteEventApplyService.applyForecastConfidence(
+        applyForecastConfidenceAsAutomationUser(
             new Set<Id>{ quoteRecord.Id },
             expectedConfidence
         );
@@ -259,7 +267,7 @@ private class ScOpportunityQuoteEventServiceTest {
         Opportunity opportunityRecord = getTestOpportunity();
         Quote quoteRecord = insertQuote(opportunityRecord, 'SC Event Quote Apply 2', 'Open');
 
-        ScOpportunityQuoteEventApplyService.applyQuoteStatus(
+        applyQuoteStatusAsAutomationUser(
             new Set<Id>{ quoteRecord.Id },
             QuoteSelector.CLOSED_STATUS_VALUE
         );
@@ -291,13 +299,12 @@ private class ScOpportunityQuoteEventServiceTest {
         ScOpportunityQuoteEventGateway.forceHardcodedResponse = true;
 
         Test.startTest();
-        new ScOpportunityQuoteEventQueueable(
+        executeQueueableAsAutomationUser(
             opportunityRecord.Id,
             ScOpportunityQuoteEventRequest.EVENT_TYPE_QUOTE_FORECAST_CONFIDENCE_UPDATE,
             'Upside',
-            new Set<Id>{ quoteRecord.Id },
-            UserInfo.getUserId()
-        ).execute(null);
+            new Set<Id>{ quoteRecord.Id }
+        );
         Test.stopTest();
 
         ScOpportunityQuoteEventGateway.forceHardcodedResponse = false;
@@ -311,13 +318,12 @@ private class ScOpportunityQuoteEventServiceTest {
 
         Test.startTest();
         try {
-            new ScOpportunityQuoteEventQueueable(
+            executeQueueableAsAutomationUser(
                 opportunityRecord.Id,
                 ScOpportunityQuoteEventRequest.EVENT_TYPE_QUOTE_FORECAST_CONFIDENCE_UPDATE,
                 'Upside',
-                new Set<Id>{ quoteRecord.Id },
-                UserInfo.getUserId()
-            ).execute(null);
+                new Set<Id>{ quoteRecord.Id }
+            );
         } catch (Exception exceptionValue) {
             exceptionThrown = true;
         }
@@ -333,13 +339,12 @@ private class ScOpportunityQuoteEventServiceTest {
         ScOpportunityQuoteEventGateway.forceHardcodedResponse = true;
 
         Test.startTest();
-        new ScOpportunityQuoteEventQueueable(
+        executeQueueableAsAutomationUser(
             opportunityRecord.Id,
             ScOpportunityQuoteEventRequest.EVENT_TYPE_OPPORTUNITY_CLOSED_LOST,
             null,
-            new Set<Id>{ quoteRecord.Id },
-            UserInfo.getUserId()
-        ).execute(null);
+            new Set<Id>{ quoteRecord.Id }
+        );
         Test.stopTest();
 
         ScOpportunityQuoteEventGateway.forceHardcodedResponse = false;
@@ -451,8 +456,132 @@ private class ScOpportunityQuoteEventServiceTest {
     ) {
         Quote quoteRecord = insertQuote(opportunityRecord, quoteName, 'Open');
         quoteRecord.SalesConnectionQuoteID__c = salesConnectionQuoteId;
-        update quoteRecord;
+        updateQuoteRecords(quoteRecord);
         return quoteRecord;
+    }
+
+    private static void synchronizeForecastConfidenceAsAutomationUser(
+        Id opportunityId,
+        String forecastConfidence,
+        Set<Id> quoteIds
+    ) {
+        System.runAs(getQuoteAutomationRunAsUser()) {
+            ScOpportunityQuoteEventService.synchronizeForecastConfidenceUpdate(
+                opportunityId,
+                forecastConfidence,
+                quoteIds,
+                UserInfo.getUserId()
+            );
+        }
+    }
+
+    private static void synchronizeClosedLostQuoteClosureAsAutomationUser(
+        Id opportunityId,
+        Set<Id> quoteIds
+    ) {
+        System.runAs(getQuoteAutomationRunAsUser()) {
+            ScOpportunityQuoteEventService.synchronizeClosedLostQuoteClosure(
+                opportunityId,
+                quoteIds,
+                UserInfo.getUserId()
+            );
+        }
+    }
+
+    private static void executeQueueableAsAutomationUser(
+        Id opportunityId,
+        String eventType,
+        String forecastConfidence,
+        Set<Id> quoteIds
+    ) {
+        System.runAs(getQuoteAutomationRunAsUser()) {
+            new ScOpportunityQuoteEventQueueable(
+                opportunityId,
+                eventType,
+                forecastConfidence,
+                quoteIds,
+                UserInfo.getUserId()
+            ).execute(null);
+        }
+    }
+
+    private static void applyForecastConfidenceAsAutomationUser(
+        Set<Id> quoteIds,
+        String quoteForecastConfidence
+    ) {
+        System.runAs(getQuoteAutomationRunAsUser()) {
+            ScOpportunityQuoteEventApplyService.applyForecastConfidence(
+                quoteIds,
+                quoteForecastConfidence
+            );
+        }
+    }
+
+    private static void applyQuoteStatusAsAutomationUser(Set<Id> quoteIds, String quoteStatus) {
+        System.runAs(getQuoteAutomationRunAsUser()) {
+            ScOpportunityQuoteEventApplyService.applyQuoteStatus(quoteIds, quoteStatus);
+        }
+    }
+
+    private static User createQuoteAutomationRunAsUser() {
+        Profile adminProfile = [
+            SELECT Id
+            FROM Profile
+            WHERE Name = 'System Administrator'
+            LIMIT 1
+        ];
+
+        return new User(
+            Alias = 'scqevn',
+            Email = 'sc.opportunity.quote.event.runas@test.invalid',
+            EmailEncodingKey = 'UTF-8',
+            LastName = QUOTE_AUTOMATION_RUN_AS_LAST_NAME,
+            LanguageLocaleKey = 'en_US',
+            LocaleSidKey = 'en_US',
+            ProfileId = adminProfile.Id,
+            TimeZoneSidKey = 'America/Los_Angeles',
+            Username =
+                'sc.opportunity.quote.event.runas+' +
+                UserInfo.getOrganizationId() +
+                '@test.invalid'
+        );
+    }
+
+    private static User getQuoteAutomationRunAsUser() {
+        return [
+            SELECT Id
+            FROM User
+            WHERE LastName = :QUOTE_AUTOMATION_RUN_AS_LAST_NAME
+            LIMIT 1
+        ];
+    }
+
+    private static void assignSalesFieldRepAccountManagerPsg(Id userId) {
+        PermissionSetGroup permissionSetGroupRecord = [
+            SELECT Id, Status
+            FROM PermissionSetGroup
+            WHERE DeveloperName = :SALES_FIELD_REP_PSG_DEVELOPER_NAME
+            LIMIT 1
+        ];
+
+        Test.calculatePermissionSetGroup(permissionSetGroupRecord.Id);
+
+        insert new PermissionSetAssignment(
+            AssigneeId = userId,
+            PermissionSetGroupId = permissionSetGroupRecord.Id
+        );
+    }
+
+    private static void insertQuoteRecords(Quote quoteRecord) {
+        System.runAs(getQuoteAutomationRunAsUser()) {
+            insert quoteRecord;
+        }
+    }
+
+    private static void updateQuoteRecords(Quote quoteRecord) {
+        System.runAs(getQuoteAutomationRunAsUser()) {
+            update quoteRecord;
+        }
     }
 
     private static ScOpportunityQuoteEventRequest.QuoteEntry buildQuoteEntry(
@@ -539,7 +668,23 @@ private class ScOpportunityQuoteEventServiceTest {
             opportunityRecord.Pricebook2Id = pricebookId;
         }
 
+        Id opportunityRecordTypeId = resolveOpportunityRecordTypeId();
+        if (opportunityRecordTypeId != null) {
+            opportunityRecord.RecordTypeId = opportunityRecordTypeId;
+        }
+
         return opportunityRecord;
+    }
+
+    private static Id resolveOpportunityRecordTypeId() {
+        Map<String, Schema.RecordTypeInfo> recordTypesByDeveloperName =
+            Schema.SObjectType.Opportunity.getRecordTypeInfosByDeveloperName();
+
+        if (!recordTypesByDeveloperName.containsKey(OPPORTUNITY_RECORD_TYPE_DEVELOPER_NAME)) {
+            return null;
+        }
+
+        return recordTypesByDeveloperName.get(OPPORTUNITY_RECORD_TYPE_DEVELOPER_NAME).getRecordTypeId();
     }
 
     private static Quote insertQuote(
@@ -548,7 +693,7 @@ private class ScOpportunityQuoteEventServiceTest {
         String statusValue
     ) {
         Quote quoteRecord = buildQuote(opportunityRecord, quoteName, statusValue);
-        insert quoteRecord;
+        insertQuoteRecords(quoteRecord);
         return quoteRecord;
     }
 
@@ -576,13 +721,23 @@ private class ScOpportunityQuoteEventServiceTest {
         Map<String, Schema.RecordTypeInfo> recordTypesByDeveloperName =
             Schema.SObjectType.Quote.getRecordTypeInfosByDeveloperName();
 
-        if (!recordTypesByDeveloperName.containsKey(GenerateQuoteService.QUOTE_RECORD_TYPE_DEVELOPER_NAME)) {
-            return null;
+        List<String> developerNameCandidates = new List<String>{
+            GenerateQuoteService.QUOTE_RECORD_TYPE_DEVELOPER_NAME,
+            'HCSales'
+        };
+
+        for (String developerName : developerNameCandidates) {
+            if (!recordTypesByDeveloperName.containsKey(developerName)) {
+                continue;
+            }
+
+            Schema.RecordTypeInfo recordTypeInfo = recordTypesByDeveloperName.get(developerName);
+            if (recordTypeInfo != null && recordTypeInfo.getRecordTypeId() != null) {
+                return recordTypeInfo.getRecordTypeId();
+            }
         }
 
-        Schema.RecordTypeInfo recordTypeInfo =
-            recordTypesByDeveloperName.get(GenerateQuoteService.QUOTE_RECORD_TYPE_DEVELOPER_NAME);
-        return recordTypeInfo.isAvailable() ? recordTypeInfo.getRecordTypeId() : null;
+        return null;
     }
 
     private static String resolveQuoteStatus(String preferredValue) {
@@ -651,19 +806,19 @@ private class ScOpportunityQuoteEventServiceTest {
                 },
                 '123456'
             );
-        Boolean exceptionThrown = false;
+        String responseBody =
+            '{"status":"Success","quoteStatus":"N/A","quoteForecastConfidence":"Pipeline","quotes":[]}';
 
+        System.assertEquals(
+            false,
+            ScOpportunityQuoteEventResponse.hasExpectedQuoteEntries(request, responseBody)
+        );
+
+        Boolean exceptionThrown = false;
         try {
-            ScOpportunityQuoteEventService.validateSuccessResponseQuotes(
-                request,
-                '{"status":"Success","quoteStatus":"N/A","quoteForecastConfidence":"Pipeline","quotes":[]}'
-            );
+            ScOpportunityQuoteEventService.validateSuccessResponseQuotes(request, responseBody);
         } catch (AuraHandledException exceptionValue) {
             exceptionThrown = true;
-            System.assert(
-                exceptionValue.getMessage()
-                    .contains(ScOpportunityQuoteEventService.EMPTY_RESPONSE_QUOTES_MESSAGE)
-            );
         }
 
         System.assert(exceptionThrown);
@@ -763,10 +918,7 @@ private class ScOpportunityQuoteEventServiceTest {
         Boolean exceptionThrown = false;
 
         try {
-            ScOpportunityQuoteEventApplyService.applyForecastConfidence(
-                new Set<Id>{ quoteRecord.Id },
-                ''
-            );
+            applyForecastConfidenceAsAutomationUser(new Set<Id>{ quoteRecord.Id }, '');
         } catch (Exception exceptionValue) {
             exceptionThrown = true;
         }
@@ -779,10 +931,7 @@ private class ScOpportunityQuoteEventServiceTest {
         Opportunity opportunityRecord = getTestOpportunity();
         Quote quoteRecord = insertQuote(opportunityRecord, 'SC Event Quote Apply 4', 'Open');
 
-        ScOpportunityQuoteEventApplyService.applyQuoteStatus(
-            new Set<Id>{ quoteRecord.Id },
-            null
-        );
+        applyQuoteStatusAsAutomationUser(new Set<Id>{ quoteRecord.Id }, null);
 
         quoteRecord = [
             SELECT Status
@@ -800,11 +949,10 @@ private class ScOpportunityQuoteEventServiceTest {
         Boolean exceptionThrown = false;
 
         try {
-            ScOpportunityQuoteEventService.synchronizeForecastConfidenceUpdate(
+            synchronizeForecastConfidenceAsAutomationUser(
                 opportunityRecord.Id,
                 '',
-                new Set<Id>{ quoteRecord.Id },
-                UserInfo.getUserId()
+                new Set<Id>{ quoteRecord.Id }
             );
         } catch (Exception exceptionValue) {
             exceptionThrown = true;

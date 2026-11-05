@@ -138,6 +138,7 @@ public with sharing class C2EmailController {
     }
 
 	private List<LineItem> shippingLineItems;
+    private List<LineItem> openLineItems;
     
     // Equipment Shipping table data
     /**
@@ -154,6 +155,17 @@ public with sharing class C2EmailController {
             }
         }
         return shippingLineItems;
+    }
+    
+    public List<LineItem> getOpenLineItems() {
+        if (openLineItems == null) {
+            openLineItems = new List<LineItem>();
+            if (caseId != null) {
+                List<OrderItem> ship = EmailControllerHelper.equipmentScheduleDetail(caseId);
+                openLineItems = mapOrderItems(ship);
+            }
+        }
+        return openLineItems;
     }
     
     /**
@@ -221,6 +233,10 @@ public with sharing class C2EmailController {
      */
     public dateTime getLastScheduledShipDate(){
         return EmailControllerHelper.calculateScheduledShipDate(caseId, false);
+    }
+    
+    public dateTime getNonPreInstallScheduleDate() {
+        return EmailControllerHelper.firstNonPreInstallScheduleDate(caseId);
     }
     
 }

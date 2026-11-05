@@ -29,10 +29,23 @@ public with sharing class ClinicalParticipantService {
             SELECT Name, Email
             FROM User
             WHERE Id = :userId AND IsActive = TRUE
-            WITH USER_MODE
             LIMIT 1
         ];
         return users.isEmpty() ? null : users[0];
+    }
+
+    @AuraEnabled
+    public static void saveForReview(Id processReviewId, String participantsJson) {
+        ParticipantInput inputRow = new ParticipantInput();
+        inputRow.processReviewId = processReviewId;
+        inputRow.participantsJson = participantsJson;
+        try {
+            saveParticipants(new List<ParticipantInput>{ inputRow });
+        } catch (ClinicalParticipantException ex) {
+            AuraHandledException error = new AuraHandledException(ex.getMessage());
+            error.setMessage(ex.getMessage());
+            throw error;
+        }
     }
 
     @InvocableMethod(
@@ -80,11 +93,19 @@ public with sharing class ClinicalParticipantService {
 
         List<ClinicalParticipant__c> rows = new List<ClinicalParticipant__c>();
         Set<String> emails = new Set<String>();
+        Map<Id, User> usersById = usersFor(drafts);
         for (ParticipantDraft draft : drafts) {
-            if (draft == null || String.isBlank(draft.email)) {
+            if (draft == null) {
                 continue;
             }
-            String email = draft.email.trim();
+            Id salesforceUserId = toUserId(draft.userId);
+            User salesforceUser = salesforceUserId == null ? null : usersById.get(salesforceUserId);
+            String email = salesforceUser != null && String.isNotBlank(salesforceUser.Email)
+                ? salesforceUser.Email.trim()
+                : (draft.email == null ? '' : draft.email.trim());
+            if (String.isBlank(email)) {
+                continue;
+            }
             String emailKey = email.toLowerCase();
             if (!emails.add(emailKey)) {
                 ClinicalParticipantException error = new ClinicalParticipantException(
@@ -93,7 +114,9 @@ public with sharing class ClinicalParticipantService {
                 error.setMessage('Each email can be added only once on a Process Review.');
                 throw error;
             }
-            String participantName = String.isBlank(draft.name) ? email : draft.name.trim();
+            String participantName = salesforceUser != null && String.isNotBlank(salesforceUser.Name)
+                ? salesforceUser.Name.trim()
+                : (String.isBlank(draft.name) ? email : draft.name.trim());
             if (participantName.length() > 80) {
                 participantName = participantName.substring(0, 80);
             }
@@ -101,7 +124,8 @@ public with sharing class ClinicalParticipantService {
                 new ClinicalParticipant__c(
                     Name = participantName,
                     Email__c = email,
-                    User__c = toUserId(draft.userId),
+                    User__c = salesforceUserId,
+                    NotSalesforceUser__c = salesforceUserId == null,
                     KeyAccountProcessReview__c = processReviewId
                 )
             );
@@ -109,43 +133,25 @@ public with sharing class ClinicalParticipantService {
         return rows;
     }
 
-    public static void blockDuplicateEmailOnReview(List<ClinicalParticipant__c> rows) {
-        if (rows == null || rows.isEmpty()) {
-            return;
-        }
-        Set<Id> reviewIds = new Set<Id>();
-        for (ClinicalParticipant__c row : rows) {
-            if (row.KeyAccountProcessReview__c != null) {
-                reviewIds.add(row.KeyAccountProcessReview__c);
-            }
-        }
-        Map<String, Id> existingByEmail = new Map<String, Id>();
-        if (!reviewIds.isEmpty()) {
-            for (ClinicalParticipant__c existing : [
-                SELECT Id, Email__c, KeyAccountProcessReview__c
-                FROM ClinicalParticipant__c
-                WHERE KeyAccountProcessReview__c IN :reviewIds
-            ]) {
-                if (String.isNotBlank(existing.Email__c)) {
-                    existingByEmail.put(emailKey(existing.KeyAccountProcessReview__c, existing.Email__c), existing.Id);
-                }
-            }
-        }
-        Set<String> batchEmails = new Set<String>();
-        for (ClinicalParticipant__c row : rows) {
-            if (row.KeyAccountProcessReview__c == null || String.isBlank(row.Email__c)) {
+    private static Map<Id, User> usersFor(List<ParticipantDraft> drafts) {
+        Set<Id> userIds = new Set<Id>();
+        for (ParticipantDraft draft : drafts) {
+            if (draft == null) {
                 continue;
             }
-            String rowKey = emailKey(row.KeyAccountProcessReview__c, row.Email__c);
-            Id existingId = existingByEmail.get(rowKey);
-            if ((existingId != null && existingId != row.Id) || !batchEmails.add(rowKey)) {
-                row.addError('Each email can be added only once on a Process Review.');
+            Id userId = toUserId(draft.userId);
+            if (userId != null) {
+                userIds.add(userId);
             }
         }
-    }
-
-    private static String emailKey(Id processReviewId, String email) {
-        return String.valueOf(processReviewId) + '|' + email.trim().toLowerCase();
+        if (userIds.isEmpty()) {
+            return new Map<Id, User>();
+        }
+        return new Map<Id, User>([
+            SELECT Name, Email
+            FROM User
+            WHERE Id IN :userIds
+        ]);
     }
 
     private static Id toUserId(String userId) {

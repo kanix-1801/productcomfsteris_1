@@ -6,6 +6,7 @@
  *
  * @description
  * Unit tests for AccountAccountRelationshipController. Related story: GC-3126.
+ * Also covers AccountAccountRelationshipSelector (GW-4861).
  */
 @IsTest
 private class AccountAccountRelationshipControllerTest {

@@ -8,6 +8,9 @@
         <target>lightning__RecordPage</target>
         <target>lightning__AppPage</target>
         <target>lightning__HomePage</target>
+        <target>lightning__FlowScreen</target>
+        <target>lightningCommunity__Page</target>
+        <target>lightningCommunity__Default</target>
     </targets>
     <targetConfigs>
         <targetConfig targets="lightning__RecordPage">
@@ -22,6 +25,14 @@
                 label="Record Page Context"
                 description="Set to trial or sample on Trial and Sample record pages to scope quotes to that record."
                 default="" />
+        </targetConfig>
+        <targetConfig targets="lightning__FlowScreen">
+            <property name="recordId" type="String" label="Record Id" role="inputOnly"/>
+            <property name="launchMode" type="String" label="Launch Mode" role="inputOnly"/>
+        </targetConfig>
+        <targetConfig targets="lightningCommunity__Default">
+            <property name="recordId" type="String" label="Record Id" description="Opportunity Id from the portal record page." default="{!recordId}"/>
+            <property name="isDealerPortal" type="Boolean" label="Dealer Portal" description="Hides internal quote actions and applies the dealer quote display rules." default="false"/>
         </targetConfig>
     </targetConfigs>
 </LightningComponentBundle>

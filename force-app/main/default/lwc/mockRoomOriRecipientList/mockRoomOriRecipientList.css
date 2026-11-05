@@ -1,0 +1,18 @@
+.recipient-card {
+    border: 1px solid #e5e5e5;
+    border-radius: 0.25rem;
+    padding: 0.75rem 1rem 1rem;
+    margin-bottom: 0.75rem;
+    background: #ffffff;
+}
+
+.field-gap {
+    display: block;
+    margin-top: 0.75rem;
+}
+
+.remove-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0.75rem;
+}

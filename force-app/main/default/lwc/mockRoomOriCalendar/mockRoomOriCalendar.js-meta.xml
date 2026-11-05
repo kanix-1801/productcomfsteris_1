@@ -20,7 +20,7 @@
             <property name="businessJustification" type="String" label="Business Justification"
                 description="GC-3483. Required when a selected date already has another event."/>
             <property name="eventDuration" type="Integer" label="Event Duration (Days)"
-                description="GC-3483 Sprint 8. Number of days the demonstration is available to the customer. Minimum 1."/>
+                description="GC-3483 Sprint 8. Number of days shaded from the primary date. The backup date stays one day until Strategic Events confirms it. Minimum 1."/>
         </targetConfig>
     </targetConfigs>
 </LightningComponentBundle>

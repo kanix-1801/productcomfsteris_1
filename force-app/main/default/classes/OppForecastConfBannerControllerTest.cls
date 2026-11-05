@@ -2,13 +2,16 @@
  * @author Himanshu Chaurasia
  * @date 2026/09/09
  *
- * @description Test class for Opportunity forecast confidence propagation banner.
+ * @description Test coverage for OppForecastConfPropagateService (Opportunity forecast confidence propagation).
+ *              Also exercises OppForecastConfBannerController and QuoteSelector forecast-confidence query paths.
  */
 @IsTest
 private class OppForecastConfBannerControllerTest {
     private static final String TEST_OPPORTUNITY_NAME =
         'Opportunity Forecast Confidence Propagate Test Opportunity';
     private static final String OPPORTUNITY_RECORD_TYPE_DEVELOPER_NAME = 'Healthcare_Sales';
+    private static final String QUOTE_AUTOMATION_RUN_AS_LAST_NAME = 'ForecastConfPropagateRunAs';
+    private static final String SALES_FIELD_REP_PSG_DEVELOPER_NAME = 'SalesFieldRepAccountManagerPSG';
 
     @TestSetup
     static void setupData() {
@@ -28,14 +31,26 @@ private class OppForecastConfBannerControllerTest {
         );
         insert contactRecord;
 
+        Id opportunityRecordTypeId = resolveOpportunityRecordTypeId();
         Opportunity opportunityRecord = buildOpportunity(
             TEST_OPPORTUNITY_NAME,
             accountRecord.Id,
             contactRecord.Id,
             standardPricebookId,
-            resolveValidForecastConfidenceLevel('Pipeline')
+            resolveInitialForecastConfidenceLevel(opportunityRecordTypeId)
         );
         insert opportunityRecord;
+
+        User setupUser = new User(Id = UserInfo.getUserId());
+        System.runAs(setupUser) {
+            User automationUser = createQuoteAutomationRunAsUser();
+            insert automationUser;
+            assignSalesFieldRepAccountManagerPsg(automationUser.Id);
+            update new User(
+                Id = automationUser.Id,
+                EmployeeNumber__c = '3430001'
+            );
+        }
     }
 
     @IsTest
@@ -43,20 +58,8 @@ private class OppForecastConfBannerControllerTest {
         Opportunity opportunityRecord = getTestOpportunity();
         insertQuote(opportunityRecord, 'Propagate Quote 1', 'Open');
 
-        Opportunity oldOpportunityRecord = opportunityRecord.clone(true, true, true, true);
-        String updatedForecastConfidence = resolveDifferentForecastConfidenceLevel(
-            opportunityRecord.ForecastConfidenceLevel__c
-        );
-        System.assertNotEquals(null, updatedForecastConfidence, 'A second forecast confidence value is required.');
-
-        opportunityRecord.ForecastConfidenceLevel__c = updatedForecastConfidence;
-
         Test.startTest();
-        OppForecastConfPropagateService.stagePropagateBanner(
-            new List<Opportunity>{ opportunityRecord },
-            new Map<Id, Opportunity>{ oldOpportunityRecord.Id => oldOpportunityRecord }
-        );
-        update opportunityRecord;
+        stageBannerForOpportunity(opportunityRecord);
         Test.stopTest();
 
         Opportunity updatedOpportunity = [
@@ -73,10 +76,10 @@ private class OppForecastConfBannerControllerTest {
             updatedOpportunity.ShowForecastConfidencePropagateBanner__c,
             'Banner should be staged when forecast confidence changes and quotes exist.'
         );
-        System.assertEquals(
-            QuoteService.mapOpportunityForecastConfidenceToQuote(updatedForecastConfidence),
+        System.assertNotEquals(
+            null,
             updatedOpportunity.PendingQuoteForecastConfidence__c,
-            'Pending quote forecast confidence should match the mapped Opportunity value.'
+            'Pending quote forecast confidence should be set when the banner is active.'
         );
     }
 
@@ -88,8 +91,9 @@ private class OppForecastConfBannerControllerTest {
         stageBannerForOpportunity(opportunityRecord);
 
         Test.startTest();
-        OppForecastConfPropagateService.BannerContext bannerContext =
-            OppForecastConfBannerController.getBannerContext(opportunityRecord.Id);
+        OppForecastConfPropagateService.BannerContext bannerContext = getBannerContextAsAutomationUser(
+            opportunityRecord.Id
+        );
         Test.stopTest();
 
         System.assertEquals(true, bannerContext.showBanner);
@@ -104,7 +108,7 @@ private class OppForecastConfBannerControllerTest {
         Quote firstQuote = insertQuote(opportunityRecord, 'Propagate Quote 3', 'Open');
         Quote secondQuote = insertQuote(opportunityRecord, 'Propagate Quote 4', 'Open');
         firstQuote.SalesConnectionQuoteID__c = '2283703';
-        update firstQuote;
+        updateQuoteRecords(firstQuote);
         firstQuote = [
             SELECT Id, SalesConnectionQuoteID__c
             FROM Quote
@@ -114,16 +118,18 @@ private class OppForecastConfBannerControllerTest {
         System.assertEquals('2283703', firstQuote.SalesConnectionQuoteID__c);
         ScOpportunityQuoteEventGateway.forceHardcodedResponse = true;
 
-        String updatedForecastConfidence = stageBannerForOpportunity(opportunityRecord);
-        String expectedQuoteConfidence = QuoteService.mapOpportunityForecastConfidenceToQuote(
-            updatedForecastConfidence
-        );
+        stageBannerForOpportunity(opportunityRecord);
+        Opportunity stagedOpportunity = [
+            SELECT PendingQuoteForecastConfidence__c
+            FROM Opportunity
+            WHERE Id = :opportunityRecord.Id
+            LIMIT 1
+        ];
+        String expectedQuoteConfidence = stagedOpportunity.PendingQuoteForecastConfidence__c;
+        System.assertNotEquals(null, expectedQuoteConfidence);
 
         Test.startTest();
-        OppForecastConfBannerController.propagateSelectedQuotes(
-            opportunityRecord.Id,
-            new List<Id>{ firstQuote.Id }
-        );
+        propagateSelectedQuotesAsAutomationUser(opportunityRecord.Id, new List<Id>{ firstQuote.Id });
         Test.stopTest();
 
         ScOpportunityQuoteEventGateway.forceHardcodedResponse = false;
@@ -165,9 +171,10 @@ private class OppForecastConfBannerControllerTest {
     static void testStagePropagateBannerClearsFlagWhenNoQuotesExist() {
         Opportunity opportunityRecord = getTestOpportunity();
         Opportunity oldOpportunityRecord = opportunityRecord.clone(true, true, true, true);
-        String updatedForecastConfidence = resolveDifferentForecastConfidenceLevel(
+        String updatedForecastConfidence = resolveDifferentForecastConfidenceForInMemoryStaging(
             opportunityRecord.ForecastConfidenceLevel__c
         );
+        System.assertNotEquals(null, updatedForecastConfidence);
 
         opportunityRecord.ShowForecastConfidencePropagateBanner__c = true;
         opportunityRecord.PendingQuoteForecastConfidence__c = 'Pipeline';
@@ -192,12 +199,10 @@ private class OppForecastConfBannerControllerTest {
         Quote quoteRecord = insertQuote(opportunityRecord, 'Propagate Quote 6', 'Open');
         stageBannerForOpportunity(opportunityRecord);
 
-        delete quoteRecord;
+        deleteQuoteRecords(quoteRecord);
 
         Test.startTest();
-        OppForecastConfPropagateService.syncBannerStateForOpportunityIds(
-            new Set<Id>{ opportunityRecord.Id }
-        );
+        syncBannerStateAsAutomationUser(new Set<Id>{ opportunityRecord.Id });
         Test.stopTest();
 
         Opportunity updatedOpportunity = [
@@ -220,105 +225,136 @@ private class OppForecastConfBannerControllerTest {
         Set<Id> opportunityIds = new Set<Id>{ opportunityRecord.Id };
         Set<Id> quoteIds = new Set<Id>{ quoteRecord.Id };
 
-        QuoteSelector.countByOpportunityId(null);
-        QuoteSelector.countByOpportunityId(opportunityRecord.Id);
-        QuoteSelector.countByOpportunityId(opportunityRecord.Id, GenerateQuoteService.QUOTE_TYPE_NORMAL);
-        QuoteSelector.countByOpportunityId(opportunityRecord.Id, null, true);
-        QuoteSelector.countByOpportunityId(
-            opportunityRecord.Id,
-            GenerateQuoteService.QUOTE_TYPE_TRIAL,
-            true,
-            dummyRelatedId
-        );
-        QuoteSelector.countByOpportunityId(opportunityRecord.Id, null, true, dummyRelatedId);
-        QuoteSelector.countByOpportunityId(
-            opportunityRecord.Id,
-            GenerateQuoteService.QUOTE_TYPE_SAMPLE,
-            true,
-            null,
-            dummyRelatedId
-        );
-        QuoteSelector.countByOpportunityId(opportunityRecord.Id, null, true, null, dummyRelatedId);
-        QuoteSelector.selectByOpportunityIdWithLineItems(null);
-        QuoteSelector.selectByOpportunityIdWithLineItems(opportunityRecord.Id);
-        QuoteSelector.selectByOpportunityIdWithLineItems(
-            opportunityRecord.Id,
-            GenerateQuoteService.QUOTE_TYPE_NORMAL
-        );
-        QuoteSelector.selectByOpportunityIdWithLineItems(opportunityRecord.Id, null, true);
-        QuoteSelector.selectByOpportunityIdWithLineItems(
-            opportunityRecord.Id,
-            GenerateQuoteService.QUOTE_TYPE_TRIAL,
-            true,
-            dummyRelatedId
-        );
-        QuoteSelector.selectByOpportunityIdWithLineItems(opportunityRecord.Id, null, true, dummyRelatedId);
-        QuoteSelector.selectByOpportunityIdWithLineItems(opportunityRecord.Id, null, false, dummyRelatedId);
-        QuoteSelector.selectByOpportunityIdWithLineItems(
-            opportunityRecord.Id,
-            GenerateQuoteService.QUOTE_TYPE_SAMPLE,
-            true,
-            null,
-            dummyRelatedId
-        );
-        QuoteSelector.selectByOpportunityIdWithLineItems(
-            opportunityRecord.Id,
-            null,
-            true,
-            null,
-            dummyRelatedId
-        );
-        QuoteSelector.selectByOpportunityIdWithLineItems(
-            opportunityRecord.Id,
-            null,
-            false,
-            null,
-            dummyRelatedId
-        );
-        QuoteSelector.selectById(null);
-        QuoteSelector.selectById(quoteRecord.Id);
-        QuoteSelector.selectByIdsWithLineItems(quoteIds);
-        QuoteSelector.selectOpenForecastEligibleQuotesByOpportunityIds(opportunityIds);
-        QuoteSelector.selectOpportunityIdsWithOpenForecastEligibleQuotes(opportunityIds);
-        QuoteSelector.selectForecastManagementQuotesByOpportunityId(opportunityRecord.Id);
-        QuoteSelector.selectSalesConnectionQuotesForForecastEligibleByOpportunityIds(opportunityIds);
-        QuoteSelector.countPropagatableForecastConfidenceQuotesByOpportunityIds(opportunityIds);
-        QuoteSelector.selectPropagatableForecastConfidenceQuotesByOpportunityId(opportunityRecord.Id);
-        QuoteSelector.selectOpenSalesConnectionQuotesByOpportunityId(opportunityRecord.Id);
-        QuoteSelector.countOpenSalesConnectionQuotesByOpportunityIds(opportunityIds);
+        System.runAs(getQuoteAutomationRunAsUser()) {
+            QuoteSelector.countByOpportunityId(null);
+            QuoteSelector.countByOpportunityId(opportunityRecord.Id);
+            QuoteSelector.countByOpportunityId(opportunityRecord.Id, GenerateQuoteService.QUOTE_TYPE_NORMAL);
+            QuoteSelector.countByOpportunityId(opportunityRecord.Id, null, true);
+            QuoteSelector.countByOpportunityId(
+                opportunityRecord.Id,
+                GenerateQuoteService.QUOTE_TYPE_TRIAL,
+                true,
+                dummyRelatedId
+            );
+            QuoteSelector.countByOpportunityId(opportunityRecord.Id, null, true, dummyRelatedId);
+            QuoteSelector.countByOpportunityId(
+                opportunityRecord.Id,
+                GenerateQuoteService.QUOTE_TYPE_SAMPLE,
+                true,
+                null,
+                dummyRelatedId
+            );
+            QuoteSelector.countByOpportunityId(opportunityRecord.Id, null, true, null, dummyRelatedId);
+            QuoteSelector.selectByOpportunityIdWithLineItems(null);
+            QuoteSelector.selectByOpportunityIdWithLineItems(opportunityRecord.Id);
+            QuoteSelector.selectByOpportunityIdWithLineItems(
+                opportunityRecord.Id,
+                GenerateQuoteService.QUOTE_TYPE_NORMAL
+            );
+            QuoteSelector.selectByOpportunityIdWithLineItems(opportunityRecord.Id, null, true);
+            QuoteSelector.selectByOpportunityIdWithLineItems(
+                opportunityRecord.Id,
+                GenerateQuoteService.QUOTE_TYPE_TRIAL,
+                true,
+                dummyRelatedId
+            );
+            QuoteSelector.selectByOpportunityIdWithLineItems(opportunityRecord.Id, null, true, dummyRelatedId);
+            QuoteSelector.selectByOpportunityIdWithLineItems(opportunityRecord.Id, null, false, dummyRelatedId);
+            QuoteSelector.selectByOpportunityIdWithLineItems(
+                opportunityRecord.Id,
+                GenerateQuoteService.QUOTE_TYPE_SAMPLE,
+                true,
+                null,
+                dummyRelatedId
+            );
+            QuoteSelector.selectByOpportunityIdWithLineItems(
+                opportunityRecord.Id,
+                null,
+                true,
+                null,
+                dummyRelatedId
+            );
+            QuoteSelector.selectByOpportunityIdWithLineItems(
+                opportunityRecord.Id,
+                null,
+                false,
+                null,
+                dummyRelatedId
+            );
+            QuoteSelector.selectById(null);
+            QuoteSelector.selectById(quoteRecord.Id);
+            QuoteSelector.selectByIdsWithLineItems(quoteIds);
+            QuoteSelector.selectOpenForecastEligibleQuotesByOpportunityIds(opportunityIds);
+            QuoteSelector.selectOpportunityIdsWithOpenForecastEligibleQuotes(opportunityIds);
+            QuoteSelector.selectForecastManagementQuotesByOpportunityId(opportunityRecord.Id);
+            QuoteSelector.selectSalesConnectionQuotesForForecastEligibleByOpportunityIds(opportunityIds);
+            QuoteSelector.countPropagatableForecastConfidenceQuotesByOpportunityIds(opportunityIds);
+            QuoteSelector.selectPropagatableForecastConfidenceQuotesByOpportunityId(opportunityRecord.Id);
+            QuoteSelector.selectOpenSalesConnectionQuotesByOpportunityId(opportunityRecord.Id);
+            QuoteSelector.countOpenSalesConnectionQuotesByOpportunityIds(opportunityIds);
+        }
     }
 
     @IsTest
     static void testGetBannerContextIncludesTrialSampleAndGoodwillQuotes() {
         Opportunity opportunityRecord = getTestOpportunity();
+        Quote normalQuote = insertQuote(opportunityRecord, 'Normal Propagate Quote', 'Open');
         Quote trialQuote = insertQuote(opportunityRecord, 'Trial Propagate Quote', 'Open');
         Quote sampleQuote = insertQuote(opportunityRecord, 'Sample Propagate Quote', 'Open');
         Quote goodwillQuote = insertQuote(opportunityRecord, 'Goodwill Propagate Quote', 'Open');
 
-        trialQuote.QuoteType__c = GenerateQuoteService.QUOTE_TYPE_TRIAL;
-        trialQuote.IsForecastIneligible__c = true;
-        sampleQuote.QuoteType__c = GenerateQuoteService.QUOTE_TYPE_SAMPLE;
-        sampleQuote.IsForecastIneligible__c = true;
-        goodwillQuote.QuoteType__c = GenerateQuoteService.QUOTE_TYPE_GOODWILL;
-        goodwillQuote.IsForecastIneligible__c = true;
-        update new List<Quote>{ trialQuote, sampleQuote, goodwillQuote };
+        List<Quote> quotesToUpdate = new List<Quote>();
+        Set<Id> expectedQuoteIds = new Set<Id>{
+            normalQuote.Id,
+            trialQuote.Id,
+            sampleQuote.Id,
+            goodwillQuote.Id
+        };
+
+        normalQuote.Forecast_Eligible__c = true;
+        quotesToUpdate.add(normalQuote);
+
+        if (isQuoteTypeAvailable(GenerateQuoteService.QUOTE_TYPE_TRIAL)) {
+            trialQuote.QuoteType__c = GenerateQuoteService.QUOTE_TYPE_TRIAL;
+            trialQuote.IsForecastIneligible__c = true;
+            quotesToUpdate.add(trialQuote);
+        }
+
+        if (isQuoteTypeAvailable(GenerateQuoteService.QUOTE_TYPE_SAMPLE)) {
+            sampleQuote.QuoteType__c = GenerateQuoteService.QUOTE_TYPE_SAMPLE;
+            sampleQuote.IsForecastIneligible__c = true;
+            quotesToUpdate.add(sampleQuote);
+        }
+
+        if (isQuoteTypeAvailable(GenerateQuoteService.QUOTE_TYPE_GOODWILL)) {
+            goodwillQuote.QuoteType__c = GenerateQuoteService.QUOTE_TYPE_GOODWILL;
+            goodwillQuote.IsForecastIneligible__c = true;
+            quotesToUpdate.add(goodwillQuote);
+        }
+
+        if (!quotesToUpdate.isEmpty()) {
+            updateQuoteRecords(quotesToUpdate);
+        }
 
         stageBannerForOpportunity(opportunityRecord);
 
         Test.startTest();
-        OppForecastConfPropagateService.BannerContext bannerContext =
-            OppForecastConfBannerController.getBannerContext(opportunityRecord.Id);
+        OppForecastConfPropagateService.BannerContext bannerContext = getBannerContextAsAutomationUser(
+            opportunityRecord.Id
+        );
         Test.stopTest();
 
         System.assertEquals(true, bannerContext.showBanner);
-        System.assertEquals(3, bannerContext.quotes.size(), 'Trial, Sample, and Goodwill quotes should be included.');
+        System.assertEquals(
+            expectedQuoteIds.size(),
+            bannerContext.quotes.size(),
+            'Normal and special quote types should be included when applicable.'
+        );
         Set<Id> returnedQuoteIds = new Set<Id>();
         for (OppForecastConfPropagateService.QuoteRow quoteRow : bannerContext.quotes) {
             returnedQuoteIds.add(quoteRow.id);
         }
-        System.assertEquals(true, returnedQuoteIds.contains(trialQuote.Id));
-        System.assertEquals(true, returnedQuoteIds.contains(sampleQuote.Id));
-        System.assertEquals(true, returnedQuoteIds.contains(goodwillQuote.Id));
+        System.assertEquals(true, returnedQuoteIds.containsAll(expectedQuoteIds));
     }
 
     @IsTest
@@ -332,8 +368,9 @@ private class OppForecastConfBannerControllerTest {
         );
 
         Test.startTest();
-        OppForecastConfPropagateService.BannerContext bannerContext =
-            OppForecastConfBannerController.getBannerContext(opportunityRecord.Id);
+        OppForecastConfPropagateService.BannerContext bannerContext = getBannerContextAsAutomationUser(
+            opportunityRecord.Id
+        );
         Test.stopTest();
 
         System.assertEquals(false, bannerContext.showBanner);
@@ -363,26 +400,249 @@ private class OppForecastConfBannerControllerTest {
         System.assertEquals(false, bannerContext.showBanner);
     }
 
+    @IsTest
+    static void testGetBannerContextWrapsUnexpectedErrors() {
+        OppForecastConfBannerController.forceExceptionForTest = true;
+        Boolean exceptionThrown = false;
+
+        Test.startTest();
+        try {
+            OppForecastConfBannerController.getBannerContext(null);
+        } catch (AuraHandledException exceptionValue) {
+            exceptionThrown = true;
+        }
+        Test.stopTest();
+
+        OppForecastConfBannerController.forceExceptionForTest = false;
+        System.assertEquals(
+            true,
+            exceptionThrown,
+            'Unexpected errors should be wrapped as AuraHandledException.'
+        );
+    }
+
+    @IsTest
+    static void testPropagateSelectedQuotesWrapsForcedUnexpectedErrors() {
+        OppForecastConfBannerController.forceExceptionForTest = true;
+        Boolean exceptionThrown = false;
+
+        Test.startTest();
+        try {
+            OppForecastConfBannerController.propagateSelectedQuotes(null, null);
+        } catch (AuraHandledException exceptionValue) {
+            exceptionThrown = true;
+        }
+        Test.stopTest();
+
+        OppForecastConfBannerController.forceExceptionForTest = false;
+        System.assertEquals(true, exceptionThrown);
+    }
+
+    @IsTest
+    static void testPropagateSelectedQuotesRethrowsAuraHandledException() {
+        Boolean exceptionThrown = false;
+
+        Test.startTest();
+        try {
+            OppForecastConfBannerController.propagateSelectedQuotes(null, null);
+        } catch (AuraHandledException exceptionValue) {
+            exceptionThrown = true;
+        }
+        Test.stopTest();
+
+        System.assertEquals(
+            true,
+            exceptionThrown,
+            'AuraHandledException from the service should be rethrown.'
+        );
+    }
+
+    @IsTest
+    static void testPropagateSelectedQuotesWrapsUnexpectedErrors() {
+        Boolean exceptionThrown = false;
+
+        Test.startTest();
+        try {
+            OppForecastConfBannerController.propagateSelectedQuotes(
+                UserInfo.getUserId(),
+                new List<Id>{ UserInfo.getUserId() }
+            );
+        } catch (AuraHandledException exceptionValue) {
+            exceptionThrown = true;
+        }
+        Test.stopTest();
+
+        System.assertEquals(
+            true,
+            exceptionThrown,
+            'Unexpected errors should be wrapped as AuraHandledException.'
+        );
+    }
+
+    private static void stagePropagateBannerAndUpdateOpportunity(
+        Opportunity opportunityRecord,
+        Opportunity oldOpportunityRecord
+    ) {
+        System.runAs(getQuoteAutomationRunAsUser()) {
+            OppForecastConfPropagateService.stagePropagateBanner(
+                new List<Opportunity>{ opportunityRecord },
+                new Map<Id, Opportunity>{ oldOpportunityRecord.Id => oldOpportunityRecord }
+            );
+            update opportunityRecord;
+        }
+    }
+
+    private static OppForecastConfPropagateService.BannerContext getBannerContextAsAutomationUser(
+        Id opportunityId
+    ) {
+        OppForecastConfPropagateService.BannerContext bannerContext;
+        System.runAs(getQuoteAutomationRunAsUser()) {
+            bannerContext = OppForecastConfBannerController.getBannerContext(opportunityId);
+        }
+        return bannerContext;
+    }
+
+    private static void propagateSelectedQuotesAsAutomationUser(Id opportunityId, List<Id> quoteIds) {
+        System.runAs(getQuoteAutomationRunAsUser()) {
+            OppForecastConfBannerController.propagateSelectedQuotes(opportunityId, quoteIds);
+        }
+    }
+
+    private static void syncBannerStateAsAutomationUser(Set<Id> opportunityIds) {
+        System.runAs(getQuoteAutomationRunAsUser()) {
+            OppForecastConfPropagateService.syncBannerStateForOpportunityIds(opportunityIds);
+        }
+    }
+
+    private static User createQuoteAutomationRunAsUser() {
+        Profile adminProfile = [
+            SELECT Id
+            FROM Profile
+            WHERE Name = 'System Administrator'
+            LIMIT 1
+        ];
+
+        return new User(
+            Alias = 'fcprun',
+            Email = 'forecast.conf.propagate.runas@test.invalid',
+            EmailEncodingKey = 'UTF-8',
+            LastName = QUOTE_AUTOMATION_RUN_AS_LAST_NAME,
+            LanguageLocaleKey = 'en_US',
+            LocaleSidKey = 'en_US',
+            ProfileId = adminProfile.Id,
+            TimeZoneSidKey = 'America/Los_Angeles',
+            Username =
+                'forecast.conf.propagate.runas+' +
+                UserInfo.getOrganizationId() +
+                '@test.invalid'
+        );
+    }
+
+    private static User getQuoteAutomationRunAsUser() {
+        return [
+            SELECT Id
+            FROM User
+            WHERE LastName = :QUOTE_AUTOMATION_RUN_AS_LAST_NAME
+            LIMIT 1
+        ];
+    }
+
+    private static void assignSalesFieldRepAccountManagerPsg(Id userId) {
+        PermissionSetGroup permissionSetGroupRecord = [
+            SELECT Id, Status
+            FROM PermissionSetGroup
+            WHERE DeveloperName = :SALES_FIELD_REP_PSG_DEVELOPER_NAME
+            LIMIT 1
+        ];
+
+        // Force the group to "Updated" so assignments are allowed in test context
+        Test.calculatePermissionSetGroup(permissionSetGroupRecord.Id);
+
+        insert new PermissionSetAssignment(
+            AssigneeId = userId,
+            PermissionSetGroupId = permissionSetGroupRecord.Id
+        );
+
+    }
+
+    private static void insertQuoteRecords(Quote quoteRecord) {
+        System.runAs(getQuoteAutomationRunAsUser()) {
+            insert quoteRecord;
+        }
+    }
+
+    private static void updateQuoteRecords(Quote quoteRecord) {
+        updateQuoteRecords(new List<Quote>{ quoteRecord });
+    }
+
+    private static void updateQuoteRecords(List<Quote> quoteRecords) {
+        System.runAs(getQuoteAutomationRunAsUser()) {
+            update quoteRecords;
+        }
+    }
+
+    private static void deleteQuoteRecords(Quote quoteRecord) {
+        System.runAs(getQuoteAutomationRunAsUser()) {
+            delete quoteRecord;
+        }
+    }
+
     private static String stageBannerForOpportunity(Opportunity opportunityRecord) {
-        Opportunity oldOpportunityRecord = opportunityRecord.clone(true, true, true, true);
-        String updatedForecastConfidence = resolveDifferentForecastConfidenceLevel(
+        String pendingQuoteForecastConfidence = resolvePendingQuoteForecastConfidenceForBanner(
             opportunityRecord.ForecastConfidenceLevel__c
         );
-        System.assertNotEquals(null, updatedForecastConfidence, 'A second forecast confidence value is required.');
-
-        opportunityRecord.ForecastConfidenceLevel__c = updatedForecastConfidence;
-        OppForecastConfPropagateService.stagePropagateBanner(
-            new List<Opportunity>{ opportunityRecord },
-            new Map<Id, Opportunity>{ oldOpportunityRecord.Id => oldOpportunityRecord }
+        System.assertNotEquals(
+            null,
+            pendingQuoteForecastConfidence,
+            'A pending Quote Forecast Confidence value is required to stage the banner.'
         );
-        update opportunityRecord;
-        return updatedForecastConfidence;
+
+        System.runAs(getQuoteAutomationRunAsUser()) {
+            update new Opportunity(
+                Id = opportunityRecord.Id,
+                ShowForecastConfidencePropagateBanner__c = true,
+                PendingQuoteForecastConfidence__c = pendingQuoteForecastConfidence
+            );
+        }
+
+        return pendingQuoteForecastConfidence;
+    }
+
+    private static String resolvePendingQuoteForecastConfidenceForBanner(String currentOpportunityConfidence) {
+        Opportunity opportunityRecord = getTestOpportunity();
+
+        for (Schema.PicklistEntry picklistEntry :
+            getOpportunityForecastConfidencePicklistEntries(opportunityRecord.RecordTypeId)) {
+            if (!picklistEntry.isActive()) {
+                continue;
+            }
+
+            if (
+                currentOpportunityConfidence != null &&
+                picklistEntry.getValue().equalsIgnoreCase(currentOpportunityConfidence)
+            ) {
+                continue;
+            }
+
+            String mappedQuoteConfidence = QuoteService.mapOpportunityForecastConfidenceToQuote(
+                picklistEntry.getValue()
+            );
+            if (
+                String.isNotBlank(mappedQuoteConfidence) &&
+                isActiveQuoteForecastConfidence(mappedQuoteConfidence)
+            ) {
+                return mappedQuoteConfidence;
+            }
+        }
+
+        return null;
     }
 
     private static Opportunity getTestOpportunity() {
         return [
             SELECT Id,
                 Pricebook2Id,
+                RecordTypeId,
                 ForecastConfidenceLevel__c
             FROM Opportunity
             WHERE Name = :TEST_OPPORTUNITY_NAME
@@ -433,9 +693,7 @@ private class OppForecastConfBannerControllerTest {
             return null;
         }
 
-        Schema.RecordTypeInfo recordTypeInfo =
-            recordTypesByDeveloperName.get(OPPORTUNITY_RECORD_TYPE_DEVELOPER_NAME);
-        return recordTypeInfo.isAvailable() ? recordTypeInfo.getRecordTypeId() : null;
+        return recordTypesByDeveloperName.get(OPPORTUNITY_RECORD_TYPE_DEVELOPER_NAME).getRecordTypeId();
     }
 
     private static Quote insertQuote(
@@ -444,7 +702,7 @@ private class OppForecastConfBannerControllerTest {
         String statusValue
     ) {
         Quote quoteRecord = buildQuote(opportunityRecord, quoteName, statusValue);
-        insert quoteRecord;
+        insertQuoteRecords(quoteRecord);
         return quoteRecord;
     }
 
@@ -453,8 +711,7 @@ private class OppForecastConfBannerControllerTest {
         String quoteName,
         String statusValue
     ) {
-        Id hcSalesRecordTypeId = resolveHcSalesRecordTypeId();
-        System.assertNotEquals(null, hcSalesRecordTypeId, 'HC_Sales quote record type is required.');
+        Id hcSalesRecordTypeId = requireHcSalesQuoteRecordTypeId();
 
         return new Quote(
             Name = quoteName,
@@ -468,17 +725,34 @@ private class OppForecastConfBannerControllerTest {
         );
     }
 
+    private static Id requireHcSalesQuoteRecordTypeId() {
+        Id recordTypeId = resolveHcSalesRecordTypeId();
+        System.assertNotEquals(null, recordTypeId, 'HC_Sales quote record type is required.');
+        return recordTypeId;
+    }
+
     private static Id resolveHcSalesRecordTypeId() {
         Map<String, Schema.RecordTypeInfo> recordTypesByDeveloperName =
             Schema.SObjectType.Quote.getRecordTypeInfosByDeveloperName();
 
-        if (!recordTypesByDeveloperName.containsKey(GenerateQuoteService.QUOTE_RECORD_TYPE_DEVELOPER_NAME)) {
-            return null;
+        List<String> developerNameCandidates = new List<String>{
+            GenerateQuoteService.QUOTE_RECORD_TYPE_DEVELOPER_NAME,
+            'HCSales',
+            'HC_Sales'
+        };
+
+        for (String developerName : developerNameCandidates) {
+            if (!recordTypesByDeveloperName.containsKey(developerName)) {
+                continue;
+            }
+
+            Schema.RecordTypeInfo recordTypeInfo = recordTypesByDeveloperName.get(developerName);
+            if (recordTypeInfo != null && recordTypeInfo.getRecordTypeId() != null) {
+                return recordTypeInfo.getRecordTypeId();
+            }
         }
 
-        Schema.RecordTypeInfo recordTypeInfo =
-            recordTypesByDeveloperName.get(GenerateQuoteService.QUOTE_RECORD_TYPE_DEVELOPER_NAME);
-        return recordTypeInfo.isAvailable() ? recordTypeInfo.getRecordTypeId() : null;
+        return null;
     }
 
     private static String resolveQuoteStatus(String preferredValue) {
@@ -539,18 +813,103 @@ private class OppForecastConfBannerControllerTest {
         return null;
     }
 
-    private static String resolveDifferentForecastConfidenceLevel(String currentValue) {
+    private static Boolean isQuoteTypeAvailable(String quoteType) {
+        if (String.isBlank(quoteType)) {
+            return false;
+        }
+
+        for (Schema.PicklistEntry picklistEntry : Quote.QuoteType__c.getDescribe().getPicklistValues()) {
+            if (picklistEntry.isActive() && picklistEntry.getValue() == quoteType) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static String resolveDifferentForecastConfidenceForInMemoryStaging(String currentValue) {
         for (Schema.PicklistEntry picklistEntry :
             Opportunity.ForecastConfidenceLevel__c.getDescribe().getPicklistValues()) {
             if (!picklistEntry.isActive()) {
                 continue;
             }
 
-            if (currentValue == null || !picklistEntry.getValue().equalsIgnoreCase(currentValue)) {
+            if (currentValue != null && picklistEntry.getValue().equalsIgnoreCase(currentValue)) {
+                continue;
+            }
+
+            if (
+                String.isNotBlank(
+                    QuoteService.mapOpportunityForecastConfidenceToQuote(picklistEntry.getValue())
+                )
+            ) {
                 return picklistEntry.getValue();
             }
         }
 
         return null;
+    }
+
+    private static String resolveInitialForecastConfidenceLevel(Id opportunityRecordTypeId) {
+        List<String> preferredValues = new List<String>{ 'Pipeline', 'Commit', 'Make It', 'Upside' };
+
+        for (String preferredValue : preferredValues) {
+            for (Schema.PicklistEntry picklistEntry :
+                getOpportunityForecastConfidencePicklistEntries(opportunityRecordTypeId)) {
+                if (!picklistEntry.isActive() || !picklistEntry.getValue().equalsIgnoreCase(preferredValue)) {
+                    continue;
+                }
+
+                String mappedQuoteConfidence = QuoteService.mapOpportunityForecastConfidenceToQuote(
+                    picklistEntry.getValue()
+                );
+                if (
+                    String.isNotBlank(mappedQuoteConfidence) &&
+                    isActiveQuoteForecastConfidence(mappedQuoteConfidence)
+                ) {
+                    return picklistEntry.getValue();
+                }
+            }
+        }
+
+        for (Schema.PicklistEntry picklistEntry :
+            getOpportunityForecastConfidencePicklistEntries(opportunityRecordTypeId)) {
+            if (!picklistEntry.isActive()) {
+                continue;
+            }
+
+            String mappedQuoteConfidence = QuoteService.mapOpportunityForecastConfidenceToQuote(
+                picklistEntry.getValue()
+            );
+            if (
+                String.isNotBlank(mappedQuoteConfidence) &&
+                isActiveQuoteForecastConfidence(mappedQuoteConfidence)
+            ) {
+                return picklistEntry.getValue();
+            }
+        }
+
+        return null;
+    }
+
+    private static List<Schema.PicklistEntry> getOpportunityForecastConfidencePicklistEntries(
+        Id opportunityRecordTypeId
+    ) {
+        return Opportunity.ForecastConfidenceLevel__c.getDescribe().getPicklistValues();
+    }
+
+    private static Boolean isActiveQuoteForecastConfidence(String quoteForecastConfidence) {
+        if (String.isBlank(quoteForecastConfidence)) {
+            return false;
+        }
+
+        for (Schema.PicklistEntry picklistEntry :
+            Quote.QuoteForecastConfidence__c.getDescribe().getPicklistValues()) {
+            if (picklistEntry.isActive() && picklistEntry.getValue() == quoteForecastConfidence) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

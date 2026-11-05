@@ -153,4 +153,40 @@ public with sharing class ContentVersionsSelector extends SoqlQueryBuilder {
             ' ORDER BY LastModifiedDate DESC'
         );
     }
+
+    /**
+     * @description GW-2710 - Latest version of one uploaded file, including the body.
+     *              Separate from the Set overload so the alignment upload can read VersionData.
+     * @param contentDocumentId Salesforce Files document Id.
+     * @return Latest version, or an empty list.
+     */
+    public static List<ContentVersion> selectLatestForAlignmentUpload(Id contentDocumentId) {
+        if (contentDocumentId == null) {
+            return new List<ContentVersion>();
+        }
+        return [
+            SELECT Id, Title, FileExtension, PathOnClient, VersionData, ContentDocumentId
+            FROM ContentVersion
+            WHERE ContentDocumentId = :contentDocumentId
+                AND IsLatest = TRUE
+            LIMIT 1
+        ];
+    }
+
+    /**
+     * @description GW-2710 - ContentDocument Id for a ContentVersion that was just inserted.
+     * @param contentVersionId ContentVersion Id.
+     * @return The version row, or an empty list.
+     */
+    public static List<ContentVersion> selectDocumentIdByVersionId(Id contentVersionId) {
+        if (contentVersionId == null) {
+            return new List<ContentVersion>();
+        }
+        return [
+            SELECT ContentDocumentId
+            FROM ContentVersion
+            WHERE Id = :contentVersionId
+            LIMIT 1
+        ];
+    }
 }

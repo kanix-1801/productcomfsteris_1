@@ -29,18 +29,10 @@ export default class DealerOpportunityWorkspace extends LightningElement {
     pastDueOnly = false;
     pageNumber = 1;
     isCreateOpen = false;
-    opportunityId;
-    formError;
 
     @wire(CurrentPageReference)
     setPageReference(pageReference) {
         const pastDue = pageReference?.state?.pastDue === 'true';
-        const opportunityId = pageReference?.state?.opportunityId || null;
-        const openedRecord = opportunityId !== this.opportunityId;
-        this.opportunityId = opportunityId;
-        if (openedRecord) {
-            this.formError = null;
-        }
         if (pastDue !== this.pastDueOnly) {
             this.pastDueOnly = pastDue;
             this.pageNumber = 1;
@@ -182,25 +174,6 @@ export default class DealerOpportunityWorkspace extends LightningElement {
             mode: 'dismissible'
         }, this);
         this.loadWorkspace();
-    }
-
-    closeOpportunity() {
-        window.history.back();
-    }
-
-    handleRecordSaved() {
-        this.formError = null;
-        Toast.show({
-            label: 'Opportunity updated',
-            message: 'The opportunity was saved.',
-            variant: 'success',
-            mode: 'dismissible'
-        }, this);
-    }
-
-    handleRecordError(event) {
-        const detail = event.detail;
-        this.formError = detail?.detail || detail?.message || 'Unable to open the opportunity.';
     }
 }
 

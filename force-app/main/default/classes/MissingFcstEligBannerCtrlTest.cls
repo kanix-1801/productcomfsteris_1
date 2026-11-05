@@ -8,9 +8,17 @@
 private class MissingFcstEligBannerCtrlTest {
     private static final String TEST_OPPORTUNITY_NAME = 'Missing Forecast Eligible Banner Opportunity';
     private static final String OPPORTUNITY_RECORD_TYPE_DEVELOPER_NAME = 'Healthcare_Sales';
+    private static final String QUOTE_AUTOMATION_RUN_AS_LAST_NAME = 'MissingFcstEligBannerRunAs';
+    private static final String SALES_FIELD_REP_PSG_DEVELOPER_NAME = 'SalesFieldRepAccountManagerPSG';
 
     @TestSetup
     static void setupData() {
+        User setupUser = new User(Id = UserInfo.getUserId());
+        System.runAs(setupUser) {
+            insert createQuoteAutomationRunAsUser();
+        }
+        assignSalesFieldRepAccountManagerPsg(getQuoteAutomationRunAsUser().Id);
+
         Id standardPricebookId = Test.getStandardPricebookId();
 
         Account accountRecord = new Account(
@@ -44,154 +52,210 @@ private class MissingFcstEligBannerCtrlTest {
 
     @IsTest
     static void testIsBannerVisibleReturnsFalseWhenNoQuotesExist() {
-        Opportunity opportunityRecord = [
-            SELECT Id
-            FROM Opportunity
-            WHERE Name = :TEST_OPPORTUNITY_NAME
-            LIMIT 1
-        ];
+        Opportunity opportunityRecord = getTestOpportunity();
 
         System.assertEquals(
             false,
-            MissingForecastEligibleBannerController.isBannerVisible(opportunityRecord.Id)
+            isBannerVisibleAsAutomationUser(opportunityRecord.Id)
         );
     }
 
     @IsTest
     static void testIsBannerVisibleReturnsTrueForDraftQuoteWithoutForecastEligible() {
-        Opportunity opportunityRecord = [
-            SELECT Id, Pricebook2Id
-            FROM Opportunity
-            WHERE Name = :TEST_OPPORTUNITY_NAME
-            LIMIT 1
-        ];
+        Opportunity opportunityRecord = getTestOpportunity();
 
-        insert buildHcSalesQuote(
-            opportunityRecord.Id,
-            opportunityRecord.Pricebook2Id,
-            'Draft Missing Forecast Quote',
-            'Draft',
-            false,
-            false,
-            null
+        insertQuoteRecords(
+            buildHcSalesQuote(
+                opportunityRecord.Id,
+                opportunityRecord.Pricebook2Id,
+                'Draft Missing Forecast Quote',
+                'Draft',
+                false,
+                false,
+                null
+            )
         );
 
         System.assertEquals(
             true,
-            MissingForecastEligibleBannerController.isBannerVisible(opportunityRecord.Id)
+            isBannerVisibleAsAutomationUser(opportunityRecord.Id)
         );
     }
 
     @IsTest
     static void testIsBannerVisibleReturnsFalseWhenForecastEligibleQuoteExists() {
-        Opportunity opportunityRecord = [
-            SELECT Id, Pricebook2Id
-            FROM Opportunity
-            WHERE Name = :TEST_OPPORTUNITY_NAME
-            LIMIT 1
-        ];
+        Opportunity opportunityRecord = getTestOpportunity();
 
-        insert buildHcSalesQuote(
-            opportunityRecord.Id,
-            opportunityRecord.Pricebook2Id,
-            'Draft Missing Forecast Quote',
-            'Draft',
-            false,
-            false,
-            null
+        insertQuoteRecords(
+            buildHcSalesQuote(
+                opportunityRecord.Id,
+                opportunityRecord.Pricebook2Id,
+                'Draft Missing Forecast Quote',
+                'Draft',
+                false,
+                false,
+                null
+            )
         );
 
         Test.startTest();
-        insert buildHcSalesQuote(
-            opportunityRecord.Id,
-            opportunityRecord.Pricebook2Id,
-            'Open Forecast Eligible Quote',
-            'Open',
-            false,
-            false,
-            null
+        insertQuoteRecords(
+            buildHcSalesQuote(
+                opportunityRecord.Id,
+                opportunityRecord.Pricebook2Id,
+                'Open Forecast Eligible Quote',
+                'Open',
+                false,
+                false,
+                null
+            )
         );
         Test.stopTest();
 
         System.assertEquals(
             false,
-            MissingForecastEligibleBannerController.isBannerVisible(opportunityRecord.Id)
+            isBannerVisibleAsAutomationUser(opportunityRecord.Id)
         );
     }
 
     @IsTest
     static void testIsBannerVisibleReturnsFalseForOpenQuoteWithoutForecastEligible() {
-        Opportunity opportunityRecord = [
-            SELECT Id, Pricebook2Id
-            FROM Opportunity
-            WHERE Name = :TEST_OPPORTUNITY_NAME
-            LIMIT 1
-        ];
+        Opportunity opportunityRecord = getTestOpportunity();
 
-        insert buildHcSalesQuote(
-            opportunityRecord.Id,
-            opportunityRecord.Pricebook2Id,
-            'Open Missing Forecast Quote',
-            'Open',
-            false,
-            false,
-            null
+        insertQuoteRecords(
+            buildHcSalesQuote(
+                opportunityRecord.Id,
+                opportunityRecord.Pricebook2Id,
+                'Open Missing Forecast Quote',
+                'Open',
+                false,
+                false,
+                null
+            )
         );
 
         System.assertEquals(
             false,
-            MissingForecastEligibleBannerController.isBannerVisible(opportunityRecord.Id)
+            isBannerVisibleAsAutomationUser(opportunityRecord.Id)
         );
     }
 
     @IsTest
     static void testIsBannerVisibleExcludesForecastIneligibleQuotes() {
-        Opportunity opportunityRecord = [
-            SELECT Id, Pricebook2Id
-            FROM Opportunity
-            WHERE Name = :TEST_OPPORTUNITY_NAME
-            LIMIT 1
-        ];
+        Opportunity opportunityRecord = getTestOpportunity();
 
-        insert buildHcSalesQuote(
-            opportunityRecord.Id,
-            opportunityRecord.Pricebook2Id,
-            'Ineligible Draft Quote',
-            'Draft',
-            false,
-            true,
-            GenerateQuoteService.QUOTE_TYPE_TRIAL
+        insertQuoteRecords(
+            buildHcSalesQuote(
+                opportunityRecord.Id,
+                opportunityRecord.Pricebook2Id,
+                'Ineligible Draft Quote',
+                'Draft',
+                false,
+                true,
+                GenerateQuoteService.QUOTE_TYPE_TRIAL
+            )
         );
 
         System.assertEquals(
             false,
-            MissingForecastEligibleBannerController.isBannerVisible(opportunityRecord.Id)
+            isBannerVisibleAsAutomationUser(opportunityRecord.Id)
         );
     }
 
     @IsTest
     static void testIsBannerVisibleReturnsTrueForBudgetQuoteWithoutForecastEligible() {
-        Opportunity opportunityRecord = [
+        Opportunity opportunityRecord = getTestOpportunity();
+
+        insertQuoteRecords(
+            buildHcSalesQuote(
+                opportunityRecord.Id,
+                opportunityRecord.Pricebook2Id,
+                'Budget Missing Forecast Quote',
+                'Budget',
+                false,
+                false,
+                null
+            )
+        );
+
+        System.assertEquals(
+            true,
+            isBannerVisibleAsAutomationUser(opportunityRecord.Id)
+        );
+    }
+
+    private static Boolean isBannerVisibleAsAutomationUser(Id opportunityId) {
+        Boolean isVisible;
+        System.runAs(getQuoteAutomationRunAsUser()) {
+            isVisible = MissingForecastEligibleBannerController.isBannerVisible(opportunityId);
+        }
+        return isVisible;
+    }
+
+    private static Opportunity getTestOpportunity() {
+        return [
             SELECT Id, Pricebook2Id
             FROM Opportunity
             WHERE Name = :TEST_OPPORTUNITY_NAME
             LIMIT 1
         ];
+    }
 
-        insert buildHcSalesQuote(
-            opportunityRecord.Id,
-            opportunityRecord.Pricebook2Id,
-            'Budget Missing Forecast Quote',
-            'Budget',
-            false,
-            false,
-            null
+    private static User createQuoteAutomationRunAsUser() {
+        Profile adminProfile = [
+            SELECT Id
+            FROM Profile
+            WHERE Name = 'System Administrator'
+            LIMIT 1
+        ];
+
+        return new User(
+            Alias = 'mfbrun',
+            Email = 'missing.fcst.elig.banner.runas@test.invalid',
+            EmailEncodingKey = 'UTF-8',
+            LastName = QUOTE_AUTOMATION_RUN_AS_LAST_NAME,
+            LanguageLocaleKey = 'en_US',
+            LocaleSidKey = 'en_US',
+            ProfileId = adminProfile.Id,
+            TimeZoneSidKey = 'America/Los_Angeles',
+            Username =
+                'missing.fcst.elig.banner.runas+' +
+                UserInfo.getOrganizationId() +
+                '@test.invalid'
+        );
+    }
+
+    private static User getQuoteAutomationRunAsUser() {
+        return [
+            SELECT Id
+            FROM User
+            WHERE LastName = :QUOTE_AUTOMATION_RUN_AS_LAST_NAME
+            LIMIT 1
+        ];
+    }
+
+    private static void assignSalesFieldRepAccountManagerPsg(Id userId) {
+        PermissionSetGroup permissionSetGroupRecord = [
+            SELECT Id, Status
+            FROM PermissionSetGroup
+            WHERE DeveloperName = :SALES_FIELD_REP_PSG_DEVELOPER_NAME
+            LIMIT 1
+        ];
+
+        // Force the group to "Updated" so assignments are allowed in test context
+        Test.calculatePermissionSetGroup(permissionSetGroupRecord.Id);
+
+        insert new PermissionSetAssignment(
+            AssigneeId = userId,
+            PermissionSetGroupId = permissionSetGroupRecord.Id
         );
 
-        System.assertEquals(
-            true,
-            MissingForecastEligibleBannerController.isBannerVisible(opportunityRecord.Id)
-        );
+    }
+
+    private static void insertQuoteRecords(Quote quoteRecord) {
+        System.runAs(getQuoteAutomationRunAsUser()) {
+            insert quoteRecord;
+        }
     }
 
     private static Opportunity buildOpportunity(
@@ -236,9 +300,7 @@ private class MissingFcstEligBannerCtrlTest {
             return null;
         }
 
-        Schema.RecordTypeInfo recordTypeInfo =
-            recordTypesByDeveloperName.get(OPPORTUNITY_RECORD_TYPE_DEVELOPER_NAME);
-        return recordTypeInfo.isAvailable() ? recordTypeInfo.getRecordTypeId() : null;
+        return recordTypesByDeveloperName.get(OPPORTUNITY_RECORD_TYPE_DEVELOPER_NAME).getRecordTypeId();
     }
 
     private static Quote buildHcSalesQuote(
@@ -254,7 +316,8 @@ private class MissingFcstEligBannerCtrlTest {
             Name = quoteName,
             OpportunityId = opportunityId,
             Pricebook2Id = pricebookId,
-            Status = statusValue,
+            RecordTypeId = requireHcSalesQuoteRecordTypeId(),
+            Status = resolveQuoteStatus(statusValue),
             ExpirationDate = Date.today().addDays(30),
             Forecast_Eligible__c = forecastEligible,
             IsForecastIneligible__c = isForecastIneligible == true,
@@ -262,25 +325,47 @@ private class MissingFcstEligBannerCtrlTest {
             Quote_Total_Without_Freight__c = 1000
         );
 
-        Id recordTypeId = resolveHcSalesRecordTypeId();
-        if (recordTypeId != null) {
-            quoteRecord.RecordTypeId = recordTypeId;
-        }
-
         return quoteRecord;
+    }
+
+    private static Id requireHcSalesQuoteRecordTypeId() {
+        Id recordTypeId = resolveHcSalesRecordTypeId();
+        System.assertNotEquals(null, recordTypeId, 'HC_Sales quote record type is required.');
+        return recordTypeId;
     }
 
     private static Id resolveHcSalesRecordTypeId() {
         Map<String, Schema.RecordTypeInfo> recordTypesByDeveloperName =
             Schema.SObjectType.Quote.getRecordTypeInfosByDeveloperName();
 
-        if (!recordTypesByDeveloperName.containsKey(GenerateQuoteService.QUOTE_RECORD_TYPE_DEVELOPER_NAME)) {
-            return null;
+        List<String> developerNameCandidates = new List<String>{
+            GenerateQuoteService.QUOTE_RECORD_TYPE_DEVELOPER_NAME,
+            'HCSales',
+            'HC_Sales'
+        };
+
+        for (String developerName : developerNameCandidates) {
+            if (!recordTypesByDeveloperName.containsKey(developerName)) {
+                continue;
+            }
+
+            Schema.RecordTypeInfo recordTypeInfo = recordTypesByDeveloperName.get(developerName);
+            if (recordTypeInfo != null && recordTypeInfo.getRecordTypeId() != null) {
+                return recordTypeInfo.getRecordTypeId();
+            }
         }
 
-        return recordTypesByDeveloperName
-            .get(GenerateQuoteService.QUOTE_RECORD_TYPE_DEVELOPER_NAME)
-            .getRecordTypeId();
+        return null;
+    }
+
+    private static String resolveQuoteStatus(String statusValue) {
+        for (Schema.PicklistEntry picklistEntry : Quote.Status.getDescribe().getPicklistValues()) {
+            if (picklistEntry.isActive() && picklistEntry.getValue().equalsIgnoreCase(statusValue)) {
+                return picklistEntry.getValue();
+            }
+        }
+
+        return statusValue;
     }
 
     private static String getValidStageName() {

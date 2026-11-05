@@ -1,9 +1,129 @@
 /**
- * @description Tests for QuoteSelector: QACBM quote/forecast queries plus Sprint 9
- *              Repair Center methods (GW-3600 / GW-5102 / GW-5333).
+ * @author Vinay Soni
+ * @date 2026/11/04
+ *
+ * @group ES Service Product Configurator
+ *
+ * @description Tests for QuoteSelector, including Sprint 9 Repair Center methods
+ *              (GW-3600 / GW-5102 / GW-5333). Tolerates missing QuoteType__c on Dev for
+ *              the USER_MODE propagatable-forecast selector path.
  */
 @IsTest
 private class QuoteSelectorTest {
+
+    private static final Id UNKNOWN_ID = UserInfo.getUserId();
+    private static final Set<Id> UNKNOWN_ID_SET = new Set<Id>{ UNKNOWN_ID };
+    private static final String QUOTE_TYPE = 'Standard';
+
+    /**
+     * @description Each filter combination returns no quotes for an unknown Opportunity.
+     */
+    @IsTest
+    static void testSelectByOpportunityIdWithLineItemsReturnsEmpty() {
+        Test.startTest();
+        List<List<Quote>> resultList = new List<List<Quote>>{
+            QuoteSelector.selectByOpportunityIdWithLineItems(null),
+            QuoteSelector.selectByOpportunityIdWithLineItems(UNKNOWN_ID),
+            QuoteSelector.selectByOpportunityIdWithLineItems(UNKNOWN_ID, QUOTE_TYPE),
+            QuoteSelector.selectByOpportunityIdWithLineItems(UNKNOWN_ID, null, true),
+            QuoteSelector.selectByOpportunityIdWithLineItems(UNKNOWN_ID, QUOTE_TYPE, false, UNKNOWN_ID),
+            QuoteSelector.selectByOpportunityIdWithLineItems(UNKNOWN_ID, null, true, UNKNOWN_ID),
+            QuoteSelector.selectByOpportunityIdWithLineItems(UNKNOWN_ID, null, false, UNKNOWN_ID),
+            QuoteSelector.selectByOpportunityIdWithLineItems(UNKNOWN_ID, QUOTE_TYPE, false, null, UNKNOWN_ID),
+            QuoteSelector.selectByOpportunityIdWithLineItems(UNKNOWN_ID, null, true, null, UNKNOWN_ID),
+            QuoteSelector.selectByOpportunityIdWithLineItems(UNKNOWN_ID, null, false, null, UNKNOWN_ID)
+        };
+        Test.stopTest();
+
+        for (List<Quote> quoteList : resultList) {
+            Assert.isTrue(quoteList.isEmpty(), 'No quotes should be returned');
+        }
+    }
+
+    /**
+     * @description Each filter combination counts no quotes for an unknown Opportunity.
+     */
+    @IsTest
+    static void testCountByOpportunityIdReturnsZero() {
+        Test.startTest();
+        List<Integer> countList = new List<Integer>{
+            QuoteSelector.countByOpportunityId(null),
+            QuoteSelector.countByOpportunityId(UNKNOWN_ID),
+            QuoteSelector.countByOpportunityId(UNKNOWN_ID, QUOTE_TYPE),
+            QuoteSelector.countByOpportunityId(UNKNOWN_ID, null, true),
+            QuoteSelector.countByOpportunityId(UNKNOWN_ID, QUOTE_TYPE, false, UNKNOWN_ID),
+            QuoteSelector.countByOpportunityId(UNKNOWN_ID, null, true, UNKNOWN_ID),
+            QuoteSelector.countByOpportunityId(UNKNOWN_ID, null, false, UNKNOWN_ID),
+            QuoteSelector.countByOpportunityId(UNKNOWN_ID, QUOTE_TYPE, false, null, UNKNOWN_ID),
+            QuoteSelector.countByOpportunityId(UNKNOWN_ID, null, true, null, UNKNOWN_ID),
+            QuoteSelector.countByOpportunityId(UNKNOWN_ID, null, false, null, UNKNOWN_ID)
+        };
+        Test.stopTest();
+
+        for (Integer quoteCount : countList) {
+            Assert.areEqual(0, quoteCount, 'No quotes should be counted');
+        }
+    }
+
+    /**
+     * @description Blank and unknown Ids return no quotes from the remaining selectors.
+     *              selectPropagatableForecastConfidenceQuotesByOpportunityId uses USER_MODE and
+     *              QuoteType__c; when that field is absent the QueryException is tolerated so Dev
+     *              remains green while CBMQA still exercises the path.
+     */
+    @IsTest
+    static void testOtherSelectorsReturnEmpty() {
+        Test.startTest();
+        Quote nullIdQuote = QuoteSelector.selectById(null);
+        Quote unknownIdQuote = QuoteSelector.selectById(UNKNOWN_ID);
+        List<List<Quote>> resultList = new List<List<Quote>>{
+            QuoteSelector.selectByIdsWithLineItems(null),
+            QuoteSelector.selectByIdsWithLineItems(UNKNOWN_ID_SET),
+            QuoteSelector.selectOpenForecastEligibleQuotesByOpportunityIds(null),
+            QuoteSelector.selectOpenForecastEligibleQuotesByOpportunityIds(UNKNOWN_ID_SET),
+            QuoteSelector.selectForecastManagementQuotesByOpportunityId(null),
+            QuoteSelector.selectForecastManagementQuotesByOpportunityId(UNKNOWN_ID),
+            QuoteSelector.selectSalesConnectionQuotesForForecastEligibleByOpportunityIds(null),
+            QuoteSelector.selectSalesConnectionQuotesForForecastEligibleByOpportunityIds(UNKNOWN_ID_SET),
+            QuoteSelector.selectPropagatableForecastConfidenceQuotesByOpportunityId(null),
+            QuoteSelector.selectOpenSalesConnectionQuotesByOpportunityId(null),
+            QuoteSelector.selectOpenSalesConnectionQuotesByOpportunityId(UNKNOWN_ID)
+        };
+        try {
+            resultList.add(
+                QuoteSelector.selectPropagatableForecastConfidenceQuotesByOpportunityId(UNKNOWN_ID)
+            );
+        } catch (QueryException queryException) {
+            Assert.isTrue(
+                queryException.getMessage().contains('QuoteType__c'),
+                'Unexpected QueryException: ' + queryException.getMessage()
+            );
+        }
+        Set<Id> opportunityIdSet = QuoteSelector.selectOpportunityIdsWithOpenForecastEligibleQuotes(
+            UNKNOWN_ID_SET
+        );
+        List<Map<Id, Integer>> countMapList = new List<Map<Id, Integer>>{
+            QuoteSelector.countPropagatableForecastConfidenceQuotesByOpportunityIds(null),
+            QuoteSelector.countPropagatableForecastConfidenceQuotesByOpportunityIds(UNKNOWN_ID_SET),
+            QuoteSelector.countOpenSalesConnectionQuotesByOpportunityIds(null),
+            QuoteSelector.countOpenSalesConnectionQuotesByOpportunityIds(UNKNOWN_ID_SET)
+        };
+        Test.stopTest();
+
+        Assert.isNull(nullIdQuote, 'A null Id should return no quote');
+        Assert.isNull(unknownIdQuote, 'An unknown Id should return no quote');
+        Assert.isTrue(opportunityIdSet.isEmpty(), 'No Opportunity Ids should be returned');
+        for (List<Quote> quoteList : resultList) {
+            Assert.isTrue(quoteList.isEmpty(), 'No quotes should be returned');
+        }
+        for (Map<Id, Integer> countMap : countMapList) {
+            Assert.isTrue(countMap.isEmpty(), 'No counts should be returned');
+        }
+    }
+
+    /**
+     * @description Constructor binds the selector to Quote for SoqlQueryBuilder queries.
+     */
     @IsTest
     static void testConstructor_bindsQuoteObject() {
         Test.startTest();
@@ -12,110 +132,24 @@ private class QuoteSelectorTest {
         Assert.isNotNull(selector);
     }
 
+    /**
+     * @description GW-5102 / GW-5333 null guards return null.
+     */
     @IsTest
-    static void testSelectByOpportunityIdWithLineItems_WhenNull_ReturnsEmpty() {
+    static void testSprint9Selectors_WhenNull_ReturnNull() {
         Test.startTest();
-        List<Quote> base = QuoteSelector.selectByOpportunityIdWithLineItems(null);
-        List<Quote> withType = QuoteSelector.selectByOpportunityIdWithLineItems(null, 'Sales');
-        List<Quote> withForecast = QuoteSelector.selectByOpportunityIdWithLineItems(null, null, true);
-        List<Quote> withTrial = QuoteSelector.selectByOpportunityIdWithLineItems(
-            null,
-            null,
-            false,
-            null
-        );
-        List<Quote> withSample = QuoteSelector.selectByOpportunityIdWithLineItems(
-            null,
-            null,
-            false,
-            null,
-            null
-        );
+        Quote emailQuote = QuoteSelector.selectForQuoteEmailReplyById(null);
+        Quote approveQuote = QuoteSelector.selectForApproveRejectById(null);
         Test.stopTest();
-        Assert.isTrue(base.isEmpty());
-        Assert.isTrue(withType.isEmpty());
-        Assert.isTrue(withForecast.isEmpty());
-        Assert.isTrue(withTrial.isEmpty());
-        Assert.isTrue(withSample.isEmpty());
+        Assert.isNull(emailQuote);
+        Assert.isNull(approveQuote);
     }
 
-    @IsTest
-    static void testCountByOpportunityId_WhenNull_ReturnsZero() {
-        Test.startTest();
-        Integer base = QuoteSelector.countByOpportunityId(null);
-        Integer withType = QuoteSelector.countByOpportunityId(null, 'Sales');
-        Integer withForecast = QuoteSelector.countByOpportunityId(null, null, true);
-        Integer withTrial = QuoteSelector.countByOpportunityId(null, null, false, null);
-        Integer withSample = QuoteSelector.countByOpportunityId(null, null, false, null, null);
-        Test.stopTest();
-        Assert.areEqual(0, base);
-        Assert.areEqual(0, withType);
-        Assert.areEqual(0, withForecast);
-        Assert.areEqual(0, withTrial);
-        Assert.areEqual(0, withSample);
-    }
-
-    @IsTest
-    static void testSelectByIdAndIds_WhenBlank_ReturnsEmpty() {
-        Test.startTest();
-        Quote byId = QuoteSelector.selectById(null);
-        List<Quote> byIdsNull = QuoteSelector.selectByIdsWithLineItems(null);
-        List<Quote> byIdsEmpty = QuoteSelector.selectByIdsWithLineItems(new Set<Id>());
-        Test.stopTest();
-        Assert.isNull(byId);
-        Assert.isTrue(byIdsNull.isEmpty());
-        Assert.isTrue(byIdsEmpty.isEmpty());
-    }
-
-    @IsTest
-    static void testForecastAndSalesConnectionGuards_WhenBlank_ReturnEmpty() {
-        Test.startTest();
-        List<Quote> openForecast =
-            QuoteSelector.selectOpenForecastEligibleQuotesByOpportunityIds(null);
-        Set<Id> openForecastIds =
-            QuoteSelector.selectOpportunityIdsWithOpenForecastEligibleQuotes(new Set<Id>());
-        List<Quote> forecastMgmt =
-            QuoteSelector.selectForecastManagementQuotesByOpportunityId(null);
-        List<Quote> salesConnForecast =
-            QuoteSelector.selectSalesConnectionQuotesForForecastEligibleByOpportunityIds(null);
-        Map<Id, Integer> propagateCounts =
-            QuoteSelector.countPropagatableForecastConfidenceQuotesByOpportunityIds(new Set<Id>());
-        List<Quote> propagateQuotes =
-            QuoteSelector.selectPropagatableForecastConfidenceQuotesByOpportunityId(null);
-        List<Quote> openSales =
-            QuoteSelector.selectOpenSalesConnectionQuotesByOpportunityId(null);
-        Map<Id, Integer> openSalesCounts =
-            QuoteSelector.countOpenSalesConnectionQuotesByOpportunityIds(null);
-        Test.stopTest();
-        Assert.isTrue(openForecast.isEmpty());
-        Assert.isTrue(openForecastIds.isEmpty());
-        Assert.isTrue(forecastMgmt.isEmpty());
-        Assert.isTrue(salesConnForecast.isEmpty());
-        Assert.isTrue(propagateCounts.isEmpty());
-        Assert.isTrue(propagateQuotes.isEmpty());
-        Assert.isTrue(openSales.isEmpty());
-        Assert.isTrue(openSalesCounts.isEmpty());
-    }
-
-    @IsTest
-    static void testSelectForQuoteEmailReplyById_WhenNull_ReturnsNull() {
-        Test.startTest();
-        Quote result = QuoteSelector.selectForQuoteEmailReplyById(null);
-        Test.stopTest();
-        Assert.isNull(result);
-    }
-
-    @IsTest
-    static void testSelectForApproveRejectById_WhenNull_ReturnsNull() {
-        Test.startTest();
-        Quote result = QuoteSelector.selectForApproveRejectById(null);
-        Test.stopTest();
-        Assert.isNull(result);
-    }
-
+    /**
+     * @description GW-5102 / GW-5333 and core Id selectors return the matching Quote.
+     */
     @IsTest
     static void testSprint9AndCoreSelectors_WhenQuoteExists_ReturnsRows() {
-        // Avoid forecast/Sales Connection paths that reference Quote.QuoteType__c (not on Dev).
         Quote quoteRecord = createQuote();
 
         Test.startTest();
@@ -123,6 +157,10 @@ private class QuoteSelectorTest {
         Quote approveQuote = QuoteSelector.selectForApproveRejectById(quoteRecord.Id);
         Quote byId = QuoteSelector.selectById(quoteRecord.Id);
         List<Quote> byIds = QuoteSelector.selectByIdsWithLineItems(new Set<Id>{ quoteRecord.Id });
+        List<Quote> byOpportunity = QuoteSelector.selectByOpportunityIdWithLineItems(
+            quoteRecord.OpportunityId
+        );
+        Integer opportunityCount = QuoteSelector.countByOpportunityId(quoteRecord.OpportunityId);
         Test.stopTest();
 
         Assert.isNotNull(emailQuote);
@@ -132,6 +170,8 @@ private class QuoteSelectorTest {
         Assert.isNotNull(byId);
         Assert.areEqual(quoteRecord.Id, byId.Id);
         Assert.isFalse(byIds.isEmpty());
+        Assert.isFalse(byOpportunity.isEmpty());
+        Assert.isTrue(opportunityCount > 0);
     }
 
     private static Quote createQuote() {

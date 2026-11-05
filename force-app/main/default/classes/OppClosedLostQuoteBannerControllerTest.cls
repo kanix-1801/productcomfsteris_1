@@ -2,7 +2,8 @@
  * @author Himanshu Chaurasia
  * @date 2026/09/09
  *
- * @description Test class for Closed Lost quote closure banner.
+ * @description Test coverage for OppClosedLostQuoteBannerController (Closed Lost quote closure banner LWC).
+ *              Also exercises OppClosedLostQuoteService staging and sync paths used by the controller.
  */
 @IsTest
 private class OppClosedLostQuoteBannerControllerTest {
@@ -14,12 +15,6 @@ private class OppClosedLostQuoteBannerControllerTest {
 
     @TestSetup
     static void setupData() {
-        User setupUser = new User(Id = UserInfo.getUserId());
-        System.runAs(setupUser) {
-            insert createQuoteAutomationRunAsUser();
-        }
-        assignSalesFieldRepAccountManagerPsg(getQuoteAutomationRunAsUser().Id);
-
         Id standardPricebookId = Test.getStandardPricebookId();
 
         Account accountRecord = new Account(
@@ -44,6 +39,17 @@ private class OppClosedLostQuoteBannerControllerTest {
             getValidStageName()
         );
         insert opportunityRecord;
+
+        User setupUser = new User(Id = UserInfo.getUserId());
+        System.runAs(setupUser) {
+            User automationUser = createQuoteAutomationRunAsUser();
+            insert automationUser;
+            assignSalesFieldRepAccountManagerPsg(automationUser.Id);
+            update new User(
+                Id = automationUser.Id,
+                EmployeeNumber__c = '123456'
+            );
+        }
     }
 
     @IsTest
@@ -115,13 +121,13 @@ private class OppClosedLostQuoteBannerControllerTest {
         ];
         System.assertEquals('2283704', quoteRecord.SalesConnectionQuoteID__c);
         moveOpportunityToClosedLost(opportunityRecord);
-        //ScOpportunityQuoteEventGateway.forceHardcodedResponse = true;
+        ScOpportunityQuoteEventGateway.forceHardcodedResponse = true;
 
         Test.startTest();
         closeAllOpenQuotesAsAutomationUser(opportunityRecord.Id);
         Test.stopTest();
 
-        //ScOpportunityQuoteEventGateway.forceHardcodedResponse = false;
+        ScOpportunityQuoteEventGateway.forceHardcodedResponse = false;
 
         Quote updatedQuote = [
             SELECT Status
@@ -247,6 +253,268 @@ private class OppClosedLostQuoteBannerControllerTest {
         System.assertEquals(false, updatedOpportunity.IsOpportunityClosed__c);
     }
 
+    @IsTest
+    static void testGetBannerContextNullOpportunityReturnsEmptyContext() {
+        Test.startTest();
+        OppClosedLostQuoteService.BannerContext bannerContext =
+            OppClosedLostQuoteBannerController.getBannerContext(null);
+        Test.stopTest();
+
+        System.assertEquals(false, bannerContext.showBanner);
+        System.assertEquals(0, bannerContext.openQuoteCount);
+        System.assertEquals(0, bannerContext.quotes.size());
+    }
+
+    @IsTest
+    static void testGetBannerContextHidesBannerForUnknownOpportunityId() {
+        Id unknownOpportunityId = fakeSalesforceId(Schema.Opportunity.SObjectType, 99);
+
+        Test.startTest();
+        OppClosedLostQuoteService.BannerContext bannerContext =
+            OppClosedLostQuoteBannerController.getBannerContext(unknownOpportunityId);
+        Test.stopTest();
+
+        System.assertEquals(false, bannerContext.showBanner);
+        System.assertEquals(0, bannerContext.openQuoteCount);
+    }
+
+    @IsTest
+    static void testGetBannerContextReturnsEmptyWhenBannerInactive() {
+        Opportunity opportunityRecord = getTestOpportunity();
+        insertQuote(opportunityRecord, 'Closed Lost Inactive Banner Context Quote', 'Open');
+
+        Test.startTest();
+        OppClosedLostQuoteService.BannerContext bannerContext =
+            OppClosedLostQuoteBannerController.getBannerContext(opportunityRecord.Id);
+        Test.stopTest();
+
+        System.assertEquals(false, bannerContext.showBanner);
+        System.assertEquals(0, bannerContext.openQuoteCount);
+    }
+
+    @IsTest
+    static void testGetBannerContextPopulatesMessageFieldsWhenBannerActive() {
+        Opportunity opportunityRecord = getTestOpportunity();
+        Quote quoteRecord = insertQuote(opportunityRecord, 'Closed Lost Message Fields Quote', 'Open');
+        quoteRecord.Forecast_Eligible__c = true;
+        updateQuoteRecords(quoteRecord);
+        moveOpportunityToClosedLost(opportunityRecord);
+
+        Test.startTest();
+        OppClosedLostQuoteService.BannerContext bannerContext = getBannerContextAsAutomationUser(
+            opportunityRecord.Id
+        );
+        Test.stopTest();
+
+        System.assertEquals(true, bannerContext.showBanner);
+        System.assertEquals(System.Label.OpportunityClosedLostQuoteBannerMessage, bannerContext.message);
+        System.assertEquals(
+            System.Label.OpportunityClosedLostQuoteConfirmMessage,
+            bannerContext.confirmMessage
+        );
+        System.assertEquals(1, bannerContext.quotes.size());
+        System.assertEquals(true, bannerContext.quotes[0].forecastEligible);
+    }
+
+    @IsTest
+    static void testGetBannerContextHidesBannerWhenFlagSetButNoOpenQuotes() {
+        Opportunity opportunityRecord = getTestOpportunity();
+        Quote quoteRecord = insertQuote(opportunityRecord, 'Closed Lost Closed Quote Row', 'Open');
+        moveOpportunityToClosedLost(opportunityRecord);
+
+        quoteRecord.Status = resolveQuoteStatus('Closed');
+        updateQuoteRecords(quoteRecord);
+
+        Test.startTest();
+        OppClosedLostQuoteService.BannerContext bannerContext = getBannerContextAsAutomationUser(
+            opportunityRecord.Id
+        );
+        Test.stopTest();
+
+        System.assertEquals(false, bannerContext.showBanner);
+        System.assertEquals(0, bannerContext.openQuoteCount);
+    }
+
+    @IsTest
+    static void testDismissBannerNullOpportunityIsNoOp() {
+        Test.startTest();
+        OppClosedLostQuoteBannerController.dismissBanner(null);
+        Test.stopTest();
+
+        System.assert(true, 'Null opportunity id should return without error.');
+    }
+
+    @IsTest
+    static void testCloseAllOpenQuotesRethrowsAuraHandledException() {
+        Boolean exceptionThrown = false;
+
+        Test.startTest();
+        try {
+            OppClosedLostQuoteBannerController.closeAllOpenQuotes(null);
+        } catch (AuraHandledException exceptionValue) {
+            exceptionThrown = true;
+        }
+        Test.stopTest();
+
+        System.assertEquals(true, exceptionThrown);
+    }
+
+    @IsTest
+    static void testCloseAllOpenQuotesWrapsUnexpectedErrors() {
+        Boolean exceptionThrown = false;
+
+        Test.startTest();
+        try {
+            OppClosedLostQuoteBannerController.closeAllOpenQuotes(UserInfo.getUserId());
+        } catch (AuraHandledException exceptionValue) {
+            exceptionThrown = true;
+        }
+        Test.stopTest();
+
+        System.assertEquals(
+            true,
+            exceptionThrown,
+            'Invalid Opportunity Id should surface as AuraHandledException from the controller.'
+        );
+    }
+
+    @IsTest
+    static void testCloseAllOpenQuotesWhenBannerNotActiveThrows() {
+        Opportunity opportunityRecord = getTestOpportunity();
+        insertQuote(opportunityRecord, 'Closed Lost Inactive Banner Quote', 'Open');
+        Boolean exceptionThrown = false;
+
+        Test.startTest();
+        try {
+            OppClosedLostQuoteBannerController.closeAllOpenQuotes(opportunityRecord.Id);
+        } catch (AuraHandledException exceptionValue) {
+            exceptionThrown = true;
+        }
+        Test.stopTest();
+
+        System.assertEquals(true, exceptionThrown);
+    }
+
+    @IsTest
+    static void testCloseAllOpenQuotesWhenNoOpenQuotesOnlyClearsBanner() {
+        Opportunity opportunityRecord = getTestOpportunity();
+        Quote quoteRecord = insertQuote(opportunityRecord, 'Closed Lost Already Closed Quote', 'Open');
+        moveOpportunityToClosedLost(opportunityRecord);
+
+        quoteRecord.Status = resolveQuoteStatus('Closed');
+        updateQuoteRecords(quoteRecord);
+
+        System.runAs(getQuoteAutomationRunAsUser()) {
+            update new Opportunity(
+                Id = opportunityRecord.Id,
+                IsOpportunityClosed__c = true
+            );
+        }
+
+        Test.startTest();
+        closeAllOpenQuotesAsAutomationUser(opportunityRecord.Id);
+        Test.stopTest();
+
+        Opportunity updatedOpportunity = [
+            SELECT IsOpportunityClosed__c
+            FROM Opportunity
+            WHERE Id = :opportunityRecord.Id
+            LIMIT 1
+        ];
+
+        System.assertEquals(false, updatedOpportunity.IsOpportunityClosed__c);
+    }
+
+    @IsTest
+    static void testCloseAllOpenQuotesViaControllerClosesQuotes() {
+        Opportunity opportunityRecord = getTestOpportunity();
+        Quote quoteRecord = insertQuote(opportunityRecord, 'Closed Lost Controller Close Quote', 'Open');
+        quoteRecord.SalesConnectionQuoteID__c = '2283710';
+        updateQuoteRecords(quoteRecord);
+        moveOpportunityToClosedLost(opportunityRecord);
+        ScOpportunityQuoteEventGateway.forceHardcodedResponse = true;
+
+        Test.startTest();
+        closeAllOpenQuotesAsAutomationUser(opportunityRecord.Id);
+        Test.stopTest();
+
+        ScOpportunityQuoteEventGateway.forceHardcodedResponse = false;
+
+        Quote updatedQuote = [
+            SELECT Status
+            FROM Quote
+            WHERE Id = :quoteRecord.Id
+            LIMIT 1
+        ];
+        System.assertEquals(QuoteSelector.CLOSED_STATUS_VALUE, updatedQuote.Status);
+    }
+
+    @IsTest
+    static void testDismissBannerRethrowsAuraHandledException() {
+        Boolean exceptionThrown = false;
+
+        Test.startTest();
+        try {
+            OppClosedLostQuoteBannerController.dismissBanner(UserInfo.getUserId());
+        } catch (AuraHandledException exceptionValue) {
+            exceptionThrown = true;
+        }
+        Test.stopTest();
+
+        System.assertEquals(true, exceptionThrown);
+    }
+
+    @IsTest
+    static void testGetBannerContextWrapsUnexpectedErrors() {
+        OppClosedLostQuoteBannerController.forceExceptionForTest = true;
+        Boolean exceptionThrown = false;
+
+        Test.startTest();
+        try {
+            OppClosedLostQuoteBannerController.getBannerContext(null);
+        } catch (AuraHandledException exceptionValue) {
+            exceptionThrown = true;
+        }
+        Test.stopTest();
+
+        OppClosedLostQuoteBannerController.forceExceptionForTest = false;
+        System.assertEquals(true, exceptionThrown);
+    }
+
+    @IsTest
+    static void testDismissBannerWrapsUnexpectedErrors() {
+        OppClosedLostQuoteBannerController.forceExceptionForTest = true;
+        Boolean exceptionThrown = false;
+
+        Test.startTest();
+        try {
+            OppClosedLostQuoteBannerController.dismissBanner(null);
+        } catch (AuraHandledException exceptionValue) {
+            exceptionThrown = true;
+        }
+        Test.stopTest();
+
+        OppClosedLostQuoteBannerController.forceExceptionForTest = false;
+        System.assertEquals(true, exceptionThrown);
+    }
+
+    @IsTest
+    static void testCloseAllOpenQuotesWrapsForcedUnexpectedErrors() {
+        OppClosedLostQuoteBannerController.forceExceptionForTest = true;
+        Boolean exceptionThrown = false;
+
+        Test.startTest();
+        try {
+            OppClosedLostQuoteBannerController.closeAllOpenQuotes(null);
+        } catch (AuraHandledException exceptionValue) {
+            exceptionThrown = true;
+        }
+        Test.stopTest();
+
+        OppClosedLostQuoteBannerController.forceExceptionForTest = false;
+        System.assertEquals(true, exceptionThrown);
+    }
+
     private static void stageClosedLostBannerAndUpdateOpportunity(
         Opportunity opportunityRecord,
         Opportunity oldOpportunityRecord
@@ -321,18 +589,20 @@ private class OppClosedLostQuoteBannerControllerTest {
 
     private static void assignSalesFieldRepAccountManagerPsg(Id userId) {
         PermissionSetGroup permissionSetGroupRecord = [
-            SELECT Id
+            SELECT Id, Status
             FROM PermissionSetGroup
             WHERE DeveloperName = :SALES_FIELD_REP_PSG_DEVELOPER_NAME
             LIMIT 1
         ];
+
+        // Force the group to "Updated" so assignments are allowed in test context
+        Test.calculatePermissionSetGroup(permissionSetGroupRecord.Id);
 
         insert new PermissionSetAssignment(
             AssigneeId = userId,
             PermissionSetGroupId = permissionSetGroupRecord.Id
         );
 
-        Test.calculatePermissionSetGroup(permissionSetGroupRecord.Id);
     }
 
     private static void insertQuoteRecords(Quote quoteRecord) {
@@ -356,8 +626,9 @@ private class OppClosedLostQuoteBannerControllerTest {
             SELECT Id, StageName
             FROM Opportunity
             WHERE Id = :opportunityRecord.Id
-            LIMIT 1
-        ][0].clone(true, true, true, true);
+            LIMIT 1];
+        
+        oldOpportunityRecord = oldOpportunityRecord.clone(true, true, true, true);
 
         opportunityRecord.StageName = resolveClosedLostStageName();
         stageClosedLostBannerAndUpdateOpportunity(opportunityRecord, oldOpportunityRecord);
@@ -458,8 +729,7 @@ private class OppClosedLostQuoteBannerControllerTest {
 
         List<String> developerNameCandidates = new List<String>{
             GenerateQuoteService.QUOTE_RECORD_TYPE_DEVELOPER_NAME,
-            'HCSales',
-            'HC_Sales'
+            'HCSales'
         };
 
         for (String developerName : developerNameCandidates) {
@@ -536,5 +806,18 @@ private class OppClosedLostQuoteBannerControllerTest {
         }
 
         return null;
+    }
+
+    /**
+     * @description Builds a deterministic 15-character Id for controller guard tests (org-agnostic).
+     */
+    private static Id fakeSalesforceId(Schema.SObjectType objectType, Integer seed) {
+        String keyPrefix = objectType.getDescribe().getKeyPrefix();
+        String suffix = String.valueOf(Math.abs(seed == null ? 1 : seed)).leftPad(12, '0');
+        if (suffix.length() > 12) {
+            suffix = suffix.substring(suffix.length() - 12);
+        }
+
+        return (Id) (keyPrefix + suffix);
     }
 }

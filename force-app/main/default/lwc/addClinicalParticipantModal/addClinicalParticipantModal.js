@@ -22,19 +22,41 @@ export default class AddClinicalParticipantModal extends LightningModal {
             if (!Array.isArray(parsed)) {
                 return [];
             }
-            return parsed.map((row) => ({
-                key: this.newKey(),
-                userId: row.userId || null,
-                name: row.name || '',
-                email: row.email || ''
-            }));
+            return parsed.map((row) =>
+                this.shapeRow({
+                    key: this.newKey(),
+                    participantType: row.userId ? 'user' : 'external',
+                    userId: row.userId || null,
+                    name: row.name || '',
+                    email: row.email || ''
+                })
+            );
         } catch (e) {
             return [];
         }
     }
 
     emptyRow() {
-        return { key: this.newKey(), userId: null, name: '', email: '' };
+        return this.shapeRow({
+            key: this.newKey(),
+            participantType: 'user',
+            userId: null,
+            name: '',
+            email: ''
+        });
+    }
+
+    shapeRow(row) {
+        const participantType = row.participantType || '';
+        return {
+            key: row.key,
+            participantType,
+            userId: row.userId || null,
+            name: row.name || '',
+            email: row.email || '',
+            isSalesforceUser: participantType === 'user',
+            isExternal: participantType === 'external'
+        };
     }
 
     newKey() {
@@ -53,6 +75,15 @@ export default class AddClinicalParticipantModal extends LightningModal {
         this.errorMessage = '';
     }
 
+    handleExternalChange(event) {
+        this.updateRow(event.target.dataset.key, {
+            participantType: event.target.checked ? 'external' : 'user',
+            userId: null,
+            name: '',
+            email: ''
+        });
+    }
+
     handleNameChange(event) {
         this.updateRow(event.target.dataset.key, { name: event.target.value });
     }
@@ -64,23 +95,32 @@ export default class AddClinicalParticipantModal extends LightningModal {
     async handleUserChange(event) {
         const key = event.target.dataset.key;
         const userId = event.detail.recordId;
-        this.updateRow(key, { userId: userId || null });
         if (!userId) {
+            this.updateRow(key, { userId: null, name: '', email: '' });
             return;
         }
+        this.updateRow(key, { userId });
         try {
             const user = await getSalesforceUser({ userId });
             if (user) {
                 this.updateRow(key, { name: user.Name || '', email: user.Email || '' });
             }
         } catch (e) {
-            this.errorMessage = 'The Salesforce user could not be loaded. Enter the name and email.';
+            this.errorMessage = 'The Salesforce user could not be loaded. Select the user again.';
         }
     }
 
     updateRow(key, changes) {
-        this.rows = this.rows.map((row) => (row.key === key ? { ...row, ...changes } : row));
+        this.rows = this.rows.map((row) => (row.key === key ? this.shapeRow({ ...row, ...changes }) : row));
         this.errorMessage = '';
+    }
+
+    get saveDisabled() {
+        return !this.rows.some((row) => {
+            const name = (row.name || '').trim();
+            const email = (row.email || '').trim();
+            return Boolean(name || email || row.userId);
+        });
     }
 
     handleCancel() {
@@ -93,13 +133,25 @@ export default class AddClinicalParticipantModal extends LightningModal {
         for (const row of this.rows) {
             const name = (row.name || '').trim();
             const email = (row.email || '').trim();
-            const userId = row.userId || null;
-            if (!name && !email && !userId) {
+            let userId = row.userId || null;
+            if (!row.participantType || (!name && !email && !userId)) {
                 continue;
             }
-            if (!name || !email) {
-                this.errorMessage = 'Enter a name and email, or select a Salesforce user.';
-                return;
+            if (row.participantType === 'user') {
+                if (!userId) {
+                    this.errorMessage = 'Select a Salesforce user.';
+                    return;
+                }
+                if (!name || !email) {
+                    this.errorMessage = 'The selected Salesforce user needs a name and email.';
+                    return;
+                }
+            } else {
+                userId = null;
+                if (!name || !email) {
+                    this.errorMessage = 'Enter a name and email. This person is not a Salesforce user.';
+                    return;
+                }
             }
             if (!EMAIL_PATTERN.test(email)) {
                 this.errorMessage = 'Enter a valid email address.';

@@ -20,8 +20,6 @@ public with sharing class CurrentAppService {
             SELECT AppDefinitionId
             FROM UserAppInfo
             WHERE UserId = :UserInfo.getUserId()
-              AND FormFactor = :formFactor
-            WITH USER_MODE
             ORDER BY LastModifiedDate DESC
             LIMIT 1
         ];
@@ -33,7 +31,6 @@ public with sharing class CurrentAppService {
             SELECT DeveloperName
             FROM AppDefinition
             WHERE DurableId = :appInfos[0].AppDefinitionId
-            WITH USER_MODE
             LIMIT 1
         ];
         return apps.isEmpty() ? null : apps[0].DeveloperName;

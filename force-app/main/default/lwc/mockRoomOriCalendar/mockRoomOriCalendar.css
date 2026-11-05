@@ -80,7 +80,12 @@
 }
 
 .day.selected {
+    background: #f4f9fd;
     box-shadow: inset 0 0 0 2px #0176d3;
+}
+
+.day.selected:hover {
+    background: #eef6fb;
 }
 
 .day.past {
@@ -103,6 +108,11 @@
 
 .day.is-today:hover {
     background: #e3eefc;
+}
+
+.day.is-today.selected,
+.day.is-today.selected:hover {
+    background: #e8f3fb;
 }
 
 .number.today-number {

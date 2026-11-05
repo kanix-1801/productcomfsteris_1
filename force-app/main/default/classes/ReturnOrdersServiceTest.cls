@@ -2061,6 +2061,259 @@ private class ReturnOrdersServiceTest {
         Test.stopTest();
     }
 
+    // ── GW-5492 receiving helpers ─────────────────────────────────────────────
+
+    @IsTest
+    static void testLinkWorkOrderForReceiving_WhenIdsProvided_SetsLookup() {
+        ReceivingFixture fixture = insertReceivingFixture(1);
+        WorkOrder workOrder = new WorkOrder(
+            Subject = 'ROS Receiving Link WO',
+            Status = 'Received',
+            AccountId = fixture.accountId
+        );
+        insert workOrder;
+
+        Test.startTest();
+        ReturnOrdersService.linkWorkOrderForReceiving(null, workOrder.Id);
+        ReturnOrdersService.linkWorkOrderForReceiving(fixture.returnOrderId, null);
+        ReturnOrdersService.linkWorkOrderForReceiving(fixture.returnOrderId, workOrder.Id);
+        Test.stopTest();
+
+        ReturnOrder refreshed = [
+            SELECT WorkOrder__c
+            FROM ReturnOrder
+            WHERE Id = :fixture.returnOrderId
+        ];
+        Assert.areEqual(workOrder.Id, refreshed.WorkOrder__c);
+    }
+
+    @IsTest
+    static void testSyncReceivingWorkOrderCount_WhenWorkOrdersExist_UpdatesCount() {
+        ReceivingFixture fixture = insertReceivingFixture(1);
+        WorkOrder workOrder = new WorkOrder(
+            Subject = 'ROS Receiving Count WO',
+            Status = 'Received',
+            AccountId = fixture.accountId
+        );
+        workOrder.put('ReturnOrder__c', fixture.returnOrderId);
+        insert workOrder;
+
+        Test.startTest();
+        ReturnOrdersService.syncReceivingWorkOrderCount(null);
+        ReturnOrdersService.syncReceivingWorkOrderCount(fixture.returnOrderId);
+        Test.stopTest();
+
+        ReturnOrder refreshed = [
+            SELECT WOCount__c
+            FROM ReturnOrder
+            WHERE Id = :fixture.returnOrderId
+        ];
+        Assert.areEqual(1, refreshed.WOCount__c);
+    }
+
+    @IsTest
+    static void testSetQuantityReceivedForReceiving_WhenValid_UpdatesQuantity() {
+        ReceivingFixture fixture = insertReceivingFixture(1);
+
+        Test.startTest();
+        ReturnOrdersService.setQuantityReceivedForReceiving(null, 3);
+        ReturnOrdersService.setQuantityReceivedForReceiving(fixture.returnOrderId, null);
+        ReturnOrdersService.setQuantityReceivedForReceiving(fixture.returnOrderId, 3);
+        Test.stopTest();
+
+        ReturnOrder refreshed = [
+            SELECT QuantityReceived__c
+            FROM ReturnOrder
+            WHERE Id = :fixture.returnOrderId
+        ];
+        Assert.areEqual(3, refreshed.QuantityReceived__c);
+    }
+
+    @IsTest
+    static void testMarkReturnOrderReceivedIfComplete_WhenNoCreatedLines_SetsReceived() {
+        ReceivingFixture openFixture = insertReceivingFixture(1);
+        ReceivingFixture completeFixture = insertReceivingFixture(1);
+        update new ReturnOrderLineItem(
+            Id = completeFixture.lineItemIds[0],
+            Status__c = 'Received'
+        );
+
+        Test.startTest();
+        Boolean nullResult = ReturnOrdersService.markReturnOrderReceivedIfComplete(null);
+        Boolean stillOpen = ReturnOrdersService.markReturnOrderReceivedIfComplete(
+            openFixture.returnOrderId
+        );
+        Boolean completed = ReturnOrdersService.markReturnOrderReceivedIfComplete(
+            completeFixture.returnOrderId
+        );
+        Test.stopTest();
+
+        Assert.isFalse(nullResult);
+        Assert.isFalse(stillOpen, 'Created lines should block Received status');
+        Assert.isTrue(completed);
+        ReturnOrder refreshed = [
+            SELECT Status
+            FROM ReturnOrder
+            WHERE Id = :completeFixture.returnOrderId
+        ];
+        Assert.areEqual('Received', refreshed.Status);
+    }
+
+    @IsTest
+    static void testRedirectLinesForReceiving_WhenValid_ClonesAndMarksRedirected() {
+        ReceivingFixture fixture = insertReceivingFixture(1);
+        Schema.Location destinationRepairCenter = new Schema.Location(
+            Name = 'ROS Redirect Destination RC',
+            LocationType = 'Repair Center'
+        );
+        insert destinationRepairCenter;
+
+        Test.startTest();
+        ReturnOrdersService.ReceivingRedirectResult viaWrapper =
+            ReturnOrdersService.redirectLineItemForReceiving(
+                fixture.returnOrderId,
+                fixture.lineItemIds[0],
+                destinationRepairCenter.Id,
+                'Move to alternate RC'
+            );
+        Test.stopTest();
+
+        Assert.isNotNull(viaWrapper.returnOrderId);
+        Assert.isNotNull(viaWrapper.returnOrderNumber);
+        Assert.isTrue(
+            viaWrapper.sourceReturnOrderFullyRedirected,
+            'Single Created line redirect should fully redirect source'
+        );
+
+        ReturnOrderLineItem sourceLine = [
+            SELECT Status__c
+            FROM ReturnOrderLineItem
+            WHERE Id = :fixture.lineItemIds[0]
+        ];
+        Assert.areEqual('Redirected', sourceLine.Status__c);
+
+        ReturnOrder sourceOrder = [
+            SELECT Status, ParentReturnOrder__c
+            FROM ReturnOrder
+            WHERE Id = :fixture.returnOrderId
+        ];
+        Assert.areEqual('Redirected', sourceOrder.Status);
+
+        ReturnOrder clonedOrder = [
+            SELECT ParentReturnOrder__c, DestinationLocationId, Status, Description
+            FROM ReturnOrder
+            WHERE Id = :viaWrapper.returnOrderId
+        ];
+        Assert.areEqual(fixture.returnOrderId, clonedOrder.ParentReturnOrder__c);
+        Assert.areEqual(destinationRepairCenter.Id, clonedOrder.DestinationLocationId);
+        Assert.areEqual('Created', clonedOrder.Status);
+        Assert.isTrue(
+            clonedOrder.Description != null &&
+                clonedOrder.Description.contains('Move to alternate RC'),
+            'Redirection notes should append to description'
+        );
+
+        List<ReturnOrderLineItem> clonedLines = [
+            SELECT Status__c, ParentROLI__c, DestinationLocationId
+            FROM ReturnOrderLineItem
+            WHERE ReturnOrderId = :viaWrapper.returnOrderId
+        ];
+        Assert.areEqual(1, clonedLines.size());
+        Assert.areEqual('Created', clonedLines[0].Status__c);
+        Assert.areEqual(fixture.lineItemIds[0], clonedLines[0].ParentROLI__c);
+        Assert.areEqual(destinationRepairCenter.Id, clonedLines[0].DestinationLocationId);
+    }
+
+    @IsTest
+    static void testRedirectLinesForReceiving_WhenMissing_Throws() {
+        ReceivingFixture fixture = insertReceivingFixture(1);
+        Boolean missingRo = false;
+        Boolean missingLine = false;
+
+        try {
+            ReturnOrdersService.redirectLinesForReceiving(
+                UserInfo.getUserId(),
+                new Set<Id>{ fixture.lineItemIds[0] },
+                fixture.repairCenterId,
+                null
+            );
+        } catch (ReturnOrdersService.ReturnOrdersServiceException e) {
+            missingRo = e.getMessage().contains('Return Order was not found');
+        }
+        try {
+            ReturnOrdersService.redirectLinesForReceiving(
+                fixture.returnOrderId,
+                new Set<Id>{ UserInfo.getUserId() },
+                fixture.repairCenterId,
+                null
+            );
+        } catch (ReturnOrdersService.ReturnOrdersServiceException e) {
+            missingLine = e.getMessage().contains('Return Order Line Item was not found');
+        }
+
+        Assert.isTrue(missingRo);
+        Assert.isTrue(missingLine);
+    }
+
+    private class ReceivingFixture {
+        Id accountId;
+        Id returnOrderId;
+        Id repairCenterId;
+        List<Id> lineItemIds;
+    }
+
+    private static ReceivingFixture insertReceivingFixture(Integer lineCount) {
+        String uniqueSuffix = String.valueOf(Math.abs(Crypto.getRandomInteger())).right(8);
+        Account account = new Account(
+            Name = 'ROS Receiving Account',
+            SystemID__c = ('ROS' + uniqueSuffix).left(15),
+            SourceSystemID__c = ('TEST-ROS-RECV-' + uniqueSuffix).left(40),
+            OrgIDs__c = '82'
+        );
+        insert account;
+
+        Product2 product = new Product2(
+            Name = 'ROS Receiving Product',
+            IsActive = true
+        );
+        insert product;
+
+        Schema.Location repairCenter = new Schema.Location(
+            Name = 'ROS Receiving Repair Center',
+            LocationType = 'Repair Center'
+        );
+        insert repairCenter;
+
+        // Match working anon-apex / receiving test shape; Status__c defaults to Created.
+        ReturnOrder returnOrder = new ReturnOrder(
+            AccountId = account.Id,
+            Status = 'Created',
+            OperatingUnit__c = '82',
+            ReturnOrderType__c = 'Serialized',
+            DestinationLocationId = repairCenter.Id
+        );
+        insert returnOrder;
+
+        List<ReturnOrderLineItem> lines = new List<ReturnOrderLineItem>();
+        for (Integer i = 0; i < lineCount; i++) {
+            lines.add(
+                new ReturnOrderLineItem(
+                    ReturnOrderId = returnOrder.Id,
+                    Product2Id = product.Id,
+                    QuantityReturned = 1
+                )
+            );
+        }
+        insert lines;
+
+        ReceivingFixture fixture = new ReceivingFixture();
+        fixture.accountId = account.Id;
+        fixture.returnOrderId = returnOrder.Id;
+        fixture.repairCenterId = repairCenter.Id;
+        fixture.lineItemIds = new List<Id>(new Map<Id, ReturnOrderLineItem>(lines).keySet());
+        return fixture;
+    }
+
     private class CreateOrderFixture {
         Id accountId;
         Id contactId;

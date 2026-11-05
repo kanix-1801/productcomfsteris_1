@@ -90,7 +90,8 @@ public with sharing class GenerateQuoteService {
             quoteTypeFilter,
             excludeForecastIneligible,
             trialIdFilter,
-            null
+            null,
+            false
         );
     }
 
@@ -110,6 +111,34 @@ public with sharing class GenerateQuoteService {
         Id trialIdFilter,
         Id sampleIdFilter
     ) {
+        return getQuotes(
+            opportunityId,
+            quoteTypeFilter,
+            excludeForecastIneligible,
+            trialIdFilter,
+            sampleIdFilter,
+            false
+        );
+    }
+
+    /**
+     * @description Returns quotes for an Opportunity. Portal requests omit prices until Approved.
+     * @param opportunityId Opportunity Id.
+     * @param quoteTypeFilter Optional QuoteType__c value to filter results.
+     * @param excludeForecastIneligible When true, omit forecast-ineligible quotes.
+     * @param trialIdFilter Optional Trial__c Id to limit results to one Trial record.
+     * @param sampleIdFilter Optional Sample__c Id to limit results to one Sample record.
+     * @param forDealerPortal When true, pricing is returned only for Approved quotes.
+     * @return Quote wrapper rows for the LWC.
+     */
+    public static List<GenerateQuoteController.QuoteWrapper> getQuotes(
+        Id opportunityId,
+        String quoteTypeFilter,
+        Boolean excludeForecastIneligible,
+        Id trialIdFilter,
+        Id sampleIdFilter,
+        Boolean forDealerPortal
+    ) {
         validateOpportunityId(opportunityId);
 
         try {
@@ -126,7 +155,15 @@ public with sharing class GenerateQuoteService {
             );
             Opportunity opportunityRecord = OpportunitySelector.selectById(opportunityId);
             Account accountRecord = getAccountForSalesConnection(opportunityRecord);
-            return mapQuotesToWrappers(quoteRecords, opportunityRecord, accountRecord);
+            List<GenerateQuoteController.QuoteWrapper> quoteWrappers = mapQuotesToWrappers(
+                quoteRecords,
+                opportunityRecord,
+                accountRecord
+            );
+            if (forDealerPortal == true) {
+                stripUnapprovedPortalPricing(quoteWrappers);
+            }
+            return quoteWrappers;
         } catch (Exception exceptionValue) {
             Logger.setScenario(SCENARIO);
             Logger.error('Error retrieving quotes for opportunity.', exceptionValue).addTag(LOGGER_TAG);
@@ -774,6 +811,7 @@ public with sharing class GenerateQuoteService {
                 quoteRecord,
                 quoteRecord.QuoteLineItems
             );
+            quoteWrapper.currencyIsoCode = quoteRecord.CurrencyIsoCode;
             quoteWrapper.lastModifiedDate = resolveLastModifiedDate(quoteRecord);
             quoteWrapper.isForecastIneligible = quoteRecord.IsForecastIneligible__c == true;
             quoteWrapper.quoteType = quoteRecord.QuoteType__c;
@@ -802,6 +840,56 @@ public with sharing class GenerateQuoteService {
         }
 
         return quoteWrapperList;
+    }
+
+    private static void stripUnapprovedPortalPricing(
+        List<GenerateQuoteController.QuoteWrapper> quoteWrappers
+    ) {
+        if (quoteWrappers == null) {
+            return;
+        }
+
+        for (GenerateQuoteController.QuoteWrapper quoteWrapper : quoteWrappers) {
+            if (quoteWrapper == null || isApprovedQuote(quoteWrapper.approvalStatus)) {
+                continue;
+            }
+
+            quoteWrapper.quoteTotalWithoutFreight = null;
+            clearSummaryPricing(quoteWrapper.productSubgroupSummary);
+            clearSummaryPricing(quoteWrapper.salesCategorySummary);
+        }
+    }
+
+    private static Boolean isApprovedQuote(String approvalStatus) {
+        return String.isNotBlank(approvalStatus) && approvalStatus.trim().equalsIgnoreCase('Approved');
+    }
+
+    private static void clearSummaryPricing(
+        List<GenerateQuoteController.ProductSubgroupSummaryWrapper> summaries
+    ) {
+        if (summaries == null) {
+            return;
+        }
+
+        for (GenerateQuoteController.ProductSubgroupSummaryWrapper summaryRow : summaries) {
+            if (summaryRow == null) {
+                continue;
+            }
+
+            summaryRow.totalUnitPrice = null;
+            if (summaryRow.quoteLines == null) {
+                continue;
+            }
+
+            for (GenerateQuoteController.QuoteLineDetailWrapper lineWrapper : summaryRow.quoteLines) {
+                if (lineWrapper == null) {
+                    continue;
+                }
+
+                lineWrapper.unitPrice = null;
+                lineWrapper.lineTotal = null;
+            }
+        }
     }
 
     private static Datetime resolveLastModifiedDate(Quote quoteRecord) {

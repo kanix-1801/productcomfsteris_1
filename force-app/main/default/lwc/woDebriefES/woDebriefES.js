@@ -259,6 +259,7 @@ const WORK_ORDER_QUERY = gql`
                             Id
                             WorkOrderNumber { value }
                             Status { value }
+                            CoverageBadge__c { value }
                             Account {
                                 Name { value }
                             }
@@ -1263,6 +1264,30 @@ export default class WoDebriefES extends LightningElement {
      * @description Wo Number.
      */
     get woNumber() { return this._workOrder?.WorkOrderNumber?.value ?? ''; }
+
+    /**
+     * @description GW-2059 coverage flag: Warranty, Contract, or Billable.
+     */
+    get coverageBadge() {
+        return this._workOrder?.CoverageBadge__c?.value ?? '';
+    }
+
+    /**
+     * @description Header class so warranty, contract, and billable stay distinct on a phone.
+     */
+    get coverageBadgeClass() {
+        const value = this.coverageBadge;
+        if (value.includes('WARRANTY')) {
+            return 'coverage-badge coverage-badge_warranty';
+        }
+        if (value.includes('CONTRACT')) {
+            return 'coverage-badge coverage-badge_contract';
+        }
+        if (value.includes('BILLABLE')) {
+            return 'coverage-badge coverage-badge_billable';
+        }
+        return 'coverage-badge';
+    }
     /**
      * @description Has Pending Changes.
      */

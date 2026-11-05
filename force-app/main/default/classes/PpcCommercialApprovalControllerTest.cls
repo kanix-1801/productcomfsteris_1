@@ -73,6 +73,43 @@ private class PpcCommercialApprovalControllerTest {
     }
 
     @IsTest
+    static void incompleteOpportunityShowsReadinessErrors() {
+        bypassValidations();
+        Id prospectRecordTypeId = Schema.SObjectType.Account.getRecordTypeInfosByDeveloperName()
+            .get('Prospect')
+            .getRecordTypeId();
+        Account accountRecord = new Account(Name = 'PPC Readiness Account', RecordTypeId = prospectRecordTypeId);
+        insert accountRecord;
+        Opportunity opportunityRecord = new Opportunity(
+            Name = 'PPC Readiness',
+            AccountId = accountRecord.Id,
+            StageName = 'Proposal',
+            CloseDate = Date.today().addDays(30),
+            RecordTypeId = Schema.SObjectType.Opportunity.getRecordTypeInfosByDeveloperName()
+                .get('HCSalesPayPerClick')
+                .getRecordTypeId(),
+            Commercial_Commitment__c = 'Consumable commitment for the placement term.',
+            Financial_Assessment_Link__c = 'https://example.com/financial-assessment'
+        );
+        insert opportunityRecord;
+
+        PpcCommercialApprovalService.FlowSubmitRequest request =
+            new PpcCommercialApprovalService.FlowSubmitRequest();
+        request.opportunityId = opportunityRecord.Id;
+        request.checkOnly = true;
+        List<PpcCommercialApprovalService.FlowSubmitResult> results =
+            PpcCommercialApprovalService.submitFromFlow(
+                new List<PpcCommercialApprovalService.FlowSubmitRequest>{ request }
+            );
+
+        System.assertEquals(false, results[0].success);
+        System.assert(results[0].message.contains('Missing fields on Opportunity:'));
+        System.assert(results[0].message.contains('Expected Cycles / Procedures per Annum'));
+        System.assert(results[0].message.contains('Missing fields on Opportunity Product:'));
+        System.assert(results[0].message.contains('At least one Opportunity Product is required.'));
+    }
+
+    @IsTest
     static void flowSubmitReportsAMissingOpportunity() {
         PpcCommercialApprovalService.FlowSubmitRequest request = new PpcCommercialApprovalService.FlowSubmitRequest();
         List<PpcCommercialApprovalService.FlowSubmitResult> results =

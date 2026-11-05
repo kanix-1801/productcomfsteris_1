@@ -124,7 +124,7 @@
 }
 
 .custom-table col.quote-table-col {
-    width: 14.2857%;
+    width: auto;
 }
 
 .col-forecast-confidence,
@@ -341,8 +341,12 @@
     font-weight: 700;
 }
 
+.line-item-table .line-item-col-code {
+    width: 16%;
+}
+
 .line-item-table .line-item-col-product {
-    width: 33%;
+    width: 22%;
 }
 
 .line-item-table .line-item-col-uom {

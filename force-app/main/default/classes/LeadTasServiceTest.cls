@@ -1,7 +1,7 @@
 /**
  * @author Abhishek Mishra
  * @date 10-08-2026
- * @description #GC-3279 Test class for Lead TAS assignment (trigger to queueable to integration).
+ * @description #GC-3279 Test class for Lead TAS assignment (trigger → queueable → integration).
  */
 @IsTest
 private class LeadTasServiceTest {
@@ -33,6 +33,12 @@ private class LeadTasServiceTest {
         }
 
         Long uniqueSeed = System.currentTimeMillis();
+        Id internalRoleId = [
+            SELECT Id
+            FROM UserRole
+            WHERE PortalType = 'None'
+            LIMIT 1
+        ].Id;
 
         User runningUser = createUser(
             healthcareSalesProfile.Id,
@@ -44,6 +50,8 @@ private class LeadTasServiceTest {
             'leadtasrep' + uniqueSeed + '@test.com',
             'TAS' + uniqueSeed
         );
+        runningUser.UserRoleId = internalRoleId;
+        tasRep.UserRoleId = internalRoleId;
         insert new List<User>{ runningUser, tasRep };
 
         System.runAs(runningUser) {
@@ -212,11 +220,14 @@ private class LeadTasServiceTest {
             FirstName = 'TAS',
             LastName = lastName,
             Company = 'Lead TAS Co',
+            Email = lastName + '@tas.example.test',
+            Phone = '2165550100',
             Street = '100 Main',
             City = 'Cleveland',
-            State = 'OH',
+            StateCode = 'OH',
             PostalCode = '44113',
-            Country = 'US',
+            CountryCode = 'US',
+            LeadSource = 'Web',
             Org_ID__c = '82',
             Class_Code__c = 'HC',
             Sales_Category__c = 'SURG SPT'
@@ -224,36 +235,13 @@ private class LeadTasServiceTest {
     }
 
     /**
-     * @description Registers the org SF_PROSPECT_TAS ShoutOut setting and HTTP callout mock response.
+     * @description Points SF_PROSPECT_TAS at the test provider and registers the HTTP mock.
      * @param statusCode HTTP status code returned by the mock.
      * @param status HTTP status text returned by the mock.
      * @param body JSON response body returned by the mock.
      */
     private static void registerTasMock(Integer statusCode, String status, String body) {
-        SO_Config.SO_ServiceList_mock.clear();
-        SO_Config.SO_ServiceList_mock.addAll([
-            SELECT DeveloperName,
-                   Error_Handler_Class__c,
-                   Framework_Callout_Name__c,
-                   isActive__c,
-                   MasterLabel,
-                   Named_Credential__c,
-                   Provider_Class__c,
-                   REST_Path__c,
-                   REST_query__c,
-                   REST_Verb__c,
-                   Service_Class__c,
-                   Service_Transform_Class__c,
-                   Timeout__c,
-                   Retry_Max_Attempts__c,
-                   Retry_Base_Delay_Seconds__c,
-                   Retry_On_HTTP_Codes__c,
-                   Retry_Callback_Class__c
-            FROM ShoutOut_Service_Setting__mdt
-            WHERE DeveloperName = 'SF_PROSPECT_TAS'
-              AND isActive__c = true
-            LIMIT 1
-        ]);
+        AccountProspectTasServiceTest.registerTasServiceSetting();
         Test.setMock(
             HttpCalloutMock.class,
             new SO_HttpMockFactory(statusCode, status, body, new Map<String, String>())

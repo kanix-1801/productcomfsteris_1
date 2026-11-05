@@ -1,0 +1,20 @@
+<template>
+    <lightning-tabset>
+        <lightning-tab label="Detail" value="detail">
+            <div class="tab-body">
+                <lightning-record-form
+                    record-id={recordId}
+                    object-api-name="Opportunity"
+                    layout-type="Full"
+                    mode="view"
+                    columns="2">
+                </lightning-record-form>
+            </div>
+        </lightning-tab>
+        <lightning-tab label="Quotes" value="quotes">
+            <div class="tab-body">
+                <c-generate-quote record-id={recordId} is-dealer-portal></c-generate-quote>
+            </div>
+        </lightning-tab>
+    </lightning-tabset>
+</template>

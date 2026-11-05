@@ -106,6 +106,7 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
                 return [
                     SELECT Id,
                         Name,
+                        CurrencyIsoCode,
                         QuoteNumber,
                         QuoteNumber__c,
                         ExpirationDate,
@@ -158,6 +159,7 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
                 return [
                     SELECT Id,
                         Name,
+                        CurrencyIsoCode,
                         QuoteNumber,
                         QuoteNumber__c,
                         ExpirationDate,
@@ -209,6 +211,7 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
             return [
                 SELECT Id,
                     Name,
+                    CurrencyIsoCode,
                     QuoteNumber,
                     QuoteNumber__c,
                     ExpirationDate,
@@ -261,6 +264,7 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
                 return [
                     SELECT Id,
                         Name,
+                        CurrencyIsoCode,
                         QuoteNumber,
                         QuoteNumber__c,
                         ExpirationDate,
@@ -313,6 +317,7 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
                 return [
                     SELECT Id,
                         Name,
+                        CurrencyIsoCode,
                         QuoteNumber,
                         QuoteNumber__c,
                         ExpirationDate,
@@ -364,6 +369,7 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
             return [
                 SELECT Id,
                     Name,
+                    CurrencyIsoCode,
                     QuoteNumber,
                     QuoteNumber__c,
                     ExpirationDate,
@@ -415,6 +421,7 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
             return [
                 SELECT Id,
                     Name,
+                    CurrencyIsoCode,
                     QuoteNumber,
                     QuoteNumber__c,
                     ExpirationDate,
@@ -465,6 +472,7 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
             return [
                 SELECT Id,
                     Name,
+                    CurrencyIsoCode,
                     QuoteNumber,
                     QuoteNumber__c,
                     ExpirationDate,
@@ -514,6 +522,7 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
         return [
             SELECT Id,
                 Name,
+                CurrencyIsoCode,
                 QuoteNumber,
                 QuoteNumber__c,
                 ExpirationDate,
@@ -746,6 +755,7 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
         List<Quote> quoteList = [
             SELECT Id,
                 Name,
+                CurrencyIsoCode,
                 QuoteNumber,
                 QuoteNumber__c,
                 SalesConnectionQuoteID__c,
@@ -773,6 +783,7 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
         return [
             SELECT Id,
                 Name,
+                CurrencyIsoCode,
                 QuoteNumber,
                 QuoteNumber__c,
                 ExpirationDate,
@@ -872,6 +883,7 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
         return [
             SELECT Id,
                 Name,
+                CurrencyIsoCode,
                 QuoteNumber,
                 QuoteNumber__c,
                 Status,
@@ -1006,6 +1018,7 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
         return [
             SELECT Id,
                 Name,
+                CurrencyIsoCode,
                 QuoteNumber,
                 QuoteNumber__c,
                 Status,
@@ -1042,6 +1055,7 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
             return [
                 SELECT Id,
                     Name,
+                    CurrencyIsoCode,
                     QuoteNumber,
                     QuoteNumber__c,
                     Status,
@@ -1060,6 +1074,7 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
         return [
             SELECT Id,
                 Name,
+                CurrencyIsoCode,
                 QuoteNumber,
                 QuoteNumber__c,
                 Status,
@@ -1159,6 +1174,7 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
             SELECT
                 Id,
                 Name,
+                CurrencyIsoCode,
                 QuoteNumber,
                 Status,
                 Pricebook2Id,

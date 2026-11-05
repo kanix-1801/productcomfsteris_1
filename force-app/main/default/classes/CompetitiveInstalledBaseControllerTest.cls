@@ -1,5 +1,6 @@
 /**
  * @description GC-2860 - Unit tests for Competitive Installed Base roll-up and hierarchy.
+ * Also covers AccountAccountRelationshipSelector (GW-4861).
  */
 @IsTest(SeeAllData=false)
 private class CompetitiveInstalledBaseControllerTest {

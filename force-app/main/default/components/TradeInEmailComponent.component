@@ -1,0 +1,94 @@
+<apex:component controller="C2EmailController" access="global">
+    <Apex:attribute name="caseId1" description="" assignTo="{!caseId}" type="String" />  
+ 
+    <apex:attribute name="SOANumber" type="String" description="Order Number"/>
+    
+    <apex:attribute name="CustomerName" type="String" description="Customer Name"/>
+
+    <apex:image URL="{!C2OrderPreparationBanner}" alt="STERIS Banner" width="982" height="180"/>
+    
+    <apex:attribute name="PONumber" type="String" description=""></apex:attribute>
+    
+    <p >
+        Dear {!AccountManagerCapSerLineSalesRep},
+    </p>
+    
+    Equipment on <apex:outputText value="{!TRIM(CustomerName)}"/> PO# {!PONumber} /SOA# {!SOANumber} is scheduled to ship on {!NonPreInstallScheduleDate} with the below trade-in line(s).  Within the next 7 days, please provide the below details and note if same-day pickup of the trade-in is required when the new equipment is being delivered.
+    <br/>
+    <strong style="color: #000000; font-weight: bold;">Serial Numbers of equipment to be picked up</strong><br/>
+
+	<strong style="color: #000000; font-weight: bold;">Trade-in Contact: Name / Phone / Email</strong><br/>
+
+	<strong style="color: #000000; font-weight: bold;">Biomed Contact: Name / Phone / Email (if applicable)</strong><br/>
+
+	<strong style="color: #000000; font-weight: bold;">Is same-day pickup required? YES or NO</strong>
+    
+    <ul style="color: #000000; margin-top: 0; margin-bottom: 0;">
+    <li style="color: #000000;">
+        <em style="color: #000000;">If same day pick-up is needed, please provide your eFast form at least 7 days prior to capital shipment</em>
+    </li>
+    <li style="color: #000000;">
+        <em style="color: #000000;">Reminder: the coordination of the trade-in pick-up will not start until the eFast form has been submitted to Logistics. If there are multiple trade-in lines, we need one eFast for each piece of equipment.</em>
+    </li>
+    <li style="color: #000000;">
+        <em style="color: #000000;">All trade-ins must be Green Tagged prior to carrier pick-up.</em>
+    </li>
+</ul>
+<br/>
+    
+    <p>OPEN TRADE IN EQUIPMENT:</p> 
+    <table width="982" style="border-collapse: collapse; font-family: Arial, sans-serif;">
+            <tr style="background-color: #4F81BD; color: white; font-weight: bold;">
+                <td style="padding: 8px; border: 1px solid #ccc;">Item Number</td>
+                <td style="padding: 8px; border: 1px solid #ccc;">Line Number</td>
+                <td style="padding: 8px; border: 1px solid #ccc;">Schedule Date</td>
+                <td style="padding: 8px; border: 1px solid #ccc;">Quantity</td>
+                <td style="padding: 8px; border: 1px solid #ccc;">Item Description</td>
+                <td style="padding: 8px; border: 1px solid #ccc;">Ship To Location</td>
+            </tr>
+
+            <apex:repeat value="{!openLineItems}" var="li">
+                <tr>
+                    <td style="padding: 8px; border: 1px solid #ccc;">
+                        <apex:outputText value="{!li.itemNumber}"/>
+                    </td>
+                    <td style="padding: 8px; border: 1px solid #ccc;">
+                        <apex:outputText value="{!li.lineNumber}"/>
+                    </td>
+                    <td style="padding: 8px; border: 1px solid #ccc;">
+                        <apex:outputText value="{0,date,MMM dd yyyy}">
+                            <apex:param value="{!li.shipDate}"/>
+                        </apex:outputText>
+                    </td>
+                    <td style="padding: 8px; border: 1px solid #ccc;">
+                        <apex:outputText value="{!li.qty}"/>
+                    </td>
+                    <td style="padding: 8px; border: 1px solid #ccc; text-align: right;">
+                        <apex:outputText value="{!li.itemDescription}"/>
+                    </td>
+                    <td style="padding: 8px; border: 1px solid #ccc; text-align: right;">
+                        <apex:outputPanel rendered="{!LEN(TRIM(li.street)) > 0}" layout="none">
+                            <apex:outputText value="{!TRIM(li.street)}"/>
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!LEN(TRIM(li.city)) > 0}" layout="none">
+                            <apex:outputText value=", {!TRIM(li.city)}"/>
+                        </apex:outputPanel><apex:outputPanel rendered="{!LEN(TRIM(li.state)) > 0}" layout="none">
+                            <apex:outputText value=", {!TRIM(li.state)}"/>
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!LEN(TRIM(li.postalCode)) > 0}" layout="none">
+                            <apex:outputText value=", {!TRIM(li.postalCode)}"/>
+                        </apex:outputPanel><apex:outputPanel rendered="{!LEN(TRIM(li.country)) > 0}" layout="none">
+                            <apex:outputText value=", {!TRIM(li.country)}"/>
+                        </apex:outputPanel>
+                    </td>
+                </tr>
+            </apex:repeat>
+        </table>
+    <p>Please let us know if you have any questions.</p>
+
+    <p>Thank you</p>
+    <apex:outputText value="{!EmailSignature}" escape="false"/>   
+    <c:ReplyThreadInternalExternal caseId1="{!caseId}"
+            threadType1="Internal"
+        />
+</apex:component>

@@ -439,6 +439,7 @@ public with sharing class PsamQuoteLineGroupingService {
             ? quoteLineItem.SalesConnectionQuoteLineID__c
             : String.valueOf(quoteLineItem.Id);
         lineWrapper.productFAMCode = famCode;
+        lineWrapper.productCode = resolveProductCode(quoteLineItem);
         lineWrapper.productName = resolveProductName(quoteLineItem);
         lineWrapper.uom = quoteLineItem.UOM__c;
         lineWrapper.productSubgroupDetailName = subgroupName;
@@ -449,6 +450,18 @@ public with sharing class PsamQuoteLineGroupingService {
         lineWrapper.unitPrice = unitPrice;
         lineWrapper.lineTotal = lineTotal;
         return lineWrapper;
+    }
+
+    private static String resolveProductCode(QuoteLineItem quoteLineItem) {
+        if (
+            quoteLineItem == null
+            || quoteLineItem.PricebookEntry == null
+            || quoteLineItem.PricebookEntry.Product2 == null
+        ) {
+            return null;
+        }
+
+        return quoteLineItem.PricebookEntry.Product2.ProductCode;
     }
 
     private static String resolveProductName(QuoteLineItem quoteLineItem) {

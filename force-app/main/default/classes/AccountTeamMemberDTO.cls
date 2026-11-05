@@ -45,9 +45,6 @@ public class AccountTeamMemberDTO {
     @AuraEnabled public String territoryCode;
     /** @description GC-3352 - Sales category code for the Account Team Member. */
     @AuraEnabled public String salesCategoryCode;
-    /** @description GCL-2 - Temporary access flag for the Life Sciences Coverage Panel. */
-    @AuraEnabled public Boolean temporaryAccessIndicator;
-
     /** @description Default constructor used by the Life Sciences factory method. */
     public AccountTeamMemberDTO() {
     }
@@ -55,8 +52,10 @@ public class AccountTeamMemberDTO {
     /**
      * @description
      * GCL-2 - Maps an AccountTeamMember into the Life Sciences Coverage Panel DTO.
-     * Email, phone, sales category code, job title, territory code, and expiry
-     * date stay empty because the Life Sciences panel does not display them.
+     * GCL-326 - Territory Number is AccountTeamMember.TerritoryCode__c. That value
+     * is populated from OrderLineContact.TerritoryNumber__c only.
+     * Email, phone, sales category code, job title, and expiry date stay empty
+     * because the Life Sciences panel does not display them.
      *
      * @param accountTeamMember AccountTeamMember record with User relationship populated.
      * @return DTO shaped for the Life Sciences panel.
@@ -69,8 +68,8 @@ public class AccountTeamMemberDTO {
         dto.teamMember = accountTeamMember.User.Name;
         dto.teamRole = accountTeamMember.TeamMemberRole;
         dto.assignmentType = accountTeamMember.AssignmentType__c;
+        dto.territoryCode = accountTeamMember.TerritoryCode__c;
         dto.salesCategoryDescription = accountTeamMember.SalesCategoryDescription__c;
-        dto.temporaryAccessIndicator = accountTeamMember.IsTemporaryAccess__c == true;
         dto.canViewAccessFields = false;
         return dto;
     }

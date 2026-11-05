@@ -1,26 +1,4 @@
 <template>
-    <template if:true={opportunityId}>
-        <div class="portal-page">
-            <div class="title-row">
-                <button type="button" class="text-button" onclick={closeOpportunity}>Back</button>
-            </div>
-            <template if:true={formError}>
-                <p class="form-error" role="alert">{formError}</p>
-            </template>
-            <article class="record-panel">
-                <lightning-record-form
-                    object-api-name="Opportunity"
-                    record-id={opportunityId}
-                    layout-type="Full"
-                    mode="view"
-                    columns="2"
-                    onsuccess={handleRecordSaved}
-                    onerror={handleRecordError}>
-                </lightning-record-form>
-            </article>
-        </div>
-    </template>
-    <template if:false={opportunityId}>
     <div class="portal-page">
         <header class="title-row">
             <div class="title-block">
@@ -90,6 +68,5 @@
             </footer>
         </article>
     </div>
-    </template>
     <c-dealer-opportunity-create is-open={isCreateOpen} onclose={closeCreate} oncreated={handleCreated}></c-dealer-opportunity-create>
 </template>

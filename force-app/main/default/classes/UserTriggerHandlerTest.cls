@@ -53,7 +53,7 @@ private class UserTriggerHandlerTest {
                 Amount = 100,
                 StageName = 'Discovery',
                 ForecastConfidenceLevel__c = 'Pipeline',
-                Probability = 20,
+                Probability = 0.2,
                 Type = 'New Business',
                 PrimaryContact__c = contactRecord.Id
             );
@@ -224,12 +224,15 @@ private class UserTriggerHandlerTest {
     }
     private static void assignPermissionSetGroup(Id userId) {
         PermissionSetGroup psg = [
-            SELECT Id
+            SELECT Id, Status
             FROM PermissionSetGroup
             WHERE DeveloperName = 'SalesFieldRepAccountManagerPSG'
             LIMIT 1
         ];
-    
+        
+        // Force the group to "Updated" so assignments are allowed in test context
+        Test.calculatePermissionSetGroup(psg.Id);
+
         insert new PermissionSetAssignment(
             AssigneeId = userId,
             PermissionSetGroupId = psg.Id

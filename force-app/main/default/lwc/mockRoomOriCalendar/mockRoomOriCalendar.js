@@ -242,8 +242,8 @@ export default class MockRoomOriCalendar extends LightningElement {
     }
 
     refreshConflict() {
-        const primaryEvents = this.conflictingSpan(this._primaryDate);
-        const backupEvents = this.conflictingSpan(this._backupDate);
+        const primaryEvents = this.conflictingSpan(this.primarySpanDates());
+        const backupEvents = this.conflictingSpan(this.backupSpanDates());
         this._hasConflict = primaryEvents.length > 0 || backupEvents.length > 0;
         const names = [...primaryEvents, ...backupEvents].map(
             (row) => `${row.requestName} (${row.requestType}, ${row.status})`
@@ -341,34 +341,43 @@ export default class MockRoomOriCalendar extends LightningElement {
         return this.eventsFor(iso).filter((row) => !this.isRequestBeingEdited(row.requestId));
     }
 
-    spanDates(startIso) {
+    spanDates(startIso, dayCount) {
         if (!startIso) {
             return [];
         }
+        const spanLength = Number.isFinite(dayCount) && dayCount >= 1 ? Math.floor(dayCount) : 1;
         const dates = [];
-        for (let offset = 0; offset < this._eventDuration; offset += 1) {
+        for (let offset = 0; offset < spanLength; offset += 1) {
             dates.push(this.shiftIso(startIso, offset));
         }
         return dates;
     }
 
+    primarySpanDates() {
+        return this.spanDates(this._primaryDate, this._eventDuration);
+    }
+
+    backupSpanDates() {
+        return this.spanDates(this._backupDate, 1);
+    }
+
     dateInSelection(iso) {
-        return this.spanDates(this._primaryDate).includes(iso) || this.spanDates(this._backupDate).includes(iso);
+        return this.primarySpanDates().includes(iso) || this.backupSpanDates().includes(iso);
     }
 
     selectionHasPastDate() {
-        return [...this.spanDates(this._primaryDate), ...this.spanDates(this._backupDate)]
+        return [...this.primarySpanDates(), ...this.backupSpanDates()]
             .some((iso) => this.isBeforeToday(iso));
     }
 
     selectionHitsBlock() {
-        return [...this.spanDates(this._primaryDate), ...this.spanDates(this._backupDate)]
+        return [...this.primarySpanDates(), ...this.backupSpanDates()]
             .some((iso) => this.blockFor(iso));
     }
 
-    conflictingSpan(startIso) {
+    conflictingSpan(dates) {
         const matches = [];
-        this.spanDates(startIso).forEach((iso) => {
+        dates.forEach((iso) => {
             this.conflictingEvents(iso).forEach((row) => matches.push(row));
         });
         return matches;

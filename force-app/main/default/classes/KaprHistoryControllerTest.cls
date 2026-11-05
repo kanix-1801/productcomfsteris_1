@@ -315,7 +315,7 @@ private class KaprHistoryControllerTest {
 
     private static void assignSalesRepAccess(Id salesRepId) {
         PermissionSetGroup salesRepGroup = [
-            SELECT Id
+            SELECT Id, Status
             FROM PermissionSetGroup
             WHERE DeveloperName = 'SalesFieldRepAccountManagerPSG'
             LIMIT 1
@@ -326,6 +326,9 @@ private class KaprHistoryControllerTest {
             WHERE Name = 'KeyAccountProcessReviewPS'
             LIMIT 1
         ];
+        
+        // Force the group to "Updated" so assignments are allowed in test context
+        Test.calculatePermissionSetGroup(salesRepGroup.Id);
 
         insert new List<PermissionSetAssignment>{
             new PermissionSetAssignment(

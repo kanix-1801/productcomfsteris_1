@@ -4,10 +4,8 @@
  * @description GC-3179 - SOQL-only selector for BatchProcessConfig__mdt resolution.
  *              GC-3278 - TASTeamAccessBatch config lookup (formerly OrderLineContactTeamAccessBatch).
  */
-@SuppressWarnings('PMD.UseSingleton')
 public with sharing class BatchProcessConfigSelector {
 
-    public static final String TAE_BATCH_CLASS_NAME = 'TemporaryAccessExceptionBatch';      //to be removed.
     /** GC-3179 - BatchClassName__c for TASTeamAccessBatch config lookup. */
     public static final String OLC_TEAM_ACCESS_BATCH_CLASS_NAME = 'TASTeamAccessBatch';
     /** GCL-1 - BatchClassName__c for LS_TASTeamAccessBatch config lookup. */

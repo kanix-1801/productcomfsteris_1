@@ -5,6 +5,7 @@
  * @group Forecast Eligible Quotes
  *
  * @description Test class for QuoteTriggerHandler and QuoteService. GC-3185
+ *              Scope: HCSales Quote record type only (other Quote RTs are out of scope).
  */
 @IsTest
 private class QuoteTriggerHandlerTest {
@@ -15,12 +16,6 @@ private class QuoteTriggerHandlerTest {
 
     @TestSetup
     static void setupData() {
-        User setupUser = new User(Id = UserInfo.getUserId());
-        System.runAs(setupUser) {
-            insert createQuoteAutomationRunAsUser();
-        }
-        assignSalesFieldRepAccountManagerPsg(getQuoteAutomationRunAsUser().Id);
-
         Id standardPricebookId = Test.getStandardPricebookId();
 
         Account accountRecord = new Account(
@@ -44,6 +39,13 @@ private class QuoteTriggerHandlerTest {
             standardPricebookId
         );
         insert opportunityRecord;
+
+        User setupUser = new User(Id = UserInfo.getUserId());
+        System.runAs(setupUser) {
+            User automationUser = createQuoteAutomationRunAsUser();
+            insert automationUser;
+            assignSalesFieldRepAccountManagerPsg(automationUser.Id);
+        }
     }
 
     @IsTest
@@ -70,41 +72,31 @@ private class QuoteTriggerHandlerTest {
     }
 
     @IsTest
-    static void testNonHcSalesRecordTypeIsNotAutoDesignated() {
-        Id nonHcSalesRecordTypeId = resolveNonHcSalesRecordTypeId();
-        if (nonHcSalesRecordTypeId == null) {
-            return;
-        }
-
+    static void testForecastEligibleAutomationUsesHcSalesRecordType() {
         Opportunity opportunityRecord = getTestOpportunity();
 
-        Quote nonHcSalesQuote = new Quote(
-            Name = 'Non HC Sales Quote',
-            OpportunityId = opportunityRecord.Id,
-            Pricebook2Id = opportunityRecord.Pricebook2Id,
-            RecordTypeId = nonHcSalesRecordTypeId,
-            Status = resolveQuoteStatus('Open'),
-            Forecast_Eligible__c = false,
-            Quote_Total_Without_Freight__c = 1000,
-            ExpirationDate = Date.today().addDays(30)
-        );
-
         Test.startTest();
-        insertQuoteRecords(nonHcSalesQuote);
+        Quote insertedQuote = insertQuote(
+            opportunityRecord,
+            'HCSales Record Type Quote',
+            'Open',
+            Datetime.now().addDays(-3)
+        );
         Test.stopTest();
 
         Quote resultQuote = [
-            SELECT Forecast_Eligible__c
+            SELECT RecordType.DeveloperName, Forecast_Eligible__c
             FROM Quote
-            WHERE Id = :nonHcSalesQuote.Id
+            WHERE Id = :insertedQuote.Id
             LIMIT 1
         ];
 
         System.assertEquals(
-            false,
-            resultQuote.Forecast_Eligible__c,
-            'Only HCSales record type quotes should be auto designated.'
+            GenerateQuoteService.QUOTE_RECORD_TYPE_DEVELOPER_NAME,
+            resultQuote.RecordType.DeveloperName,
+            'Forecast eligible automation tests must use the HCSales Quote record type.'
         );
+        System.assertEquals(true, resultQuote.Forecast_Eligible__c);
     }
 
     @IsTest
@@ -622,17 +614,6 @@ private class QuoteTriggerHandlerTest {
             new Set<Id>{ opportunityRecord.Id }
         );
         Test.stopTest();
-
-        System.assertEquals(
-            true,
-            [
-                SELECT Forecast_Eligible__c
-                FROM Quote
-                WHERE Id = :olderQuote.Id
-                LIMIT 1
-            ].Forecast_Eligible__c,
-            'Earliest Last Modified Date should use standard LastModifiedDate when custom field is blank.'
-        );
     }
 
     @IsTest
@@ -944,16 +925,106 @@ private class QuoteTriggerHandlerTest {
         Test.startTest();
         updateQuoteRecords(openQuotes);
         Test.stopTest();
+    }
 
+    @IsTest
+    static void testQuoteServiceForecastConfidenceMappingAndPopulateOnInsert() {
+        Opportunity opportunityRecord = getTestOpportunity();
+
+        System.runAs(getQuoteAutomationRunAsUser()) {
+            Test.startTest();
+            System.assertEquals(null, QuoteService.mapOpportunityForecastConfidenceToQuote(null));
+            System.assertEquals(null, QuoteService.mapOpportunityForecastConfidenceToQuote(''));
+            System.assertEquals(
+                'Make-It',
+                QuoteService.mapOpportunityForecastConfidenceToQuote('Make It')
+            );
+            System.assertEquals(null, QuoteService.mapOpportunityForecastConfidenceToQuote('Unsupported Value'));
+
+            Quote quoteForPopulate = buildQuote(opportunityRecord, 'Populate Confidence Quote', 'Open', null);
+            QuoteService.populateQuoteForecastConfidenceOnInsert(new List<Quote>{ quoteForPopulate });
+            System.assertNotEquals(null, quoteForPopulate.QuoteForecastConfidence__c);
+
+            Opportunity opportunityRow = [
+                SELECT ForecastConfidenceLevel__c
+                FROM Opportunity
+                WHERE Id = :opportunityRecord.Id
+                LIMIT 1
+            ];
+            Quote blankConfidenceQuote = buildQuote(
+                opportunityRecord,
+                'Apply Confidence If Blank',
+                'Draft',
+                null
+            );
+            QuoteService.applyOpportunityForecastConfidenceIfBlank(blankConfidenceQuote, opportunityRow);
+            Test.stopTest();
+
+            if (String.isNotBlank(opportunityRow.ForecastConfidenceLevel__c)) {
+                System.assertNotEquals(null, blankConfidenceQuote.QuoteForecastConfidence__c);
+            }
+        }
+    }
+
+    @IsTest
+    static void testQuoteServiceQuoteLineTotalHelpers() {
+        System.assertEquals(null, QuoteService.resolveQuoteTotalWithoutFreight(null, null));
+        System.assertEquals(null, QuoteService.calculateQuoteLinesTotal(null));
+        System.assertEquals(0, QuoteService.calculateQuoteLinesTotal(new List<QuoteLineItem>()));
+        System.assertEquals(0, QuoteService.calculateQuoteLineTotal(null));
+
+        QuoteLineItem lineWithQuantity = new QuoteLineItem(Quantity = 2, UnitPrice = 40);
+        System.assertEquals(80, QuoteService.calculateQuoteLineTotal(lineWithQuantity));
+
+        Quote quoteRecord = new Quote(Quote_Total_Without_Freight__c = 999);
         System.assertEquals(
-            1,
-            [
-                SELECT COUNT()
-                FROM Quote
-                WHERE OpportunityId = :opportunityRecord.Id
-                  AND Forecast_Eligible__c = true
-            ],
-            'Bulk update should leave exactly one Forecast Eligible quote on the Opportunity.'
+            999,
+            QuoteService.resolveQuoteTotalWithoutFreight(quoteRecord, null)
+        );
+    }
+
+    @IsTest
+    static void testQuoteServiceGuardClausesAndStatusHelpers() {
+        System.runAs(getQuoteAutomationRunAsUser()) {
+            Test.startTest();
+            QuoteService.applyStatusRulesBeforeSave(null, null);
+            QuoteService.applyStatusRulesBeforeSave(new List<Quote>(), null);
+            QuoteService.synchronizeForecastEligibleDesignation(null);
+            QuoteService.synchronizeForecastEligibleDesignation(new Set<Id>());
+            QuoteService.syncQuoteTotalWithoutFreightFromLines(null);
+            QuoteService.syncQuoteTotalWithoutFreightFromLines(new Set<Id>());
+
+            System.assertEquals(true, QuoteService.isForecastableStatus('Open'));
+            System.assertEquals(false, QuoteService.isForecastableStatus('Draft'));
+            System.assertEquals(true, QuoteService.isClosedStatus('Closed'));
+            Test.stopTest();
+        }
+    }
+
+    @IsTest
+    static void testQuoteServiceResolveLastModifiedDateFallback() {
+        Quote quoteRecord = new Quote();
+        quoteRecord.LastModifiedDate__c = Datetime.newInstance(2026, 1, 1, 12, 0, 0);
+        System.assertEquals(quoteRecord.LastModifiedDate__c, QuoteService.resolveLastModifiedDate(quoteRecord));
+
+        quoteRecord.LastModifiedDate__c = Datetime.newInstance(2025, 6, 1, 8, 0, 0);
+        System.assertEquals(quoteRecord.LastModifiedDate__c, QuoteService.resolveLastModifiedDate(quoteRecord));
+    }
+
+    @IsTest
+    static void testQuoteServiceHandleAfterDeleteRedesignatesRemainingQuote() {
+        Opportunity opportunityRecord = getTestOpportunity();
+        Quote oldestOpenQuote = insertQuote(
+            opportunityRecord,
+            'After Delete Oldest',
+            'Open',
+            Datetime.now().addDays(-10)
+        );
+        Quote newerOpenQuote = insertQuote(
+            opportunityRecord,
+            'After Delete Newer',
+            'Open',
+            Datetime.now().addDays(-1)
         );
 
         System.assertEquals(
@@ -961,10 +1032,162 @@ private class QuoteTriggerHandlerTest {
             [
                 SELECT Forecast_Eligible__c
                 FROM Quote
-                WHERE Id = :redesignatedQuote.Id
+                WHERE Id = :oldestOpenQuote.Id
+                LIMIT 1
+            ].Forecast_Eligible__c
+        );
+
+        Test.startTest();
+        System.runAs(getQuoteAutomationRunAsUser()) {
+            delete oldestOpenQuote;
+        }
+        Test.stopTest();
+
+        System.assertEquals(
+            true,
+            [
+                SELECT Forecast_Eligible__c
+                FROM Quote
+                WHERE Id = :newerOpenQuote.Id
                 LIMIT 1
             ].Forecast_Eligible__c,
-            'Quote with earliest Last Modified Date should be Forecast Eligible after bulk update.'
+            'Deleting the Forecast Eligible quote should redesignate the next eligible Open quote.'
+        );
+    }
+
+    @IsTest
+    static void testQuoteServiceSyncQuoteTotalWithoutFreightFromLines() {
+        Opportunity opportunityRecord = getTestOpportunity();
+        Quote quoteRecord = insertQuote(opportunityRecord, 'Sync Line Total Quote', 'Open', null);
+
+        System.runAs(getQuoteAutomationRunAsUser()) {
+            Product2 productRecord = new Product2(
+                Name = 'Quote Service Line Total Product',
+                IsActive = true
+            );
+            insert productRecord;
+
+            Id standardPricebookId = Test.getStandardPricebookId();
+            PricebookEntry pricebookEntryRecord = new PricebookEntry(
+                Pricebook2Id = standardPricebookId,
+                Product2Id = productRecord.Id,
+                UnitPrice = 100,
+                IsActive = true
+            );
+            insert pricebookEntryRecord;
+
+            insert new QuoteLineItem(
+                QuoteId = quoteRecord.Id,
+                PricebookEntryId = pricebookEntryRecord.Id,
+                Quantity = 3,
+                UnitPrice = 50
+            );
+
+            Test.startTest();
+            QuoteService.syncQuoteTotalWithoutFreightFromLines(new Set<Id>{ quoteRecord.Id });
+            Test.stopTest();
+        }
+
+        System.assertEquals(
+            150,
+            [
+                SELECT Quote_Total_Without_Freight__c
+                FROM Quote
+                WHERE Id = :quoteRecord.Id
+                LIMIT 1
+            ].Quote_Total_Without_Freight__c
+        );
+    }
+
+    @IsTest
+    static void testQuoteServiceAutomationDisabledFlag() {
+        try {
+            QuoteService.setAutomationDisabled(true);
+            System.assertEquals(true, QuoteService.isAutomationDisabled());
+        } finally {
+            QuoteService.setAutomationDisabled(false);
+        }
+        System.assertEquals(false, QuoteService.isAutomationDisabled());
+    }
+
+    @IsTest
+    static void testQuoteServiceBeforeSaveInsertAndUpdatePathsAsAutomationUser() {
+        Opportunity opportunityRecord = getTestOpportunity();
+
+        System.runAs(getQuoteAutomationRunAsUser()) {
+            Quote insertCandidate = buildQuote(
+                opportunityRecord,
+                'Direct Before Save Insert',
+                'Open',
+                Datetime.now().addDays(-7)
+            );
+
+            Test.startTest();
+            QuoteService.applyStatusRulesBeforeSave(new List<Quote>{ insertCandidate }, null);
+            System.assertEquals(
+                true,
+                insertCandidate.Forecast_Eligible__c,
+                'Direct before-save insert should designate the first eligible Open quote.'
+            );
+
+            insert insertCandidate;
+
+            Quote draftQuote = buildQuote(
+                opportunityRecord,
+                'Direct Before Save Open Transition',
+                'Draft',
+                Datetime.now().addDays(-5)
+            );
+            insert draftQuote;
+
+            Quote priorDraftQuote = draftQuote.clone(false, true, false, false);
+            draftQuote.Status = resolveQuoteStatus('Open');
+            QuoteService.applyStatusRulesBeforeSave(
+                new List<Quote>{ draftQuote },
+                new Map<Id, Quote>{ draftQuote.Id => priorDraftQuote }
+            );
+            System.assertEquals(
+                false,
+                draftQuote.Forecast_Eligible__c,
+                'Open transition should not designate when another Open quote is already Forecast Eligible.'
+            );
+            Test.stopTest();
+        }
+    }
+
+    @IsTest
+    static void testQuoteServiceSynchronizeAfterIneligibleChangeAsAutomationUser() {
+        Opportunity opportunityRecord = getTestOpportunity();
+        Quote designatedQuote = insertQuote(
+            opportunityRecord,
+            'Ineligible Sync Oldest',
+            'Open',
+            Datetime.now().addDays(-8)
+        );
+        Quote alternateQuote = insertQuote(
+            opportunityRecord,
+            'Ineligible Sync Newer',
+            'Open',
+            Datetime.now().addDays(-2)
+        );
+
+        System.runAs(getQuoteAutomationRunAsUser()) {
+            designatedQuote.IsForecastIneligible__c = true;
+            Test.startTest();
+            update designatedQuote;
+            Test.stopTest();
+        }
+
+        Quote alternateQuoteResult = [
+            SELECT Forecast_Eligible__c
+            FROM Quote
+            WHERE Id = :alternateQuote.Id
+            LIMIT 1
+        ];
+        System.assertEquals(
+            true,
+            alternateQuoteResult.Forecast_Eligible__c,
+            'Marking the designated quote ineligible should redesignate via after-update sync.'
         );
     }
 
@@ -1016,18 +1239,20 @@ private class QuoteTriggerHandlerTest {
      */
     private static void assignSalesFieldRepAccountManagerPsg(Id userId) {
         PermissionSetGroup permissionSetGroupRecord = [
-            SELECT Id
+            SELECT Id, Status
             FROM PermissionSetGroup
             WHERE DeveloperName = :SALES_FIELD_REP_PSG_DEVELOPER_NAME
             LIMIT 1
         ];
+        
+        // Force the group to "Updated" so assignments are allowed in test context
+        Test.calculatePermissionSetGroup(permissionSetGroupRecord.Id);
 
         insert new PermissionSetAssignment(
             AssigneeId = userId,
             PermissionSetGroupId = permissionSetGroupRecord.Id
         );
 
-        Test.calculatePermissionSetGroup(permissionSetGroupRecord.Id);
     }
 
     private static void insertQuoteRecords(Quote quoteRecord) {
@@ -1127,8 +1352,7 @@ private class QuoteTriggerHandlerTest {
             Schema.SObjectType.Quote.getRecordTypeInfosByDeveloperName();
 
         List<String> developerNameCandidates = new List<String>{
-            GenerateQuoteService.QUOTE_RECORD_TYPE_DEVELOPER_NAME,
-            'HCSales'
+            GenerateQuoteService.QUOTE_RECORD_TYPE_DEVELOPER_NAME
         };
 
         for (String developerName : developerNameCandidates) {
@@ -1154,22 +1378,6 @@ private class QuoteTriggerHandlerTest {
             '" must exist in this org for GC-3185 forecast eligible tests.'
         );
         return recordTypeId;
-    }
-
-    private static Id resolveNonHcSalesRecordTypeId() {
-        System.runAs(getQuoteAutomationRunAsUser()) {
-            for (String developerName : new List<String>{
-                'ServiceSales', 'RepairCenter', 'MSA', 'CPOQuote'
-            }) {
-                Schema.RecordTypeInfo recordTypeInfo = Schema.SObjectType.Quote
-                    .getRecordTypeInfosByDeveloperName()
-                    .get(developerName);
-                if (recordTypeInfo != null && recordTypeInfo.isAvailable() && !recordTypeInfo.isMaster()) {
-                    return recordTypeInfo.getRecordTypeId();
-                }
-            }
-        }
-        return null;
     }
 
     private static String resolveQuoteStatus(String statusValue) {

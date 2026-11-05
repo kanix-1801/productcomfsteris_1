@@ -15,8 +15,15 @@
                 </lightning-combobox>
             </template>
 
+            <!-- GC-3598: HC Sales - Dealer uses CreateDealerOpportunity screen flow -->
+            <template if:true={showDealerFlow}>
+                <lightning-flow
+                    flow-api-name="CreateDealerOpportunity">
+                </lightning-flow>
+            </template>
+
             <!-- Opportunity form displayed after record type selection -->
-            <template if:true={selectedRecordTypeId}>
+            <template if:true={showCreateForm}>
 
                 <!-- Soft duplicate warning banner -->
                 <template if:true={hasDuplicates}>

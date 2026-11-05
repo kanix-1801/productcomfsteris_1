@@ -58,24 +58,10 @@ h1 {
 }
 
 .metric-card,
-.workspace,
-.record-panel {
+.workspace {
     background: #ffffff;
     border: 1px solid #e5e7eb;
     border-radius: 12px;
-}
-
-.record-panel {
-    padding: 0.5rem 1rem 1rem;
-}
-
-.text-button {
-    border: 0;
-    padding: 0;
-    background: transparent;
-    color: #1d4ed8;
-    font-weight: 600;
-    cursor: pointer;
 }
 
 .metric-card {

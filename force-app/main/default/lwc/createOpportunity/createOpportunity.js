@@ -24,6 +24,7 @@ export default class CreateOpportunity extends NavigationMixin(LightningElement)
     fieldValues = {};
     duplicateRecords = [];
     showDuplicateModal = false;
+    showDealerFlow = false;
 
     label = {
         duplicateWarningTitle: DUPLICATE_WARNING_TITLE,
@@ -115,6 +116,13 @@ export default class CreateOpportunity extends NavigationMixin(LightningElement)
     }
 
     /**
+     * @description Shows the CMD-driven create form for non-Dealer record types.
+     */
+    get showCreateForm() {
+        return !!this.selectedRecordTypeId && !this.showDealerFlow;
+    }
+
+    /**
      * @description Returns selected record type name from selected record type Id.
      */
     get selectedRecordTypeName() {
@@ -163,6 +171,7 @@ export default class CreateOpportunity extends NavigationMixin(LightningElement)
         this.duplicateRecords = [];
         this.showDuplicateModal = false;*/
         this.selectedRecordTypeId = event.detail.value;
+        this.showDealerFlow = false;
 
     /*if (this.selectedRecordTypeName === 'HC Sales - Consumables') {
         this[NavigationMixin.Navigate]({
@@ -195,6 +204,11 @@ export default class CreateOpportunity extends NavigationMixin(LightningElement)
         return;
     }
 
+        // GC-3598: Dealer create uses CreateDealerOpportunity screen flow.
+        if (this.selectedRecordTypeName === 'HC Sales - Dealer') {
+            this.showDealerFlow = true;
+            return;
+        }
 
     this.fieldValues = {};
     this.duplicateRecords = [];

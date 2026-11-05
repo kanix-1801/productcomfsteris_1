@@ -121,6 +121,8 @@ public with sharing class PpcCommercialApprovalService {
         public Id approverUser2;
         @InvocableVariable(label='Approver User 3')
         public Id approverUser3;
+        @InvocableVariable(label='Check Only')
+        public Boolean checkOnly;
     }
 
     public class FlowSubmitResult {
@@ -139,19 +141,31 @@ public with sharing class PpcCommercialApprovalService {
         for (FlowSubmitRequest request : requests) {
             FlowSubmitResult result = new FlowSubmitResult();
             try {
-                submitForSelectedApprovers(
-                    request == null ? null : request.opportunityId,
-                    request == null ? null : request.comments,
-                    request == null
-                        ? new Set<Id>()
-                        : new Set<Id>{
-                            request.approverUser1,
-                            request.approverUser2,
-                            request.approverUser3
-                        }
-                );
-                result.success = true;
-                result.message = 'Submitted for approval.';
+                Id opportunityId = request == null ? null : request.opportunityId;
+                List<String> missingRequirements = commercialRequirementMessages(opportunityId);
+                if (!missingRequirements.isEmpty()) {
+                    result.success = false;
+                    result.message = String.join(
+                        missingRequirements,
+                        request != null && request.checkOnly == true ? '<br/>' : ' '
+                    );
+                } else if (request != null && request.checkOnly == true) {
+                    result.success = true;
+                } else {
+                    submitForSelectedApprovers(
+                        opportunityId,
+                        request == null ? null : request.comments,
+                        request == null
+                            ? new Set<Id>()
+                            : new Set<Id>{
+                                request.approverUser1,
+                                request.approverUser2,
+                                request.approverUser3
+                            }
+                    );
+                    result.success = true;
+                    result.message = 'Submitted for approval.';
+                }
             } catch (Exception ex) {
                 result.success = false;
                 result.message = ex.getMessage();
@@ -370,49 +384,70 @@ public with sharing class PpcCommercialApprovalService {
             : opportunityRecord.DealApprovalStatus__c;
     }
 
+    public static List<String> commercialRequirementMessages(Id opportunityId) {
+        if (opportunityId == null) {
+            return new List<String>{ 'Opportunity Id is required.' };
+        }
+        Opportunity opportunityRecord = selectOpportunity(opportunityId);
+        if (!isPayPerClickProposal(opportunityRecord)) {
+            return new List<String>{
+                'Commercial approval is only available for Pay Per Click Opportunities in Proposal.'
+            };
+        }
+        String opportunityStatus = currentStatus(opportunityRecord);
+        if (OPP_STATUS_PENDING.equals(opportunityStatus)) {
+            return new List<String>{ 'This Opportunity is already pending approval.' };
+        }
+        if (OPP_STATUS_APPROVED.equals(opportunityStatus)) {
+            return new List<String>{ 'This Opportunity is already approved.' };
+        }
+        return collectCommercialRequirements(opportunityRecord);
+    }
+
     private static List<String> collectCommercialRequirements(Opportunity opportunityRecord) {
-        List<String> missingRequirements = new List<String>();
+        List<String> lines = new List<String>();
+        List<String> opportunityFields = new List<String>();
         if (String.isBlank(opportunityRecord.Commercial_Commitment__c)) {
-            missingRequirements.add(requiredMessage('Commercial Commitment', 'Opportunity'));
+            opportunityFields.add('Commercial Commitment');
         }
         if (opportunityRecord.ExpectedCyclesProceduresperAnnum__c == null) {
-            missingRequirements.add(requiredMessage('Expected Cycles / Procedures per Annum', 'Opportunity'));
+            opportunityFields.add('Expected Cycles / Procedures per Annum');
         }
         if (opportunityRecord.AnnualCommittedQuantity__c == null) {
-            missingRequirements.add(requiredMessage('Annual Committed Quantity', 'Opportunity'));
+            opportunityFields.add('Annual Committed Quantity');
         }
         if (opportunityRecord.TotalContractedQuantity__c == null) {
-            missingRequirements.add(requiredMessage('Total Contracted Quantity', 'Opportunity'));
+            opportunityFields.add('Total Contracted Quantity');
         }
         if (opportunityRecord.TotalAnnualPPCRevenue__c == null) {
-            missingRequirements.add(requiredMessage('Total Annual PPC Revenue', 'Opportunity'));
+            opportunityFields.add('Total Annual PPC Revenue');
         }
         if (opportunityRecord.TotalPPCContractValue__c == null) {
-            missingRequirements.add(requiredMessage('Total PPC Contract Value', 'Opportunity'));
+            opportunityFields.add('Total PPC Contract Value');
         }
         if (
             opportunityRecord.ApprovedCostPerCycleExcludingService__c == null &&
             opportunityRecord.ApprovedCostPerCycleIncludingService__c == null
         ) {
-            missingRequirements.add(
-                'Approved CostPerCycle –Excluding Service (Opportunity) or Approved CostPerCycle –IncludingService (Opportunity) is required before approval submission.'
+            opportunityFields.add(
+                'Approved CostPerCycle –Excluding Service or Approved CostPerCycle –IncludingService'
             );
         }
         if (
             opportunityRecord.Financial_Analysis_Status__c != 'Completed' &&
             opportunityRecord.Financial_Analysis_Status__c != 'Approved'
         ) {
-            missingRequirements.add(
-                'Financial Analysis Status (Opportunity) must be Completed or Approved.'
-            );
+            opportunityFields.add('Financial Analysis Status (Completed or Approved)');
         }
         if (
             String.isBlank(opportunityRecord.Financial_Assessment_Link__c) &&
             !hasFinancialAnalysisFile(opportunityRecord.Id)
         ) {
-            missingRequirements.add(
-                'Financial Assessment Link (Opportunity) or a file on the Opportunity is required before approval submission.'
-            );
+            opportunityFields.add('Financial Assessment Link or a file on the Opportunity');
+        }
+        if (!opportunityFields.isEmpty()) {
+            lines.add('Missing fields on Opportunity:');
+            lines.addAll(opportunityFields);
         }
 
         List<OpportunityLineItem> products = [
@@ -420,39 +455,49 @@ public with sharing class PpcCommercialApprovalService {
                 AnnualCommittedRevenue__c, TotalContractTermRevenue__c
             FROM OpportunityLineItem
             WHERE OpportunityId = :opportunityRecord.Id
+            ORDER BY CreatedDate, Id
         ];
         if (products.isEmpty()) {
-            missingRequirements.add(
-                'At least one Opportunity Product (Opportunity Product) is required before approval submission.'
-            );
-            return missingRequirements;
+            if (!lines.isEmpty()) {
+                lines.add('');
+            }
+            lines.add('Missing fields on Opportunity Product:');
+            lines.add('At least one Opportunity Product is required.');
+        } else {
+            Integer productNumber = 1;
+            for (OpportunityLineItem product : products) {
+                List<String> productFields = new List<String>();
+                if (product.UnitPrice == null) {
+                    productFields.add('Sales Price');
+                }
+                if (product.Elevated_Price__c == null) {
+                    productFields.add('Elevated Price');
+                }
+                if (product.AnnualCommittedRevenue__c == null) {
+                    productFields.add('Annual Committed Revenue');
+                }
+                if (product.TotalContractTermRevenue__c == null) {
+                    productFields.add('Total Contract-Term Revenue');
+                }
+                if (!productFields.isEmpty()) {
+                    if (!lines.isEmpty()) {
+                        lines.add('');
+                    }
+                    String productName = String.isBlank(product.Product2.Name)
+                        ? 'Opportunity Product'
+                        : product.Product2.Name;
+                    lines.add(
+                        'Missing fields on Opportunity Product ' + productNumber + ' (' + productName + '):'
+                    );
+                    lines.addAll(productFields);
+                }
+                productNumber++;
+            }
         }
-        for (OpportunityLineItem product : products) {
-            String productName = String.isBlank(product.Product2.Name)
-                ? 'Opportunity Product'
-                : product.Product2.Name;
-            if (product.UnitPrice == null) {
-                missingRequirements.add(productRequiredMessage('Sales Price', productName));
-            }
-            if (product.Elevated_Price__c == null) {
-                missingRequirements.add(productRequiredMessage('Elevated Price', productName));
-            }
-            if (product.AnnualCommittedRevenue__c == null) {
-                missingRequirements.add(productRequiredMessage('Annual Committed Revenue', productName));
-            }
-            if (product.TotalContractTermRevenue__c == null) {
-                missingRequirements.add(productRequiredMessage('Total Contract-Term Revenue', productName));
-            }
+        if (lines.isEmpty()) {
+            return new List<String>();
         }
-        return missingRequirements;
-    }
-
-    private static String requiredMessage(String fieldLabel, String objectLabel) {
-        return fieldLabel + ' (' + objectLabel + ') is required before approval submission.';
-    }
-
-    private static String productRequiredMessage(String fieldLabel, String productName) {
-        return fieldLabel + ' (Opportunity Product) is required on ' + productName + ' before approval submission.';
+        return new List<String>{ String.join(lines, '<br/>') };
     }
 
     private static Boolean hasFinancialAnalysisFile(Id opportunityId) {

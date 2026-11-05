@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>66.0</apiVersion>
+    <isExposed>true</isExposed>
+    <masterLabel>Mock Room / ORI Recipient List</masterLabel>
+    <description>GC-3483. Select Salesforce users or external awareness emails on Submit for Approval. Remove is disabled when only one person remains.</description>
+    <targets>
+        <target>lightning__FlowScreen</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightning__FlowScreen">
+            <property name="recipients" type="apex://MockRoomORIRecipient[]" label="Recipients"
+                description="GC-3483. One row for each person selected on Submit for Approval."/>
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

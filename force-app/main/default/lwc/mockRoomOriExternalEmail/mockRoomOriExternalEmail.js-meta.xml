@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>66.0</apiVersion>
+    <isExposed>true</isExposed>
+    <masterLabel>Mock Room / ORI External Email</masterLabel>
+    <description>GC-3483. External awareness email on Submit for Approval. Help text is shown from the icon beside the label.</description>
+    <targets>
+        <target>lightning__FlowScreen</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightning__FlowScreen">
+            <property name="value" type="String" label="External Email"
+                description="GC-3483. Email address for a recipient who does not have Salesforce access."/>
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

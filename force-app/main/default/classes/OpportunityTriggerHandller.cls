@@ -67,6 +67,12 @@ public with sharing class OpportunityTriggerHandller extends TriggerHandler {
         if (!TriggerControl.enterBeforeUpdate(Opportunity.SObjectType)) {
             return;
         }
+        // GCL-73 - Limit a Life Sciences Sales owner change to the current owner,
+      	// LS Business System Admin, and a user above the owner in the role hierarchy.
+	LSOpportunityOwnerService.validateOwnerChange(
+    (List<Opportunity>) Trigger.new,
+    (Map<Id, Opportunity>) Trigger.oldMap
+);
         OpportunityService.populateDuplicateMatchKey(
             (List<Opportunity>) Trigger.new,
             (Map<Id, Opportunity>) Trigger.oldMap

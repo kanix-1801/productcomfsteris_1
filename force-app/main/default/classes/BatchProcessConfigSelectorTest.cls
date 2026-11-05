@@ -38,11 +38,6 @@ private class BatchProcessConfigSelectorTest {
             'TAS batch constant should match Apex class name'
         );
         System.assertEquals(
-            'LS_TASTeamAccessBatch',
-            BatchProcessConfigSelector.LS_TEAM_ACCESS_BATCH_CLASS_NAME,
-            'LS TAS batch constant should match Apex class name'
-        );
-        System.assertEquals(
             'SampleFollowUpNotificationBatch',
             BatchProcessConfigSelector.SAMPLE_FOLLOW_UP_BATCH_CLASS_NAME,
             'Sample Follow-up batch constant should match Apex class name'

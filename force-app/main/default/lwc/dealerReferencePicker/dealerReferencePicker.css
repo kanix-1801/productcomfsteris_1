@@ -1,0 +1,210 @@
+/*
+ * Standard Flow fields on the portal take their font from the site theme.
+ * Those rules cannot reach this component, so use the same theme variables.
+ */
+:host {
+    display: block;
+    width: 100%;
+    /* Same vertical rhythm as Expected Ship Date and Description. The theme token is smaller than those Flow fields. */
+    margin-bottom: var(--picker-field-spacing, 1.5rem);
+    font-family: var(--dxp-g-root-font-family, var(--lwc-fontFamily, "Salesforce Sans", Arial, sans-serif));
+}
+
+.picker-root {
+    position: relative;
+    width: 100%;
+}
+
+.label-row {
+    display: flex;
+    align-items: center;
+    min-height: 1.125rem;
+    margin-bottom: var(--dxp-s-form-element-label-spacing-block-end, 0.125rem);
+}
+
+.picker-label {
+    display: inline;
+    font-family: var(--picker-label-font-family, var(--dxp-s-form-element-label-font-family, "Salesforce Sans", Arial, sans-serif));
+    font-size: var(--picker-label-font-size, var(--dxp-s-form-element-label-font-size, 0.75rem));
+    font-weight: var(--picker-label-font-weight, var(--dxp-s-form-element-label-font-weight, 400));
+    font-style: var(--dxp-s-form-element-label-font-style, normal);
+    line-height: var(--picker-label-line-height, var(--dxp-s-form-element-label-line-height, 1.5));
+    color: var(--picker-label-color, var(--dxp-s-form-element-label-text-color, #444444));
+    margin: 0 0.25rem 0 0;
+    padding: 0;
+}
+
+.required-mark {
+    color: #ba0517;
+    margin-right: 0.125rem;
+    text-decoration: none;
+}
+
+.picker-control {
+    position: relative;
+    width: 100%;
+}
+
+.combobox {
+    position: relative;
+    width: 100%;
+}
+
+/* Same footprint as standard Flow text/picklist inputs */
+.input-shell {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: var(--picker-input-height, var(--dxp-s-form-element-height, calc(1.875rem + 2px)));
+    height: var(--picker-input-height, var(--dxp-s-form-element-height, calc(1.875rem + 2px)));
+    border: var(--picker-input-border-width, var(--dxp-s-form-element-width-border, 1px)) solid
+        var(--picker-input-border-color, var(--dxp-s-form-element-color-border, #747474));
+    border-radius: var(--picker-input-radius, var(--dxp-s-form-element-radius-border, 0.25rem));
+    background-color: var(--dxp-s-form-element-color-background, #ffffff);
+    padding: 0 2rem 0 0.75rem;
+    position: relative;
+}
+
+.input-shell_multi {
+    height: auto;
+    min-height: var(--picker-input-height, var(--dxp-s-form-element-height, calc(1.875rem + 2px)));
+    padding-top: 0.125rem;
+    padding-bottom: 0.125rem;
+}
+
+.input-shell:focus-within {
+    border-color: #1b96ff;
+    box-shadow: 0 0 0 1px #1b96ff;
+    outline: 0;
+}
+
+.selected-shell {
+    padding: 0.25rem 0.75rem;
+    height: auto;
+    min-height: var(--picker-input-height, var(--dxp-s-form-element-height, calc(1.875rem + 2px)));
+    flex-wrap: nowrap;
+    overflow: hidden;
+}
+
+.search-input {
+    flex: 1 1 6rem;
+    min-width: 4rem;
+    border: 0 !important;
+    outline: none !important;
+    box-shadow: none !important;
+    background: transparent;
+    font-family: var(--picker-input-font-family, var(--dxp-s-form-element-text-font-family, "Salesforce Sans", Arial, sans-serif));
+    font-size: var(--picker-input-font-size, var(--dxp-s-form-element-text-font-size, 1rem));
+    font-weight: var(--picker-input-font-weight, var(--dxp-s-form-element-text-font-weight, 400));
+    font-style: var(--dxp-s-form-element-text-font-style, normal);
+    line-height: var(--picker-input-line-height, var(--dxp-s-form-element-text-line-height, 1.5));
+    height: 1.875rem;
+    padding: 0;
+    margin: 0;
+    color: var(--dxp-s-form-element-text-color, #181818);
+}
+
+.search-input_full {
+    width: 100%;
+    flex: 1 1 auto;
+}
+
+.search-input::placeholder {
+    color: var(--dxp-s-form-element-placeholder-text-color, #747474);
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+    opacity: 1;
+}
+
+.search-icon {
+    position: absolute;
+    right: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    --slds-c-icon-color-foreground-default: #747474;
+}
+
+/* Visible lines ≈ 5 (standard combobox length) */
+.dropdown-panel {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(100% + 1px);
+    z-index: 10000;
+    box-sizing: border-box;
+    max-height: 10rem; /* 5 × 2rem rows */
+    overflow-y: auto;
+    overflow-x: hidden;
+    background: #ffffff;
+    border: 1px solid #747474;
+    border-radius: 0.25rem;
+    box-shadow: 0 2px 3px 0 rgba(0, 0, 0, 0.16);
+    -webkit-overflow-scrolling: touch;
+}
+
+.dropdown-option {
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
+    height: 2rem;
+    min-height: 2rem;
+    max-height: 2rem;
+    padding: 0 0.75rem;
+    cursor: pointer;
+    color: #181818;
+    font-size: 0.8125rem;
+    line-height: 1.25;
+}
+
+.dropdown-option:hover,
+.dropdown-option:focus {
+    background: #f3f3f3;
+    outline: none;
+}
+
+.dropdown-option_muted {
+    color: #747474;
+    cursor: default;
+}
+
+.dropdown-option_muted:hover {
+    background: #ffffff;
+}
+
+.option-label_add {
+    color: #0176d3;
+    font-weight: 700;
+}
+
+.option-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    width: 100%;
+}
+
+.error-text {
+    color: #ba0517;
+    font-size: 0.75rem;
+    margin-top: 0.125rem;
+}
+
+.has-error .input-shell {
+    border-color: #ba0517;
+    box-shadow: 0 0 0 1px #ba0517;
+}
+
+/* Fully rounded chip, like a standard lookup pill */
+.selection-pill {
+    --slds-c-pill-radius-border: 15rem;
+    --slds-c-pill-spacing-block-start: 0.125rem;
+    --slds-c-pill-spacing-block-end: 0.125rem;
+    display: inline-flex;
+    max-width: 100%;
+    border-radius: 15rem;
+}

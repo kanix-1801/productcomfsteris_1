@@ -402,7 +402,7 @@ private class WoliMicroscopeCaptureMobileCtrlTest {
     }
 
     /**
-     * @description MIME type mapping and the error helpers used for unexpected failures.
+     * @description MIME type mapping and the AuraHandledException helper.
      */
     @IsTest
     static void testHelpers() {
@@ -412,19 +412,11 @@ private class WoliMicroscopeCaptureMobileCtrlTest {
         User contextUser = new User(Id = UserInfo.getUserId());
 
         /********************************************
-         * GIVEN
-         ********************************************/
-        Id lineItemId = getLineItemId();
-        Exception unexpected = new DmlException('Simulated failure');
-
-        /********************************************
          * WHEN
          ********************************************/
         AuraHandledException auraException;
         Test.startTest();
         System.runAs(contextUser) {
-            WoliMicroscopeCaptureMobileCtrl.logError('listAnnotatableImageFiles', lineItemId, unexpected);
-            Logger.saveLog();
             auraException = WoliMicroscopeCaptureMobileCtrl.toAuraHandledException(
                 WoliMicroscopeCaptureMobileCtrl.ERROR_LIST_FILES
             );

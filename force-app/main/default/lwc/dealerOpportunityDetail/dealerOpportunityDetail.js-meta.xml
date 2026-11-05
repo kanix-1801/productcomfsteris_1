@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>66.0</apiVersion>
+    <description>Dealer Portal R1 - Shows the HC Sales Dealer page layout and Quotes for an Opportunity on the STERIS Dealer Portal.</description>
+    <isExposed>true</isExposed>
+    <masterLabel>Dealer Opportunity Detail</masterLabel>
+    <targets>
+        <target>lightningCommunity__Page</target>
+        <target>lightningCommunity__Default</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightningCommunity__Default">
+            <property name="recordId" type="String" label="Record Id" description="Opportunity Id from the portal record page." default="{!recordId}"/>
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

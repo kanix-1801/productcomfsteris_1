@@ -58,6 +58,12 @@ public with sharing class ContentDocumentsSelector {
         );
     }
 
+
+    /****************************************************************************************
+     * ADDITIVES FOR DEVICE EVALUATION (GW-3913 / GW-3096)
+     * Methods below this banner were added for Repair Center LWC Batch 9 (not Dev baseline).
+     ****************************************************************************************/
+
     /**
      * @description GW-3913 / GW-3096 - Selects a ContentDocument owned by CreatedById (USER_MODE, LIMIT 1).
      * @param contentDocumentId ContentDocument Id
@@ -77,6 +83,42 @@ public with sharing class ContentDocumentsSelector {
             WHERE Id = :contentDocumentId
                 AND CreatedById = :createdById
             WITH USER_MODE
+            LIMIT 1
+        ];
+    }
+
+    /**
+     * @description GW-2710 - ContentDocument Id and title for the supplied Ids.
+     *              Classic SOQL: the backoffice user reads a file they own, and ContentDocument
+     *              is not granted as object CRUD on that permission set.
+     * @param contentDocumentIds Salesforce Files document Ids.
+     * @return Matching documents.
+     */
+    public static List<ContentDocument> selectIdAndTitleByIds(Set<Id> contentDocumentIds) {
+        if (contentDocumentIds == null || contentDocumentIds.isEmpty()) {
+            return new List<ContentDocument>();
+        }
+        return [
+            SELECT Id, Title
+            FROM ContentDocument
+            WHERE Id IN :contentDocumentIds
+        ];
+    }
+
+    /**
+     * @description GW-2710 - Newest ContentDocument with this title.
+     * @param title ContentDocument title.
+     * @return Matching documents, newest first.
+     */
+    public static List<ContentDocument> selectLatestByTitle(String title) {
+        if (String.isBlank(title)) {
+            return new List<ContentDocument>();
+        }
+        return [
+            SELECT Id, Title
+            FROM ContentDocument
+            WHERE Title = :title
+            ORDER BY CreatedDate DESC
             LIMIT 1
         ];
     }

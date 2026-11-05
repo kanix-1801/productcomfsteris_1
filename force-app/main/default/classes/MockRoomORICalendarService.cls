@@ -85,7 +85,7 @@ public without sharing class MockRoomORICalendarService {
 
     /**
      * @description Adds each day of the request span that falls inside the visible range.
-     * GC-3483 Sprint 8. A blank or invalid duration is one day. Approved requests use the confirmed date. Earlier statuses use each requested date.
+     * GC-3483 Sprint 8. A blank or invalid duration is one day. The primary date and a confirmed date use the event duration. A backup requested date stays one day until Strategic Events confirms it.
      *
      * @param data Calendar payload being built.
      * @param requestRecord Request that owns the date.
@@ -106,7 +106,11 @@ public without sharing class MockRoomORICalendarService {
             return;
         }
         Integer durationDays = 1;
-        if (requestRecord.EventDurationDays__c != null && requestRecord.EventDurationDays__c >= 1) {
+        if (
+            dateRole != 'Backup' &&
+            requestRecord.EventDurationDays__c != null &&
+            requestRecord.EventDurationDays__c >= 1
+        ) {
             durationDays = requestRecord.EventDurationDays__c.intValue();
         }
         for (Integer dayOffset = 0; dayOffset < durationDays; dayOffset++) {

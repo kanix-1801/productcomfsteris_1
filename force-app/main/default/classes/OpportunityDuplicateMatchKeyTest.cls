@@ -8,6 +8,7 @@
 private class OpportunityDuplicateMatchKeyTest {
 
     private static final String PERMISSION_SET_GROUP_DEVELOPER_NAME = 'SalesFieldRepAccountManagerPSG';
+    private static Boolean permissionSetGroupCalculated = false;
     private static final Id CONSUMABLE_RECORD_TYPE_ID =
         Schema.SObjectType.Opportunity.getRecordTypeInfosByDeveloperName()
             .get('HCSalesConsumables')
@@ -309,8 +310,21 @@ private class OpportunityDuplicateMatchKeyTest {
             LIMIT 1
         ];
 
-        if (permissionSetGroup.Status != 'Updated') {
+        if (!permissionSetGroupCalculated) {
             Test.calculatePermissionSetGroup(permissionSetGroup.Id);
+            permissionSetGroupCalculated = true;
+        }
+
+        List<PermissionSetAssignment> existingAssignments = [
+        SELECT Id
+        FROM PermissionSetAssignment
+        WHERE AssigneeId = :userId
+        AND PermissionSetGroupId = :permissionSetGroup.Id
+        LIMIT 1
+        ];
+
+        if (!existingAssignments.isEmpty()) {
+            return;
         }
 
         insert new PermissionSetAssignment(
@@ -654,22 +668,22 @@ private class OpportunityDuplicateMatchKeyTest {
         opp.Pricebook2Id = Test.getStandardPricebookId();
         opp.BypassValidations__c = true;
         update opp;
-
+    
         Opportunity oldOpp = [
             SELECT Id, IsClosed, IsWon, RecordTypeId
             FROM Opportunity
             WHERE Id = :opp.Id
         ];
-
+    
         opp.StageName = 'Closed Won';
         update opp;
-
+    
         Opportunity closingOpp = [
             SELECT Id, IsClosed, IsWon, RecordTypeId
             FROM Opportunity
             WHERE Id = :opp.Id
         ];
-
+    
         Quote forecastQuote = new Quote(
             Name = 'Open Forecast Quote',
             OpportunityId = opp.Id,
@@ -684,7 +698,7 @@ private class OpportunityDuplicateMatchKeyTest {
             ExpirationDate = Date.today().addDays(30),
             QuoteType__c = 'Normal Quote'
         );
-
+    
         TriggerHandler.bypass('QuoteTriggerHandler');
         try {
             Database.insert(forecastQuote, AccessLevel.SYSTEM_MODE);
@@ -695,12 +709,12 @@ private class OpportunityDuplicateMatchKeyTest {
         } finally {
             TriggerHandler.clearBypass('QuoteTriggerHandler');
         }
-
+    
         Opportunity missingOldOpp = new Opportunity(
             Id = fakeOpportunityId(9),
             RecordTypeId = CAPITAL_RECORD_TYPE_ID
         );
-
+    
         Test.startTest();
         OpportunityService.validateForecastEligibleQuoteClosure(
             new List<Opportunity>{ closingOpp, missingOldOpp },

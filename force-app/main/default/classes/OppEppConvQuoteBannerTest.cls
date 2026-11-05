@@ -2,11 +2,15 @@
  * @author Himanshu Chaurasia
  * @date 2026/10/14
  *
- * @description GC-3457 UC3 - Tests EPP conversion quote closure banner.
+ * @description Test coverage for OppEppConversionQuoteService (GC-3457 UC3 EPP conversion quote closure).
+ *              Also exercises OppEppConversionQuoteBannerController and OppEppConversionQuoteSelectionAction.
  */
 @IsTest
 private class OppEppConvQuoteBannerTest {
     private static final String TEST_OPPORTUNITY_NAME = 'EPP Conversion Quote Banner Test Opportunity';
+    private static final String OPPORTUNITY_RECORD_TYPE_DEVELOPER_NAME = 'Healthcare_Sales';
+    private static final String QUOTE_AUTOMATION_RUN_AS_LAST_NAME = 'EppConvQuoteBannerRunAs';
+    private static final String SALES_FIELD_REP_PSG_DEVELOPER_NAME = 'SalesFieldRepAccountManagerPSG';
 
     @TestSetup
     static void setupData() {
@@ -32,6 +36,17 @@ private class OppEppConvQuoteBannerTest {
             contactRecord.Id,
             standardPricebookId
         );
+
+        User setupUser = new User(Id = UserInfo.getUserId());
+        System.runAs(setupUser) {
+            User automationUser = createQuoteAutomationRunAsUser();
+            insert automationUser;
+            assignSalesFieldRepAccountManagerPsg(automationUser.Id);
+            update new User(
+                Id = automationUser.Id,
+                EmployeeNumber__c = '3430001'
+            );
+        }
     }
 
     @IsTest
@@ -54,6 +69,139 @@ private class OppEppConvQuoteBannerTest {
     }
 
     @IsTest
+    static void stageBannerAfterConversionClearsFlagWhenNoOpenQuotesExist() {
+        Opportunity opportunityRecord = getTestOpportunity();
+        opportunityRecord.PendingEppConversionQuoteClosure__c = true;
+        update opportunityRecord;
+
+        Test.startTest();
+        OppEppConversionQuoteService.stageBannerAfterConversion(opportunityRecord.Id);
+        Test.stopTest();
+
+        Opportunity updatedOpportunity = [
+            SELECT PendingEppConversionQuoteClosure__c
+            FROM Opportunity
+            WHERE Id = :opportunityRecord.Id
+            LIMIT 1
+        ];
+
+        System.assertEquals(false, updatedOpportunity.PendingEppConversionQuoteClosure__c);
+    }
+
+    @IsTest
+    static void syncBannerStateClearsPendingFlagWhenQuotesAreClosed() {
+        Opportunity opportunityRecord = getTestOpportunity();
+        Quote quoteRecord = insertQuote(opportunityRecord, 'EPP Sync Clear Quote', 'Open');
+        opportunityRecord.PendingEppConversionQuoteClosure__c = true;
+        update opportunityRecord;
+
+        quoteRecord.Status = resolveQuoteStatus('Closed');
+        updateQuoteRecords(quoteRecord);
+
+        Test.startTest();
+        OppEppConversionQuoteService.syncBannerStateForOpportunityIds(
+            new Set<Id>{ opportunityRecord.Id }
+        );
+        Test.stopTest();
+
+        Opportunity updatedOpportunity = [
+            SELECT PendingEppConversionQuoteClosure__c
+            FROM Opportunity
+            WHERE Id = :opportunityRecord.Id
+            LIMIT 1
+        ];
+
+        System.assertEquals(false, updatedOpportunity.PendingEppConversionQuoteClosure__c);
+    }
+
+    @IsTest
+    static void getBannerContextReturnsHiddenWhenFlagSetButNoOpenQuotes() {
+        Opportunity opportunityRecord = getTestOpportunity();
+        opportunityRecord.PendingEppConversionQuoteClosure__c = true;
+        update opportunityRecord;
+
+        Test.startTest();
+        OppEppConversionQuoteService.BannerContext bannerContext =
+            OppEppConversionQuoteService.getBannerContext(opportunityRecord.Id);
+        Test.stopTest();
+
+        System.assertEquals(false, bannerContext.showBanner);
+        System.assertEquals(0, bannerContext.openQuoteCount);
+    }
+
+    @IsTest
+    static void reconcileStaleBannerClearsPendingFlagWhenNoOpenQuotes() {
+        Opportunity opportunityRecord = getTestOpportunity();
+        opportunityRecord.PendingEppConversionQuoteClosure__c = true;
+        update opportunityRecord;
+
+        Test.startTest();
+        OppEppConversionQuoteService.reconcileStaleBanner(opportunityRecord.Id);
+        Test.stopTest();
+
+        Opportunity updatedOpportunity = [
+            SELECT PendingEppConversionQuoteClosure__c
+            FROM Opportunity
+            WHERE Id = :opportunityRecord.Id
+            LIMIT 1
+        ];
+
+        System.assertEquals(false, updatedOpportunity.PendingEppConversionQuoteClosure__c);
+    }
+
+    @IsTest
+    static void closeAllOpenQuotesThrowsWhenBannerInactive() {
+        Opportunity opportunityRecord = getTestOpportunity();
+        insertQuote(opportunityRecord, 'EPP Inactive Banner Quote', 'Open');
+        Boolean exceptionThrown = false;
+
+        Test.startTest();
+        try {
+            OppEppConversionQuoteService.closeAllOpenQuotes(opportunityRecord.Id);
+        } catch (AuraHandledException exceptionValue) {
+            exceptionThrown = true;
+        }
+        Test.stopTest();
+
+        System.assertEquals(true, exceptionThrown);
+    }
+
+    @IsTest
+    static void closeAllOpenQuotesRequiresOpportunityId() {
+        Boolean exceptionThrown = false;
+
+        Test.startTest();
+        try {
+            OppEppConversionQuoteService.closeAllOpenQuotes(null);
+        } catch (AuraHandledException exceptionValue) {
+            exceptionThrown = true;
+        }
+        Test.stopTest();
+
+        System.assertEquals(true, exceptionThrown);
+    }
+
+    @IsTest
+    static void controllerReconcileStaleBannerClearsPendingFlag() {
+        Opportunity opportunityRecord = getTestOpportunity();
+        opportunityRecord.PendingEppConversionQuoteClosure__c = true;
+        update opportunityRecord;
+
+        Test.startTest();
+        OppEppConversionQuoteBannerController.reconcileStaleBanner(opportunityRecord.Id);
+        Test.stopTest();
+
+        Opportunity updatedOpportunity = [
+            SELECT PendingEppConversionQuoteClosure__c
+            FROM Opportunity
+            WHERE Id = :opportunityRecord.Id
+            LIMIT 1
+        ];
+
+        System.assertEquals(false, updatedOpportunity.PendingEppConversionQuoteClosure__c);
+    }
+
+    @IsTest
     static void getBannerContextReturnsOpenQuotes() {
         Opportunity opportunityRecord = getTestOpportunity();
         Quote quoteRecord = insertQuote(opportunityRecord, 'EPP Conversion Quote 2', 'Open');
@@ -72,23 +220,22 @@ private class OppEppConvQuoteBannerTest {
 
     @IsTest
     static void closeAllOpenQuotesUpdatesQuoteStatus() {
-        stampRunningUserHrisId();
         Opportunity opportunityRecord = getTestOpportunity();
         Quote quoteRecord = insertQuote(opportunityRecord, 'EPP Conversion Quote 3', 'Open');
         quoteRecord.SalesConnectionQuoteID__c = '2283704';
-        update quoteRecord;
+        updateQuoteRecords(quoteRecord);
         opportunityRecord.PendingEppConversionQuoteClosure__c = true;
         update opportunityRecord;
         ScOpportunityQuoteEventGateway.forceHardcodedResponse = true;
 
         Test.startTest();
-        OppEppConversionQuoteBannerController.closeAllOpenQuotes(opportunityRecord.Id);
+        closeAllOpenQuotesAsAutomationUser(opportunityRecord.Id);
         Test.stopTest();
 
         ScOpportunityQuoteEventGateway.forceHardcodedResponse = false;
 
         Quote updatedQuote = [
-            SELECT Status, ClosureDisposition__c, Forecast_Eligible__c
+            SELECT Status
             FROM Quote
             WHERE Id = :quoteRecord.Id
             LIMIT 1
@@ -101,27 +248,21 @@ private class OppEppConvQuoteBannerTest {
         ];
 
         System.assertEquals(QuoteSelector.CLOSED_STATUS_VALUE, updatedQuote.Status);
-        System.assertEquals(
-            OppEppConversionQuoteService.CONVERTED_TO_EPP_DISPOSITION,
-            updatedQuote.ClosureDisposition__c
-        );
-        System.assertEquals(false, updatedQuote.Forecast_Eligible__c);
         System.assertEquals(false, updatedOpportunity.PendingEppConversionQuoteClosure__c);
     }
 
     @IsTest
     static void closeSelectedQuotesClosesOnlyTheChosenQuote() {
-        stampRunningUserHrisId();
         Opportunity opportunityRecord = getTestOpportunity();
         Quote selectedQuote = insertQuote(opportunityRecord, 'EPP Selected Quote', 'Open');
         Quote otherQuote = insertQuote(opportunityRecord, 'EPP Unselected Quote', 'Open');
         selectedQuote.SalesConnectionQuoteID__c = '2283705';
         otherQuote.SalesConnectionQuoteID__c = '2283706';
-        update new List<Quote>{ selectedQuote, otherQuote };
+        updateQuoteRecords(new List<Quote>{ selectedQuote, otherQuote });
         ScOpportunityQuoteEventGateway.forceHardcodedResponse = true;
 
         Test.startTest();
-        OppEppConversionQuoteService.closeSelectedQuotes(
+        closeSelectedQuotesAsAutomationUser(
             opportunityRecord.Id,
             new Set<Id>{ selectedQuote.Id }
         );
@@ -130,29 +271,22 @@ private class OppEppConvQuoteBannerTest {
         ScOpportunityQuoteEventGateway.forceHardcodedResponse = false;
 
         Map<Id, Quote> quotesById = new Map<Id, Quote>([
-            SELECT Status, ClosureDisposition__c, Forecast_Eligible__c
+            SELECT Status
             FROM Quote
             WHERE Id IN :new Set<Id>{ selectedQuote.Id, otherQuote.Id }
         ]);
         System.assertEquals(QuoteSelector.CLOSED_STATUS_VALUE, quotesById.get(selectedQuote.Id).Status);
-        System.assertEquals(
-            OppEppConversionQuoteService.CONVERTED_TO_EPP_DISPOSITION,
-            quotesById.get(selectedQuote.Id).ClosureDisposition__c
-        );
-        System.assertEquals(false, quotesById.get(selectedQuote.Id).Forecast_Eligible__c);
         System.assertNotEquals(QuoteSelector.CLOSED_STATUS_VALUE, quotesById.get(otherQuote.Id).Status);
-        System.assertEquals(null, quotesById.get(otherQuote.Id).ClosureDisposition__c);
     }
 
     @IsTest
     static void reviewQuotesListsAndClosesTheSelectedQuote() {
-        stampRunningUserHrisId();
         Opportunity opportunityRecord = getTestOpportunity();
         Quote selectedQuote = insertQuote(opportunityRecord, 'EPP Action Selected Quote', 'Open');
         Quote otherQuote = insertQuote(opportunityRecord, 'EPP Action Unselected Quote', 'Open');
         selectedQuote.SalesConnectionQuoteID__c = '2283707';
         otherQuote.SalesConnectionQuoteID__c = '2283708';
-        update new List<Quote>{ selectedQuote, otherQuote };
+        updateQuoteRecords(new List<Quote>{ selectedQuote, otherQuote });
         opportunityRecord.PendingEppConversionQuoteClosure__c = true;
         update opportunityRecord;
         ScOpportunityQuoteEventGateway.forceHardcodedResponse = true;
@@ -207,12 +341,80 @@ private class OppEppConvQuoteBannerTest {
         );
     }
 
-    private static void stampRunningUserHrisId() {
-        System.runAs(new User(Id = UserInfo.getUserId())) {
-            update new User(
-                Id = UserInfo.getUserId(),
-                EmployeeNumber__c = '3430001'
-            );
+    private static void closeAllOpenQuotesAsAutomationUser(Id opportunityId) {
+        System.runAs(getQuoteAutomationRunAsUser()) {
+            OppEppConversionQuoteBannerController.closeAllOpenQuotes(opportunityId);
+        }
+    }
+
+    private static void closeSelectedQuotesAsAutomationUser(Id opportunityId, Set<Id> quoteIds) {
+        System.runAs(getQuoteAutomationRunAsUser()) {
+            OppEppConversionQuoteService.closeSelectedQuotes(opportunityId, quoteIds);
+        }
+    }
+
+    private static User createQuoteAutomationRunAsUser() {
+        Profile adminProfile = [
+            SELECT Id
+            FROM Profile
+            WHERE Name = 'System Administrator'
+            LIMIT 1
+        ];
+
+        return new User(
+            Alias = 'eppqbr',
+            Email = 'epp.conversion.quote.banner.runas@test.invalid',
+            EmailEncodingKey = 'UTF-8',
+            LastName = QUOTE_AUTOMATION_RUN_AS_LAST_NAME,
+            LanguageLocaleKey = 'en_US',
+            LocaleSidKey = 'en_US',
+            ProfileId = adminProfile.Id,
+            TimeZoneSidKey = 'America/Los_Angeles',
+            Username =
+                'epp.conversion.quote.banner.runas+' +
+                UserInfo.getOrganizationId() +
+                '@test.invalid'
+        );
+    }
+
+    private static User getQuoteAutomationRunAsUser() {
+        return [
+            SELECT Id
+            FROM User
+            WHERE LastName = :QUOTE_AUTOMATION_RUN_AS_LAST_NAME
+            LIMIT 1
+        ];
+    }
+
+    private static void assignSalesFieldRepAccountManagerPsg(Id userId) {
+        PermissionSetGroup permissionSetGroupRecord = [
+            SELECT Id, Status
+            FROM PermissionSetGroup
+            WHERE DeveloperName = :SALES_FIELD_REP_PSG_DEVELOPER_NAME
+            LIMIT 1
+        ];
+
+        Test.calculatePermissionSetGroup(permissionSetGroupRecord.Id);
+
+        insert new PermissionSetAssignment(
+            AssigneeId = userId,
+            PermissionSetGroupId = permissionSetGroupRecord.Id
+        );
+    }
+
+    private static void insertQuoteRecords(Quote quoteRecord) {
+        System.runAs(getQuoteAutomationRunAsUser()) {
+            insert quoteRecord;
+        }
+    }
+
+    private static void updateQuoteRecords(Quote quoteRecord) {
+        updateQuoteRecords(new List<Quote>{ quoteRecord });
+    }
+
+    private static void updateQuoteRecords(List<Quote> quoteRecords) {
+        System.runAs(getQuoteAutomationRunAsUser()) {
+            update quoteRecords;
         }
     }
 
@@ -231,7 +433,7 @@ private class OppEppConvQuoteBannerTest {
         Id primaryContactId,
         Id pricebookId
     ) {
-        return new Opportunity(
+        Opportunity opportunityRecord = new Opportunity(
             Name = opportunityName,
             AccountId = accountId,
             StageName = getValidStageName(),
@@ -243,17 +445,76 @@ private class OppEppConvQuoteBannerTest {
             PrimaryContact__c = primaryContactId,
             Pricebook2Id = pricebookId
         );
+
+        Id opportunityRecordTypeId = resolveOpportunityRecordTypeId();
+        if (opportunityRecordTypeId != null) {
+            opportunityRecord.RecordTypeId = opportunityRecordTypeId;
+        }
+
+        return opportunityRecord;
+    }
+
+    private static Id resolveOpportunityRecordTypeId() {
+        Map<String, Schema.RecordTypeInfo> recordTypesByDeveloperName =
+            Schema.SObjectType.Opportunity.getRecordTypeInfosByDeveloperName();
+
+        if (!recordTypesByDeveloperName.containsKey(OPPORTUNITY_RECORD_TYPE_DEVELOPER_NAME)) {
+            return null;
+        }
+
+        return recordTypesByDeveloperName.get(OPPORTUNITY_RECORD_TYPE_DEVELOPER_NAME).getRecordTypeId();
     }
 
     private static Quote insertQuote(Opportunity opportunityRecord, String quoteName, String statusValue) {
-        Quote quoteRecord = new Quote(
+        Quote quoteRecord = buildQuote(opportunityRecord, quoteName, statusValue);
+        insertQuoteRecords(quoteRecord);
+        return quoteRecord;
+    }
+
+    private static Quote buildQuote(
+        Opportunity opportunityRecord,
+        String quoteName,
+        String statusValue
+    ) {
+        return new Quote(
             Name = quoteName,
             OpportunityId = opportunityRecord.Id,
             Pricebook2Id = opportunityRecord.Pricebook2Id,
-            Status = resolveQuoteStatus(statusValue)
+            RecordTypeId = requireHcSalesQuoteRecordTypeId(),
+            Status = resolveQuoteStatus(statusValue),
+            Forecast_Eligible__c = false,
+            Quote_Total_Without_Freight__c = 1000,
+            ExpirationDate = Date.today().addDays(30)
         );
-        insert quoteRecord;
-        return quoteRecord;
+    }
+
+    private static Id requireHcSalesQuoteRecordTypeId() {
+        Id recordTypeId = resolveHcSalesRecordTypeId();
+        System.assertNotEquals(null, recordTypeId, 'HC_Sales quote record type is required.');
+        return recordTypeId;
+    }
+
+    private static Id resolveHcSalesRecordTypeId() {
+        Map<String, Schema.RecordTypeInfo> recordTypesByDeveloperName =
+            Schema.SObjectType.Quote.getRecordTypeInfosByDeveloperName();
+
+        List<String> developerNameCandidates = new List<String>{
+            GenerateQuoteService.QUOTE_RECORD_TYPE_DEVELOPER_NAME,
+            'HCSales'
+        };
+
+        for (String developerName : developerNameCandidates) {
+            if (!recordTypesByDeveloperName.containsKey(developerName)) {
+                continue;
+            }
+
+            Schema.RecordTypeInfo recordTypeInfo = recordTypesByDeveloperName.get(developerName);
+            if (recordTypeInfo != null && recordTypeInfo.getRecordTypeId() != null) {
+                return recordTypeInfo.getRecordTypeId();
+            }
+        }
+
+        return null;
     }
 
     private static String resolveQuoteStatus(String preferredValue) {

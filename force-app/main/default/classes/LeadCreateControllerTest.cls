@@ -111,8 +111,7 @@ private class LeadCreateControllerTest {
             PostalCode = '44101',
             Country = 'United States',
             Org_ID__c = '100',
-            Class_Code__c = 'Healthcare',
-            Sales_Category__c = 'Capital'
+            Class_Code__c = 'Healthcare'
         );
 
         LeadService.assignTAStoLead(new List<Lead>{ leadRecord });

@@ -190,7 +190,13 @@ export default class CreateOrderAccountInformation extends LightningElement {
         if (!field) {
             return;
         }
-        this[field] = event.detail?.value || '';
+        const value = event.detail?.value || '';
+        // These comboboxes have no blank option; the Field Service mobile app fires a blank
+        // change while rendering, which would wipe the defaulted value.
+        if (!value || value === this[field]) {
+            return;
+        }
+        this[field] = value;
         this.errorMessage = undefined;
         this.dispatchChange('field', field);
     }

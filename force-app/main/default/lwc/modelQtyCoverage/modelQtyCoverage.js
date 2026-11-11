@@ -19,7 +19,8 @@ import INSTRUMENT_SERVICES_FIELD from '@salesforce/schema/ContractAdjustment__c.
 import getManufacturers from '@salesforce/apex/ModelQtyCoverageController.getManufacturers';
 import getSubProductLines from '@salesforce/apex/ModelQtyCoverageController.getSubProductLines';
 import getAssetCatalog from '@salesforce/apex/ModelQtyCoverageController.getAssetCatalog';
-import { PRICING_PROGRAMS, PRICING_PROGRAM_SAMPLE_ROWS } from './pricingProgramsMockData';
+import searchPricingPrograms from '@salesforce/apex/ModelQtyCoverageController.searchPricingPrograms';
+import getPricingProgramsByNames from '@salesforce/apex/ModelQtyCoverageController.getPricingProgramsByNames';
 
 const COVERAGE_FIELD = 'ModelQtyCoverage__c';
 const MODEL_MAX_LENGTH = 100; // ContractModifier__c.Model__c
@@ -40,6 +41,7 @@ const SECTION_MODEL_QTY = 'modelQty';
 const SECTION_PRICING = 'pricingPrograms';
 const SECTION_MOBILE_VAN = 'onLocationMobileVan';
 const MIN_PROGRAM_SEARCH_LENGTH = 3;
+const PROGRAM_SEARCH_DELAY_MS = 300; // wait for the user to stop typing before searching
 const EMPTY_ADJUSTMENTS = { inclusions: [], models: [], pricingPrograms: [], pricingProgram: null };
 
 // A real, saved Quote Line Item Id. New lines in the configurator have temporary "ref_" Ids.
@@ -59,8 +61,9 @@ const pickCtCodes = (source) => {
         .map((c) => ({ code: clean(c?.code), name: clean(c?.name) }))
         .filter((c) => c.code);
 };
-// Pricing Program row as stored in the JSON: program, description, CT codes
+// Pricing Program row as stored in the JSON: program Id and name, description, CT codes
 const pickProgram = (source) => ({
+    programId: blankToNull(source?.programId),
     program: blankToNull(source?.program),
     description: blankToNull(source?.description),
     ctCodes: pickCtCodes(source)
@@ -115,10 +118,15 @@ export default class ModelQtyCoverage extends LightningElement {
     pricingRows = [];
     _seq = 0;
  
-    // Known Pricing Programs: name, description, CT code (dummy JSON for now, see pricingProgramsMockData.js)
-    pricingPrograms = PRICING_PROGRAMS;
-    // "Add pricing program" search bar
+    // Pricing Programs from the org (PricingProgram__c + its CT code lines) by program name, filled from the
+    // search results and from the programs saved on a line; gives a row its current description and CT codes
+    knownPrograms = {};
+    // "Add pricing program" search bar: results come from Apex (Active, in-date programs)
     programSearchTerm = '';
+    programSearchData = [];
+    programSearching = false;
+    programSearchError;
+    _programSearchTimer;
     selectedProgramNames = [];
     // On Location - Mobile Van: category filter and the categories checked
     mobileVanFilter = '';
@@ -208,6 +216,7 @@ export default class ModelQtyCoverage extends LightningElement {
     disconnectedCallback() {
         unsubscribe(this.subscription);
         this.subscription = null;
+        clearTimeout(this._programSearchTimer);
     }
 
     handleMessage(message) {
@@ -247,7 +256,7 @@ export default class ModelQtyCoverage extends LightningElement {
     async loadLine(lineId) {
         if (!lineId || this.savedByLine[lineId] || this.loadingLines[lineId]) return;
         if (!isSavedLineId(lineId)) {
-            // new line: nothing stored (Pricing Programs start from the dummy sample rows)
+            // new line: nothing stored yet
             this.savedByLine = { ...this.savedByLine, [lineId]: this.fromJson(null) };
             return;
         }
@@ -263,6 +272,33 @@ export default class ModelQtyCoverage extends LightningElement {
             delete next[lineId];
             this.loadingLines = next;
         }
+        this.refreshSavedPrograms(lineId);
+    }
+
+    // Reloads the line's saved Pricing Programs from the org so they show their current description and CT codes.
+    // Non-fatal: if it fails, the values saved in the JSON are shown.
+    async refreshSavedPrograms(lineId) {
+        const names = (this.savedByLine[lineId]?.pricingPrograms || []).map((p) => p.program).filter(Boolean);
+        if (!names.length) return;
+        try {
+            this.rememberPrograms(await getPricingProgramsByNames({ programNames: names }));
+            const saved = this.savedByLine[lineId];
+            this.savedByLine = {
+                ...this.savedByLine,
+                [lineId]: { ...saved, pricingPrograms: saved.pricingPrograms.map((p) => this.programDetails(p)) }
+            };
+        } catch (e) {
+            // keep the saved values
+        }
+    }
+
+    // Adds programs from Apex to knownPrograms, by program name
+    rememberPrograms(programs) {
+        const next = { ...this.knownPrograms };
+        (programs || []).forEach((p) => {
+            if (p?.program) next[p.program] = p;
+        });
+        this.knownPrograms = next;
     }
 
     fromJson(raw) {
@@ -278,8 +314,7 @@ export default class ModelQtyCoverage extends LightningElement {
                 exclusions: (r.exclusions || []).map(pickCriteria)
             })),
             models: (data?.models || []).map((m) => ({ ...pickCriteria(m), qty: Number(m.qty) })),
-            // Not returned by Apex yet: falls back to the dummy sample rows
-            pricingPrograms: (data?.pricingPrograms || PRICING_PROGRAM_SAMPLE_ROWS).map((p) => this.programDetails(p)),
+            pricingPrograms: (data?.pricingPrograms || []).map((p) => this.programDetails(p)),
             pricingProgram: data?.pricingProgram || null
         };
     }
@@ -742,15 +777,15 @@ export default class ModelQtyCoverage extends LightningElement {
     // One row per program: Program is the program name itself (e.g. "PP-ENDO-01"), shown as plain text.
     // Description and CT Code come from the program list for a known name.
 
-    // A program's description and CT codes come from the program list (its child CT Code records),
-    // so rows saved earlier with no or old-format CT codes still show the current ones.
-    // The saved values are kept only for a program that is not in the list.
+    // A program's description and CT codes come from the org (knownPrograms: its child CT Code records),
+    // so rows saved earlier show the current ones. The saved values are kept for a program not loaded from the org.
     programDetails(source) {
         const p = pickProgram(source);
-        const known = (this.pricingPrograms || []).find((k) => k.program === p.program);
+        const known = this.knownPrograms[p.program];
         if (!known) return p;
         const knownCodes = pickCtCodes(known);
         return {
+            programId: blankToNull(known.programId) || p.programId,
             program: p.program,
             description: blankToNull(known.description) || p.description,
             ctCodes: knownCodes.length ? knownCodes : p.ctCodes
@@ -761,6 +796,7 @@ export default class ModelQtyCoverage extends LightningElement {
         const p = this.programDetails(source);
         return {
             key: this.nextKey('pp'),
+            programId: p.programId,
             program: p.program || '',
             description: p.description || '',
             ctCodes: p.ctCodes
@@ -786,8 +822,9 @@ export default class ModelQtyCoverage extends LightningElement {
     }
 
     /* ---------- Add pricing program: search + select ---------- */
-    // Searches the known programs by program name, CT code or category once 3+ characters are typed.
-    // Checked results are added as rows by the Add button; programs already in the table are not offered.
+    // Once 3+ characters are typed (and the user pauses), Apex searches the Active, in-date programs by program
+    // name, CT code or CT name. Checked results are added as rows by the Add button; programs already in the
+    // table are not offered.
 
     get programSearchTooShort() {
         const len = this.programSearchTerm.length;
@@ -800,14 +837,9 @@ export default class ModelQtyCoverage extends LightningElement {
 
     get programSearchResults() {
         if (!this.isProgramSearchActive) return [];
-        const term = this.programSearchTerm.toLowerCase();
         const added = new Set(this.pricingRows.map((r) => r.program));
-        return this.pricingPrograms
+        return this.programSearchData
             .filter((p) => !added.has(p.program))
-            .filter((p) => {
-                const ctValues = pickCtCodes(p).flatMap((c) => [c.code, c.name]);
-                return [p.program, p.category, ...ctValues].some((v) => (v || '').toLowerCase().includes(term));
-            })
             .map((p) => ({
                 program: p.program,
                 description: p.description || '—',
@@ -823,7 +855,16 @@ export default class ModelQtyCoverage extends LightningElement {
     }
 
     get noProgramSearchResults() {
-        return this.isProgramSearchActive && !this.hasProgramSearchResults;
+        return (
+            this.isProgramSearchActive &&
+            !this.programSearching &&
+            !this.programSearchError &&
+            !this.hasProgramSearchResults
+        );
+    }
+
+    get showProgramSearchSpinner() {
+        return this.isProgramSearchActive && this.programSearching;
     }
 
     get addProgramsDisabled() {
@@ -836,12 +877,42 @@ export default class ModelQtyCoverage extends LightningElement {
     }
 
     resetProgramSearch() {
+        clearTimeout(this._programSearchTimer);
         this.programSearchTerm = '';
+        this.programSearchData = [];
+        this.programSearching = false;
+        this.programSearchError = null;
         this.selectedProgramNames = [];
     }
 
     handlePricingProgramSearch(event) {
         this.programSearchTerm = clean(event.detail.value);
+        this.programSearchError = null;
+        clearTimeout(this._programSearchTimer);
+        if (!this.isProgramSearchActive) {
+            this.programSearchData = [];
+            this.programSearching = false;
+            return;
+        }
+        this.programSearching = true;
+        const searchTerm = this.programSearchTerm;
+        // eslint-disable-next-line @lwc/lwc/no-async-operation
+        this._programSearchTimer = setTimeout(() => this.runProgramSearch(searchTerm), PROGRAM_SEARCH_DELAY_MS);
+    }
+
+    async runProgramSearch(searchTerm) {
+        try {
+            const programs = await searchPricingPrograms({ searchTerm });
+            if (searchTerm !== this.programSearchTerm) return; // the user typed on: a newer search is coming
+            this.programSearchData = programs || [];
+            this.rememberPrograms(this.programSearchData);
+        } catch (e) {
+            if (searchTerm !== this.programSearchTerm) return;
+            this.programSearchData = [];
+            this.programSearchError = reduceError(e);
+        } finally {
+            if (searchTerm === this.programSearchTerm) this.programSearching = false;
+        }
     }
 
     handleProgramSelect(event) {
@@ -852,7 +923,7 @@ export default class ModelQtyCoverage extends LightningElement {
 
     handleAddSelectedPrograms() {
         const added = new Set(this.pricingRows.map((r) => r.program));
-        const toAdd = this.pricingPrograms.filter(
+        const toAdd = this.programSearchData.filter(
             (p) => this.selectedProgramNames.includes(p.program) && !added.has(p.program)
         );
         this.pricingRows = [...this.pricingRows, ...toAdd.map((p) => this.newPricingRow(p))];

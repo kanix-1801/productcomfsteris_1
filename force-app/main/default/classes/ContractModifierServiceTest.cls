@@ -542,4 +542,186 @@ private class ContractModifierServiceTest {
                         'Manufacturer of the asset in that Product Line (case ignored) and Sub Product Line');
         Assert.isTrue(filteredOutList.isEmpty(), 'Assets in another Product Line are filtered out');
     }
+
+    /* =====================  Pricing Programs  ===================== */
+
+    private static List<String> programNames(List<ContractModifierService.PricingProgramOption> optionList) {
+        List<String> nameList = new List<String>();
+        for (ContractModifierService.PricingProgramOption option : optionList) {
+            nameList.add(option.description);
+        }
+        return nameList;
+    }
+
+    /**
+     * @description The search returns only Active, in-date programs matching the program name, CT code or CT name,
+     *              each with its CT codes sorted; a short term returns nothing and LIKE wildcards are literal.
+     */
+    @IsTest
+    static void testSearchPricingPrograms() {
+        /********************************************
+        * SETUP
+        ********************************************/
+        ModelQtyCoverageTestDataFactory.grantPricingProgramAccess();
+        User contextUser = new User(Id = UserInfo.getUserId());
+        Date today = Date.today();
+        ModelQtyCoverageTestDataFactory.createPricingProgram(
+            'ZZPP Alpha', 'Active', today.addDays(-10), today.addDays(10), new List<String>{ 'CT.ZZA02', 'CT.ZZA01' }
+        );
+        ModelQtyCoverageTestDataFactory.createPricingProgram(
+            'ZZPP Beta', 'Active', today.addDays(-10), null, new List<String>{ 'CT.ZZB01' }
+        );
+        ModelQtyCoverageTestDataFactory.createPricingProgram(
+            'ZZPP Draft', 'Draft', today.addDays(-10), null, new List<String>{ 'CT.ZZD01' }
+        );
+        ModelQtyCoverageTestDataFactory.createPricingProgram(
+            'ZZPP Expired', 'Active', today.addDays(-30), today.addDays(-1), new List<String>{ 'CT.ZZE01' }
+        );
+        ModelQtyCoverageTestDataFactory.createPricingProgram(
+            'ZZPP Future', 'Active', today.addDays(1), null, new List<String>{ 'CT.ZZF01' }
+        );
+
+        /********************************************
+        * GIVEN
+        ********************************************/
+        Assert.areEqual(5, [SELECT COUNT() FROM PricingProgram__c], 'Five programs created');
+        Assert.areEqual(6, [SELECT COUNT() FROM PricingProgramLines__c], 'Six CT code lines created');
+
+        /********************************************
+        * WHEN
+        ********************************************/
+        List<ContractModifierService.PricingProgramOption> byNameList;
+        List<ContractModifierService.PricingProgramOption> byCtCodeList;
+        List<ContractModifierService.PricingProgramOption> byCtNameList;
+        List<ContractModifierService.PricingProgramOption> wildcardList;
+        List<ContractModifierService.PricingProgramOption> shortList;
+        List<ContractModifierService.PricingProgramOption> blankList;
+        Test.startTest();
+        System.runAs(contextUser) {
+            byNameList = ContractModifierService.searchPricingPrograms('  zzpp ');
+            byCtCodeList = ContractModifierService.searchPricingPrograms('CT.ZZA02');
+            byCtNameList = ContractModifierService.searchPricingPrograms('ZZB01 Name');
+            wildcardList = ContractModifierService.searchPricingPrograms('ZZPP%');
+            shortList = ContractModifierService.searchPricingPrograms('ZZ');
+            blankList = ContractModifierService.searchPricingPrograms(null);
+        }
+        Test.stopTest();
+
+        /********************************************
+        * THEN
+        ********************************************/
+        Assert.areEqual(new List<String>{ 'ZZPP Alpha', 'ZZPP Beta' }, programNames(byNameList),
+                        'Only Active, in-date programs (open-ended end date included), case ignored');
+        Assert.areEqual(new List<String>{ 'ZZPP Alpha' }, programNames(byCtCodeList), 'Found by CT code');
+        ContractModifierService.PricingProgramOption alpha = byCtCodeList[0];
+        Assert.isNotNull(alpha.programId, 'Program Id returned');
+        Assert.isTrue(String.isNotBlank(alpha.program), 'Program auto-number name returned');
+        Assert.areEqual(2, alpha.ctCodes.size(), 'Both CT codes of the program');
+        Assert.areEqual('CT.ZZA01', alpha.ctCodes[0].code, 'CT codes sorted by code');
+        Assert.areEqual('CT.ZZA01 Name', alpha.ctCodes[0].name, 'CT name from the Category Code product');
+        Assert.isNotNull(alpha.category, 'Product Line returned as category');
+        Assert.areEqual(new List<String>{ 'ZZPP Beta' }, programNames(byCtNameList), 'Found by CT name');
+        Assert.isTrue(wildcardList.isEmpty(), '% typed by the user is matched literally');
+        Assert.isTrue(shortList.isEmpty(), 'A term under 3 characters returns nothing');
+        Assert.isTrue(blankList.isEmpty(), 'A blank term returns nothing');
+    }
+
+    /**
+     * @description Lookup by name refreshes saved rows: no status or date filter; blanks and duplicates ignored.
+     */
+    @IsTest
+    static void testGetPricingProgramsByNames() {
+        /********************************************
+        * SETUP
+        ********************************************/
+        ModelQtyCoverageTestDataFactory.grantPricingProgramAccess();
+        User contextUser = new User(Id = UserInfo.getUserId());
+        Date today = Date.today();
+        PricingProgram__c draft = ModelQtyCoverageTestDataFactory.createPricingProgram(
+            'ZZPP Draft', 'Draft', today.addDays(-10), null, new List<String>{ 'CT.ZZD01' }
+        );
+        PricingProgram__c expired = ModelQtyCoverageTestDataFactory.createPricingProgram(
+            'ZZPP Expired', 'Active', today.addDays(-30), today.addDays(-1), new List<String>{ 'CT.ZZE01' }
+        );
+
+        /********************************************
+        * GIVEN
+        ********************************************/
+        Assert.areNotEqual(draft.Name, expired.Name, 'Programs have distinct names');
+
+        /********************************************
+        * WHEN
+        ********************************************/
+        List<ContractModifierService.PricingProgramOption> foundList;
+        List<ContractModifierService.PricingProgramOption> emptyList;
+        List<ContractModifierService.PricingProgramOption> nullList;
+        Test.startTest();
+        System.runAs(contextUser) {
+            foundList = ContractModifierService.getPricingProgramsByNames(
+                new List<String>{ draft.Name, ' ' + expired.Name + ' ', draft.Name, '', null }
+            );
+            emptyList = ContractModifierService.getPricingProgramsByNames(new List<String>{ ' ' });
+            nullList = ContractModifierService.getPricingProgramsByNames(null);
+        }
+        Test.stopTest();
+
+        /********************************************
+        * THEN
+        ********************************************/
+        Assert.areEqual(new List<String>{ 'ZZPP Draft', 'ZZPP Expired' }, programNames(foundList),
+                        'Draft and expired programs are returned by name, once each');
+        Assert.areEqual('CT.ZZE01', foundList[1].ctCodes[0].code, 'CT code of the expired program');
+        Assert.isTrue(emptyList.isEmpty(), 'Blank names return nothing');
+        Assert.isTrue(nullList.isEmpty(), 'No names return nothing');
+    }
+
+    /**
+     * @description Pricing Programs in the JSON survive save and reload, old JSON without them reads as an empty
+     *              list, and the sync still creates only the MODEL QTY records (no Pricing Program records yet).
+     */
+    @IsTest
+    static void testPricingProgramsKeptInCoverage() {
+        /********************************************
+        * SETUP
+        ********************************************/
+        User contextUser = new User(Id = UserInfo.getUserId());
+        QuoteLineItem line = getLine();
+        String coverage = JSON.serialize(new Map<String, Object>{
+            'inclusions' => new List<Object>(),
+            'models' => new List<Object>{ new Map<String, Object>{ 'model' => 'P-1', 'qty' => 2 } },
+            'pricingPrograms' => new List<Object>{ new Map<String, Object>{
+                'programId' => null, 'program' => 'PP-9999', 'description' => 'ZZPP Saved',
+                'ctCodes' => new List<Object>{ new Map<String, Object>{ 'code' => 'CT.ZZS01', 'name' => 'Saved' } }
+            } },
+            'pricingProgram' => null
+        });
+
+        /********************************************
+        * GIVEN
+        ********************************************/
+        Assert.isTrue(ContractModifierService.parseCoverage('{"models":[]}').pricingPrograms.isEmpty(),
+                      'JSON saved before Pricing Programs reads as an empty list');
+
+        /********************************************
+        * WHEN
+        ********************************************/
+        ContractModifierService.ContractAdjustments saved;
+        Test.startTest();
+        System.runAs(contextUser) {
+            setCoverage(line.Id, coverage);
+            saved = ContractModifierService.getContractAdjustments(line.Id);
+        }
+        Test.stopTest();
+
+        /********************************************
+        * THEN
+        ********************************************/
+        Assert.areEqual(1, saved.pricingPrograms.size(), 'Pricing Program read back from the JSON');
+        Assert.areEqual('PP-9999', saved.pricingPrograms[0].program, 'Program name kept');
+        Assert.areEqual('CT.ZZS01', saved.pricingPrograms[0].ctCodes[0].code, 'CT code kept');
+        Assert.areEqual(1, [SELECT COUNT() FROM ContractModifier__c], 'Only the MODEL QTY record is created');
+        Assert.areEqual(0, [
+            SELECT COUNT() FROM ContractModifier__c WHERE Type__c = :ContractModifierSelector.TYPE_PRICING_PROGRAM
+        ], 'No Pricing Program records yet');
+    }
 }

@@ -1,7 +1,7 @@
 /**
  * @description GC-3521. Rolls commercial opportunity Amount onto the HC Project Opportunity.
  *              Open, Closed Won, Closed Lost, and Total Associated Value are stored on the project.
- *              Opportunity Amount on the project is not changed. Other record types are not updated.
+ *              Opportunity Amount on the project is set to that total. Other record types are not updated.
  *              Runs without sharing and in system mode so a commercial user can link a project
  *              without edit access to the calculated value fields or to the project record.
  */
@@ -24,6 +24,7 @@ public without sharing class ProjectOpportunityValueRollupService {
             }
             Map<Id, Opportunity> projectsById = new Map<Id, Opportunity>([
                 SELECT Id,
+                    Amount,
                     OpenValue__c,
                     ClosedWonValue__c,
                     ClosedLostValue__c,
@@ -68,11 +69,13 @@ public without sharing class ProjectOpportunityValueRollupService {
                 if (sameAmount(project.OpenValue__c, openByProject.get(project.Id))
                     && sameAmount(project.ClosedWonValue__c, wonByProject.get(project.Id))
                     && sameAmount(project.ClosedLostValue__c, lostByProject.get(project.Id))
-                    && sameAmount(project.TotalAssociatedValue__c, totalByProject.get(project.Id))) {
+                    && sameAmount(project.TotalAssociatedValue__c, totalByProject.get(project.Id))
+                    && sameAmount(project.Amount, totalByProject.get(project.Id))) {
                     continue;
                 }
                 updates.add(new Opportunity(
                     Id = project.Id,
+                    Amount = totalByProject.get(project.Id),
                     OpenValue__c = openByProject.get(project.Id),
                     ClosedWonValue__c = wonByProject.get(project.Id),
                     ClosedLostValue__c = lostByProject.get(project.Id),

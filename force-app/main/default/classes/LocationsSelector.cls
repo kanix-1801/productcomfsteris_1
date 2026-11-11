@@ -2,28 +2,21 @@
  * @author Uptima
  * @date 2026-08-15
  * @group Selectors
- * @description Selector class for Schema.Location.
- *              Centralizes SOQL for Location / Rack lookups used by Repair Center flows.
- *              Used by GW-2891 (Divide Instruments) and GW-3816 (Assign Rack).
+ * @description Selector for Schema.Location. Binds the object for SoqlQueryBuilder;
+ *              new queries are built by LocationsService. Legacy static select* methods
+ *              remain for QACBM parity until callers are migrated.
  */
-public with sharing class LocationsSelector {
+public with sharing class LocationsSelector extends SoqlQueryBuilder {
     private static final String LOCATION_TYPE_RACK = 'Rack';
-    private static final String LOCATION_TYPE_REPAIR_CENTER = 'Repair Center';
     private static final String RACK_ASSIGN_FIELDS =
         'Id, Name, Repair_Category__c, LocationType, TrackRackAssignmentHistory__c, ' +
         'StatusAssignment__c, SubStatusAssignment__c';
-    private static final String BASE_FIELDS = 'Id, Name, VisitorAddressId';
 
     /**
-     * @description GW-5492 - Repair Center locations for Receiving redirect.
-     * @return Location rows ordered by Name
+     * @description Binds this selector to Location.
      */
-    public static List<Schema.Location> selectRepairCenters() {
-        return (List<Schema.Location>) SoqlQueryBuilder.fromObject('Location')
-            .selectFields(new List<String>{ 'Id', 'Name', 'LocationType' })
-            .whereEquals('LocationType', LOCATION_TYPE_REPAIR_CENTER)
-            .orderBy('Name')
-            .execute();
+    public LocationsSelector() {
+        super('Location');
     }
 
     /**
@@ -69,8 +62,6 @@ public with sharing class LocationsSelector {
      *              FLS is not consistently granted to shop-floor scanner profiles.
      * @param rackInput Location Id or Name
      * @return Matching Rack Location, or null when not found / blank input
-     * @example
-     * Schema.Location rack = LocationsSelector.selectRackByIdOrName('RACK-01');
      */
     public static Schema.Location selectRackByIdOrName(String rackInput) {
         if (String.isBlank(rackInput)) {
@@ -104,4 +95,37 @@ public with sharing class LocationsSelector {
         );
         return byNameList.isEmpty() ? null : byNameList[0];
     }
+
+    /**
+     * @description GW-1509 - Locations by LocationType for Create Return Order repair centers.
+     * @param locationType LocationType value
+     * @return Matching Location rows ordered by Name
+     */
+    public static List<Schema.Location> selectByLocationType(String locationType) {
+        if (String.isBlank(locationType)) {
+            return new List<Schema.Location>();
+        }
+        return (List<Schema.Location>) SoqlQueryBuilder.fromObject('Location')
+            .selectFields(new List<String>{ 'Id', 'Name' })
+            .whereEquals('LocationType', locationType)
+            .orderBy('Name')
+            .execute();
+    }
+
+    /**
+     * @description GW-1509 - Location name for Create Return Order repair center display.
+     * @param locationId Location Id
+     * @return Matching Location rows (LIMIT 1)
+     */
+    public static List<Schema.Location> selectNameById(Id locationId) {
+        if (locationId == null) {
+            return new List<Schema.Location>();
+        }
+        return (List<Schema.Location>) SoqlQueryBuilder.fromObject('Location')
+            .selectFields(new List<String>{ 'Name' })
+            .whereEquals('Id', locationId)
+            .limitTo(1)
+            .execute();
+    }
+
 }

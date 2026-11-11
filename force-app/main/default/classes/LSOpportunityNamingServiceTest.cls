@@ -118,7 +118,7 @@ private class LSOpportunityNamingServiceTest {
 
         Assert.areEqual(1, scoped.LSOpportunityNumber__c);
         Assert.areEqual(
-            'LS-000001 - Acme Hospital - Washer, Sterilizer',
+            'LS-00001 - Acme Hospital - Washer, Sterilizer',
             scoped.Name
         );
         Assert.areEqual('Keep me', other.Name);
@@ -134,7 +134,7 @@ private class LSOpportunityNamingServiceTest {
             scoped.LSOpportunityNumber__c,
             'A later save must reuse the same sequence.'
         );
-        Assert.areEqual('LS-000001 - Acme Hospital - Washer', scoped.Name);
+        Assert.areEqual('LS-00001 - Acme Hospital - Washer', scoped.Name);
     }
 
     @IsTest
@@ -160,8 +160,8 @@ private class LSOpportunityNamingServiceTest {
 
         Assert.areEqual(1, first.LSOpportunityNumber__c);
         Assert.areEqual(2, second.LSOpportunityNumber__c);
-        Assert.areEqual('LS-000001', first.Name);
-        Assert.areEqual('LS-000002', second.Name);
+        Assert.areEqual('LS-00001', first.Name);
+        Assert.areEqual('LS-00002', second.Name);
     }
 
     @IsTest
@@ -180,7 +180,7 @@ private class LSOpportunityNamingServiceTest {
             new List<Opportunity>{ createdClosed }
         );
         Assert.areEqual(1, createdClosed.LSOpportunityNumber__c);
-        Assert.areEqual('LS-000001 - Washer', createdClosed.Name);
+        Assert.areEqual('LS-00001 - Washer', createdClosed.Name);
 
         Opportunity editedClosed = new Opportunity(
             Id = Id.valueOf('006000000000009AAA'),

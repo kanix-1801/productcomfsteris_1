@@ -157,6 +157,12 @@ public with sharing class C2EmailController {
         return shippingLineItems;
     }
     
+    // Equipment Shipping table data
+    /**
+     * @description Returns equipment shipping line items mapped for VF rendering.
+     * @param caseId Controller property used to identify the Case
+     * @return List<LineItem> open line items
+     */
     public List<LineItem> getOpenLineItems() {
         if (openLineItems == null) {
             openLineItems = new List<LineItem>();
@@ -235,6 +241,11 @@ public with sharing class C2EmailController {
         return EmailControllerHelper.calculateScheduledShipDate(caseId, false);
     }
     
+    /**
+     * @description Calculates First non pre-install schedule date.
+     * @param caseId Controller property used to identify the Case
+     * @return DateTime Calculated Scheduled ship date
+     */
     public dateTime getNonPreInstallScheduleDate() {
         return EmailControllerHelper.firstNonPreInstallScheduleDate(caseId);
     }

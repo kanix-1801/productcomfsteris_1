@@ -5,30 +5,38 @@
  * @group Life Sciences Account
  *
  * @description
- * GCL-100 - Decides whether the running user sees the out-of-territory Account header.
- * The Account owner and Account Team members keep the standard Life Sciences page.
- * Header field values are loaded by the Lightning component through the UI API.
+ * GCL-100 - Decides Full or Base for the Life Sciences Customer record type.
+ * Only the Customer record type is checked. Its owner and Account Team members get Full.
+ * Anyone else on a Customer account gets the read-only Base panes.
+ * Every other record type gets Full, so this check does not apply to it.
+ * Field values stay on the UI API.
  */
 public with sharing class LSAccountHeaderService {
+
+    public static final String ACCESS_FULL = 'Full';
+    public static final String ACCESS_BASE = 'Base';
+    public static final String CUSTOMER_RECORD_TYPE = 'Customer';
 
     @TestVisible
     private static Boolean throwTestException = false;
 
     /**
      * @description
-     * GCL-100 - Access decision returned to the Life Sciences header component.
+     * GCL-100 - Access decision returned to the Life Sciences Customer 360 panes.
+     * showHeaderOnly remains so the earlier header component still understands the response.
      */
     public class HeaderView {
+        @AuraEnabled public String accessLevel;
         @AuraEnabled public Boolean showHeaderOnly;
     }
 
     /**
      * @description
-     * GCL-100 - Returns the header decision for the Account. Field values are not
-     * included. Contacts, Opportunities, Activities, Notes, and Emails are not queried.
+     * GCL-100 - Returns Full or Base for the Account. Field values are not included.
+     * Contacts, Opportunities, Activities, Notes, and Emails are not queried.
      *
      * @param accountId Account opened by the running user.
-     * @return Header decision. showHeaderOnly is false for the owner and for team members.
+     * @return Full for a non-Customer record type, the Customer owner, and a Customer Account Team member. Base otherwise.
      *
      * @example
      * LSAccountHeaderService.getHeaderView(accountId);
@@ -48,23 +56,23 @@ public with sharing class LSAccountHeaderService {
         }
 
         HeaderView headerView = new HeaderView();
-        headerView.showHeaderOnly = !isOwnerOrTeamMember(accounts[0]);
+        if (!isCustomerRecordType(accounts[0])) {
+            headerView.accessLevel = ACCESS_FULL;
+            headerView.showHeaderOnly = false;
+            return headerView;
+        }
+
+        Boolean isOwner = accounts[0].OwnerId == UserInfo.getUserId();
+        Boolean isTeamMember =
+            !LSAccountHeaderSelector.selectCurrentUserTeamMember(accountId).isEmpty();
+
+        headerView.accessLevel = (isOwner || isTeamMember) ? ACCESS_FULL : ACCESS_BASE;
+        headerView.showHeaderOnly = headerView.accessLevel == ACCESS_BASE;
         return headerView;
     }
 
-    /**
-     * @description
-     * GCL-100 - Full page access stays with the owner and with anyone already on the
-     * Account Team.
-     *
-     * @param accountRecord Account row returned by the selector.
-     * @return TRUE when the running user should keep the standard record page.
-     */
-    private static Boolean isOwnerOrTeamMember(Account accountRecord) {
-        if (accountRecord.OwnerId == UserInfo.getUserId()) {
-            return true;
-        }
-
-        return !LSAccountHeaderSelector.selectCurrentUserTeamMember(accountRecord.Id).isEmpty();
+    private static Boolean isCustomerRecordType(Account accountRecord) {
+        return accountRecord.RecordType != null
+            && accountRecord.RecordType.DeveloperName == CUSTOMER_RECORD_TYPE;
     }
 }

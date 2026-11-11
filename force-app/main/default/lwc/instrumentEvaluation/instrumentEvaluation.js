@@ -11,8 +11,8 @@ import saveWorkOrderFields from '@salesforce/apex/InstrumentEvaluationController
 import getEvalCategories from '@salesforce/apex/InstrumentEvaluationController.getEvalCategories';
 import getProductsForEvalCategory from '@salesforce/apex/InstrumentEvaluationController.getProductsForEvalCategory';
 import getRepairCodesForProduct from '@salesforce/apex/InstrumentEvaluationController.getRepairCodesForProduct';
-import completeDraftItems from '@salesforce/apex/InstrumentEvaluationController.completeDraftItems';
 import saveDraftItems from '@salesforce/apex/InstrumentEvaluationController.saveDraftItems';
+import finalizeInstrumentEvaluationAfterPricing from '@salesforce/apex/InstrumentEvaluationController.finalizeInstrumentEvaluationAfterPricing';
 import returnToEvaluation from '@salesforce/apex/InstrumentEvaluationController.returnToEvaluation';
 import getEvaluationItems from '@salesforce/apex/InstrumentEvaluationController.getEvaluationItems';
 import getReturnOrderLineAssignment from '@salesforce/apex/InstrumentEvaluationController.getReturnOrderLineAssignment';
@@ -74,6 +74,7 @@ const TAB_REPAIR_CODES = 'repairCodes';
 const TAB_PREFERENCES = 'customerPreferences';
 const TAB_NOTES = 'evaluationNotes';
 const TAB_ITEM_SUMMARY = 'itemSummary';
+const TAB_MODIFIER_CODES = 'modifierCodes';
 const TAB_WORK_PERFORMED = 'workPerformed';
 const WIZARD_CATEGORY = 'category';
 const WIZARD_PRODUCT = 'product';
@@ -346,11 +347,51 @@ export default class InstrumentEvaluation extends LightningElement {
         if (!this.workspace) {
             return false;
         }
-        if (this.workspace.status === STATUS_EVALUATE_QUOTE) {
+        if (
+            this.workspace.status === STATUS_EVALUATE_QUOTE ||
+            this.workspace.status === STATUS_REPAIR
+        ) {
             return true;
         }
         const estimate = this.workspace.estimateRequired;
         return estimate === ESTIMATE_OA || estimate === ESTIMATE_PRE_APPROVED;
+    }
+
+    get showRepairCostHeader() {
+        return this.isWorkspaceMode && this.isRepairStatus;
+    }
+
+    get currentRepairCostDisplay() {
+        return this.formatRepairCost(this.workspace?.originalNetTotalPrice);
+    }
+
+    get updatedRepairCostDisplay() {
+        return this.formatRepairCost(this.workspace?.newNetTotalPrice);
+    }
+
+    formatRepairCost(value) {
+        const amount = value == null || value === '' ? 0 : Number(value);
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD'
+        }).format(Number.isNaN(amount) ? 0 : amount);
+    }
+
+    applyDraftSaveResult(result) {
+        const productServicedIds = Array.isArray(result)
+            ? result
+            : result?.productServicedIds || [];
+        if (!Array.isArray(result) && this.workspace) {
+            const next = { ...this.workspace };
+            if (result?.originalNetTotalPrice != null) {
+                next.originalNetTotalPrice = result.originalNetTotalPrice;
+            }
+            if (result?.newNetTotalPrice != null) {
+                next.newNetTotalPrice = result.newNetTotalPrice;
+            }
+            this.workspace = next;
+        }
+        return productServicedIds;
     }
 
     get cloneEnabled() {
@@ -385,12 +426,46 @@ export default class InstrumentEvaluation extends LightningElement {
         return this.selectedTab === TAB_ITEM_SUMMARY;
     }
 
+    get isModifierCodesTab() {
+        return this.selectedTab === TAB_MODIFIER_CODES;
+    }
+
     get isWorkPerformedTab() {
         return this.selectedTab === TAB_WORK_PERFORMED;
     }
 
     get isRepairStatus() {
         return this.workspace?.status === STATUS_REPAIR;
+    }
+
+    get needsRepairPricing() {
+        return (
+            this.isRepairStatus &&
+            (this.workspace?.estimateRequired === ESTIMATE_REQUIRED ||
+                this.workspace?.customerPoRequired === true)
+        );
+    }
+
+    async priceCommittedInstrumentLines({ applyCompletion, originalNetTotal }) {
+        if (applyCompletion !== true && !this.needsRepairPricing) {
+            return;
+        }
+        const priced = await finalizeInstrumentEvaluationAfterPricing({
+            workOrderId: this.workspace.workOrderId,
+            originalNetTotal,
+            applyCompletion: applyCompletion === true
+        });
+        this.applyDraftSaveResult(priced);
+        if (priced?.requoteWarning) {
+            this.dispatchEvent(
+                new ShowToastEvent({
+                    title: 'Repair cost increased',
+                    message: priced.requoteWarning,
+                    variant: 'warning',
+                    mode: 'sticky'
+                })
+            );
+        }
     }
 
     /**
@@ -979,7 +1054,8 @@ export default class InstrumentEvaluation extends LightningElement {
             items.push({ label: 'Add Items', value: TAB_ADD_ITEMS });
         }
         items.push({ label: 'Item Summary', value: TAB_ITEM_SUMMARY });
-        // Work Performed after Item Summary; only when Status = Repair.
+        items.push({ label: 'Modifier Codes', value: TAB_MODIFIER_CODES });
+        // Work Performed after Modifier Codes; only when Status = Repair.
         if (this.showWorkPerformedTab) {
             items.push({ label: 'Work Performed', value: TAB_WORK_PERFORMED });
         }
@@ -1315,10 +1391,17 @@ export default class InstrumentEvaluation extends LightningElement {
         this.workspaceError = '';
         try {
             const snapshot = this.getDraftItemsToPersist({ includeAllEntries: true });
-            await saveDraftItems({
-                workOrderId: this.workspace.workOrderId,
-                draftItems: snapshot.map((row) => this.toDraftItemPayload(row)),
-                reconcileRemovedLines: true
+            const originalNetTotal = this.workspace?.originalNetTotalPrice;
+            this.applyDraftSaveResult(
+                await saveDraftItems({
+                    workOrderId: this.workspace.workOrderId,
+                    draftItems: snapshot.map((row) => this.toDraftItemPayload(row)),
+                    reconcileRemovedLines: true
+                })
+            );
+            await this.priceCommittedInstrumentLines({
+                applyCompletion: false,
+                originalNetTotal
             });
             await this.hydratePersistedEvaluationState(this.workspace.workOrderId);
             this.draftsCommitted = true;
@@ -1716,10 +1799,23 @@ export default class InstrumentEvaluation extends LightningElement {
         this.workspaceError = '';
         const unpersistedSnapshot = this.getDraftItemsToPersist({ includeAllEntries: true });
         const stagedSnapshot = [...(this.stagedRepairSignatures || [])];
+        const originalNetTotal = this.workspace?.originalNetTotalPrice;
         try {
-            const productServicedIds = await completeDraftItems({
-                workOrderId: this.workspace.workOrderId,
-                draftItems: unpersistedSnapshot.map((entry) => this.toDraftItemPayload(entry))
+            let productServicedIds = [];
+            if (unpersistedSnapshot.length) {
+                productServicedIds = this.applyDraftSaveResult(
+                    await saveDraftItems({
+                        workOrderId: this.workspace.workOrderId,
+                        draftItems: unpersistedSnapshot.map((entry) =>
+                            this.toDraftItemPayload(entry)
+                        ),
+                        reconcileRemovedLines: true
+                    })
+                );
+            }
+            await this.priceCommittedInstrumentLines({
+                applyCompletion: true,
+                originalNetTotal
             });
             await this.persistStagedSignaturesAfterComplete(
                 this.workspace.workOrderId,
@@ -1773,10 +1869,17 @@ export default class InstrumentEvaluation extends LightningElement {
             if (!headerSaved) {
                 return false;
             }
-            const productServicedIds = await saveDraftItems({
-                workOrderId: this.workspace.workOrderId,
-                draftItems: unpersistedSnapshot.map((entry) => this.toDraftItemPayload(entry)),
-                reconcileRemovedLines: true
+            const originalNetTotal = this.workspace?.originalNetTotalPrice;
+            const productServicedIds = this.applyDraftSaveResult(
+                await saveDraftItems({
+                    workOrderId: this.workspace.workOrderId,
+                    draftItems: unpersistedSnapshot.map((entry) => this.toDraftItemPayload(entry)),
+                    reconcileRemovedLines: true
+                })
+            );
+            await this.priceCommittedInstrumentLines({
+                applyCompletion: false,
+                originalNetTotal
             });
             await this.persistStagedSignaturesAfterComplete(
                 this.workspace.workOrderId,
@@ -2642,10 +2745,17 @@ export default class InstrumentEvaluation extends LightningElement {
                 ...this.emptyVendorFields(),
                 vendorWorkOrderId: null
             });
-            await saveDraftItems({
-                workOrderId: this.workspace.workOrderId,
-                draftItems: [clearedPayload],
-                reconcileRemovedLines: false
+            const originalNetTotal = this.workspace?.originalNetTotalPrice;
+            this.applyDraftSaveResult(
+                await saveDraftItems({
+                    workOrderId: this.workspace.workOrderId,
+                    draftItems: [clearedPayload],
+                    reconcileRemovedLines: false
+                })
+            );
+            await this.priceCommittedInstrumentLines({
+                applyCompletion: false,
+                originalNetTotal
             });
             this.applyVendorClearedToDraftEntry(entryId, false);
             await this.hydratePersistedEvaluationState(this.workspace.workOrderId);
@@ -3055,10 +3165,17 @@ export default class InstrumentEvaluation extends LightningElement {
         }
         this.isLoading = true;
         try {
-            const productServicedIds = await saveDraftItems({
-                workOrderId: this.workspace.workOrderId,
-                draftItems: unpersistedSnapshot.map((entry) => this.toDraftItemPayload(entry)),
-                reconcileRemovedLines: false
+            const originalNetTotal = this.workspace?.originalNetTotalPrice;
+            const productServicedIds = this.applyDraftSaveResult(
+                await saveDraftItems({
+                    workOrderId: this.workspace.workOrderId,
+                    draftItems: unpersistedSnapshot.map((entry) => this.toDraftItemPayload(entry)),
+                    reconcileRemovedLines: false
+                })
+            );
+            await this.priceCommittedInstrumentLines({
+                applyCompletion: false,
+                originalNetTotal
             });
             await this.applySavedDraftSnapshot(unpersistedSnapshot, productServicedIds);
             this.draftsCommitted = true;

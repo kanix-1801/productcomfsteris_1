@@ -24,6 +24,10 @@ public with sharing class WorkOrdersService {
     @TestVisible
     private static Boolean simulatePrmException = false;
 
+    /** GW-3377 - Records whether Complete ran pricing before the status update. */
+    @TestVisible
+    static List<String> evaluationPersistSteps = new List<String>();
+
     @TestVisible
     private static void throwIfSimulated() {
         if (!Test.isRunningTest()) {
@@ -104,6 +108,12 @@ public with sharing class WorkOrdersService {
         public Integer observationCodeCount = 0;
         public Integer serviceCodeCount = 0;
         public ProductRelatedMaterialsService.RepairCodeCatalog catalog;
+        /** GW-3377 - Repair Code net total before the latest save. */
+        public Decimal originalNetTotalPrice;
+        /** GW-3377 - Repair Code net total after Execute Pricing. */
+        public Decimal newNetTotalPrice;
+        /** GW-3377 - Warning when a Repair save exceeds the approved cost. */
+        public String requoteWarning;
     }
 
     /**
@@ -123,6 +133,12 @@ public with sharing class WorkOrdersService {
         public List<CustomerPreference__c> customerPreferences = new List<CustomerPreference__c>();
         public List<WorkOrder> repairHistory = new List<WorkOrder>();
         public Boolean repairHistoryHasMore = false;
+        /** GW-3377 - Repair Code net total before the latest save. */
+        public Decimal originalNetTotalPrice;
+        /** GW-3377 - Repair Code net total after Execute Pricing. */
+        public Decimal newNetTotalPrice;
+        /** GW-3377 - Warning when a Repair save exceeds the approved cost. */
+        public String requoteWarning;
     }
 
     /**
@@ -904,6 +920,10 @@ public with sharing class WorkOrdersService {
         workOrder.PhotosRequired__c = photosRequired;
         persistWorkOrderForDeviceEvaluation(workOrder);
 
+        Boolean requoteGate = WorkOrderRepairPricingService.requiresRequoteGate(workOrder);
+        Decimal originalTotal = requoteGate
+            ? WorkOrderRepairPricingService.sumRepairCodeNetTotal(workOrder)
+            : null;
         WorkOrderLineItemsService.reconcileRepairCodeWolisForDeviceEvaluation(
             workOrder,
             selectedIds,
@@ -914,6 +934,9 @@ public with sharing class WorkOrdersService {
             stagedPhotos,
             selectedIds
         );
+        if (requoteGate) {
+            captureUnpricedRepairTotals(workOrder, originalTotal);
+        }
 
         workOrder.SubStatus__c = subStatus;
         if (applyCompletionRules == true) {
@@ -936,6 +959,221 @@ public with sharing class WorkOrdersService {
 
         workOrder = requireWorkOrderById(workOrderId);
         return buildDeviceEvaluationContext(workOrder, photosRequired, catalog);
+    }
+
+    /**
+     * @description GW-3377 - Runs Execute Pricing after WOLI DML has committed, then
+     *              optionally applies Complete Status. Call from a separate Aura request
+     *              so the Oracle callout is not in the same transaction as line DML.
+     */
+    public static DeviceEvaluationContext finalizeDeviceEvaluationAfterPricing(
+        Id workOrderId,
+        Decimal originalTotal,
+        Boolean applyCompletion,
+        List<Id> restoreProductIds,
+        String subStatus
+    ) {
+        if (workOrderId == null) {
+            throw new WorkOrdersServiceException('Work Order is required.');
+        }
+        WorkOrder workOrder = requireWorkOrderById(workOrderId);
+        validateWorkOrderForEvaluation(workOrder);
+        Boolean photosRequired = CustomerPreferencesService.isPhotosRequiredExactProductLine(
+            workOrder.AccountId,
+            resolveProductLine(workOrder)
+        );
+        if (
+            applyCompletion == true &&
+            photosRequired &&
+            workOrder.UnableToTakePhoto__c != true &&
+            !ContentDocumentLinksService.repairCodeWolisHaveFilesForDeviceEvaluation(workOrderId)
+        ) {
+            throw new WorkOrdersServiceException(PHOTO_REQUIRED_MESSAGE);
+        }
+        if (applyCompletion == true && WO_SUB_STATUS_SHIP_TO_VENDOR.equals(subStatus)) {
+            throw new WorkOrdersServiceException(SHIP_TO_VENDOR_COMPLETE_BLOCKED_MESSAGE);
+        }
+
+        ProductRelatedMaterialsService.RepairCodeCatalog catalog =
+            ProductRelatedMaterialsService.buildRepairCodeCatalogForDeviceEvaluation(
+                workOrder.Asset.Product2Id
+            );
+        Boolean requoteGate = WorkOrderRepairPricingService.requiresRequoteGate(workOrder);
+        Boolean shouldPrice =
+            requoteGate ||
+            (applyCompletion == true &&
+            WorkOrderRepairPricingService.shouldPriceBeforeStatusChange(workOrder));
+        evaluationPersistSteps = new List<String>();
+        if (shouldPrice) {
+            evaluationPersistSteps.add('pricing');
+            try {
+                WorkOrderRepairPricingService.lastTotals =
+                    WorkOrderRepairPricingService.priceAfterLineChanges(
+                        workOrder,
+                        requoteGate,
+                        originalTotal,
+                        applyCompletion == true
+                    );
+            } catch (Exception e) {
+                restoreDeviceEvaluationRepairCodes(workOrder, catalog, restoreProductIds);
+                throw e;
+            }
+        }
+
+        String priorStatus = workOrder.Status;
+        String priorSubStatus = workOrder.SubStatus__c;
+        if (subStatus != null) {
+            workOrder.SubStatus__c = subStatus;
+        }
+        if (applyCompletion == true) {
+            evaluationPersistSteps.add('status');
+            applyCompletionStatus(workOrder);
+            applyParentGenerateQuoteOnComplete(workOrder);
+        }
+        if (workOrder.Status != priorStatus || workOrder.SubStatus__c != priorSubStatus) {
+            persistWorkOrderForDeviceEvaluation(
+                new WorkOrder(
+                    Id = workOrder.Id,
+                    RecordTypeId = workOrder.RecordTypeId,
+                    Status = workOrder.Status,
+                    SubStatus__c = workOrder.SubStatus__c
+                )
+            );
+        }
+        workOrder = requireWorkOrderById(workOrderId);
+        return buildDeviceEvaluationContext(workOrder, photosRequired, catalog);
+    }
+
+    /**
+     * @description GW-3377 - Runs Execute Pricing after Instrument Evaluation line DML
+     *              has committed, then optionally applies Complete Status.
+     *              Quote generation stays on the Dev rule (GW-5830).
+     */
+    public static void finalizeInstrumentEvaluationAfterPricing(
+        Id workOrderId,
+        Decimal originalTotal,
+        Boolean applyCompletion
+    ) {
+        if (workOrderId == null) {
+            throw new WorkOrdersServiceException('Work Order is required.');
+        }
+        WorkOrder workOrder = requireInstrumentEvaluationWorkOrder(workOrderId);
+        Boolean requoteGate = WorkOrderRepairPricingService.requiresRequoteGate(workOrder);
+        Boolean shouldPrice =
+            requoteGate ||
+            (applyCompletion == true &&
+            WorkOrderRepairPricingService.shouldPriceBeforeStatusChange(workOrder));
+        evaluationPersistSteps = new List<String>();
+        if (shouldPrice) {
+            evaluationPersistSteps.add('pricing');
+            WorkOrderRepairPricingService.lastTotals =
+                WorkOrderRepairPricingService.priceAfterLineChanges(
+                    workOrder,
+                    requoteGate,
+                    originalTotal,
+                    applyCompletion == true
+                );
+        }
+        if (applyCompletion == true) {
+            List<WorkOrderLineItem> existingLines =
+                WorkOrderLineItemsService.getInstrumentEvaluationLines(workOrder.Id);
+            if (existingLines == null || existingLines.isEmpty()) {
+                throw new WorkOrdersServiceException(
+                    'Add at least one instrument before continuing.'
+                );
+            }
+            evaluationPersistSteps.add('status');
+            applyInstrumentEvaluationCompletionStatus(workOrder);
+            Boolean shouldGenerateQuoteOnParent =
+                workOrder.Status == WO_STATUS_EVALUATE_AND_QUOTE &&
+                shouldGenerateParentQuoteOnComplete(workOrder);
+            persistWorkOrderForDeviceEvaluation(
+                new WorkOrder(
+                    Id = workOrder.Id,
+                    Status = workOrder.Status,
+                    SubStatus__c = workOrder.SubStatus__c
+                )
+            );
+            if (shouldGenerateQuoteOnParent) {
+                persistWorkOrderForDeviceEvaluation(
+                    new WorkOrder(Id = workOrder.ParentWorkOrderId, GenerateQuote__c = true)
+                );
+            }
+        }
+    }
+
+    /**
+     * @description GW-3377 - Stores pre/post line totals without invoking Execute Pricing.
+     */
+    private static void captureUnpricedRepairTotals(WorkOrder workOrder, Decimal originalTotal) {
+        WorkOrderRepairPricingService.PricingTotals totals =
+            new WorkOrderRepairPricingService.PricingTotals();
+        totals.workOrderId = workOrder == null ? null : workOrder.Id;
+        totals.originalNetTotal = originalTotal == null ? 0 : originalTotal;
+        totals.newNetTotal = WorkOrderRepairPricingService.sumRepairCodeNetTotal(workOrder);
+        WorkOrderRepairPricingService.lastTotals = totals;
+    }
+
+    /**
+     * @description GW-3377 - Restores Device Evaluation Repair Codes after a requote block.
+     */
+    private static void restoreDeviceEvaluationRepairCodes(
+        WorkOrder workOrder,
+        ProductRelatedMaterialsService.RepairCodeCatalog catalog,
+        List<Id> restoreProductIds
+    ) {
+        if (workOrder == null || catalog == null || restoreProductIds == null) {
+            return;
+        }
+        Set<Id> restoreIds = new Set<Id>(restoreProductIds);
+        restoreIds.remove(null);
+        WorkOrderLineItemsService.reconcileRepairCodeWolisForDeviceEvaluation(
+            workOrder,
+            restoreIds,
+            catalog
+        );
+    }
+
+    private static void stampRepairCostTotals(
+        WorkOrder workOrder,
+        DeviceEvaluationContext context
+    ) {
+        WorkOrderRepairPricingService.PricingTotals totals =
+            WorkOrderRepairPricingService.lastTotals;
+        context.requoteWarning = WorkOrderRepairPricingService.lastRequoteWarning;
+        WorkOrderRepairPricingService.lastRequoteWarning = null;
+        if (totals != null && workOrder != null && totals.workOrderId == workOrder.Id) {
+            context.originalNetTotalPrice = totals.originalNetTotal;
+            context.newNetTotalPrice = totals.newNetTotal;
+            WorkOrderRepairPricingService.lastTotals = null;
+            return;
+        }
+        if (workOrder != null && workOrder.Status == WO_STATUS_REPAIR) {
+            context.originalNetTotalPrice =
+                WorkOrderRepairPricingService.sumRepairCodeNetTotal(workOrder);
+            context.newNetTotalPrice = 0;
+        }
+    }
+
+    private static void stampRepairCostTotals(
+        WorkOrder workOrder,
+        InstrumentEvaluationContext context
+    ) {
+        WorkOrderRepairPricingService.PricingTotals totals =
+            WorkOrderRepairPricingService.lastTotals;
+        context.requoteWarning = WorkOrderRepairPricingService.lastRequoteWarning;
+        WorkOrderRepairPricingService.lastRequoteWarning = null;
+        if (totals != null && workOrder != null && totals.workOrderId == workOrder.Id) {
+            context.originalNetTotalPrice = totals.originalNetTotal;
+            context.newNetTotalPrice = totals.newNetTotal;
+            WorkOrderRepairPricingService.lastTotals = null;
+            return;
+        }
+        if (workOrder != null && workOrder.Status == WO_STATUS_REPAIR) {
+            context.originalNetTotalPrice =
+                WorkOrderRepairPricingService.sumRepairCodeNetTotal(workOrder);
+            context.newNetTotalPrice = 0;
+        }
     }
 
     /**
@@ -1031,6 +1269,7 @@ public with sharing class WorkOrdersService {
         context.categoryCodeCount = catalog.categoryCodeIds.size();
         context.observationCodeCount = catalog.observationCodeIds.size();
         context.serviceCodeCount = catalog.serviceCodeIds.size();
+        stampRepairCostTotals(workOrder, context);
         return context;
     }
 
@@ -1909,7 +2148,6 @@ public with sharing class WorkOrdersService {
         } else if (parentLine.Product2Id != null) {
             childLine.Product2Id = parentLine.Product2Id;
         }
-        childLine.Product__c = parentLine.Product__c;
         childLine.ProductCodeWoli__c = parentLine.ProductCodeWoli__c;
         childLine.ProductDescription__c = parentLine.ProductDescription__c;
         childLine.WorkOrderId = childWorkOrderId;
@@ -1931,8 +2169,8 @@ public with sharing class WorkOrdersService {
         if (line.PricebookEntryId != null) {
             return String.valueOf(line.PricebookEntryId);
         }
-        if (line.Product__c != null) {
-            return 'P:' + line.Product__c;
+        if (line.Product2Id != null) {
+            return 'P:' + line.Product2Id;
         }
         if (String.isNotBlank(line.ProductCodeWoli__c)) {
             return 'C:' + line.ProductCodeWoli__c;
@@ -2080,6 +2318,8 @@ public with sharing class WorkOrdersService {
         child.TurnTime__c = bin.turnTime;
         child.Subject = parent.Subject;
         child.Description = parent.Description;
+        // GW-5677: child Instrument Work Orders keep the parent's additional services list.
+        child.AdditionalServicesRequested__c = parent.AdditionalServicesRequested__c;
         // GW-2891 / GW-3400 - IE Complete uses WO.Price Book for Product Serviced PBEs
         child.Pricebook2Id = parent.Pricebook2Id;
         child.CurrencyIsoCode = parent.CurrencyIsoCode;
@@ -2563,12 +2803,28 @@ public with sharing class WorkOrdersService {
             throwIfSimulated();
             WorkOrder workOrder = requireInstrumentEvaluationWorkOrder(workOrderId);
             ensurePricebookForEvaluationLineItems(workOrder);
-            return WorkOrderLineItemsService.persistInstrumentEvaluationItem(
-                workOrder,
-                productId,
-                quantity,
-                repairCodeProductIds
-            );
+            Boolean requoteGate = WorkOrderRepairPricingService.requiresRequoteGate(workOrder);
+            Decimal originalTotal = requoteGate
+                ? WorkOrderRepairPricingService.sumRepairCodeNetTotal(workOrder)
+                : null;
+            Savepoint requoteSavepoint = requoteGate ? Database.setSavepoint() : null;
+            try {
+                Id productServicedId = WorkOrderLineItemsService.persistInstrumentEvaluationItem(
+                    workOrder,
+                    productId,
+                    quantity,
+                    repairCodeProductIds
+                );
+                if (requoteGate) {
+                    captureUnpricedRepairTotals(workOrder, originalTotal);
+                }
+                return productServicedId;
+            } catch (Exception e) {
+                if (requoteSavepoint != null) {
+                    Database.rollback(requoteSavepoint);
+                }
+                throw e;
+            }
         } catch (WorkOrdersServiceException e) {
             throw e;
         } catch (WorkOrderLineItemsService.WorkOrderLineItemsServiceException e) {
@@ -2733,9 +2989,7 @@ public with sharing class WorkOrdersService {
         ) {
             return true;
         }
-        Id productId = productServicedLine.Product2Id != null
-            ? productServicedLine.Product2Id
-            : productServicedLine.Product__c;
+        Id productId = productServicedLine.Product2Id;
         Boolean sameProduct =
             productId != null && productId == returnOrderLine.Product2Id;
         if (
@@ -2782,11 +3036,27 @@ public with sharing class WorkOrdersService {
                 return new List<Id>();
             }
             ensurePricebookForEvaluationLineItems(workOrder);
-            return persistInstrumentEvaluationDraftItems(
-                workOrder,
-                normalizedDraftItems,
-                reconcileRemovedLines == true
-            );
+            Boolean requoteGate = WorkOrderRepairPricingService.requiresRequoteGate(workOrder);
+            Decimal originalTotal = requoteGate
+                ? WorkOrderRepairPricingService.sumRepairCodeNetTotal(workOrder)
+                : null;
+            Savepoint requoteSavepoint = requoteGate ? Database.setSavepoint() : null;
+            try {
+                List<Id> productServicedIds = persistInstrumentEvaluationDraftItems(
+                    workOrder,
+                    normalizedDraftItems,
+                    reconcileRemovedLines == true
+                );
+                if (requoteGate) {
+                    captureUnpricedRepairTotals(workOrder, originalTotal);
+                }
+                return productServicedIds;
+            } catch (Exception e) {
+                if (requoteSavepoint != null) {
+                    Database.rollback(requoteSavepoint);
+                }
+                throw e;
+            }
         } catch (WorkOrdersServiceException e) {
             throw e;
         } catch (WorkOrderLineItemsService.WorkOrderLineItemsServiceException e) {
@@ -3318,6 +3588,7 @@ public with sharing class WorkOrdersService {
                 context.repairHistory
             );
         }
+        stampRepairCostTotals(workOrder, context);
         return context;
     }
 
@@ -3543,22 +3814,23 @@ public with sharing class WorkOrdersService {
                           VendorReferenceNumber__c,
                           VendorCost__c,
                           STERISPurchaseOrdertoVendor__c,
-                          ShippedToVendorDate__c,
-                          TrackingNumber__c
+                          ShippedToVendorDate__c
                       FROM WorkOrder
                       WHERE Id IN :vendorWorkOrderIds
                       WITH USER_MODE
                   ]
               );
+        // GW-6358: tracking number comes from the first Shipment on the Vendor Return Order.
+        Map<Id, String> trackingNumberByReturnOrderIdMap = ShipmentsService.getInitialTrackingNumberByReturnOrderId(
+            collectVendorReturnOrderIds(vendorWorkOrdersById.values())
+        );
         for (WorkOrderLineItem lineItem : lines) {
             if (lineItem == null || lineItem.RecordTypeId != productServicedRtId) {
                 continue;
             }
             InstrumentEvaluationItem item = new InstrumentEvaluationItem();
             item.productServicedId = lineItem.Id;
-            item.productId = lineItem.Product2Id != null
-                ? lineItem.Product2Id
-                : lineItem.Product__c;
+            item.productId = lineItem.Product2Id;
             item.productCode = String.isNotBlank(lineItem.ProductCodeWoli__c)
                 ? lineItem.ProductCodeWoli__c
                 : (lineItem.Product2 != null ? lineItem.Product2.ProductCode : null);
@@ -3585,7 +3857,7 @@ public with sharing class WorkOrdersService {
                 item.vendorReferenceNumber = vendorWo.VendorReferenceNumber__c;
                 item.vendorCost = vendorWo.VendorCost__c;
                 item.shippedToVendorDate = vendorWo.ShippedToVendorDate__c;
-                item.trackingNumber = vendorWo.TrackingNumber__c;
+                item.trackingNumber = trackingNumberByReturnOrderIdMap.get(vendorWo.VendorReturnOrder__c);
             } else {
                 item.vendorWorkOrderId = lineItem.VendorWorkOrder__c;
                 item.vendorWorkOrderLocked = false;
@@ -3614,9 +3886,7 @@ public with sharing class WorkOrdersService {
             ProductRelatedMaterialsService.RepairCodeCardData card =
                 new ProductRelatedMaterialsService.RepairCodeCardData();
             card.workOrderLineItemId = lineItem.Id;
-            card.productId = lineItem.Product2Id != null
-                ? lineItem.Product2Id
-                : lineItem.Product__c;
+            card.productId = lineItem.Product2Id;
             card.productCode = resolveInstrumentEvalLineProductCode(lineItem);
             card.productName = resolveInstrumentEvalLineProductName(lineItem);
             card.codeType = lineItem.LineType__c;
@@ -3659,9 +3929,6 @@ public with sharing class WorkOrdersService {
         if (lineItem.Product2 != null && String.isNotBlank(lineItem.Product2.ProductCode)) {
             return lineItem.Product2.ProductCode;
         }
-        if (lineItem.Product__r != null && String.isNotBlank(lineItem.Product__r.ProductCode)) {
-            return lineItem.Product__r.ProductCode;
-        }
         return lineItem.ProductCodeWoli__c;
     }
 
@@ -3671,9 +3938,6 @@ public with sharing class WorkOrdersService {
         }
         if (lineItem.Product2 != null && String.isNotBlank(lineItem.Product2.Name)) {
             return lineItem.Product2.Name;
-        }
-        if (lineItem.Product__r != null && String.isNotBlank(lineItem.Product__r.Name)) {
-            return lineItem.Product__r.Name;
         }
         return lineItem.ProductDescription__c;
     }
@@ -4142,13 +4406,13 @@ public with sharing class WorkOrdersService {
         List<WorkOrder> vendorWorkOrders = [
             SELECT
                 Vendor__c,
+                VendorReturnOrder__c,
                 InstructionsToVendor__c,
                 VendorNotes__c,
                 VendorReferenceNumber__c,
                 VendorCost__c,
                 STERISPurchaseOrdertoVendor__c,
-                ShippedToVendorDate__c,
-                TrackingNumber__c
+                ShippedToVendorDate__c
             FROM WorkOrder
             WHERE Id = :vendorWorkOrderId
             WITH USER_MODE
@@ -4166,7 +4430,13 @@ public with sharing class WorkOrdersService {
         details.vendorReferenceNumber = vendorWorkOrder.VendorReferenceNumber__c;
         details.vendorCost = vendorWorkOrder.VendorCost__c;
         details.shippedToVendorDate = vendorWorkOrder.ShippedToVendorDate__c;
-        details.trackingNumber = vendorWorkOrder.TrackingNumber__c;
+        // GW-6358: tracking number comes from the first Shipment on the Vendor Return Order.
+        if (vendorWorkOrder.VendorReturnOrder__c != null) {
+            details.trackingNumber = ShipmentsService.getInitialTrackingNumberByReturnOrderId(
+                    new Set<Id>{ vendorWorkOrder.VendorReturnOrder__c }
+                )
+                .get(vendorWorkOrder.VendorReturnOrder__c);
+        }
         return details;
     }
 
@@ -4485,7 +4755,6 @@ public with sharing class WorkOrdersService {
             headerUpdate.VendorReferenceNumber__c = details.vendorReferenceNumber;
             headerUpdate.VendorCost__c = details.vendorCost;
             headerUpdate.ShippedToVendorDate__c = details.shippedToVendorDate;
-            headerUpdate.TrackingNumber__c = details.trackingNumber;
             update headerUpdate;
             sourceWorkOrder = selectSourceWorkOrder(sourceWorkOrderId);
         }
@@ -4534,7 +4803,6 @@ public with sharing class WorkOrdersService {
         detailsAsLine.vendorReferenceNumber = sourceWorkOrder.VendorReferenceNumber__c;
         detailsAsLine.vendorCost = sourceWorkOrder.VendorCost__c;
         detailsAsLine.shippedToVendorDate = sourceWorkOrder.ShippedToVendorDate__c;
-        detailsAsLine.trackingNumber = sourceWorkOrder.TrackingNumber__c;
         detailsAsLine.quantity = sourceWorkOrder.QuantityReceived__c == null
             ? 1
             : sourceWorkOrder.QuantityReceived__c;
@@ -4688,8 +4956,7 @@ public with sharing class WorkOrdersService {
                     VendorReferenceNumber__c,
                     VendorCost__c,
                     STERISPurchaseOrdertoVendor__c,
-                    ShippedToVendorDate__c,
-                    TrackingNumber__c
+                    ShippedToVendorDate__c
                 FROM WorkOrder
                 WHERE Id IN :currentVendorWoIds
                 WITH USER_MODE
@@ -4902,7 +5169,6 @@ public with sharing class WorkOrdersService {
                 if (details.shippedToVendorDate != null) {
                     vendorWorkOrder.ShippedToVendorDate__c = details.shippedToVendorDate;
                 }
-                vendorWorkOrder.TrackingNumber__c = details.trackingNumber;
             }
         }
         if (details == null) {
@@ -5035,8 +5301,7 @@ public with sharing class WorkOrdersService {
                 VendorReferenceNumber__c,
                 VendorCost__c,
                 STERISPurchaseOrdertoVendor__c,
-                ShippedToVendorDate__c,
-                TrackingNumber__c
+                ShippedToVendorDate__c
             FROM WorkOrder
             WHERE
                 ParentWorkOrderId = :sourceWorkOrderId
@@ -5129,7 +5394,6 @@ public with sharing class WorkOrdersService {
         vendorWorkOrder.VendorCost__c = details.vendorCost;
         vendorWorkOrder.ShippedToVendorDate__c =
             details.shippedToVendorDate == null ? Date.today() : details.shippedToVendorDate;
-        vendorWorkOrder.TrackingNumber__c = details.trackingNumber;
         vendorWorkOrder.Status = WO_STATUS_RECEIVED;
         vendorWorkOrder.SubStatus__c = WO_SUB_STATUS_SHIP_TO_VENDOR;
         return vendorWorkOrder;
@@ -5231,7 +5495,6 @@ public with sharing class WorkOrdersService {
                 VendorCost__c,
                 STERISPurchaseOrdertoVendor__c,
                 ShippedToVendorDate__c,
-                TrackingNumber__c,
                 Asset.SerialNumber,
                 Asset.Product2Id
             FROM WorkOrder
@@ -5702,31 +5965,44 @@ public with sharing class WorkOrdersService {
     }
 
     /**
-     * @description GW-3880 - Copies FedEx tracking onto Work Orders linked to Vendor Return Orders.
-     * @param trackingByReturnOrderId Vendor Return Order Id to tracking number
+     * @description GW-6358 - Parent Work Order Id of each Work Order.
+     * @param workOrderIdSet Work Order Ids
+     * @return Parent Work Order Id by Work Order Id (null value when a Work Order has no parent)
+     * @example
+     * Map<Id, Id> parentIdByWorkOrderIdMap = WorkOrdersService.getParentWorkOrderIdByWorkOrderId(workOrderIdSet);
      */
-    public static void updateWorkOrdersWithVendorFedExTracking(
-        Map<Id, String> trackingByReturnOrderId
-    ) {
-        if (trackingByReturnOrderId == null || trackingByReturnOrderId.isEmpty()) {
-            return;
+    public static Map<Id, Id> getParentWorkOrderIdByWorkOrderId(Set<Id> workOrderIdSet) {
+        Map<Id, Id> parentWorkOrderIdByWorkOrderIdMap = new Map<Id, Id>();
+        if (workOrderIdSet == null || workOrderIdSet.isEmpty()) {
+            return parentWorkOrderIdByWorkOrderIdMap;
         }
-        List<WorkOrder> workOrdersToUpdate = new List<WorkOrder>();
-        for (WorkOrder wo : WorkOrdersSelector.selectByVendorReturnOrderIds(
-            trackingByReturnOrderId.keySet()
-        )) {
-            String trackingNumber = trackingByReturnOrderId.get(
-                (Id) wo.get('VendorReturnOrder__c')
-            );
-            if (String.isNotBlank(trackingNumber)) {
-                workOrdersToUpdate.add(
-                    new WorkOrder(Id = wo.Id, TrackingNumber__c = trackingNumber)
-                );
+        List<String> workOrderIdList = new List<String>();
+        for (Id workOrderId : workOrderIdSet) {
+            workOrderIdList.add(workOrderId);
+        }
+        List<WorkOrder> workOrderList = (List<WorkOrder>) new WorkOrdersSelector()
+            .selectFields(new List<String>{ 'Id', 'ParentWorkOrderId' })
+            .whereIn('Id', workOrderIdList)
+            .execute();
+        for (WorkOrder workOrderRecord : workOrderList) {
+            parentWorkOrderIdByWorkOrderIdMap.put(workOrderRecord.Id, workOrderRecord.ParentWorkOrderId);
+        }
+        return parentWorkOrderIdByWorkOrderIdMap;
+    }
+
+    /**
+     * @description GW-6358 - Vendor Return Order Ids of the given Vendor Work Orders.
+     * @param vendorWorkOrders Vendor Work Orders with VendorReturnOrder__c queried
+     * @return Vendor Return Order Ids
+     */
+    private static Set<Id> collectVendorReturnOrderIds(List<WorkOrder> vendorWorkOrders) {
+        Set<Id> returnOrderIdSet = new Set<Id>();
+        for (WorkOrder vendorWorkOrder : vendorWorkOrders) {
+            if (vendorWorkOrder.VendorReturnOrder__c != null) {
+                returnOrderIdSet.add(vendorWorkOrder.VendorReturnOrder__c);
             }
         }
-        if (!workOrdersToUpdate.isEmpty()) {
-            updateWorkOrders(workOrdersToUpdate);
-        }
+        return returnOrderIdSet;
     }
 
     /**
@@ -6390,6 +6666,7 @@ public with sharing class WorkOrdersService {
                     'WorkOrderNumber',
                     'CurrencyIsoCode',
                     'Status',
+                    'ActualShipDate__c',
                     'CustomerPO__c',
                     'CustomerReference__c',
                     'AccountManager__c',
@@ -7125,20 +7402,17 @@ public with sharing class WorkOrdersService {
         }
         report.WorkOrderLineItem__c = source.Id;
         report.SerialNumber__c = source.SerialNumber__c;
-        report.Product__c = source.Product2Id != null ? source.Product2Id : source.Product__c;
+        report.Product__c = source.Product2Id;
         report.Model__c = firstNonBlank(
             source.Model__c,
-            source.Product2 == null ? null : source.Product2.Model__c,
-            source.Product__r == null ? null : source.Product__r.Model__c
+            source.Product2 == null ? null : source.Product2.Model__c
         );
-        report.Manufacturer__c = firstNonBlank(
-            source.Product2 == null ? null : source.Product2.Manufacturer__c,
-            source.Product__r == null ? null : source.Product__r.Manufacturer__c
-        );
+        report.Manufacturer__c = source.Product2 == null
+            ? null
+            : source.Product2.Manufacturer__c;
         String productLine = firstNonBlank(
             source.ProductLine__c,
-            source.Product2 == null ? null : source.Product2.ProductLine__c,
-            source.Product__r == null ? null : source.Product__r.ProductLine__c
+            source.Product2 == null ? null : source.Product2.ProductLine__c
         );
         if (String.isNotBlank(productLine)) {
             report.ProductLine__c = productLine;
@@ -7182,19 +7456,14 @@ public with sharing class WorkOrdersService {
             row.lineId = line.Id;
             row.lineNumber = line.LineItemNumber;
             row.quantity = line.Quantity;
-            row.productName = firstNonBlank(
-                line.Product2 == null ? null : line.Product2.Name,
-                line.Product__r == null ? null : line.Product__r.Name
-            );
+            row.productName = line.Product2 == null ? null : line.Product2.Name;
             row.model = firstNonBlank(
                 line.Model__c,
-                line.Product2 == null ? null : line.Product2.Model__c,
-                line.Product__r == null ? null : line.Product__r.Model__c
+                line.Product2 == null ? null : line.Product2.Model__c
             );
-            row.manufacturer = firstNonBlank(
-                line.Product2 == null ? null : line.Product2.Manufacturer__c,
-                line.Product__r == null ? null : line.Product__r.Manufacturer__c
-            );
+            row.manufacturer = line.Product2 == null
+                ? null
+                : line.Product2.Manufacturer__c;
             row.productLine = firstNonBlank(
                 line.ProductLine__c,
                 line.Product2 == null ? null : line.Product2.ProductLine__c
@@ -7211,13 +7480,9 @@ public with sharing class WorkOrdersService {
     private static String qualityInspectionRepairCodeLabel(WorkOrderLineItem child) {
         String productCode = firstNonBlank(
             child.ProductCodeWoli__c,
-            child.Product2 == null ? null : child.Product2.ProductCode,
-            child.Product__r == null ? null : child.Product__r.ProductCode
+            child.Product2 == null ? null : child.Product2.ProductCode
         );
-        String productName = firstNonBlank(
-            child.Product2 == null ? null : child.Product2.Name,
-            child.Product__r == null ? null : child.Product__r.Name
-        );
+        String productName = child.Product2 == null ? null : child.Product2.Name;
         if (String.isBlank(productName)) {
             return productCode;
         }

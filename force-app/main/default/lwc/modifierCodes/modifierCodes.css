@@ -1,0 +1,86 @@
+.modifier-codes {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.modifier-card {
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 0.5rem;
+    padding: 0.75rem 1rem 1rem;
+}
+
+.modifier-card__title {
+    font-size: 1rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.group-header__action {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex-shrink: 0;
+}
+
+.item-modifier-button,
+.icon-button {
+    min-height: 2.75rem;
+    border: 1px solid #c9c9c9;
+    background: #fff;
+    border-radius: 1.5rem;
+    padding: 0 0.9rem;
+    cursor: pointer;
+}
+
+.icon-button {
+    width: 2.75rem;
+    padding: 0;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.table-scroll {
+    overflow-x: auto;
+}
+
+.modifier-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 0.5rem;
+}
+
+.modifier-table th,
+.modifier-table td {
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    vertical-align: middle;
+    border-bottom: 1px solid #e5e5e5;
+}
+
+.modifier-table th {
+    font-weight: 600;
+    color: #444;
+    white-space: nowrap;
+}
+
+.modifier-table th:last-child,
+.modifier-table td:last-child {
+    text-align: right;
+    width: 12rem;
+}
+
+.modifier-name {
+    font-weight: 600;
+}

@@ -88,7 +88,7 @@ public with sharing class CustomerPreferencesSelector extends SoqlQueryBuilder {
             : ' AND (ProductLine__c = null OR ProductLine__c = :productLine)';
 
         return Database.query(
-            'SELECT Id' +
+            'SELECT Id, PreferenceValue__c, ProductLine__c' +
             ' FROM CustomerPreference__c' +
             ' WHERE Account__c = :accountId' +
             ' AND RecordTypeId = :recordTypeId' +
@@ -97,6 +97,7 @@ public with sharing class CustomerPreferencesSelector extends SoqlQueryBuilder {
             ' AND EndDate__c >= :asOfDate' +
             productLineFilter +
             ' WITH SECURITY_ENFORCED' +
+            ' ORDER BY ProductLine__c DESC NULLS LAST' +
             ' LIMIT 1'
         );
     }

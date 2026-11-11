@@ -1,0 +1,100 @@
+<template>
+    <template lwc:if={isLoading}>
+        <lightning-spinner alternative-text="Loading account" size="small"></lightning-spinner>
+    </template>
+
+    <template lwc:elseif={errorMessage}>
+        <div class="slds-text-color_error slds-p-around_medium" role="alert">{errorMessage}</div>
+    </template>
+
+    <template lwc:else>
+        <section class="account-card">
+            <div class="hero"></div>
+            <div class="slds-p-horizontal_large slds-p-bottom_large">
+                <div class="avatar">
+                    <lightning-icon icon-name="standard:account" size="large"></lightning-icon>
+                </div>
+                <h1 class="slds-text-heading_large slds-truncate account-name" title={accountName}>{accountName}</h1>
+                <template lwc:if={isFull}>
+                    <p class="slds-text-heading_small slds-m-top_xx-small slds-truncate">{billingCountry}</p>
+                </template>
+                <template lwc:if={isFull}>
+                    <div class="slds-grid slds-wrap slds-gutters slds-m-top_large">
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2 slds-m-bottom_medium">
+                            <div class="slds-text-color_weak">Customer Number</div>
+                            <div>{customerNumber}</div>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2 slds-m-bottom_medium">
+                            <div class="slds-text-color_weak">Parent Account</div>
+                            <template lwc:if={hasParentAccount}>
+                                <a href={parentAccountUrl}>{parentAccountName}</a>
+                            </template>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2 slds-m-bottom_medium">
+                            <div class="slds-text-color_weak">GPO Affiliation</div>
+                            <div>{gpoAffiliation}</div>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2 slds-m-bottom_medium">
+                            <div class="slds-text-color_weak">Customer Class</div>
+                            <div>{customerClass}</div>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1 slds-m-bottom_medium website-wrapper">
+                            <div class="slds-text-color_weak">Website</div>
+                            <template lwc:if={hasWebsite}>
+                                <a href={safeWebsiteUrl} target="_blank" class="website-link">{website}</a>
+                            </template>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2 slds-m-bottom_medium">
+                            <div class="slds-text-color_weak">Address Line 1</div>
+                            <div>{billingStreet}</div>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2 slds-m-bottom_medium">
+                            <div class="slds-text-color_weak">Billing City</div>
+                            <div>{billingCity}</div>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2 slds-m-bottom_medium">
+                            <div class="slds-text-color_weak">Billing State/Province</div>
+                            <div>{billingState}</div>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2 slds-m-bottom_medium">
+                            <div class="slds-text-color_weak">Billing Postal Code</div>
+                            <div>{billingPostalCode}</div>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2 slds-m-bottom_medium">
+                            <div class="slds-text-color_weak">Billing Country</div>
+                            <div>{billingCountry}</div>
+                        </div>
+                    </div>
+                </template>
+                <template lwc:else>
+                    <div class="slds-m-top_large">
+                        <div class="slds-m-bottom_medium">
+                            <div class="slds-text-color_weak">Customer Number</div>
+                            <div>{customerNumber}</div>
+                        </div>
+                        <div class="slds-m-bottom_medium">
+                            <div class="slds-text-color_weak">GPO Affiliation</div>
+                            <div>{gpoAffiliation}</div>
+                        </div>
+                        <div class="slds-m-bottom_medium website-wrapper">
+                            <div class="slds-text-color_weak">Website</div>
+                            <template lwc:if={hasWebsite}>
+                                <a href={safeWebsiteUrl} target="_blank" class="website-link">{website}</a>
+                            </template>
+                        </div>
+                        <div class="slds-m-bottom_medium">
+                            <div class="slds-text-color_weak">Parent Account</div>
+                            <template lwc:if={hasParentAccount}>
+                                <a href={parentAccountUrl}>{parentAccountName}</a>
+                            </template>
+                        </div>
+                        <div class="slds-m-bottom_medium">
+                            <div class="slds-text-color_weak">Customer Class</div>
+                            <div>{customerClass}</div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </section>
+    </template>
+</template>

@@ -519,7 +519,7 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
                     this.showLineTypeModal = false;
                 }
             } else if (ctx.assetIds && ctx.assetIds.length > 0) {
-                await this.initializeLinesFromAssets(ctx.assetIds);
+                await this.initializeLinesFromAssets(ctx.assetIds, ctx.lineDefaultsByAssetId);
                 this.setDefaultExpandedSections();
                 if (this.lockWorkOrder || this.shouldSkipToLinesAfterAssetLaunch()) {
                     this.currentPage = PAGE_LINES;
@@ -772,11 +772,26 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
         }
     }
 
-    async initializeLinesFromAssets(assetIds) {
+    /**
+     * @param {string[]} assetIds Assets to load as serialized lines
+     * @param {Object} [lineDefaultsByAssetId] GW-6017 - CRSS department / reported problem by asset id
+     */
+    async initializeLinesFromAssets(assetIds, lineDefaultsByAssetId) {
         const requestedIds = (assetIds || []).filter((assetId) => !!assetId);
+        const lineDefaults = lineDefaultsByAssetId || {};
         try {
             const assets = await getAssetsByIds({ assetIds: requestedIds });
-            this.lineItems = (assets || []).map((asset) => this.buildLineFromAsset(asset));
+            this.lineItems = (assets || []).map((asset) => {
+                const line = this.buildLineFromAsset(asset);
+                const defaults = lineDefaults[line.assetId];
+                if (defaults?.departmentId) {
+                    line.departmentId = defaults.departmentId;
+                }
+                if (defaults?.reportedProblem) {
+                    line.reportedProblem = defaults.reportedProblem;
+                }
+                return line;
+            });
 
             for (const line of this.lineItems) {
                 if (line.departmentId) {
@@ -1014,7 +1029,6 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
         line.product2Id = row?.product2Id || '';
         line.productSearchText = row?.productName || '';
         line.itemDescription = row?.itemDescription || row?.productName || '';
-        line.serialNumber = row?.serialNumber || '';
         line.model = row?.model || '';
         line.departmentId = row?.departmentId || '';
         line.reportedProblem = row?.reportedProblem || '';
@@ -2277,6 +2291,11 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
         const values = event.detail || {};
         const source = values.source;
 
+        // Base-component change events (e.g. the Operating Unit combobox) can bubble out of
+        // the form on the Field Service mobile app. Only the form's own event carries a source.
+        if (!source) {
+            return;
+        }
         // apply is an echo from syncAccountInformationToChild; ignore.
         if (source === 'apply') {
             return;
@@ -2284,6 +2303,7 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
         // Child finished loading picklists — push any parent header defaults into the form.
         if (source === 'init') {
             this.syncAccountInformationToChild();
+            await this.ensureAccountOperatingUnit();
             return;
         }
 
@@ -2323,6 +2343,21 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
             this._assetLaunchAwaitingHeader
         ) {
             Promise.resolve().then(() => this.tryAdvanceAssetLaunchAfterHeader());
+        }
+        await this.ensureAccountOperatingUnit();
+    }
+
+    /**
+     * @description Refills a blank Operating Unit from the Account (Account.OrgIDs__c)
+     *              and pushes it into the Account Information form.
+     */
+    async ensureAccountOperatingUnit() {
+        if (!this.accountId || this.operatingUnit) {
+            return;
+        }
+        await this.loadAccountDefaults();
+        if (this.operatingUnit) {
+            this.syncAccountInformationToChild();
         }
     }
 
@@ -3605,6 +3640,7 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
     }
 
     async handleContinueToSummary() {
+        await this.ensureAccountOperatingUnit();
         if (!this.validateHeader()) {
             this.currentPage = PAGE_HEADER;
             return;

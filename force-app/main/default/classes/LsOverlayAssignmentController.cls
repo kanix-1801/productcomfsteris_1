@@ -122,13 +122,14 @@ public with sharing class LsOverlayAssignmentController {
 
     /**
      * @description
-     * GCL-79 - Retrieves address-level Accounts related to the selected territories and accounts.
+     * GCL-79 - Retrieves Customer accounts related to the selected territories and accounts.
+     * GPO, IDN, and Address accounts are not returned.
      *
      * @param territoryIds Selected Territory IDs.
      * @param accountSearchKey Account search key.
      * @param accountType Account type, if selected.
      * @param selectedSearchAccountIds Selected account ids from step 1.
-     * @return Address-level account rows for Step 2.
+     * @return Customer account rows for Step 2.
      *
      * @example
      * LsOverlayAssignmentController.retrieveAccounts(territoryIds, accountSearchKey, accountType, selectedSearchAccountIds);

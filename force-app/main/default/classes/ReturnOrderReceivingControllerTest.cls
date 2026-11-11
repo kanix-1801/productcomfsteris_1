@@ -1076,7 +1076,6 @@ private class ReturnOrderReceivingControllerTest {
 
         WorkOrderLineItem workOrderLineItem = [
             SELECT
-                Product__c,
                 Product2Id,
                 PricebookEntryId,
                 ProductCodeWoli__c,
@@ -1099,7 +1098,6 @@ private class ReturnOrderReceivingControllerTest {
             WHERE WorkOrderId = :result.primaryWorkOrderId
             LIMIT 1
         ];
-        System.assertEquals(null, workOrderLineItem.Product__c, 'Other WOLI should not use custom Product__c.');
         System.assert(
             workOrderLineItem.PricebookEntryId != null ||
                 workOrderLineItem.Product2Id == lineItem.Product2Id,
@@ -2274,12 +2272,11 @@ private class ReturnOrderReceivingControllerTest {
         );
 
         WorkOrderLineItem workOrderLineItem = [
-            SELECT Product__c, Product2Id, PricebookEntryId, LineType__c, Quantity, TrayName__c, SerialNumber__c
+            SELECT Product2Id, PricebookEntryId, LineType__c, Quantity, TrayName__c, SerialNumber__c
             FROM WorkOrderLineItem
             WHERE WorkOrderId = :result.primaryWorkOrderId
             LIMIT 1
         ];
-        System.assertEquals(null, workOrderLineItem.Product__c, 'Other WOLI should not use custom Product__c.');
         System.assert(
             workOrderLineItem.PricebookEntryId != null ||
                 workOrderLineItem.Product2Id == mappedProduct.Id,
@@ -3020,5 +3017,138 @@ private class ReturnOrderReceivingControllerTest {
         System.assertEquals('Triage', childWorkOrder.SubStatus__c, 'The child WorkOrder SubStatus should be Triage for Rigid Scopes.');
     }
     // --- END RELEVANT TO GW-3337 ---
+
+    /**
+     * @description GW-5677 - Numbered list includes only requested services, in story order.
+     */
+    @IsTest
+    static void testBuildAdditionalServicesRequested_FormatsRequestedServices() {
+        ReturnOrderLineItem blank = new ReturnOrderLineItem(
+            ItemDescription__c = 'Plain',
+            AdditionalServiceRepair__c = false
+        );
+        ReturnOrderLineItem requested = new ReturnOrderLineItem(
+            ItemDescription__c = 'Ring Handle',
+            AdditionalServiceRepair__c = true,
+            ColorDipping__c = 'Black;Red',
+            NumberOfRings__c = '2',
+            InsulationPowderCoating__c = 'Blue',
+            LaserMarking__c = 'STERIS',
+            LegPositionersStirrup__c = 'Replace Pads - Left'
+        );
+
+        String text = ReturnOrderReceivingController.buildAdditionalServicesRequested(
+            new List<ReturnOrderLineItem>{ blank, requested }
+        );
+
+        System.assertEquals(null, ReturnOrderReceivingController.buildAdditionalServicesRequested(null));
+        System.assertEquals(
+            null,
+            ReturnOrderReceivingController.buildAdditionalServicesRequested(
+                new List<ReturnOrderLineItem>{ blank }
+            )
+        );
+        System.assertEquals(
+            '1. Ring Handle: Repair | Color Dipping: Black, Red, Number of Rings: 2 | ' +
+                'Insulation Powder Coating: Blue | Laser Marking: STERIS | Stirrups: Replace Pads - Left',
+            text
+        );
+    }
+
+    /**
+     * @description GW-5677 - Instrument receive stores the list on the parent Work Order.
+     */
+    @IsTest
+    static void testReceiveInstrumentsCopiesAdditionalServicesToParentWorkOrder() {
+        Schema.RecordTypeInfo instrumentsRecordType = Schema.SObjectType.WorkOrder
+            .getRecordTypeInfosByDeveloperName()
+            .get('RepairCenterInstruments');
+        if (instrumentsRecordType == null || !instrumentsRecordType.isAvailable()) {
+            System.assert(true, 'Instrument record type unavailable in this org.');
+            return;
+        }
+
+        ReturnOrder returnOrder = getReturnOrderByType('Instruments');
+        ReturnOrderLineItem lineItem = getLineItemForReturnOrder(returnOrder.Id);
+        lineItem.ItemDescription__c = 'Scalpel';
+        lineItem.AdditionalServiceRepair__c = true;
+        lineItem.LaserMarking__c = 'STERIS';
+        update lineItem;
+
+        Test.startTest();
+        ReturnOrderReceivingController.BulkReceiveResult result =
+            ReturnOrderReceivingController.receiveReturnOrder(
+                returnOrder.Id,
+                UserInfo.getUserId(),
+                testReceivedDateTime(),
+                false,
+                5,
+                toLineInputsJson(lineItem.Id, 5),
+                null
+            );
+        Test.stopTest();
+
+        WorkOrder instrumentWorkOrder = [
+            SELECT AdditionalServicesRequested__c, ParentWorkOrderId
+            FROM WorkOrder
+            WHERE Id = :result.primaryWorkOrderId
+        ];
+        System.assertEquals(null, instrumentWorkOrder.ParentWorkOrderId);
+        System.assert(
+            instrumentWorkOrder.AdditionalServicesRequested__c != null &&
+                instrumentWorkOrder.AdditionalServicesRequested__c.contains('Scalpel') &&
+                instrumentWorkOrder.AdditionalServicesRequested__c.contains('Repair') &&
+                instrumentWorkOrder.AdditionalServicesRequested__c.contains('Laser Marking: STERIS'),
+            'Instrument parent should list the requested additional services.'
+        );
+    }
+
+    /**
+     * @description GW-5677 - Asset receive stores the list on the child Work Order.
+     */
+    @IsTest
+    static void testReceiveSerializedCopiesAdditionalServicesToChildWorkOrder() {
+        ReturnOrder returnOrder = getReturnOrderByType('Serialized');
+        ReturnOrderLineItem lineItem = getLineItemForReturnOrder(returnOrder.Id);
+        lineItem.ItemDescription__c = 'Stirrup';
+        lineItem.LegPositionersStirrup__c = 'Replace Pads - Left';
+        update lineItem;
+
+        Test.startTest();
+        ReturnOrderReceivingController.BulkReceiveResult result =
+            ReturnOrderReceivingController.receiveReturnOrder(
+                returnOrder.Id,
+                UserInfo.getUserId(),
+                testReceivedDateTime(),
+                false,
+                null,
+                toLineInputsJson(lineItem.Id, 1),
+                null
+            );
+        Test.stopTest();
+
+        WorkOrder parentWorkOrder = [
+            SELECT AdditionalServicesRequested__c
+            FROM WorkOrder
+            WHERE Id = :result.primaryWorkOrderId
+        ];
+        WorkOrder childWorkOrder = [
+            SELECT AdditionalServicesRequested__c
+            FROM WorkOrder
+            WHERE ReturnOrderLineItemId = :lineItem.Id
+            AND ParentWorkOrderId != null
+            LIMIT 1
+        ];
+        System.assertEquals(
+            null,
+            parentWorkOrder.AdditionalServicesRequested__c,
+            'Asset receive should leave the list off the parent Work Order.'
+        );
+        System.assert(
+            childWorkOrder.AdditionalServicesRequested__c != null &&
+                childWorkOrder.AdditionalServicesRequested__c.contains('Stirrups: Replace Pads - Left'),
+            'Asset child Work Order should list the requested additional services.'
+        );
+    }
 
 }

@@ -5,7 +5,7 @@ import searchValues from '@salesforce/apex/DealerReferencePickerController.searc
 const SEARCH_DELAY_MS = 250;
 const BLUR_CLOSE_DELAY_MS = 200;
 const HELP_TEXT =
-    'Choose an existing name, or Add a new one. A new name is saved only when the opportunity is created.';
+    'Choose an existing name, or Add a new one. A new name is saved when the opportunity is saved.';
 const PENDING_PREFIX = 'pending:';
 const PEER_OPEN_EVENT = 'dealerrefpicker:open';
 
@@ -572,14 +572,10 @@ export default class DealerReferencePicker extends LightningElement {
             return;
         }
         if (this._selectedId) {
-            const existingName =
-                this.selections.find((item) => String(item.id) === String(this._selectedId))?.name ||
-                this._selectedLabel ||
-                this._selectedId;
             this.selections = [
                 {
                     id: String(this._selectedId),
-                    name: existingName
+                    name: this._selectedLabel || this._selectedId
                 }
             ];
         }
@@ -597,6 +593,7 @@ export default class DealerReferencePicker extends LightningElement {
         this.dispatchEvent(new FlowAttributeChangeEvent('selectedLabel', this._selectedLabel));
         this.dispatchEvent(new FlowAttributeChangeEvent('selectedIds', this._selectedIds));
         this.dispatchEvent(new FlowAttributeChangeEvent('selectedLabels', this._selectedLabels));
+        this.dispatchEvent(new CustomEvent('selectionchange'));
     }
 
     reduceError(error) {

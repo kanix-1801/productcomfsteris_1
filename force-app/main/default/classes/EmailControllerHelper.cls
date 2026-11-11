@@ -917,14 +917,21 @@ public static List<CaseContactRole> getReceivingAndInstallContacts(Id caseId) {
         }
     }
     
+    /**
+     * @description Retrieves firstFirst non pre-install schedule date with the given Case.
+     *              This method returns Date time,
+     * @param caseId Id of the Case used to identify related Orders through Order.ParentCase__c.
+     * @return DateTime.
+     *
+     * @throws Exception Logs and rethrows any exception encountered during processing.
+     */
     public static DateTime firstNonPreInstallScheduleDate(Id caseId) {
         try {
             
             // Used to simulate exception scenarios during test execution, if applicable.
             throwIfTestException(caseId);
 
-            // Fetch scheduled equipment Order Items related to the Case.
-            List<Order> orderList = [SELECT id, FirstScheduledDateNonPreinstall__c from Order WHERE ParentCase__c =: caseId];
+            List<Order> orderList = OrderSelector.orderRecord(caseId);
             return (DateTime)orderList[0].FirstScheduledDateNonPreinstall__c;
             
         } catch (Exception ex) {
@@ -933,6 +940,15 @@ public static List<CaseContactRole> getReceivingAndInstallContacts(Id caseId) {
             throw ex;
         }
     } 
+    
+     /**
+     * @description Retrieves OrderItem of the given Case.
+     *              This method returns List of Order Item,
+     * @param caseId Id of the Case used to identify related Orders.
+     * @return List<OrderItem>
+     *
+     * @throws Exception Logs and rethrows any exception encountered during processing.
+     */
     
     public static List<OrderItem> equipmentScheduleDetail(Id caseId) {
         try {
@@ -945,24 +961,12 @@ public static List<CaseContactRole> getReceivingAndInstallContacts(Id caseId) {
             throwIfTestException(caseId);
 
             // Fetch scheduled equipment Order Items related to the Case.
-            return [
-                SELECT Id,
-                    LineNumber__c,
-                    Product2.ProductCode,
-                    Product2.Description,
-                    Quantity,
-                    ScheduledDate__c, 
-                    ShipToAddressID__r.Street, ShipToAddressID__r.City, ShipToAddressID__r.State, ShipToAddressID__r.PostalCode, ShipToAddressID__r.Country
-                FROM OrderItem
-                WHERE OrderLineType__c = 'Trade In Lines'
-                AND ScheduledDate__c != null
-                AND ScheduledDate__c != 2049-12-31
-                AND ActualShipmentDate__c = null
-                AND Order.ParentCase__c = :caseId
-                AND OrderLineStatus__c NOT IN ('Cancelled', 'Closed')
-                AND OrderLineNumber__c != 0
-                ORDER BY OrderLineNumber__c ASC
-            ];
+            List<OrderItem> orderItemRecord = OrderItemSelector.orderItemRecord(caseId);
+            if(orderItemRecord!=null)
+                return orderItemRecord;
+            else 
+                return NULL;
+            
         } catch (Exception ex) {
             // Log exception details for troubleshooting and rethrow to preserve existing behavior.
             ErrorLogger.logException(ex, 'EmailControllerHelper', 'equipmentScheduleDetail');

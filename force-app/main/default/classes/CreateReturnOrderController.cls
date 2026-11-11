@@ -68,6 +68,8 @@ public with sharing class CreateReturnOrderController {
         @AuraEnabled public String contactName;
         @AuraEnabled public Boolean lockContact;
         @AuraEnabled public List<String> assetIds;
+        /** @description GW-6017 - CRSS line values keyed by asset id, applied over the asset defaults. */
+        @AuraEnabled public Map<String, AssetLineDefaults> lineDefaultsByAssetId;
         @AuraEnabled public String legacyCustomerId;
         @AuraEnabled public String defaultOperatingUnit;
         @AuraEnabled public List<PicklistOption> operatingUnitOptions;
@@ -78,6 +80,14 @@ public with sharing class CreateReturnOrderController {
         @AuraEnabled public Map<String, String> itemTypeToProductLine;
         @AuraEnabled public Map<String, String> itemTypeToROCategory;
         @AuraEnabled public String defaultProductId;
+    }
+
+    /**
+     * @description GW-6017 - Department and reported problem entered on a CRSS work order line.
+     */
+    public class AssetLineDefaults {
+        @AuraEnabled public String departmentId;
+        @AuraEnabled public String reportedProblem;
     }
 
     /**
@@ -264,17 +274,11 @@ public with sharing class CreateReturnOrderController {
 
             Map<Id, OpenReturnOrderMatch> matchesByReturnOrderId = new Map<Id, OpenReturnOrderMatch>();
             // List query (not SOQL for-loop): multiple binds in a for-loop SOQL can throw tmpVar1.
-            List<ReturnOrderLineItem> openLineItems = [
-                SELECT
-                    ReturnOrderId,
-                    ReturnOrder.ReturnOrderNumber,
-                    ReturnOrder.Status
-                FROM ReturnOrderLineItem
-                WHERE AssetId = :assetId
-                AND ReturnOrder.Status NOT IN :CLOSED_RETURN_ORDER_STATUSES
-                WITH USER_MODE
-                ORDER BY ReturnOrder.ReturnOrderNumber ASC NULLS LAST
-            ];
+            List<ReturnOrderLineItem> openLineItems =
+                ReturnOrderLineItemsSelector.selectOpenByAssetId(
+                    assetId,
+                    CLOSED_RETURN_ORDER_STATUSES
+                );
             for (ReturnOrderLineItem lineItem : openLineItems) {
                 if (lineItem.ReturnOrderId == null) {
                     continue;
@@ -304,6 +308,7 @@ public with sharing class CreateReturnOrderController {
         try {
             InitContext ctx = new InitContext();
             ctx.assetIds = new List<String>();
+            ctx.lineDefaultsByAssetId = new Map<String, AssetLineDefaults>();
             ctx.lockCase = false;
             ctx.lockAccount = false;
             ctx.lockWorkOrder = false;
@@ -345,18 +350,7 @@ public with sharing class CreateReturnOrderController {
                 return null;
             }
 
-            List<Account> accounts = [
-                SELECT
-                    Id,
-                    Name,
-                    SystemID__c,
-                    OrgIDs__c,
-                    BillingState
-                FROM Account
-                WHERE Id = :accountId
-                WITH USER_MODE
-                LIMIT 1
-            ];
+            List<Account> accounts = AccountSelector.selectForCreateReturnOrderById(accountId);
             return accounts.isEmpty() ? null : accounts[0];
         } catch (Exception e) {
             throw new AuraHandledException('Error retrieving account: ' + e.getMessage());
@@ -398,14 +392,7 @@ public with sharing class CreateReturnOrderController {
     }
 
     private static Product2 queryDefaultProduct() {
-        List<Product2> products = [
-            SELECT Id, Name, Description, ProductLine__c, ProductCode, Model__c
-            FROM Product2
-            WHERE Name = :DEFAULT_PRODUCT_NAME AND IsActive = TRUE
-            WITH USER_MODE
-            ORDER BY CreatedDate ASC
-            LIMIT 1
-        ];
+        List<Product2> products = ProductsSelector.selectDefaultActiveByName(DEFAULT_PRODUCT_NAME);
         return products.isEmpty() ? null : products[0];
     }
 
@@ -422,40 +409,15 @@ public with sharing class CreateReturnOrderController {
 
             List<Product2> products;
             if (requireServiceAsset) {
-                products = [
-                    SELECT
-                        Id,
-                        Name,
-                        Description,
-                        ProductLine__c,
-                        ProductType__c,
-                        ProductCode,
-                        Model__c,
-                        Manufacturer__c
-                    FROM Product2
-                    WHERE
-                        Id = :productId
-                        AND ProductType__c = 'Service Asset'
-                        AND IsActive = TRUE
-                    WITH USER_MODE
-                    LIMIT 1
-                ];
+                products = ProductsSelector.selectActiveDetailsForCreateReturnOrder(
+                    productId,
+                    true
+                );
             } else {
-                products = [
-                    SELECT
-                        Id,
-                        Name,
-                        Description,
-                        ProductLine__c,
-                        ProductType__c,
-                        ProductCode,
-                        Model__c,
-                        Manufacturer__c
-                    FROM Product2
-                    WHERE Id = :productId AND IsActive = TRUE
-                    WITH USER_MODE
-                    LIMIT 1
-                ];
+                products = ProductsSelector.selectActiveDetailsForCreateReturnOrder(
+                    productId,
+                    false
+                );
             }
             return products.isEmpty() ? null : products[0];
         } catch (Exception e) {
@@ -498,85 +460,12 @@ public with sharing class CreateReturnOrderController {
                 : '%' + normalizedSearchTerm + '%';
             String normalizedDeviceType = String.isBlank(deviceType) ? null : deviceType.trim();
 
-            List<Product2> products;
-            if (requireServiceAsset && !filterByProductLine) {
-                if (searchLikeTerm == null) {
-                    products = [
-                        SELECT Id, Name, ProductCode, Model__c, Description, DeviceType__c
-                        FROM Product2
-                        WHERE IsActive = TRUE AND ProductType__c = 'Service Asset'
-                        WITH USER_MODE
-                        ORDER BY Name ASC
-                        LIMIT 200
-                    ];
-                } else {
-                    products = [
-                        SELECT Id, Name, ProductCode, Model__c, Description, DeviceType__c
-                        FROM Product2
-                        WHERE
-                            IsActive = TRUE
-                            AND ProductType__c = 'Service Asset'
-                            AND (Name LIKE :searchLikeTerm
-                            OR ProductCode LIKE :searchLikeTerm
-                            OR Model__c LIKE :searchLikeTerm)
-                        WITH USER_MODE
-                        ORDER BY Name ASC
-                        LIMIT 200
-                    ];
-                }
-            } else if (requireServiceAsset) {
-                if (searchLikeTerm == null) {
-                    products = [
-                        SELECT Id, Name, ProductCode, Model__c, Description, DeviceType__c
-                        FROM Product2
-                        WHERE
-                            IsActive = TRUE
-                            AND ProductLine__c = :normalizedProductLine
-                            AND ProductType__c = 'Service Asset'
-                        WITH USER_MODE
-                        ORDER BY Name ASC
-                        LIMIT 200
-                    ];
-                } else {
-                    products = [
-                        SELECT Id, Name, ProductCode, Model__c, Description, DeviceType__c
-                        FROM Product2
-                        WHERE
-                            IsActive = TRUE
-                            AND ProductLine__c = :normalizedProductLine
-                            AND ProductType__c = 'Service Asset'
-                            AND (Name LIKE :searchLikeTerm
-                            OR ProductCode LIKE :searchLikeTerm
-                            OR Model__c LIKE :searchLikeTerm)
-                        WITH USER_MODE
-                        ORDER BY Name ASC
-                        LIMIT 200
-                    ];
-                }
-            } else if (searchLikeTerm == null) {
-                products = [
-                    SELECT Id, Name, ProductCode, Model__c, Description, DeviceType__c
-                    FROM Product2
-                    WHERE IsActive = TRUE AND ProductLine__c = :normalizedProductLine
-                    WITH USER_MODE
-                    ORDER BY Name ASC
-                    LIMIT 200
-                ];
-            } else {
-                products = [
-                    SELECT Id, Name, ProductCode, Model__c, Description, DeviceType__c
-                    FROM Product2
-                    WHERE
-                        IsActive = TRUE
-                        AND ProductLine__c = :normalizedProductLine
-                        AND (Name LIKE :searchLikeTerm
-                        OR ProductCode LIKE :searchLikeTerm
-                        OR Model__c LIKE :searchLikeTerm)
-                    WITH USER_MODE
-                    ORDER BY Name ASC
-                    LIMIT 200
-                ];
-            }
+            List<Product2> products = ProductsSelector.selectForCreateReturnOrderLine(
+                normalizedProductLine,
+                requireServiceAsset,
+                searchLikeTerm,
+                200
+            );
 
             List<ProductPicklistOption> options = new List<ProductPicklistOption>();
             for (Product2 product : products) {
@@ -624,13 +513,7 @@ public with sharing class CreateReturnOrderController {
                 return new List<Contact>();
             }
 
-            return [
-                SELECT Id, Name, Email
-                FROM Contact
-                WHERE Id IN :contactIds
-                WITH USER_MODE
-                ORDER BY Name ASC
-            ];
+            return ContactsSelector.selectNamesAndEmailsByIds(contactIds);
         } catch (Exception e) {
             throw new AuraHandledException('Error retrieving contacts: ' + e.getMessage());
         }
@@ -688,13 +571,11 @@ public with sharing class CreateReturnOrderController {
             insert newContact;
             ensureAccountContactRelation(accountId, newContact.Id);
 
-            Contact created = [
-                SELECT Id, Name, Email
-                FROM Contact
-                WHERE Id = :newContact.Id
-                WITH USER_MODE
-                LIMIT 1
-            ];
+            List<Contact> createdContacts = ContactsSelector.selectNameAndEmailById(newContact.Id);
+            Contact created = createdContacts.isEmpty() ? null : createdContacts[0];
+            if (created == null) {
+                throw new AuraHandledException('Error retrieving created contact.');
+            }
 
             CreateContactResult result = new CreateContactResult();
             result.contactId = created.Id;
@@ -747,14 +628,7 @@ public with sharing class CreateReturnOrderController {
                 return new List<Case>();
             }
 
-            return [
-                SELECT Id, CaseNumber, Subject
-                FROM Case
-                WHERE AccountId = :accountId
-                AND IsClosed = false
-                WITH USER_MODE
-                ORDER BY CaseNumber ASC
-            ];
+            return CasesSelector.selectOpenByAccountIdForCreateReturnOrder(accountId);
         } catch (Exception e) {
             throw new AuraHandledException('Error retrieving cases: ' + e.getMessage());
         }
@@ -764,13 +638,9 @@ public with sharing class CreateReturnOrderController {
     public static List<LocationOption> getRepairCenterLocations() {
         try {
             List<LocationOption> options = new List<LocationOption>();
-            for (Schema.Location loc : [
-                SELECT Id, Name
-                FROM Location
-                WHERE LocationType = :LOCATION_TYPE_REPAIR_CENTER
-                WITH USER_MODE
-                ORDER BY Name ASC
-            ]) {
+            for (Schema.Location loc : LocationsSelector.selectByLocationType(
+                LOCATION_TYPE_REPAIR_CENTER
+            )) {
                 LocationOption option = new LocationOption();
                 option.id = loc.Id;
                 option.name = loc.Name;
@@ -785,14 +655,7 @@ public with sharing class CreateReturnOrderController {
     @AuraEnabled(cacheable=true)
     public static List<User> getActiveInternalUsers() {
         try {
-            return [
-                SELECT Id, Name
-                FROM User
-                WHERE IsActive = true
-                AND UserType IN ('Standard', 'CsnOnly')
-                WITH USER_MODE
-                ORDER BY Name ASC
-            ];
+            return UserSelector.selectActiveInternalUsersForCreateReturnOrder();
         } catch (Exception e) {
             throw new AuraHandledException('Error retrieving users: ' + e.getMessage());
         }
@@ -805,21 +668,7 @@ public with sharing class CreateReturnOrderController {
                 return new List<AssetLineData>();
             }
 
-            List<Asset> assets = [
-                SELECT
-                    Id,
-                    SerialNumber,
-                    ModelCalculated__c,
-                    Department__c,
-                    Product2Id,
-                    Product2.ProductLine__c,
-                    Product2.Name,
-                    Product2.Manufacturer__c
-                FROM Asset
-                WHERE AccountId = :accountId
-                WITH USER_MODE
-                ORDER BY SerialNumber ASC NULLS LAST, Name ASC
-            ];
+            List<Asset> assets = AssetsSelector.selectForCreateReturnOrderByAccountId(accountId);
 
             return mapAssetsToLineData(assets);
         } catch (Exception e) {
@@ -840,13 +689,9 @@ public with sharing class CreateReturnOrderController {
             List<PicklistOption> options = new List<PicklistOption>();
             Set<Id> includedDepartmentIds = new Set<Id>();
 
-            for (AccountDepartment__c accountDepartment : [
-                SELECT Department__c, Department__r.Name
-                FROM AccountDepartment__c
-                WHERE Account__c = :accountId AND Department__c != NULL
-                WITH USER_MODE
-                ORDER BY Department__r.Name ASC NULLS LAST
-            ]) {
+            for (AccountDepartment__c accountDepartment :
+                AccountDepartmentsSelector.selectDepartmentsForCreateReturnOrder(accountId)
+            ) {
                 if (includedDepartmentIds.add(accountDepartment.Department__c)) {
                     PicklistOption option = new PicklistOption();
                     option.label = accountDepartment.Department__r.Name;
@@ -858,13 +703,10 @@ public with sharing class CreateReturnOrderController {
             Set<Id> additionalIds = toIdSet(additionalDepartmentIds);
             additionalIds.removeAll(includedDepartmentIds);
             if (!additionalIds.isEmpty()) {
-                for (Department__c department : [
-                    SELECT Id, Name
-                    FROM Department__c
-                    WHERE Id IN :additionalIds
-                    WITH USER_MODE
-                    ORDER BY Name ASC
-                ]) {
+                for (Department__c department : DepartmentsSelector.selectNamesByIds(
+                    additionalIds,
+                    true
+                )) {
                     PicklistOption option = new PicklistOption();
                     option.label = department.Name;
                     option.value = department.Id;
@@ -888,20 +730,9 @@ public with sharing class CreateReturnOrderController {
                 return new List<AssetLineData>();
             }
 
-            Map<Id, Asset> assetsById = new Map<Id, Asset>([
-                SELECT
-                    Id,
-                    SerialNumber,
-                    ModelCalculated__c,
-                    Department__c,
-                    Product2Id,
-                    Product2.ProductLine__c,
-                    Product2.Name,
-                    Product2.Manufacturer__c
-                FROM Asset
-                WHERE Id IN :idSet
-                WITH USER_MODE
-            ]);
+            Map<Id, Asset> assetsById = new Map<Id, Asset>(
+                AssetsSelector.selectForCreateReturnOrderByIds(idSet)
+            );
 
             List<AssetLineData> rows = new List<AssetLineData>();
             for (String assetIdValue : normalizedAssetIds) {
@@ -926,23 +757,9 @@ public with sharing class CreateReturnOrderController {
                 return new List<ScanSerialAssetResult>();
             }
 
-            List<Asset> assets = [
-                SELECT
-                    Id,
-                    SerialNumber,
-                    ModelCalculated__c,
-                    Department__c,
-                    Product2Id,
-                    Product2.ProductLine__c,
-                    Product2.Name,
-                    AccountId,
-                    Account.Name
-                FROM Asset
-                WHERE SerialNumber = :normalizedSerial
-                WITH USER_MODE
-                ORDER BY Account.Name ASC NULLS LAST, SerialNumber ASC NULLS LAST
-                LIMIT 50
-            ];
+            List<Asset> assets = AssetsSelector.selectForCreateReturnOrderBySerialNumber(
+                normalizedSerial
+            );
 
             List<ScanSerialAssetResult> rows = new List<ScanSerialAssetResult>();
             for (Asset asset : assets) {
@@ -1225,26 +1042,9 @@ public with sharing class CreateReturnOrderController {
                 return lines;
             }
 
-            for (WorkOrderLineItem lineItem : [
-                SELECT
-                    Id,
-                    Quantity,
-                    Description,
-                    Product2Id,
-                    Product2.Name,
-                    Product2.Description,
-                    Product2.Model__c,
-                    SerialNumber__c,
-                    Model__c,
-                    Department__c,
-                    ReportedProblem__c,
-                    AdditionalServices__c,
-                    InsulationPowderCoating__c
-                FROM WorkOrderLineItem
-                WHERE WorkOrder.ParentWorkOrderId = :workOrderId
-                    AND SendToRepairCenter__c = TRUE
-                ORDER BY WorkOrder.WorkOrderNumber ASC, LineItemNumber ASC NULLS LAST
-            ]) {
+            for (WorkOrderLineItem lineItem :
+                WorkOrderLineItemsSelector.selectSiteVisitRepairCenterLines(workOrderId)
+            ) {
                 lines.add(toSiteVisitInstrumentLine(lineItem));
             }
             return lines;
@@ -1276,13 +1076,8 @@ public with sharing class CreateReturnOrderController {
         List<String> selectedIds
     ) {
         if (sObjectName == 'Case' && String.isNotBlank(recordId)) {
-            Case c = [
-                SELECT AccountId, CaseNumber, Subject
-                FROM Case
-                WHERE Id = :recordId
-                WITH USER_MODE
-                LIMIT 1
-            ];
+            List<Case> cases = CasesSelector.selectAccountContextById(recordId);
+            Case c = cases[0];
             ctx.accountId = c.AccountId;
             ctx.caseId = recordId;
             ctx.caseLabel = formatCaseLabel(c);
@@ -1296,13 +1091,10 @@ public with sharing class CreateReturnOrderController {
             if (!selectedIds.isEmpty()) {
                 resolveContextFromAssets(ctx, selectedIds);
             } else if (String.isNotBlank(recordId)) {
-                Asset asset = [
-                    SELECT Id, AccountId
-                    FROM Asset
-                    WHERE Id = :recordId
-                    WITH USER_MODE
-                    LIMIT 1
-                ];
+                List<Asset> assets = AssetsSelector.selectAccountIdsByIds(
+                    new Set<Id>{ Id.valueOf(recordId) }
+                );
+                Asset asset = assets[0];
                 ctx.accountId = asset.AccountId;
                 ctx.assetIds.add(asset.Id);
             }
@@ -1315,12 +1107,9 @@ public with sharing class CreateReturnOrderController {
             return;
         }
 
-        Map<Id, Asset> assetsById = new Map<Id, Asset>([
-            SELECT Id, AccountId
-            FROM Asset
-            WHERE Id IN :idSet
-            WITH USER_MODE
-        ]);
+        Map<Id, Asset> assetsById = new Map<Id, Asset>(
+            AssetsSelector.selectAccountIdsByIds(idSet)
+        );
 
         // Preserve list-view selection order: account and lines use the first selected asset.
         for (String assetIdValue : assetIds) {
@@ -1353,19 +1142,10 @@ public with sharing class CreateReturnOrderController {
             return;
         }
 
-        WorkOrder workOrder = [
-            SELECT
-                AccountId,
-                ContactId,
-                Contact.Name,
-                AssetId,
-                WorkOrderNumber,
-                RecordType.DeveloperName
-            FROM WorkOrder
-            WHERE Id = :workOrderId
-            WITH USER_MODE
-            LIMIT 1
-        ];
+        List<WorkOrder> workOrders = WorkOrdersSelector.selectForCreateReturnOrderContext(
+            workOrderId
+        );
+        WorkOrder workOrder = workOrders[0];
 
         ctx.accountId = workOrder.AccountId;
         ctx.lockAccount = workOrder.AccountId != null;
@@ -1384,23 +1164,23 @@ public with sharing class CreateReturnOrderController {
     }
 
     /**
-     * @description GW-6017 - CRSS work orders return only the lines marked Send to Repair Center.
+     * @description GW-6017 - CRSS work orders return only the lines marked Send to Repair Center,
+     *              with the department and reported problem entered on each line.
      * @param ctx Wizard context
      * @param workOrderId CRSS Work Order Id
      */
     private static void addCrssRepairCenterAssetIds(InitContext ctx, Id workOrderId) {
         Set<Id> addedAssetIds = new Set<Id>();
-        for (WorkOrderLineItem lineItem : [
-            SELECT AssetId
-            FROM WorkOrderLineItem
-            WHERE WorkOrderId = :workOrderId
-                AND AssetId != NULL
-                AND SendToRepairCenter__c = TRUE
-            WITH USER_MODE
-            ORDER BY LineItemNumber ASC NULLS LAST, CreatedDate ASC
-        ]) {
+        for (WorkOrderLineItem lineItem :
+            WorkOrderLineItemsSelector.selectCrssRepairCenterAssetsByWorkOrderId(workOrderId)
+        ) {
             if (addedAssetIds.add(lineItem.AssetId)) {
-                ctx.assetIds.add(String.valueOf(lineItem.AssetId));
+                String assetId = String.valueOf(lineItem.AssetId);
+                ctx.assetIds.add(assetId);
+                AssetLineDefaults defaults = new AssetLineDefaults();
+                defaults.departmentId = lineItem.Department__c;
+                defaults.reportedProblem = lineItem.ReportedProblem__c;
+                ctx.lineDefaultsByAssetId.put(assetId, defaults);
             }
         }
     }
@@ -1440,14 +1220,13 @@ public with sharing class CreateReturnOrderController {
             return;
         }
         List<WorkOrderLineItem> updates = new List<WorkOrderLineItem>();
-        for (WorkOrderLineItem lineItem : [
-            SELECT Id
-            FROM WorkOrderLineItem
-            WHERE WorkOrderId = :workOrderId
-                AND WorkOrder.RecordType.DeveloperName = :CRSS_WORK_ORDER_RECORD_TYPE
-                AND AssetId IN :assetIds
-                AND SendToRepairCenter__c = TRUE
-        ]) {
+        for (WorkOrderLineItem lineItem :
+            WorkOrderLineItemsSelector.selectCrssSendToRepairCenterIdsByAsset(
+                workOrderId,
+                CRSS_WORK_ORDER_RECORD_TYPE,
+                assetIds
+            )
+        ) {
             updates.add(new WorkOrderLineItem(Id = lineItem.Id, SendToRepairCenter__c = false));
         }
         if (!updates.isEmpty()) {
@@ -1467,13 +1246,9 @@ public with sharing class CreateReturnOrderController {
             addedAssetIds.add(headerAssetId);
         }
 
-        for (WorkOrderLineItem lineItem : [
-            SELECT AssetId
-            FROM WorkOrderLineItem
-            WHERE WorkOrderId = :workOrderId AND AssetId != NULL
-            WITH USER_MODE
-            ORDER BY LineItemNumber ASC NULLS LAST, CreatedDate ASC
-        ]) {
+        for (WorkOrderLineItem lineItem :
+            WorkOrderLineItemsSelector.selectAssetIdsByWorkOrderId(workOrderId)
+        ) {
             if (lineItem.AssetId != null && !addedAssetIds.contains(lineItem.AssetId)) {
                 ctx.assetIds.add(String.valueOf(lineItem.AssetId));
                 addedAssetIds.add(lineItem.AssetId);
@@ -1698,16 +1473,10 @@ public with sharing class CreateReturnOrderController {
             return;
         }
 
-        for (AccountContactRelation existingRelation : [
-            SELECT Id
-            FROM AccountContactRelation
-            WHERE AccountId = :accountId AND ContactId = :contactId
-            WITH USER_MODE
-            LIMIT 1
-        ]) {
-            if (existingRelation != null) {
-                return;
-            }
+        List<AccountContactRelation> existingRelations =
+            AccountContactRelationsSelector.selectByAccountAndContact(accountId, contactId);
+        if (!existingRelations.isEmpty()) {
+            return;
         }
 
         try {
@@ -1744,21 +1513,13 @@ public with sharing class CreateReturnOrderController {
             return contactIds;
         }
 
-        for (Contact directContact : [
-            SELECT Id
-            FROM Contact
-            WHERE AccountId = :accountId
-            WITH USER_MODE
-        ]) {
+        for (Contact directContact : ContactsSelector.selectIdsByAccountId(accountId)) {
             contactIds.add(directContact.Id);
         }
 
-        for (AccountContactRelation relation : [
-            SELECT ContactId
-            FROM AccountContactRelation
-            WHERE AccountId = :accountId AND IsActive = true AND ContactId != NULL
-            WITH USER_MODE
-        ]) {
+        for (AccountContactRelation relation :
+            AccountContactRelationsSelector.selectActiveByAccountId(accountId)
+        ) {
             contactIds.add(relation.ContactId);
         }
 
@@ -1775,12 +1536,7 @@ public with sharing class CreateReturnOrderController {
             return null;
         }
 
-        for (Contact existingContact : [
-            SELECT Id, Name, FirstName, LastName
-            FROM Contact
-            WHERE Id IN :contactIds
-            WITH USER_MODE
-        ]) {
+        for (Contact existingContact : ContactsSelector.selectNameFieldsByIds(contactIds)) {
             if (
                 contactNamesMatch(existingContact.FirstName, firstName) &&
                 contactNamesMatch(existingContact.LastName, lastName)
@@ -1863,11 +1619,7 @@ public with sharing class CreateReturnOrderController {
         }
 
         itemTypeToProductLineCache = new Map<String, String>();
-        for (ROLIItemTypeandProductLine__mdt mapping : [
-            SELECT ItemType__c, ProductLine__c
-            FROM ROLIItemTypeandProductLine__mdt
-            WHERE ItemType__c != NULL AND ProductLine__c != NULL AND IsActive__c = TRUE
-        ]) {
+        for (ROLIItemTypeandProductLine__mdt mapping : selectActiveRoliProductLineMappings()) {
             itemTypeToProductLineCache.put(mapping.ItemType__c, mapping.ProductLine__c);
         }
         return itemTypeToProductLineCache;
@@ -1879,29 +1631,49 @@ public with sharing class CreateReturnOrderController {
         }
 
         itemTypeToROCategoryCache = new Map<String, String>();
-        for (ROLIItemTypeandProductLine__mdt mapping : [
-            SELECT ItemType__c, ROCategory__c
-            FROM ROLIItemTypeandProductLine__mdt
-            WHERE ItemType__c != NULL AND ROCategory__c != NULL AND IsActive__c = TRUE
-        ]) {
+        for (ROLIItemTypeandProductLine__mdt mapping : selectActiveRoliRoCategoryMappings()) {
             itemTypeToROCategoryCache.put(mapping.ItemType__c, mapping.ROCategory__c);
         }
         return itemTypeToROCategoryCache;
     }
 
-    
+    private static List<ROLIItemTypeandProductLine__mdt> selectActiveRoliProductLineMappings() {
+        return (List<ROLIItemTypeandProductLine__mdt>) new ROLIItemTypeandProductLineSelector()
+            .selectFields(new List<String>{ 'ItemType__c', 'ProductLine__c' })
+            .whereField('ItemType__c', '!=', null)
+            .whereField('ProductLine__c', '!=', null)
+            .whereEquals('IsActive__c', true)
+            .execute();
+    }
+
+    private static List<ROLIItemTypeandProductLine__mdt> selectActiveRoliRoCategoryMappings() {
+        return (List<ROLIItemTypeandProductLine__mdt>) new ROLIItemTypeandProductLineSelector()
+            .selectFields(new List<String>{ 'ItemType__c', 'ROCategory__c' })
+            .whereField('ItemType__c', '!=', null)
+            .whereField('ROCategory__c', '!=', null)
+            .whereEquals('IsActive__c', true)
+            .execute();
+    }
+
+    private static List<ROLIItemTypeandProductLine__mdt> selectActiveRoliItemTypesExcluding(
+        String excludedItemType
+    ) {
+        SoqlQueryBuilder builder = new ROLIItemTypeandProductLineSelector()
+            .selectFields(new List<String>{ 'ItemType__c' })
+            .whereField('ItemType__c', '!=', null)
+            .whereEquals('IsActive__c', true)
+            .orderBy('ItemType__c');
+        if (!String.isBlank(excludedItemType)) {
+            builder.whereField('ItemType__c', '!=', excludedItemType);
+        }
+        return (List<ROLIItemTypeandProductLine__mdt>) builder.execute();
+    }
 
     private static List<PicklistOption> getItemTypePicklistOptions() {
         List<PicklistOption> options = new List<PicklistOption>();
-        for (ROLIItemTypeandProductLine__mdt mapping : [
-            SELECT ItemType__c
-            FROM ROLIItemTypeandProductLine__mdt
-            WHERE
-                ItemType__c != NULL
-                AND IsActive__c = TRUE
-                AND ItemType__c != :ENDOCAM_ITEM_TYPE
-            ORDER BY ItemType__c ASC
-        ]) {
+        for (ROLIItemTypeandProductLine__mdt mapping :
+            selectActiveRoliItemTypesExcluding(ENDOCAM_ITEM_TYPE)
+        ) {
             PicklistOption option = new PicklistOption();
             option.label = mapping.ItemType__c;
             option.value = mapping.ItemType__c;
@@ -1909,20 +1681,6 @@ public with sharing class CreateReturnOrderController {
         }
         return options;
     }
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
 
     private static ShipToAddressOption toShipToAddressOption(Account shipTo) {
         ShipToAddressOption option = new ShipToAddressOption();
@@ -2127,27 +1885,7 @@ public with sharing class CreateReturnOrderController {
     }
 
     private static List<RepairCenterRoutingRule__c> loadRoutingRulesForOperatingUnit(String operatingUnit) {
-        if (String.isBlank(operatingUnit)) {
-            return new List<RepairCenterRoutingRule__c>();
-        }
-
-        return [
-            SELECT
-                Id,
-                OperatingUnit__c,
-                ProductLine__c,
-                SubProductLine__c,
-                Manufacturer__c,
-                DeviceType__c,
-                Model__c,
-                ShipState__c,
-                RepairCenter__c,
-                RepairCenter__r.Name,
-                MaxItemsPerReturn__c
-            FROM RepairCenterRoutingRule__c
-            WHERE OperatingUnit__c = :operatingUnit
-            WITH USER_MODE
-        ];
+        return RepairCenterRoutingRulesSelector.selectByOperatingUnitForCreateReturnOrder(operatingUnit);
     }
 
     private static Map<Id, Product2> loadProductsForRouting(List<Object> lineObjects) {
@@ -2165,18 +1903,9 @@ public with sharing class CreateReturnOrderController {
             return new Map<Id, Product2>();
         }
 
-        return new Map<Id, Product2>([
-            SELECT
-                Id,
-                ProductLine__c,
-                SubProductLine__c,
-                Manufacturer__c,
-                DeviceType__c,
-                Model__c
-            FROM Product2
-            WHERE Id IN :productIds
-            WITH USER_MODE
-        ]);
+        return new Map<Id, Product2>(
+            ProductsSelector.selectForCreateReturnOrderRouting(productIds)
+        );
     }
 
     /**
@@ -2817,13 +2546,7 @@ public with sharing class CreateReturnOrderController {
             }
         }
 
-        List<Schema.Location> locations = [
-            SELECT Name
-            FROM Location
-            WHERE Id = :locationId
-            WITH USER_MODE
-            LIMIT 1
-        ];
+        List<Schema.Location> locations = LocationsSelector.selectNameById(locationId);
         return locations.isEmpty() ? 'Repair Center' : locations[0].Name;
     }
 
@@ -2842,12 +2565,7 @@ public with sharing class CreateReturnOrderController {
             return namesById;
         }
 
-        for (Contact contact : [
-            SELECT Id, Name
-            FROM Contact
-            WHERE Id IN :contactIds
-            WITH USER_MODE
-        ]) {
+        for (Contact contact : ContactsSelector.selectNamesByIds(contactIds)) {
             namesById.put(contact.Id, contact.Name);
         }
         return namesById;
@@ -2868,12 +2586,10 @@ public with sharing class CreateReturnOrderController {
             return namesById;
         }
 
-        for (Department__c department : [
-            SELECT Id, Name
-            FROM Department__c
-            WHERE Id IN :departmentIds
-            WITH USER_MODE
-        ]) {
+        for (Department__c department : DepartmentsSelector.selectNamesByIds(
+            departmentIds,
+            false
+        )) {
             namesById.put(department.Id, department.Name);
         }
         return namesById;
@@ -2931,7 +2647,6 @@ public with sharing class CreateReturnOrderController {
             lineItem.Product2Id == null ? null : lineItem.Product2.Description,
             line.productName
         );
-        line.serialNumber = lineItem.SerialNumber__c;
         line.model = firstNonBlank(
             lineItem.Model__c,
             lineItem.Product2Id == null ? null : lineItem.Product2.Model__c,
@@ -2990,11 +2705,9 @@ public with sharing class CreateReturnOrderController {
         }
 
         List<WorkOrderLineItem> updates = new List<WorkOrderLineItem>();
-        for (WorkOrderLineItem lineItem : [
-            SELECT Id
-            FROM WorkOrderLineItem
-            WHERE Id IN :workOrderLineItemIds AND SendToRepairCenter__c = TRUE
-        ]) {
+        for (WorkOrderLineItem lineItem :
+            WorkOrderLineItemsSelector.selectSendToRepairCenterIds(workOrderLineItemIds)
+        ) {
             updates.add(new WorkOrderLineItem(
                 Id = lineItem.Id,
                 SendToRepairCenter__c = false

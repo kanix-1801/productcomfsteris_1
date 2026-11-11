@@ -1225,10 +1225,10 @@ private class WorkOrdersSelectorTest {
 
         System.runAs(testUser) {
             Id otherRecordTypeId = Schema.SObjectType.WorkOrder.getRecordTypeInfosByDeveloperName()
-                .get('RepairCenterVendor')
+                .get('RepairCenterOther')
                 ?.getRecordTypeId();
             if (otherRecordTypeId == null) {
-                Assert.isTrue(true, 'RepairCenterVendor record type unavailable; skip');
+                Assert.isTrue(true, 'RepairCenterOther record type unavailable; skip');
                 return;
             }
 
@@ -1479,5 +1479,146 @@ private class WorkOrdersSelectorTest {
     static void selectAssetProductCodesByIds_nullOrEmptyReturnsEmpty() {
         System.assertEquals(0, WorkOrdersSelector.selectAssetProductCodesByIds(null).size());
         System.assertEquals(0, WorkOrdersSelector.selectAssetProductCodesByIds(new Set<Id>()).size());
+    }
+
+    @IsTest
+    static void testSelectByIdForReceivingWoliCreate_happyPathAndNullGuard() {
+        User testUser = new User(Id = UserInfo.getUserId());
+        System.runAs(testUser) {
+            WorkOrder existing = [SELECT Id FROM WorkOrder LIMIT 1];
+
+            Test.startTest();
+            List<WorkOrder> rows =
+                WorkOrdersSelector.selectByIdForReceivingWoliCreate(existing.Id);
+            List<WorkOrder> nullRows =
+                WorkOrdersSelector.selectByIdForReceivingWoliCreate(null);
+            Test.stopTest();
+
+            Assert.areEqual(1, rows.size());
+            Assert.areEqual(existing.Id, rows[0].Id);
+            Assert.isTrue(nullRows.isEmpty());
+        }
+    }
+
+    @IsTest
+    static void testSelectAssetIdById_happyPathAndNullGuard() {
+        User testUser = new User(Id = UserInfo.getUserId());
+        System.runAs(testUser) {
+            WorkOrder existing = [SELECT Id FROM WorkOrder LIMIT 1];
+
+            Test.startTest();
+            List<WorkOrder> rows = WorkOrdersSelector.selectAssetIdById(existing.Id);
+            List<WorkOrder> nullRows = WorkOrdersSelector.selectAssetIdById(null);
+            Test.stopTest();
+
+            Assert.areEqual(1, rows.size());
+            Assert.areEqual(existing.Id, rows[0].Id);
+            Assert.isTrue(nullRows.isEmpty());
+        }
+    }
+
+    @IsTest
+    static void testSelectReceivingVendorWorkOrder_withRepairCenterOther() {
+        User testUser = new User(Id = UserInfo.getUserId());
+        System.runAs(testUser) {
+            Id otherRecordTypeId = Schema.SObjectType.WorkOrder.getRecordTypeInfosByDeveloperName()
+                .get('RepairCenterOther')
+                ?.getRecordTypeId();
+            if (otherRecordTypeId == null) {
+                Assert.isTrue(true, 'RepairCenterOther record type unavailable; skip');
+                return;
+            }
+
+            adb_Account vendorBuilder = new adb_Account()
+                .name('WOSel Receiving Vendor')
+                .systemId('LEGWORECVVND01')
+                .sourceSystemId('TEST-ORACLE-WOSEL-RECV-VND')
+                .orgIds('82');
+            adb_Account accountBuilder = new adb_Account()
+                .name('WOSel Receiving Customer')
+                .systemId('LEGWORECVCST01')
+                .sourceSystemId('TEST-ORACLE-WOSEL-RECV-CUST')
+                .orgIds('82');
+            adb_Location repairCenterBuilder = new adb_Location()
+                .name('WOSel Receiving RC')
+                .locationType('Repair Center');
+            adb_ReturnOrder returnOrderBuilder = new adb_ReturnOrder()
+                .account(accountBuilder)
+                .status('Submitted');
+            returnOrderBuilder.setParent(ReturnOrder.DestinationLocationId, repairCenterBuilder);
+            returnOrderBuilder.set(ReturnOrder.OperatingUnit__c, '82');
+            returnOrderBuilder.set(ReturnOrder.ReturnOrderType__c, 'Serialized');
+
+            returnOrderBuilder.persist();
+            vendorBuilder.persist();
+
+            adb_WorkOrder vendorWorkOrderBuilder = new adb_WorkOrder()
+                .subject('WOSel Receiving Vendor WO')
+                .status('Received')
+                .account(accountBuilder)
+                .repairCenter(repairCenterBuilder);
+            vendorWorkOrderBuilder.set(WorkOrder.RecordTypeId, otherRecordTypeId);
+            vendorWorkOrderBuilder.setParent(WorkOrder.Vendor__c, vendorBuilder);
+            vendorWorkOrderBuilder.persist();
+
+            WorkOrder vendorWorkOrder = new WorkOrder(
+                Id = vendorWorkOrderBuilder.id,
+                ReturnOrder__c = returnOrderBuilder.id
+            );
+            update vendorWorkOrder;
+
+            Test.startTest();
+            WorkOrder matched = WorkOrdersSelector.selectReceivingVendorWorkOrder(
+                returnOrderBuilder.id,
+                vendorBuilder.id
+            );
+            WorkOrder nullReturnOrder =
+                WorkOrdersSelector.selectReceivingVendorWorkOrder(null, vendorBuilder.id);
+            WorkOrder nullVendor =
+                WorkOrdersSelector.selectReceivingVendorWorkOrder(returnOrderBuilder.id, null);
+            Test.stopTest();
+
+            Assert.isNotNull(matched, 'Should find the RepairCenterOther vendor Work Order');
+            Assert.areEqual(vendorWorkOrderBuilder.id, matched.Id);
+            Assert.areEqual(vendorBuilder.id, matched.Vendor__c);
+            Assert.isNull(nullReturnOrder);
+            Assert.isNull(nullVendor);
+        }
+    }
+
+    @IsTest
+    static void testQuoteEmailAndModifierSelectors_sprint93Coverage() {
+        WorkOrder workOrder = [
+            SELECT Id, WorkOrderNumber
+            FROM WorkOrder
+            LIMIT 1
+        ];
+
+        Test.startTest();
+        Assert.isNull(WorkOrdersSelector.selectForQuoteEmailReply(null));
+        Assert.isNull(WorkOrdersSelector.selectForQuoteEmailReply('   '));
+        WorkOrder byId = WorkOrdersSelector.selectForQuoteEmailReply(String.valueOf(workOrder.Id));
+        WorkOrder byNumber =
+            WorkOrdersSelector.selectForQuoteEmailReply(workOrder.WorkOrderNumber);
+        Assert.isTrue(WorkOrdersSelector.selectShippedByAsset(null).isEmpty());
+        List<WorkOrder> shipped = WorkOrdersSelector.selectShippedByAsset(workOrder.Id);
+        Assert.isTrue(WorkOrdersSelector.selectActiveQuoteGrandTotalById(null).isEmpty());
+        List<WorkOrder> quoteTotals =
+            WorkOrdersSelector.selectActiveQuoteGrandTotalById(workOrder.Id);
+        Assert.isTrue(WorkOrdersSelector.selectForModifierReference(null).isEmpty());
+        List<WorkOrder> modifierRef =
+            WorkOrdersSelector.selectForModifierReference(workOrder.Id);
+        Assert.isTrue(WorkOrdersSelector.selectForCreateReturnOrderContext(null).isEmpty());
+        List<WorkOrder> croContext =
+            WorkOrdersSelector.selectForCreateReturnOrderContext(workOrder.Id);
+        Test.stopTest();
+
+        Assert.isNotNull(byId);
+        Assert.areEqual(workOrder.Id, byId.Id);
+        Assert.isNotNull(byNumber);
+        Assert.isNotNull(shipped);
+        Assert.isFalse(quoteTotals.isEmpty());
+        Assert.isFalse(modifierRef.isEmpty());
+        Assert.isNotNull(croContext);
     }
 }

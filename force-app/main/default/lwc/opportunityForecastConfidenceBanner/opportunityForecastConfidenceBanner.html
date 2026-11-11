@@ -50,7 +50,7 @@
             <div class="slds-modal__container propagate-modal-container">
                 <header class="slds-modal__header">
                     <h2 id="forecast-propagate-modal-heading" class="slds-modal__title slds-hyphenate">
-                        Propagate Forecast Confidence to Quotes
+                        Update Quote Forecast Confidence
                     </h2>
                 </header>
                 <div class="slds-modal__content slds-p-around_medium modal-content">
@@ -85,10 +85,14 @@
                                             onchange={handleSelectAllChange}>
                                         </lightning-input>
                                     </th>
-                                    <th scope="col">Quote Number</th>
-                                    <th scope="col">Status</th>
-                                    <th scope="col">Current Quote Forecast Confidence</th>
-                                    <th scope="col">Updated Quote Forecast Confidence</th>
+                                    <th scope="col" class="col-quote-number">Quote Number</th>
+                                    <th scope="col" class="col-status">Status</th>
+                                    <th scope="col" class="col-current-confidence">
+                                        Current Quote Forecast Confidence
+                                    </th>
+                                    <th scope="col" class="col-updated-confidence">
+                                        Updated Quote Forecast Confidence
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -97,20 +101,21 @@
                                         <td class="col-select">
                                             <lightning-input
                                                 type="checkbox"
-                                                label={quote.quoteNumber}
+                                                label="Select quote"
                                                 variant="label-hidden"
                                                 data-id={quote.id}
+                                                title={quote.quoteNumber}
                                                 checked={quote.selected}
                                                 disabled={isBusy}
                                                 onchange={handleQuoteSelectionChange}>
                                             </lightning-input>
                                         </td>
-                                        <td>
+                                        <td class="col-quote-number">
                                             <div class="truncate" title={quote.quoteNumber}>{quote.quoteNumber}</div>
                                         </td>
-                                        <td>{quote.status}</td>
-                                        <td>{quote.currentForecastConfidence}</td>
-                                        <td>{quote.pendingForecastConfidence}</td>
+                                        <td class="col-status">{quote.status}</td>
+                                        <td class="col-current-confidence">{quote.currentForecastConfidence}</td>
+                                        <td class="col-updated-confidence">{quote.pendingForecastConfidence}</td>
                                     </tr>
                                 </template>
                             </tbody>
@@ -125,7 +130,7 @@
                     </lightning-button>
                     <lightning-button
                         variant="brand"
-                        label="Propagate to Selected Quotes"
+                        label="Update Selected Quotes"
                         class="slds-m-left_x-small"
                         onclick={handlePropagate}
                         disabled={propagateDisabled}

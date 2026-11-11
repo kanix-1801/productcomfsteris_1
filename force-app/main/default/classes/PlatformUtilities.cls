@@ -162,6 +162,74 @@ public with sharing class PlatformUtilities {
         }
     }
 
+
+    /**
+     * @description Parses a list of Id values from an untyped JSON list.
+     * @param value Untyped list (typically from JSON.deserializeUntyped)
+     * @return Parsed Ids; blank/invalid entries are skipped
+     */
+    public static List<Id> parseIdList(Object value) {
+        List<Id> ids = new List<Id>();
+        if (!(value instanceof List<Object>)) {
+            return ids;
+        }
+        for (Object rawValue : (List<Object>) value) {
+            Id parsedId = parseId(String.valueOf(rawValue));
+            if (parsedId != null) {
+                ids.add(parsedId);
+            }
+        }
+        return ids;
+    }
+
+    /**
+     * @description Coerces common JSON/boolean representations to Boolean.
+     * @param value Boolean, or string/number representation
+     * @return true for true/1/yes (case-insensitive); otherwise false
+     */
+    public static Boolean toBoolean(Object value) {
+        if (value == null) {
+            return false;
+        }
+        if (value instanceof Boolean) {
+            return (Boolean) value;
+        }
+        String text = String.valueOf(value);
+        return 'true'.equalsIgnoreCase(text) || '1'.equals(text) || 'yes'.equalsIgnoreCase(text);
+    }
+
+    /**
+     * @description Parses a positive Decimal from common JSON numeric types.
+     * @param value Decimal/Integer/Long/String value
+     * @param defaultValue Value returned when null/blank/non-positive
+     * @return Parsed positive Decimal, or defaultValue
+     */
+    public static Decimal parsePositiveDecimal(Object value, Decimal defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        }
+        if (value instanceof Decimal) {
+            Decimal decimalValue = (Decimal) value;
+            return decimalValue > 0 ? decimalValue : defaultValue;
+        }
+        if (value instanceof Integer) {
+            Integer intValue = (Integer) value;
+            return intValue > 0 ? Decimal.valueOf(intValue) : defaultValue;
+        }
+        if (value instanceof Long) {
+            Long longValue = (Long) value;
+            return longValue > 0 ? Decimal.valueOf(longValue) : defaultValue;
+        }
+
+        String text = String.valueOf(value);
+        if (String.isBlank(text)) {
+            return defaultValue;
+        }
+
+        Decimal parsed = Decimal.valueOf(text);
+        return parsed > 0 ? parsed : defaultValue;
+    }
+
     /**
      * @description Serializes the given body to JSON and writes it to the REST response
      *              along with the given HTTP status code.

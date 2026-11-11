@@ -50,7 +50,9 @@ public with sharing class EmailInboundService {
                     String.join(new List<String>(collectMessageIds(email)), ',')
                 );
             }
-            if (request.sourceRecord instanceof WorkOrder) {
+            if (request.sourceRecord instanceof WorkOrder &&
+                isRepairCenterWorkOrder((WorkOrder) request.sourceRecord)
+            ) {
                 RepairCenterQuoteEmailService.applyReply(
                     (WorkOrder) request.sourceRecord,
                     request.intent
@@ -131,7 +133,7 @@ public with sharing class EmailInboundService {
     }
 
     private static EmailMessage resolveOriginalEmailMessage(Messaging.InboundEmail email) {
-        Set<String> messageIds = expandMessageIds(collectMessageIds(email));
+        Set<String> messageIds = collectMessageIds(email);
         if (messageIds.isEmpty()) {
             return null;
         }
@@ -164,23 +166,22 @@ public with sharing class EmailInboundService {
         return messageIds;
     }
 
-    private static Set<String> expandMessageIds(Set<String> normalizedIds) {
-        Set<String> expanded = new Set<String>();
-        for (String messageId : normalizedIds) {
-            if (String.isBlank(messageId)) {
-                continue;
-            }
-            expanded.add(messageId);
-            expanded.add('<' + messageId + '>');
-        }
-        return expanded;
-    }
-
     private static void addNormalizedMessageId(Set<String> messageIds, String rawValue) {
         String normalized = normalizeMessageId(rawValue);
-        if (String.isNotBlank(normalized)) {
-            messageIds.add(normalized);
+        if (String.isBlank(normalized)) {
+            return;
         }
+        messageIds.add(normalized);
+        messageIds.add('<' + normalized + '>');
+    }
+
+    private static Boolean isRepairCenterWorkOrder(WorkOrder workOrder) {
+        String recordTypeName = workOrder == null || workOrder.RecordType == null
+            ? null
+            : workOrder.RecordType.DeveloperName;
+        return recordTypeName == 'RepairCenterDevices' ||
+            recordTypeName == 'RepairCenterInstruments' ||
+            recordTypeName == 'RepairCenterOther';
     }
 
     @TestVisible

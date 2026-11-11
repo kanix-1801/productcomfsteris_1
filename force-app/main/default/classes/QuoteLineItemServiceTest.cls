@@ -157,6 +157,123 @@
          );
      }
 
+    @IsTest
+    static void testGetForQuoteEmailReplyByQuoteId_WhenNull_ReturnsEmpty() {
+        Test.startTest();
+        List<QuoteLineItem> results = QuoteLineItemService.getForQuoteEmailReplyByQuoteId(null);
+        Test.stopTest();
+        Assert.isTrue(results.isEmpty());
+    }
+
+    @IsTest
+    static void testGetForApproveRejectByQuoteId_WhenNull_ReturnsEmpty() {
+        Test.startTest();
+        List<QuoteLineItem> results = QuoteLineItemService.getForApproveRejectByQuoteId(null);
+        Test.stopTest();
+        Assert.isTrue(results.isEmpty());
+    }
+
+    @IsTest
+    static void testGetForApproveRejectById_WhenNull_ReturnsNull() {
+        Test.startTest();
+        QuoteLineItem result = QuoteLineItemService.getForApproveRejectById(null);
+        Test.stopTest();
+        Assert.isNull(result);
+    }
+
+    @IsTest
+    static void testGetForPricingFrameworkByQuoteIds_WhenBlank_ReturnsEmpty() {
+        Test.startTest();
+        List<QuoteLineItem> nullIds = QuoteLineItemService.getForPricingFrameworkByQuoteIds(null);
+        List<QuoteLineItem> emptyIds =
+            QuoteLineItemService.getForPricingFrameworkByQuoteIds(new Set<Id>());
+        Test.stopTest();
+        Assert.isTrue(nullIds.isEmpty());
+        Assert.isTrue(emptyIds.isEmpty());
+    }
+
+    @IsTest
+    static void testGetForPricingFrameworkHeadlessByIds_WhenBlank_ReturnsEmpty() {
+        Test.startTest();
+        Map<Id, QuoteLineItem> nullIds =
+            QuoteLineItemService.getForPricingFrameworkHeadlessByIds(null);
+        Map<Id, QuoteLineItem> emptyIds =
+            QuoteLineItemService.getForPricingFrameworkHeadlessByIds(new Set<Id>());
+        Test.stopTest();
+        Assert.isTrue(nullIds.isEmpty());
+        Assert.isTrue(emptyIds.isEmpty());
+    }
+
+    @IsTest
+    static void testSprint9Queries_WhenQuoteLineExists_ReturnsRows() {
+        QuoteLineItem lineItem = createQuoteLineItem();
+
+        Test.startTest();
+        List<QuoteLineItem> emailRows =
+            QuoteLineItemService.getForQuoteEmailReplyByQuoteId(lineItem.QuoteId);
+        List<QuoteLineItem> approveRows =
+            QuoteLineItemService.getForApproveRejectByQuoteId(lineItem.QuoteId);
+        QuoteLineItem approveById = QuoteLineItemService.getForApproveRejectById(lineItem.Id);
+        List<QuoteLineItem> pricingRows =
+            QuoteLineItemService.getForPricingFrameworkByQuoteIds(new Set<Id>{ lineItem.QuoteId });
+        Map<Id, QuoteLineItem> headlessRows =
+            QuoteLineItemService.getForPricingFrameworkHeadlessByIds(new Set<Id>{ lineItem.Id });
+        List<QuoteLineItem> approveViaAlias =
+            QuoteLineItemService.getLineItemsForApproveReject(lineItem.QuoteId);
+        List<QuoteLineItem> documentRows =
+            QuoteLineItemService.selectForRepairCenterDocumentGeneration(lineItem.QuoteId);
+        List<QuoteLineItem> preApprovalRows =
+            QuoteLineItemService.selectForRepairCenterPreApproval(new Set<Id>{ lineItem.QuoteId });
+        QuoteLineItemService.updateQuoteLineItems(null);
+        QuoteLineItemService.updateQuoteLineItems(new List<QuoteLineItem>());
+        QuoteLineItemService.updateLineItemsForApproveReject(null);
+        QuoteLineItemService.updateLineItemsForApproveReject(new List<QuoteLineItem>());
+        QuoteLineItemService.updateQuoteLineItems(new List<QuoteLineItem>{ lineItem });
+        QuoteLineItemService.updateLineItemsForApproveReject(new List<QuoteLineItem>{ lineItem });
+        QuoteLineItem saved = QuoteLineItemService.saveQuoteComments(lineItem.Id, 'Coverage comment');
+        Test.stopTest();
+
+        Assert.isFalse(emailRows.isEmpty());
+        Assert.areEqual(lineItem.Id, emailRows[0].Id);
+        Assert.isFalse(approveRows.isEmpty());
+        Assert.areEqual(lineItem.Id, approveRows[0].Id);
+        Assert.isNotNull(approveById);
+        Assert.areEqual(lineItem.Id, approveById.Id);
+        Assert.isFalse(pricingRows.isEmpty());
+        Assert.areEqual(lineItem.Id, pricingRows[0].Id);
+        Assert.isTrue(headlessRows.containsKey(lineItem.Id));
+        Assert.isFalse(approveViaAlias.isEmpty());
+        Assert.isFalse(documentRows.isEmpty());
+        Assert.isFalse(preApprovalRows.isEmpty());
+        Assert.areEqual('Coverage comment', saved.QuoteComments__c);
+    }
+
+    @IsTest
+    static void testDevHelperGuards_WhenBlank_ReturnEmptyOrThrow() {
+        Test.startTest();
+        List<QuoteLineItem> nullDoc =
+            QuoteLineItemService.selectForRepairCenterDocumentGeneration(null);
+        List<QuoteLineItem> nullPre =
+            QuoteLineItemService.selectForRepairCenterPreApproval(null);
+        List<QuoteLineItem> emptyPre =
+            QuoteLineItemService.selectForRepairCenterPreApproval(new Set<Id>());
+        List<QuoteLineItem> nullIdsPre =
+            QuoteLineItemService.selectForRepairCenterPreApproval(new Set<Id>{ null });
+        Boolean threw = false;
+        try {
+            QuoteLineItemService.saveQuoteComments(UserInfo.getUserId(), 'missing');
+        } catch (QuoteLineItemService.QuoteLineItemServiceException e) {
+            threw = true;
+        }
+        Test.stopTest();
+
+        Assert.isTrue(nullDoc.isEmpty());
+        Assert.isTrue(nullPre.isEmpty());
+        Assert.isTrue(emptyPre.isEmpty());
+        Assert.isTrue(nullIdsPre.isEmpty());
+        Assert.isTrue(threw);
+    }
+
     /**
      * @description AssetActionsSelector targets AssetAction. One method is enough to cover that class.
      */

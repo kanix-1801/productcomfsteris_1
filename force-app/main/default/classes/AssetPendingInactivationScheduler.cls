@@ -16,10 +16,11 @@ public with sharing class AssetPendingInactivationScheduler implements Schedulab
     public static final String SCHEDULE_CRON_DAILY_1AM = '0 0 1 * * ?';
 
     /**
-     * @description When true in tests, forces execute() into the catch path.
+     * @description Test hook. A scope outside 1-2000 makes executeBatch throw so the
+     *              catch path can be covered. Production leaves this null.
      */
     @TestVisible
-    private static Boolean forceExceptionForTest = false;
+    private static Integer batchSizeForTest;
 
     /**
      * @description Submits AssetPendingInactivationBatch.
@@ -28,14 +29,11 @@ public with sharing class AssetPendingInactivationScheduler implements Schedulab
     public void execute(SchedulableContext sc) {
         Logger.info('AssetPendingInactivationScheduler.execute: submitting AssetPendingInactivationBatch');
         try {
-            if (forceExceptionForTest == true) {
-                throw new AssetPendingInactivationService.AssetPendingInactivationException(
-                    'Forced scheduler failure for test'
-                );
-            }
             Database.executeBatch(
                 new AssetPendingInactivationBatch(),
-                AssetPendingInactivationBatch.DEFAULT_BATCH_SIZE
+                batchSizeForTest == null
+                    ? AssetPendingInactivationBatch.DEFAULT_BATCH_SIZE
+                    : batchSizeForTest
             );
         } catch (Exception e) {
             Logger.error('AssetPendingInactivationScheduler.execute', e);

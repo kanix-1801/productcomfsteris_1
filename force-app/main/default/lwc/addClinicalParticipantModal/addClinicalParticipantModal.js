@@ -1,5 +1,8 @@
-import { api, track } from 'lwc';
+import { api, track, wire } from 'lwc';
 import LightningModal from 'lightning/modal';
+import { getFieldValue, getRecord } from 'lightning/uiRecordApi';
+import USER_NAME_FIELD from '@salesforce/schema/User.Name';
+import USER_EMAIL_FIELD from '@salesforce/schema/User.Email';
 import getSalesforceUser from '@salesforce/apex/ClinicalParticipantService.getSalesforceUser';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -7,7 +10,25 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export default class AddClinicalParticipantModal extends LightningModal {
     @api participantsJson;
     @track rows = [];
+    lookupUserId;
     errorMessage = '';
+    saving = false;
+
+    @wire(getRecord, { recordId: '$lookupUserId', fields: [USER_NAME_FIELD, USER_EMAIL_FIELD] })
+    loadSelectedUser({ data }) {
+        if (!data) {
+            return;
+        }
+        const loadedId = data.id || '';
+        const row = this.rows.find((item) => item.userId && loadedId.startsWith(item.userId));
+        if (!row) {
+            return;
+        }
+        this.updateRow(row.key, {
+            name: getFieldValue(data, USER_NAME_FIELD) || '',
+            email: getFieldValue(data, USER_EMAIL_FIELD) || ''
+        });
+    }
 
     connectedCallback() {
         this.rows = this.parseRows(this.participantsJson);
@@ -92,22 +113,16 @@ export default class AddClinicalParticipantModal extends LightningModal {
         this.updateRow(event.target.dataset.key, { email: event.target.value });
     }
 
-    async handleUserChange(event) {
-        const key = event.target.dataset.key;
-        const userId = event.detail.recordId;
+    handleUserChange(event) {
+        const key = event.currentTarget.dataset.key;
+        const userId = event.detail?.recordId || null;
         if (!userId) {
+            this.lookupUserId = null;
             this.updateRow(key, { userId: null, name: '', email: '' });
             return;
         }
-        this.updateRow(key, { userId });
-        try {
-            const user = await getSalesforceUser({ userId });
-            if (user) {
-                this.updateRow(key, { name: user.Name || '', email: user.Email || '' });
-            }
-        } catch (e) {
-            this.errorMessage = 'The Salesforce user could not be loaded. Select the user again.';
-        }
+        this.updateRow(key, { userId, name: '', email: '' });
+        this.lookupUserId = userId;
     }
 
     updateRow(key, changes) {
@@ -116,6 +131,9 @@ export default class AddClinicalParticipantModal extends LightningModal {
     }
 
     get saveDisabled() {
+        if (this.saving) {
+            return true;
+        }
         return !this.rows.some((row) => {
             const name = (row.name || '').trim();
             const email = (row.email || '').trim();
@@ -124,44 +142,63 @@ export default class AddClinicalParticipantModal extends LightningModal {
     }
 
     handleCancel() {
-        this.close();
+        if (!this.saving) {
+            this.close();
+        }
     }
 
-    handleSave() {
+    async handleSave() {
+        if (this.saving) {
+            return;
+        }
+        this.saving = true;
         const kept = [];
         const emails = new Set();
         for (const row of this.rows) {
-            const name = (row.name || '').trim();
-            const email = (row.email || '').trim();
+            let name = (row.name || '').trim();
+            let email = (row.email || '').trim();
             let userId = row.userId || null;
             if (!row.participantType || (!name && !email && !userId)) {
                 continue;
             }
             if (row.participantType === 'user') {
                 if (!userId) {
+                    this.saving = false;
                     this.errorMessage = 'Select a Salesforce user.';
                     return;
                 }
                 if (!name || !email) {
-                    this.errorMessage = 'The selected Salesforce user needs a name and email.';
-                    return;
+                    try {
+                        const user = await getSalesforceUser({ userId });
+                        name = (user?.Name || name || '').trim();
+                        email = (user?.Email || email || '').trim();
+                    } catch (e) {
+                        name = name || '';
+                        email = email || '';
+                    }
                 }
             } else {
                 userId = null;
                 if (!name || !email) {
+                    this.saving = false;
                     this.errorMessage = 'Enter a name and email. This person is not a Salesforce user.';
                     return;
                 }
             }
-            if (!EMAIL_PATTERN.test(email)) {
+            if (email && !EMAIL_PATTERN.test(email)) {
+                this.saving = false;
                 this.errorMessage = 'Enter a valid email address.';
                 return;
             }
-            if (emails.has(email.toLowerCase())) {
+            const duplicateKey = email ? email.toLowerCase() : userId;
+            if (duplicateKey && emails.has(duplicateKey)) {
+                this.saving = false;
                 this.errorMessage = 'Each email can be added only once.';
                 return;
             }
-            emails.add(email.toLowerCase());
+            if (duplicateKey) {
+                emails.add(duplicateKey);
+            }
             kept.push({ userId, name, email });
         }
         this.close(JSON.stringify(kept));

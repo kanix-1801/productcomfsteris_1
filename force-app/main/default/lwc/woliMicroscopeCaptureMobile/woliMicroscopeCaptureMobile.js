@@ -18,6 +18,12 @@
  *
  * Annotating an existing file uses Apex and is therefore online only.
  *
+ * GW-6340 — Embedding (save-mode="emit"): another component hosts the camera and saves the
+ * pictures itself. Capture fires "photocaptured" with a PNG data URL and the camera keeps running
+ * for the next photo; nothing is saved here and the file list is not loaded. The host can call
+ * openMarkup(dataUrl) to mark up a picture with the same tools; the result comes back in
+ * "markupsaved", or "markupcancelled" when the user cancels. "Done" fires "close".
+ *
  * Getters are kept to a single return statement so the offline static analyzer
  * (Komaci) can prime the component.
  *
@@ -47,10 +53,15 @@ import getImageFileForAnnotation from "@salesforce/apex/WoliMicroscopeCaptureMob
 import FABRIC_JS from "@salesforce/resourceUrl/FabricJs";
 
 const MAX_PREVIEW_WIDTH = 640;
+/** Largest width (px) of a photo handed to the host in emit mode; the host shrinks it further if needed. */
+const MAX_EMIT_CAPTURE_WIDTH = 1600;
+const SAVE_MODE_EMIT = "emit";
 /** Largest width (px) a marked-up image is saved at. */
 const MAX_ANNOTATION_WIDTH = 960;
 /** The markup editor may use at most this share of the screen height (matches the CSS max-height). */
 const ANNOTATION_MAX_HEIGHT_RATIO = 0.55;
+/** Emit mode sits inside the host's modal, which has its own margins, so the editor gets less height. */
+const EMIT_ANNOTATION_MAX_HEIGHT_RATIO = 0.4;
 
 /** Files are always stored as PNG (architect decision – no format choice). */
 const PNG_MIME_TYPE = "image/png";
@@ -97,6 +108,13 @@ export default class WoliMicroscopeCaptureMobile extends LightningElement {
     }
   }
   _recordId = null;
+
+  /**
+   * "attach" (default): saves each photo on recordId (the WOLI quick action).
+   * "emit": hands each photo to the host component, which saves it.
+   */
+  @api saveMode = "attach";
+
   isComponentConnected = false;
 
   logger = getLogger();
@@ -204,14 +222,47 @@ export default class WoliMicroscopeCaptureMobile extends LightningElement {
 
   /* ------------------------------ getters ------------------------------ */
 
+  get isEmitMode() {
+    return this.saveMode === SAVE_MODE_EMIT;
+  }
+
+  get capturePanelClass() {
+    return this.isEmitMode
+      ? "capture-panel capture-panel_embedded"
+      : "capture-panel";
+  }
+
+  get panelHeader() {
+    return this.isEmitMode
+      ? "Microscope Picture"
+      : "Microscopic Camera Picture Capture";
+  }
+
   get metadataReady() {
     return !!(this.objectInfos && this.objectInfos.data);
   }
 
   get metadataError() {
-    return this.objectInfos && this.objectInfos.error
+    return !this.isEmitMode && this.objectInfos && this.objectInfos.error
       ? "File metadata is not available on this device yet. Open this action once while online so it can be prepared for offline use."
       : undefined;
+  }
+
+  /** In emit mode the host saves the photo, so no record or file metadata is needed here. */
+  get hasCaptureContext() {
+    return this.isEmitMode || this.hasRecordId;
+  }
+
+  get canSaveHere() {
+    return this.isEmitMode || (this.hasRecordId && this.metadataReady);
+  }
+
+  get showExistingFiles() {
+    return this.showLiveCapture && !this.isEmitMode;
+  }
+
+  get showDoneAction() {
+    return this.isEmitMode && !this.isAnnotationOpen;
   }
 
   get summaryLabel() {
@@ -247,26 +298,35 @@ export default class WoliMicroscopeCaptureMobile extends LightningElement {
   }
 
   /** The panel footer is only shown when it has buttons (markup editor, or save-without-markup). */
+  /** In emit mode the markup buttons sit above the canvas, so the footer only holds Done. */
   get showFooterActions() {
-    return this.isAnnotationOpen || this.showSaveWithoutMarkup;
+    return this.isEmitMode
+      ? this.showDoneAction
+      : this.isAnnotationOpen || this.showSaveWithoutMarkup;
   }
 
   get annotationModalTitle() {
-    return this.isPendingCaptureAnnotation
-      ? "Review capture"
-      : `Annotate: ${this.annotationSourceLabel}`;
+    return this.isEmitMode
+      ? "Mark up picture"
+      : this.isPendingCaptureAnnotation
+        ? "Review capture"
+        : `Annotate: ${this.annotationSourceLabel}`;
   }
 
   get annotationModalSubtitle() {
-    return this.isPendingCaptureAnnotation
-      ? "Add markup if needed, then save. Cancel returns to the camera without saving."
-      : "Markup is saved as a new file; the original file is unchanged.";
+    return this.isEmitMode
+      ? "Add markup, then tap Use markup. Cancel keeps the picture as it was."
+      : this.isPendingCaptureAnnotation
+        ? "Add markup if needed, then save. Cancel returns to the camera without saving."
+        : "Markup is saved as a new file; the original file is unchanged.";
   }
 
   get annotationSaveButtonLabel() {
-    return this.isPendingCaptureAnnotation
-      ? "Save image"
-      : "Save annotated copy";
+    return this.isEmitMode
+      ? "Use markup"
+      : this.isPendingCaptureAnnotation
+        ? "Save image"
+        : "Save annotated copy";
   }
 
   get isAnnotationSaveDisabled() {
@@ -295,8 +355,7 @@ export default class WoliMicroscopeCaptureMobile extends LightningElement {
     return !(
       this.isCameraActive &&
       !this.isUploading &&
-      this.hasRecordId &&
-      this.metadataReady &&
+      this.canSaveHere &&
       !this.limitReached
     );
   }
@@ -436,14 +495,14 @@ export default class WoliMicroscopeCaptureMobile extends LightningElement {
     this.isCameraActive = false;
   }
 
-  grabFrameFromVideo() {
+  grabFrameFromVideo(maxWidth = MAX_PREVIEW_WIDTH) {
     const video = this.refs.videoElement;
     const canvas = this.refs.canvasElement;
     if (!video || !canvas || !video.videoWidth || !video.videoHeight) {
       return null;
     }
 
-    const scale = Math.min(1, MAX_PREVIEW_WIDTH / video.videoWidth);
+    const scale = Math.min(1, maxWidth / video.videoWidth);
     canvas.width = Math.round(video.videoWidth * scale);
     canvas.height = Math.round(video.videoHeight * scale);
     const context = canvas.getContext("2d");
@@ -457,9 +516,18 @@ export default class WoliMicroscopeCaptureMobile extends LightningElement {
     if (this.isCaptureDisabled) {
       return;
     }
-    const dataUrl = this.grabFrameFromVideo();
+    const dataUrl = this.grabFrameFromVideo(
+      this.isEmitMode ? MAX_EMIT_CAPTURE_WIDTH : MAX_PREVIEW_WIDTH
+    );
     if (!dataUrl) {
       this.errorMessage = "Could not read an image from the camera preview.";
+      return;
+    }
+    if (this.isEmitMode) {
+      this.errorMessage = undefined;
+      this.dispatchEvent(
+        new CustomEvent("photocaptured", { detail: { dataUrl } })
+      );
       return;
     }
     this.lastPreviewDataUrl = dataUrl;
@@ -680,7 +748,7 @@ export default class WoliMicroscopeCaptureMobile extends LightningElement {
 
   /** Loads the file list once, as soon as the component is connected and recordId is known. */
   requestFileList() {
-    if (this.recordId && !this.fileListRequested) {
+    if (this.recordId && !this.fileListRequested && !this.isEmitMode) {
       this.fileListRequested = true;
       this.refreshAnnotatableFileList();
     }
@@ -859,6 +927,30 @@ export default class WoliMicroscopeCaptureMobile extends LightningElement {
       return;
     }
     this.handleCloseAnnotator();
+    if (this.isEmitMode) {
+      this.dispatchEvent(new CustomEvent("markupcancelled"));
+    }
+  }
+
+  /**
+   * Emit mode: opens the markup editor on a picture the host already holds. The camera pauses
+   * while the editor is open and restarts when it closes.
+   * @param {string} dataUrl Picture to mark up
+   * @returns {Promise<boolean>} False when the markup tools could not open
+   */
+  @api
+  async openMarkup(dataUrl) {
+    if (!dataUrl || this.isAnnotationOpen) {
+      return false;
+    }
+    this.stopCamera();
+    await this.openAnnotator(dataUrl, "Picture", null);
+    return this.isAnnotationOpen;
+  }
+
+  /** Emit mode: the host closes the camera. */
+  handleDone() {
+    this.dispatchEvent(new CustomEvent("close"));
   }
 
   handleToolChange(event) {
@@ -906,6 +998,13 @@ export default class WoliMicroscopeCaptureMobile extends LightningElement {
       format: "png",
       multiplier: this.annotationExportMultiplier
     });
+    if (this.isEmitMode) {
+      this.handleCloseAnnotator();
+      this.dispatchEvent(
+        new CustomEvent("markupsaved", { detail: { dataUrl } })
+      );
+      return;
+    }
     const isExistingFileAnnotation = !!this.annotationSourceFileName;
     const queued = await this.savePhoto(dataUrl, isExistingFileAnnotation);
     if (queued) {
@@ -945,7 +1044,12 @@ export default class WoliMicroscopeCaptureMobile extends LightningElement {
             image.width,
             image.height,
             this.getAnnotationAreaWidth(),
-            Math.round(window.innerHeight * ANNOTATION_MAX_HEIGHT_RATIO)
+            Math.round(
+              window.innerHeight *
+                (this.isEmitMode
+                  ? EMIT_ANNOTATION_MAX_HEIGHT_RATIO
+                  : ANNOTATION_MAX_HEIGHT_RATIO)
+            )
           );
           this.annotationExportMultiplier = layout.exportMultiplier;
           this.fabricCanvas.setWidth(layout.displayWidth);

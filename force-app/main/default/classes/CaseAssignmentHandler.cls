@@ -12,7 +12,8 @@ public with sharing class CaseAssignmentHandler {
         'BL_USER' => 'BL User',
         'BL_MANAGER' => 'BL Manager',
         'LOGISTICS_USER' => 'Logistics User',
-        'LOGISTICS_MANAGER' => 'Logistics Manager'
+        'LOGISTICS_MANAGER' => 'Logistics Manager',
+        'TRADEIN_USER' => 'Trade-In User'    
     };
 
     /**
@@ -330,7 +331,10 @@ public with sharing class CaseAssignmentHandler {
                         userRoleName = ROLE_LABELS.get('BL_USER'); mgrRoleName = ROLE_LABELS.get('BL_MANAGER');
                     } else if (dn.contains('logisticsrule')) {
                         userRoleName = ROLE_LABELS.get('LOGISTICS_USER'); mgrRoleName = ROLE_LABELS.get('LOGISTICS_MANAGER');
-                    } else {
+                    } else if (dn.contains('tradinrules')) {
+                        userRoleName = ROLE_LABELS.get('TRADEIN_USER');
+                    }
+                    else {
                         continue;
                     }
 

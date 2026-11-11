@@ -123,4 +123,82 @@ public with sharing class ContactsSelector {
             return (List<Contact>) searchResultList[0];
         }
     }
+
+    /**
+     * @description GW-1509 - Contact Id/Name/Email for Create Return Order picklists.
+     * @param contactIds Contact Ids
+     * @return Matching Contacts ordered by Name
+     */
+    public static List<Contact> selectNamesAndEmailsByIds(Set<Id> contactIds) {
+        if (contactIds == null || contactIds.isEmpty()) {
+            return new List<Contact>();
+        }
+        return (List<Contact>) SoqlQueryBuilder.fromObject('Contact')
+            .selectFields(new List<String>{ 'Id', 'Name', 'Email' })
+            .whereField('Id', 'IN', new List<Id>(contactIds))
+            .orderBy('Name')
+            .execute();
+    }
+
+    /**
+     * @description GW-1509 - Contact Id/Name/Email for a newly created Create Return Order contact.
+     * @param contactId Contact Id
+     * @return Matching Contact rows (LIMIT 1)
+     */
+    public static List<Contact> selectNameAndEmailById(Id contactId) {
+        if (contactId == null) {
+            return new List<Contact>();
+        }
+        return (List<Contact>) SoqlQueryBuilder.fromObject('Contact')
+            .selectFields(new List<String>{ 'Id', 'Name', 'Email' })
+            .whereEquals('Id', contactId)
+            .limitTo(1)
+            .execute();
+    }
+
+    /**
+     * @description GW-1509 - Contact Ids directly related to an Account.
+     * @param accountId Account Id
+     * @return Matching Contact rows (Id only)
+     */
+    public static List<Contact> selectIdsByAccountId(Id accountId) {
+        if (accountId == null) {
+            return new List<Contact>();
+        }
+        return (List<Contact>) SoqlQueryBuilder.fromObject('Contact')
+            .selectFields(new List<String>{ 'Id' })
+            .whereEquals('AccountId', accountId)
+            .execute();
+    }
+
+    /**
+     * @description GW-1509 - Contact name fields used for Create Return Order duplicate checks.
+     * @param contactIds Contact Ids
+     * @return Matching Contacts
+     */
+    public static List<Contact> selectNameFieldsByIds(Set<Id> contactIds) {
+        if (contactIds == null || contactIds.isEmpty()) {
+            return new List<Contact>();
+        }
+        return (List<Contact>) SoqlQueryBuilder.fromObject('Contact')
+            .selectFields(new List<String>{ 'Id', 'Name', 'FirstName', 'LastName' })
+            .whereField('Id', 'IN', new List<Id>(contactIds))
+            .execute();
+    }
+
+    /**
+     * @description GW-1509 - Contact names for Create Return Order line summaries.
+     * @param contactIds Contact Ids
+     * @return Matching Contacts
+     */
+    public static List<Contact> selectNamesByIds(Set<Id> contactIds) {
+        if (contactIds == null || contactIds.isEmpty()) {
+            return new List<Contact>();
+        }
+        return (List<Contact>) SoqlQueryBuilder.fromObject('Contact')
+            .selectFields(new List<String>{ 'Id', 'Name' })
+            .whereField('Id', 'IN', new List<Id>(contactIds))
+            .execute();
+    }
+
 }

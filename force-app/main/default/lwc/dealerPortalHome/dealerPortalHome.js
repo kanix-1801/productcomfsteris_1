@@ -1,6 +1,5 @@
 import { LightningElement, api } from 'lwc';
 import { NavigationMixin } from 'lightning/navigation';
-import Toast from 'lightning/toast';
 import basePath from '@salesforce/community/basePath';
 import PIPELINE_ICON from '@salesforce/resourceUrl/DealerPipelineIcon';
 import ACTIVE_ICON from '@salesforce/resourceUrl/DealerActiveIcon';
@@ -21,7 +20,11 @@ export default class DealerPortalHome extends NavigationMixin(LightningElement) 
     activeIconUrl = ACTIVE_ICON;
     home;
     errorMessage;
-    isCreateOpen = false;
+    isFlowOpen = false;
+
+    get keepPickerInSiteBundle() {
+        return false;
+    }
 
     connectedCallback() {
         this.loadHome();
@@ -152,23 +155,41 @@ export default class DealerPortalHome extends NavigationMixin(LightningElement) 
         }));
     }
 
-    openCreate() {
-        this.isCreateOpen = true;
+    openCreateFlow() {
+        this.isFlowOpen = true;
     }
 
-    closeCreate() {
-        this.isCreateOpen = false;
+    closeCreateFlow() {
+        this.isFlowOpen = false;
     }
 
-    handleCreated() {
-        this.isCreateOpen = false;
-        Toast.show({
-            label: 'Opportunity created',
-            message: 'The opportunity was created.',
-            variant: 'success',
-            mode: 'dismissible'
-        }, this);
-        this.loadHome();
+    closeFlowFromBackdrop() {
+        this.closeCreateFlow();
+    }
+
+    stopFlowClose(event) {
+        event.stopPropagation();
+    }
+
+    handleFlowStatusChange(event) {
+        const status = event.detail && event.detail.status;
+        if (status !== 'FINISHED' && status !== 'FINISHED_SCREEN') {
+            return;
+        }
+        const recordId = outputValue(event.detail, 'createdOpportunityId');
+        this.isFlowOpen = false;
+        if (!recordId) {
+            this.loadHome();
+            return;
+        }
+        this[NavigationMixin.Navigate]({
+            type: 'standard__recordPage',
+            attributes: {
+                recordId,
+                objectApiName: 'Opportunity',
+                actionName: 'view'
+            }
+        });
     }
 
     viewOpportunities() {
@@ -188,6 +209,15 @@ export default class DealerPortalHome extends NavigationMixin(LightningElement) 
             }
         });
     }
+}
+
+function outputValue(detail, name) {
+    const outputs = detail && detail.outputVariables;
+    if (!outputs) {
+        return null;
+    }
+    const match = outputs.find((item) => item.name === name);
+    return match && match.value ? match.value : null;
 }
 
 function funnelStyle(index, count, color) {

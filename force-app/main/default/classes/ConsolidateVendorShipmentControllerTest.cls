@@ -9,6 +9,38 @@ private class ConsolidateVendorShipmentControllerTest {
 
     @TestSetup
     static void setupData() {
+        // GW-6358: Shipment and Work Order Shipment access for the user-mode DML in ShipmentsService
+        assignPermissionSetIfNeeded('ProcessReturnOrders');
+        assignPermissionSetIfNeeded('ManageWorkOrders');
+        System.runAs(new User(Id = UserInfo.getUserId())) {
+            createTestData();
+        }
+    }
+
+    /**
+     * @description GW-6358 - Assigns a permission set to the running user when it is not assigned yet.
+     * @param permissionSetName Permission set API name
+     */
+    private static void assignPermissionSetIfNeeded(String permissionSetName) {
+        List<PermissionSet> permissionSets = [SELECT Id FROM PermissionSet WHERE Name = :permissionSetName LIMIT 1];
+        if (permissionSets.isEmpty()) {
+            return;
+        }
+        List<PermissionSetAssignment> existingAssignments = [
+            SELECT Id
+            FROM PermissionSetAssignment
+            WHERE AssigneeId = :UserInfo.getUserId() AND PermissionSetId = :permissionSets[0].Id
+            LIMIT 1
+        ];
+        if (existingAssignments.isEmpty()) {
+            new adb_PermissionSetAssignment()
+                .assigneeId(UserInfo.getUserId())
+                .permissionSetId(permissionSets[0].Id)
+                .persist();
+        }
+    }
+
+    private static void createTestData() {
         Account customer = new Account(
             Name = 'Customer Consolidate Test',
             SystemID__c = 'LEG-CVS-CUST',
@@ -227,7 +259,6 @@ private class ConsolidateVendorShipmentControllerTest {
                 PricebookEntryId = linePbe.Id,
                 Quantity = 1
             );
-            woli.put('Product__c', lineProduct.Id);
             woli.put('Model__c', 'MODEL-CVS-1');
             woli.put('SerialNumber__c', 'SN-CVS-1');
             woli.ReturnOrderLineItemId = parentRoli.Id;
@@ -507,29 +538,29 @@ private class ConsolidateVendorShipmentControllerTest {
             System.assertEquals(25.50, line.VendorCost__c);
         }
 
-        List<ReturnOrder> shippedOrders = [
-            SELECT Id, ReturnOrderNumber, InboundTrackingNumber__c
-            FROM ReturnOrder
-            WHERE Id IN :result.returnOrderIds
+        // GW-6358: FedEx tracking is stored on a Shipment of the Vendor Return Order
+        List<Shipment> shipments = [
+            SELECT Id, ReturnOrderId, TrackingNumber, Status, Carrier__c
+            FROM Shipment
+            WHERE ReturnOrderId IN :result.returnOrderIds
         ];
-        for (ReturnOrder ro : shippedOrders) {
-            System.assertEquals(
-                '794900000000',
-                ro.InboundTrackingNumber__c,
-                'FedEx tracking should be stored on the Vendor Return Order'
-            );
+        System.assertEquals(result.returnOrderIds.size(), shipments.size(), 'One shipment per Vendor Return Order');
+        for (Shipment shipment : shipments) {
+            System.assertEquals('794900000000', shipment.TrackingNumber, 'FedEx tracking should be on the shipment');
+            System.assertEquals('Created', shipment.Status, 'A new shipment should be Created');
+            System.assertEquals('FedEx', shipment.Carrier__c, 'The carrier should be FedEx');
         }
 
         List<WorkOrder> trackedWorkOrders = [
-            SELECT Id, TrackingNumber__c
+            SELECT Id, Shipment__c, Shipment__r.TrackingNumber
             FROM WorkOrder
             WHERE Id IN :selectedIds
         ];
         for (WorkOrder wo : trackedWorkOrders) {
             System.assertEquals(
                 '794900000000',
-                wo.TrackingNumber__c,
-                'Tracking should be copied to each vendor work order'
+                wo.Shipment__r.TrackingNumber,
+                'Each vendor work order should look up to its shipment'
             );
         }
 

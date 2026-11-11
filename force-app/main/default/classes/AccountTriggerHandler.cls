@@ -8,12 +8,14 @@
  *              2. Control same-context recursion for after insert and after update events.
  *              3. Delegate Prospect and Customer Account TAS processing to AccountService.-GC-3021
  *              4. Enqueue Prospect Account Sales Connection sync via Boomi.-GC-3441
+ *              5. Enable Customer Accounts with Type Dealer as partner accounts.-GC-3617
  */
 public with sharing class AccountTriggerHandler extends TriggerHandler { 
 
     /**
      * @description Handles Account after insert trigger events and delegates
      *              Prospect and Customer Account TAS processing to AccountService.
+     *              GC-3617 enables Dealer Customer Accounts as partner accounts.
      * @return None.
      */
     @TestVisible
@@ -22,6 +24,8 @@ public with sharing class AccountTriggerHandler extends TriggerHandler {
             return;
         }
         List<Account> newAccounts = (List<Account>) Trigger.new;
+        // GC-3617 - IsPartner is not createable, so enable after the Account exists.
+        AccountService.enableDealerAccounts(newAccounts);
         if(!newAccounts.isEmpty()) {
             if(newAccounts[0].CustomerClassCode__c == 'HC') {
                 AccountService.assignTAStoProspect(newAccounts);
@@ -38,6 +42,7 @@ public with sharing class AccountTriggerHandler extends TriggerHandler {
      * @description Handles Account after update trigger events and delegates
      *               Prospect and Customer Account TAS processing to AccountService.
      *               GC-3441 also enqueues Prospect Account SC sync when entry criteria match.
+     *               GC-3617 enables Customer Accounts whose Type is Dealer.
      * @return None.
      */
     @TestVisible
@@ -48,6 +53,8 @@ public with sharing class AccountTriggerHandler extends TriggerHandler {
 
         List<Account> updatedAccounts = (List<Account>) Trigger.new;
         Map<Id, Account> oldAccountMap = (Map<Id, Account>) Trigger.oldMap;
+        // GC-3617 - covers Boomi updates that arrive as Customer + Type Dealer.
+        AccountService.enableDealerAccounts(updatedAccounts);
         if (!updatedAccounts.isEmpty()) {
             if (updatedAccounts[0].CustomerClassCode__c == 'HC') {
                 AccountService.assignTAStoCustomerUpdate(updatedAccounts, oldAccountMap);

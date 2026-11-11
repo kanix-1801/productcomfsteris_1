@@ -1,0 +1,72 @@
+:host {
+    display: block;
+    width: 100%;
+}
+
+.account-card {
+    width: 100%;
+    background: #fff;
+    border-radius: 0 0 0.75rem 0.75rem;
+    overflow: hidden;
+    color: #032d60;
+}
+
+.hero {
+    height: 6.5rem;
+    background: linear-gradient(135deg, #0589d8, #00a6d6);
+}
+
+.avatar {
+    width: 6.5rem;
+    height: 6.5rem;
+    border-radius: 50%;
+    background: #2f66b3;
+    border: 5px solid #fff;
+    margin-top: -4.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.22);
+}
+
+.account-name {
+    margin: 0.75rem 0 0;
+}
+
+.details-pane {
+    min-width: 0;
+    height: 100%;
+}
+
+.website-wrapper {
+    min-width: 0;
+}
+
+.website-link {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.field-list {
+    margin: 0;
+}
+
+.field {
+    padding: 0.5rem 0;
+    border-top: 1px solid #e5e5e5;
+}
+
+.field dt {
+    color: #444444;
+    font-size: 0.75rem;
+    margin-bottom: 0.125rem;
+}
+
+.field dd {
+    margin: 0;
+    min-height: 1.25rem;
+    overflow-wrap: anywhere;
+}

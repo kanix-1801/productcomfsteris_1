@@ -19,8 +19,10 @@
  *      (Database.queryWithBinds), which makes SOQL injection through values impossible.
  *   5. Filter logic is tokenised and only digits, AND, OR, NOT and parentheses are accepted.
  *   6. LIMIT / OFFSET are range-checked integers.
- *   7. The query itself runs in AccessLevel.USER_MODE, so the platform enforces CRUD, FLS and
- *      sharing again at execution time. The class is also declared "with sharing".
+ *   7. Queries default to AccessLevel.USER_MODE so the platform enforces CRUD, FLS and sharing
+ *      again at execution time. Callers that must bypass sharing (for example elevated Asset
+ *      lookups) may pass AccessLevel.SYSTEM_MODE. Describe-time CRUD/FLS checks in prepare still
+ *      apply. The class is also declared "with sharing".
  *
  * Requires API version 57.0+ (Database.queryWithBinds).
  */
@@ -315,16 +317,29 @@ public with sharing class DynamicSoqlQuery {
     }
 
     /**
-     * @description Logs and runs a previously validated query.
+     * @description Logs and runs a previously validated query in USER_MODE.
      * @param pq The prepared query to execute.
      * @return The matching records.
      */
     public static List<SObject> execute(PreparedQuery pq) {
+        return execute(pq, System.AccessLevel.USER_MODE);
+    }
+
+    /**
+     * @description Logs and runs a previously validated query at the given access level.
+     * @param pq The prepared query to execute.
+     * @param queryAccessLevel USER_MODE (default) or SYSTEM_MODE when sharing must be bypassed.
+     * @return The matching records.
+     */
+    public static List<SObject> execute(PreparedQuery pq, System.AccessLevel queryAccessLevel) {
+        System.AccessLevel level =
+            queryAccessLevel == null ? System.AccessLevel.USER_MODE : queryAccessLevel;
         // Log the query. Bind values can contain user data/PII, so only their keys + types go to DEBUG.
         Logger.debug('DynamicSoqlQuery SOQL: ' + pq.soql);
         Logger.debug('DynamicSoqlQuery binds: ' + describeBinds(pq.binds));
+        Logger.debug('DynamicSoqlQuery accessLevel: ' + String.valueOf(level));
 
-        return Database.queryWithBinds(pq.soql, pq.binds, AccessLevel.USER_MODE);
+        return Database.queryWithBinds(pq.soql, pq.binds, level);
     }
 
     /**
@@ -357,12 +372,25 @@ public with sharing class DynamicSoqlQuery {
      * @return Matching row count
      */
     public static Integer count(PreparedQuery pq) {
+        return count(pq, System.AccessLevel.USER_MODE);
+    }
+
+    /**
+     * @description Logs and runs a previously validated COUNT() query at the given access level.
+     * @param pq The prepared COUNT query to execute
+     * @param queryAccessLevel USER_MODE (default) or SYSTEM_MODE when sharing must be bypassed
+     * @return Matching row count
+     */
+    public static Integer count(PreparedQuery pq, System.AccessLevel queryAccessLevel) {
         if (pq == null || String.isBlank(pq.soql)) {
             throw new DynamicSoqlException('Prepared COUNT query is required.');
         }
+        System.AccessLevel level =
+            queryAccessLevel == null ? System.AccessLevel.USER_MODE : queryAccessLevel;
         Logger.debug('DynamicSoqlQuery COUNT SOQL: ' + pq.soql);
         Logger.debug('DynamicSoqlQuery binds: ' + describeBinds(pq.binds));
-        return Database.countQueryWithBinds(pq.soql, pq.binds, AccessLevel.USER_MODE);
+        Logger.debug('DynamicSoqlQuery accessLevel: ' + String.valueOf(level));
+        return Database.countQueryWithBinds(pq.soql, pq.binds, level);
     }
 
     /**

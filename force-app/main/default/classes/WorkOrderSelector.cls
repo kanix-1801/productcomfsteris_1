@@ -76,4 +76,28 @@ public with sharing class WorkOrderSelector {
             WHERE OperatingHoursId IN :operatingHoursIdSet
         ];
     }
+
+    /**
+     * @description Work Order fields needed to create a mobile Product Request.
+     * @param workOrderId Work Order Id passed in from the action.
+     * @return The Work Order, or null when the Id is blank or no row is visible.
+     * @example
+     * WorkOrderSelector.selectForProductRequest(workOrderId);
+     */
+    public static WorkOrder selectForProductRequest(Id workOrderId) {
+        if (workOrderId == null) {
+            return null;
+        }
+        return (WorkOrder) SoqlQueryBuilder.fromObject('WorkOrder')
+            .selectFields(new List<String>{
+                'Id',
+                'WorkOrderNumber',
+                'Subject',
+                'AccountId',
+                'CaseId',
+                'ShipToAddressAccount__c'
+            })
+            .whereEquals('Id', workOrderId)
+            .first();
+    }
 }

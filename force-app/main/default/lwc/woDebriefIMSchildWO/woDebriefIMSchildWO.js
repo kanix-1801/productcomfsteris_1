@@ -86,6 +86,8 @@ const HIGHLIGHT_BILLING_TYPES = new Set(['Courtesy', 'Warranty', 'SVC Warranty']
 const REPAIR_CENTER_SERVICE_TEXT = 'forward to national repair center for service';
 const OBR_PRODUCT_CODE_PATTERN = /OBR/i;
 const MOBILE_DEVICE_PICTURE_TITLE = 'Mobile Device Picture';
+/** Matches WoDebriefIMSchildWOController.MICROSCOPE_PICTURE_TITLE. Listed and counted like a Mobile Device Picture. */
+const MICROSCOPE_PICTURE_TITLE = 'Microscope Picture';
 /** Matches WoDebriefIMSchildWOController.REQUIRED_PICTURES_PER_LINE. */
 const REQUIRED_PICTURES_PER_LINE = 2;
 /** Matches WoDebriefIMSchildWOController.MOBILE_DEVICE_PICTURE_MARKER. The server counts files with this description. */
@@ -656,6 +658,8 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 	reviewPictureLoading = false;
 	reviewPicture = null;
 	_pictureDataPromises = {};
+	showMicroscopeCamera = false;
+	_microscopeTarget = null;
 
 	_repairCodeNameById = {};
 	_repairCodeProductCodeById = {};
@@ -1956,6 +1960,97 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 		return this._pendingPictureCapture?.localPicture?.previewUrl || '';
 	}
 
+	get showPictureMarkup() {
+		return this._pendingPictureCapture?.localPicture?.title === MICROSCOPE_PICTURE_TITLE;
+	}
+
+	/**
+	 * @description GW-6340 - Opens the microscopic camera for the work order or an instrument line.
+	 */
+	handleOpenMicroscopeCamera(event) {
+		if (this._savingPicture) {
+			return;
+		}
+		this._microscopeTarget = {
+			scope: event.currentTarget.dataset.scope,
+			lineId: event.currentTarget.dataset.id
+		};
+		this.showMicroscopeCamera = true;
+	}
+
+	/**
+	 * @description GW-6340 - Closes the microscopic camera. A picture still waiting for its details stays open.
+	 */
+	handleCloseMicroscopeCamera() {
+		this.showMicroscopeCamera = false;
+		this._microscopeTarget = null;
+	}
+
+	/**
+	 * @description GW-6340 - Asks for Category, Before/After, and comment of a microscopic camera picture.
+	 *              The camera stays open behind the details so the next picture is one tap away.
+	 */
+	async handleMicroscopePhotoCaptured(event) {
+		const target = this._microscopeTarget;
+		const dataUrl = event.detail?.dataUrl;
+		if (!target || !dataUrl || this.showPictureDetails || this._savingPicture) {
+			return;
+		}
+		this._savingPicture = true;
+		try {
+			const localPicture = await this._dataUrlToMicroscopePicture(dataUrl);
+			this._pendingPictureCapture = { scope: target.scope, lineId: target.lineId, localPicture };
+			this.pictureDetailsDraft = { category: '', beforeAfter: '', comment: '' };
+			this.pictureDetailsError = '';
+			this.showPictureDetails = true;
+		} catch (error) {
+			this._toast('Picture was not saved', this._errorMessage(error), 'error');
+		} finally {
+			this._savingPicture = false;
+		}
+	}
+
+	/**
+	 * @description GW-6340 - Marks up a microscopic camera picture with the camera's markup tools.
+	 */
+	async handlePictureMarkup() {
+		const camera = this.refs.microscopeCamera;
+		const previewUrl = this.pictureDetailsPreviewUrl;
+		if (!camera || !previewUrl) {
+			return;
+		}
+		this.showPictureDetails = false;
+		const opened = await camera.openMarkup(previewUrl);
+		if (!opened) {
+			this._toast('Markup is not available', 'You can still save the picture without markup.', 'warning');
+			this.showPictureDetails = true;
+		}
+	}
+
+	/**
+	 * @description GW-6340 - Replaces the waiting picture with its marked-up copy.
+	 */
+	async handleMicroscopeMarkupSaved(event) {
+		const pending = this._pendingPictureCapture;
+		const dataUrl = event.detail?.dataUrl;
+		if (pending?.localPicture && dataUrl) {
+			try {
+				const markedUp = await this._compressImageDataUrl(dataUrl);
+				this._pendingPictureCapture = {
+					...pending,
+					localPicture: { ...pending.localPicture, previewUrl: markedUp, base64Data: markedUp }
+				};
+			} catch (error) {
+				this._toast('Markup was not kept', this._errorMessage(error), 'warning');
+			}
+		}
+		this.showPictureDetails = !!this._pendingPictureCapture;
+	}
+
+	handleMicroscopeMarkupCancelled() {
+		this.showPictureDetails = !!this._pendingPictureCapture;
+	}
+
 	/**
 	 * @description GW-375 - Keeps the Category, Before/After, and comment of a new picture.
 	 */
@@ -2091,6 +2186,10 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 	/**
 	 * @description GW-375 - Closes the picture review.
 	 */
+	get reviewPictureTitle() {
+		return this.reviewPicture?.title || MOBILE_DEVICE_PICTURE_TITLE;
+	}
+
 	handleClosePictureReview() {
 		this.showPictureReview = false;
 		this.reviewPicture = null;
@@ -8414,28 +8513,60 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 			const reader = new FileReader();
 			reader.onerror = () => reject(new Error('The picture could not be read. Take it again.'));
 			reader.onload = () => {
-				const source = reader.result;
-				const image = new Image();
-				image.onerror = () => reject(new Error('The picture could not be read. Take it again.'));
-				image.onload = () => {
-					const maxEdge = 1600;
-					const scale = Math.min(1, maxEdge / Math.max(image.width || 1, image.height || 1));
-					const width = Math.max(1, Math.round((image.width || 1) * scale));
-					const height = Math.max(1, Math.round((image.height || 1) * scale));
-					const canvas = document.createElement('canvas');
-					canvas.width = width;
-					canvas.height = height;
-					const context = canvas.getContext('2d');
-					if (!context) {
-						resolve(source);
-						return;
-					}
-					context.drawImage(image, 0, 0, width, height);
-					resolve(canvas.toDataURL('image/jpeg', 0.72));
-				};
-				image.src = source;
+				this._compressImageDataUrl(reader.result).then(resolve, reject);
 			};
 			reader.readAsDataURL(file);
+		});
+	}
+
+	/**
+	 * @description Draws an image data url to a smaller jpeg so the upload stays within Apex limits.
+	 * @param {string} source Image data url
+	 * @return {Promise<string>}
+	 */
+	_compressImageDataUrl(source) {
+		return new Promise((resolve, reject) => {
+			const image = new Image();
+			image.onerror = () => reject(new Error('The picture could not be read. Take it again.'));
+			image.onload = () => {
+				const maxEdge = 1600;
+				const scale = Math.min(1, maxEdge / Math.max(image.width || 1, image.height || 1));
+				const width = Math.max(1, Math.round((image.width || 1) * scale));
+				const height = Math.max(1, Math.round((image.height || 1) * scale));
+				const canvas = document.createElement('canvas');
+				canvas.width = width;
+				canvas.height = height;
+				const context = canvas.getContext('2d');
+				if (!context) {
+					resolve(source);
+					return;
+				}
+				context.drawImage(image, 0, 0, width, height);
+				resolve(canvas.toDataURL('image/jpeg', 0.72));
+			};
+			image.src = source;
+		});
+	}
+
+	/**
+	 * @description GW-6340 - Turns a microscopic camera capture into a picture waiting for its details.
+	 * @param {string} dataUrl PNG data url from the camera
+	 * @return {Promise<Object>}
+	 */
+	_dataUrlToMicroscopePicture(dataUrl) {
+		return this._compressImageDataUrl(dataUrl).then(compressed => {
+			_tempIdSeq += 1;
+			const localId = `local_${_tempIdSeq}`;
+			return {
+				key: localId,
+				localId,
+				contentDocumentId: null,
+				contentVersionId: null,
+				title: MICROSCOPE_PICTURE_TITLE,
+				previewUrl: compressed,
+				base64Data: compressed,
+				fileName: 'MicroscopePicture.jpg'
+			};
 		});
 	}
 
@@ -8599,7 +8730,7 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 	async _savePictureOnRecord(recordId, picture) {
 		const details = this._pictureDetailsJson(picture);
 		const queued = await this._queuePictureFile(recordId, picture, {
-			title: MOBILE_DEVICE_PICTURE_TITLE,
+			title: this._isMicroscopePicture(picture) ? MICROSCOPE_PICTURE_TITLE : MOBILE_DEVICE_PICTURE_TITLE,
 			description: details
 				? `${MOBILE_DEVICE_PICTURE_MARKER}${PICTURE_DETAILS_SEPARATOR}${details}`
 				: MOBILE_DEVICE_PICTURE_MARKER
@@ -8627,17 +8758,31 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 
 	/**
 	 * @param {Object} picture Staged picture
-	 * @return {string} Category, Before/After, and comment as JSON, or an empty string when none is set
+	 * @return {string} Category, Before/After, comment, and the Microscope Picture title as JSON,
+	 *                  or an empty string when none is set
 	 */
 	_pictureDetailsJson(picture) {
-		if (!picture?.category && !picture?.beforeAfter && !picture?.comment) {
+		const isMicroscope = this._isMicroscopePicture(picture);
+		if (!picture?.category && !picture?.beforeAfter && !picture?.comment && !isMicroscope) {
 			return '';
 		}
-		return JSON.stringify({
+		const details = {
 			category: picture.category || null,
 			beforeAfter: picture.beforeAfter || null,
 			comment: picture.comment || null
-		});
+		};
+		if (isMicroscope) {
+			details.title = MICROSCOPE_PICTURE_TITLE;
+		}
+		return JSON.stringify(details);
+	}
+
+	/**
+	 * @param {Object} picture Staged picture
+	 * @return {boolean} True when the picture was taken with the microscopic camera
+	 */
+	_isMicroscopePicture(picture) {
+		return picture?.title === MICROSCOPE_PICTURE_TITLE;
 	}
 
 	/**

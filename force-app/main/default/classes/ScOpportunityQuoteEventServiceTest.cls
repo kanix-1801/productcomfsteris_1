@@ -5,7 +5,7 @@
  * @description Test coverage for ScOpportunityQuoteEventService (GC-3457 Opportunity / Quote SC events).
  *              Also exercises ScOpportunityQuoteEventGateway, ScOpportunityQuoteEventMapper,
  *              ScOpportunityQuoteEventRequest, ScOpportunityQuoteEventResponse,
- *              ScOpportunityQuoteEventApplyService, and ScOpportunityQuoteEventQueueable.
+ *              and ScOpportunityQuoteEventApplyService.
  *              Uses gateway hardcoded responses and HTTP mocks — no live Boomi endpoint.
  */
 @IsTest
@@ -293,64 +293,6 @@ private class ScOpportunityQuoteEventServiceTest {
     }
 
     @IsTest
-    static void queueableProcessesForecastConfidenceWithHardcodedGateway() {
-        Opportunity opportunityRecord = getTestOpportunity();
-        Quote quoteRecord = insertQuoteWithScId(opportunityRecord, 'SC Event Quote 8', '2284005');
-        ScOpportunityQuoteEventGateway.forceHardcodedResponse = true;
-
-        Test.startTest();
-        executeQueueableAsAutomationUser(
-            opportunityRecord.Id,
-            ScOpportunityQuoteEventRequest.EVENT_TYPE_QUOTE_FORECAST_CONFIDENCE_UPDATE,
-            'Upside',
-            new Set<Id>{ quoteRecord.Id }
-        );
-        Test.stopTest();
-
-        ScOpportunityQuoteEventGateway.forceHardcodedResponse = false;
-    }
-
-    @IsTest
-    static void queueableThrowsWhenQuotesHaveNoSalesConnectionId() {
-        Opportunity opportunityRecord = getTestOpportunity();
-        Quote quoteRecord = insertQuote(opportunityRecord, 'SC Event Quote 11', 'Open');
-        Boolean exceptionThrown = false;
-
-        Test.startTest();
-        try {
-            executeQueueableAsAutomationUser(
-                opportunityRecord.Id,
-                ScOpportunityQuoteEventRequest.EVENT_TYPE_QUOTE_FORECAST_CONFIDENCE_UPDATE,
-                'Upside',
-                new Set<Id>{ quoteRecord.Id }
-            );
-        } catch (Exception exceptionValue) {
-            exceptionThrown = true;
-        }
-        Test.stopTest();
-
-        System.assert(exceptionThrown, 'Queueable must surface missing Sales Connection Quote Id.');
-    }
-
-    @IsTest
-    static void queueableProcessesClosedLostWithHardcodedGateway() {
-        Opportunity opportunityRecord = getTestOpportunity();
-        Quote quoteRecord = insertQuoteWithScId(opportunityRecord, 'SC Event Quote 9', '2284006');
-        ScOpportunityQuoteEventGateway.forceHardcodedResponse = true;
-
-        Test.startTest();
-        executeQueueableAsAutomationUser(
-            opportunityRecord.Id,
-            ScOpportunityQuoteEventRequest.EVENT_TYPE_OPPORTUNITY_CLOSED_LOST,
-            null,
-            new Set<Id>{ quoteRecord.Id }
-        );
-        Test.stopTest();
-
-        ScOpportunityQuoteEventGateway.forceHardcodedResponse = false;
-    }
-
-    @IsTest
     static void gatewayHardcodedResponseIsSuccessfulInTest() {
         ScOpportunityQuoteEventGateway.forceHardcodedResponse = true;
 
@@ -485,23 +427,6 @@ private class ScOpportunityQuoteEventServiceTest {
                 quoteIds,
                 UserInfo.getUserId()
             );
-        }
-    }
-
-    private static void executeQueueableAsAutomationUser(
-        Id opportunityId,
-        String eventType,
-        String forecastConfidence,
-        Set<Id> quoteIds
-    ) {
-        System.runAs(getQuoteAutomationRunAsUser()) {
-            new ScOpportunityQuoteEventQueueable(
-                opportunityId,
-                eventType,
-                forecastConfidence,
-                quoteIds,
-                UserInfo.getUserId()
-            ).execute(null);
         }
     }
 

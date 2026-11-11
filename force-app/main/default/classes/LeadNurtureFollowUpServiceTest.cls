@@ -85,8 +85,10 @@ private class LeadNurtureFollowUpServiceTest {
             DeveloperName = 'Nurture_Queue_Test',
             Type = 'Queue'
         );
-        insert queueRecord;
-        insert new QueueSObject(QueueId = queueRecord.Id, SObjectType = 'Lead');
+        System.runAs(new User(Id = UserInfo.getUserId())) {
+            insert queueRecord;
+            insert new QueueSObject(QueueId = queueRecord.Id, SObjectType = 'Lead');
+        }
 
         Lead leadRecord = insertSalesLead();
         update new Lead(Id = leadRecord.Id, OwnerId = queueRecord.Id);

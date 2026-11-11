@@ -1,0 +1,16 @@
+<apex:component controller="ShipDNEmailController" access="global">
+     <Apex:attribute name="caseId1" description="" assignTo="{!caseId}" type="String" />  
+    
+    <apex:image URL="{!BannerUrlSDN}" alt="STERIS Banner" width="982" height="180"/>
+    Hello (Trade-in Contact First Name),
+
+    The trade-in on this order is now [30/60/90] days beyond the delivery  installation of your equipment.  
+    As of today, we have not received this trade-in. Please confirm if this trade-in will be sent back to STERIS, or if it should be cancelled off the order.  
+    If we have not received a response within 90 days of delivery  installation, this trade-in will be cancelled and  will be responsible for any short paid invoices related to the trade-in.
+    Thank you
+     <apex:outputText value="{!EmailSignature}" escape="false"/><br/><br/>
+     
+    <c:ReplyThreadInternalExternal caseId1="{!caseId}"
+            threadType1="External"
+        />
+</apex:component>

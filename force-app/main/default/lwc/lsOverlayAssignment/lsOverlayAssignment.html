@@ -136,8 +136,9 @@
 
                                 <template if:true={isStepTwo}>
                                     <div class="slds-m-bottom_small"><strong>Total Accounts:</strong> {accountTotalRecords}</div>
-                                    <lightning-datatable key-field="accountId" data={accountData} columns={accountColumns}
-                                        selected-rows={selectedAccountIds} onrowselection={handleAccountSelection}>
+                                    <lightning-datatable key-field="accountId" key={accountTableKey} data={accountData}
+                                        columns={accountColumns} selected-rows={selectedAccountIds}
+                                        onrowselection={handleAccountSelection}>
                                     </lightning-datatable>
                                     <div class="slds-m-top_medium slds-grid slds-grid_align-spread">
                                         <lightning-button label="Previous" onclick={handlePreviousAccountPage}
@@ -294,21 +295,22 @@
             <div class="custom-backdrop"></div>
 
             <template if:true={showRetrievePrompt}>
-                <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open">
-                    <div class="slds-modal__container">
-                        <header class="slds-modal__header">
-                            <h2 class="slds-text-heading_medium">Confirm Selection</h2>
+                <div class="confirm-selection-backdrop"></div>
+                <section role="dialog" tabindex="-1" class="confirm-selection" aria-modal="true"
+                    aria-labelledby="confirm-selection-heading">
+                    <div class="confirm-selection-container">
+                        <header class="confirm-selection-header">
+                            <h2 id="confirm-selection-heading" class="slds-text-heading_medium">Confirm Selection</h2>
                         </header>
-                        <div class="slds-modal__content slds-p-around_medium">
+                        <div class="confirm-selection-body">
                             Do you want to continue with the current selection?
                         </div>
-                        <footer class="slds-modal__footer">
+                        <footer class="confirm-selection-footer">
                             <lightning-button label="Yes" variant="brand" onclick={handleConfirmRetrieveAccounts}></lightning-button>
-                            <lightning-button label="No" onclick={handleSelectMoreTerritories} class="slds-m-left_small"></lightning-button>
+                            <lightning-button label="No" onclick={handleSelectMoreTerritories}></lightning-button>
                         </footer>
                     </div>
                 </section>
-                <div class="slds-backdrop slds-backdrop_open"></div>
             </template>
 
             <template if:true={showTerritoryAccountsPopup}>
@@ -321,21 +323,21 @@
                         <div class="summary-popup-body">
                             <table class="slds-table slds-table_cell-buffer slds-table_bordered">
                                 <thead>
-                                    <tr>
-                                        <th>Account Name</th>
-                                        <th>Associated Account</th>
-                                        <th>City</th>
-                                        <th>Country</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <template for:each={selectedSummaryAccounts} for:item="acc">
-                                        <tr key={acc.accountId}>
-                                            <td>{acc.accountName}</td>
-                                            <td>{acc.associatedAccountName}</td>
-                                            <td>{acc.city}</td>
-                                            <td>{acc.country}</td>
-                                        </tr>
+                                            <tr>
+                                                <th>Account Name</th>
+                                                <th>Account Number</th>
+                                                <th>Account Type</th>
+                                                <th>Territory</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <template for:each={selectedSummaryAccounts} for:item="acc">
+                                                <tr key={acc.accountId}>
+                                                    <td>{acc.accountName}</td>
+                                                    <td>{acc.accountNumber}</td>
+                                                    <td>{acc.accountType}</td>
+                                                    <td>{acc.territoryId}</td>
+                                                </tr>
                                     </template>
                                 </tbody>
                             </table>

@@ -91,6 +91,43 @@ public with sharing class ModelQtyCoverageController {
     }
 
     /**
+     * @description Active, in-date pricing programs matching the search text, with their CT codes
+     *              (Pricing Programs search).
+     * @param searchTerm Text typed in the Pricing Programs search (3 characters minimum)
+     * @return Matching programs; empty for a blank or too-short term
+     */
+    @AuraEnabled(cacheable=true)
+    public static List<ContractModifierService.PricingProgramOption> searchPricingPrograms(String searchTerm) {
+        try {
+            return ContractModifierService.searchPricingPrograms(searchTerm);
+        } catch (Exception e) {
+            throw toAuraException('searchPricingPrograms: search failed for ' + searchTerm, null, e,
+                                  'Unable to load the Pricing Programs.');
+        } finally {
+            Logger.saveLog();
+        }
+    }
+
+    /**
+     * @description Pricing programs by name with their current CT codes, to refresh the programs saved on a line.
+     * @param programNames PricingProgram__c names, e.g. PP-0009
+     * @return The programs found
+     */
+    @AuraEnabled(cacheable=true)
+    public static List<ContractModifierService.PricingProgramOption> getPricingProgramsByNames(
+        List<String> programNames
+    ) {
+        try {
+            return ContractModifierService.getPricingProgramsByNames(programNames);
+        } catch (Exception e) {
+            throw toAuraException('getPricingProgramsByNames: lookup failed', null, e,
+                                  'Unable to load the Pricing Programs.');
+        } finally {
+            Logger.saveLog();
+        }
+    }
+
+    /**
      * @description Checking for valid Quote Line Item Id.
      * @param lineId Quote Line Item Id
      * @return Id, or null for blank, temporary ("ref_") or malformed Ids

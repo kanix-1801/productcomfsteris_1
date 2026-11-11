@@ -444,8 +444,8 @@ private class WorkOrderLineItemsSelectorTest {
             WorkOrderLineItem lineItem = new WorkOrderLineItem(
                 WorkOrderId = workOrder.Id,
                 RecordTypeId = repairCodeRt.getRecordTypeId(),
-                Product__c = product.Id,
                 PricebookEntryId = pbe.Id,
+                Product__c = product.Id,
                 Quantity = 1,
                 Description = 'DE Repair Code Line'
             );
@@ -488,7 +488,7 @@ private class WorkOrderLineItemsSelectorTest {
             Assert.isFalse(idsOnly.isEmpty(), 'Should return Repair Code Ids');
             Assert.areEqual(1, byProducts.size(), 'Should match by Product');
             Assert.isFalse(reconcile.isEmpty(), 'Reconcile query should return lines');
-            Assert.isTrue(productIds.contains(product.Id), 'Product Id set should include Product__c');
+            Assert.isTrue(productIds.contains(product.Id), 'Product Id set should include Product2Id');
             Schema.RecordTypeInfo productServicedRt = Schema.SObjectType.WorkOrderLineItem
                 .getRecordTypeInfosByDeveloperName()
                 .get('ProductServiced');
@@ -693,7 +693,6 @@ private class WorkOrderLineItemsSelectorTest {
                 ParentWorkOrderLineItemId = parentLine.Id,
                 RecordTypeId = repairCodeRt.getRecordTypeId(),
                 PricebookEntryId = repairEntry.Id,
-                Product__c = repairCode.Id,
                 Quantity = 2,
                 ProductCodeWoli__c = 'QI-SEL-RC'
             );
@@ -726,11 +725,321 @@ private class WorkOrderLineItemsSelectorTest {
         System.assertEquals(0, WorkOrderLineItemsSelector.selectProductCodesByWorkOrderIds(new Set<Id>()).size());
     }
 
+    @IsTest
+    static void testSelectProductServicedIdsByWorkOrder_guardsAndHappyPath() {
+        Assert.isTrue(
+            WorkOrderLineItemsSelector.selectProductServicedIdsByWorkOrder(null, null).isEmpty()
+        );
+
+        Schema.RecordTypeInfo productServicedRt = Schema.SObjectType.WorkOrderLineItem
+            .getRecordTypeInfosByDeveloperName()
+            .get('ProductServiced');
+        if (productServicedRt == null) {
+            Assert.isTrue(true, 'Product Serviced record type unavailable; skip');
+            return;
+        }
+
+        WorkOrder workOrder = new WorkOrder(
+            Subject = 'WOLI Sel Product Serviced Cov WO',
+            Status = 'Received',
+            Pricebook2Id = Test.getStandardPricebookId()
+        );
+        insert workOrder;
+        Product2 product = new Product2(
+            Name = 'WOLI Sel Product Serviced Cov',
+            ProductCode = 'WOLI-PS-COV',
+            IsActive = true
+        );
+        insert product;
+        insert new PricebookEntry(
+            Pricebook2Id = Test.getStandardPricebookId(),
+            Product2Id = product.Id,
+            UnitPrice = 1,
+            IsActive = true
+        );
+        PricebookEntry pbe = [
+            SELECT Id
+            FROM PricebookEntry
+            WHERE Product2Id = :product.Id
+            LIMIT 1
+        ];
+        WorkOrderLineItem lineItem = new WorkOrderLineItem(
+            WorkOrderId = workOrder.Id,
+            RecordTypeId = productServicedRt.getRecordTypeId(),
+            PricebookEntryId = pbe.Id,
+            Quantity = 1
+        );
+        insert lineItem;
+
+        Test.startTest();
+        List<WorkOrderLineItem> rows =
+            WorkOrderLineItemsSelector.selectProductServicedIdsByWorkOrder(
+                workOrder.Id,
+                productServicedRt.getRecordTypeId()
+            );
+        List<WorkOrderLineItem> nullRt =
+            WorkOrderLineItemsSelector.selectProductServicedIdsByWorkOrder(workOrder.Id, null);
+        Test.stopTest();
+
+        Assert.isFalse(rows.isEmpty());
+        Assert.isTrue(nullRt.isEmpty());
+    }
+
+    @IsTest
+    static void testSelectRepairCodeIdsByParent_guardsAndHappyPath() {
+        Assert.isTrue(
+            WorkOrderLineItemsSelector.selectRepairCodeIdsByParent(null, null).isEmpty()
+        );
+
+        Schema.RecordTypeInfo productServicedRt = Schema.SObjectType.WorkOrderLineItem
+            .getRecordTypeInfosByDeveloperName()
+            .get('ProductServiced');
+        Schema.RecordTypeInfo repairCodeRt = Schema.SObjectType.WorkOrderLineItem
+            .getRecordTypeInfosByDeveloperName()
+            .get('RepairCode');
+        if (productServicedRt == null || repairCodeRt == null) {
+            Assert.isTrue(true, 'Required WOLI record types unavailable; skip');
+            return;
+        }
+
+        WorkOrder workOrder = new WorkOrder(
+            Subject = 'WOLI Sel Repair Parent Cov WO',
+            Status = 'Received',
+            Pricebook2Id = Test.getStandardPricebookId()
+        );
+        insert workOrder;
+        Product2 product = new Product2(
+            Name = 'WOLI Sel Repair Parent Cov',
+            ProductCode = 'WOLI-RC-COV',
+            IsActive = true
+        );
+        insert product;
+        insert new PricebookEntry(
+            Pricebook2Id = Test.getStandardPricebookId(),
+            Product2Id = product.Id,
+            UnitPrice = 1,
+            IsActive = true
+        );
+        PricebookEntry pbe = [
+            SELECT Id
+            FROM PricebookEntry
+            WHERE Product2Id = :product.Id
+            LIMIT 1
+        ];
+        WorkOrderLineItem parentLine = new WorkOrderLineItem(
+            WorkOrderId = workOrder.Id,
+            RecordTypeId = productServicedRt.getRecordTypeId(),
+            PricebookEntryId = pbe.Id,
+            Quantity = 1
+        );
+        insert parentLine;
+        WorkOrderLineItem repairLine = new WorkOrderLineItem(
+            WorkOrderId = workOrder.Id,
+            ParentWorkOrderLineItemId = parentLine.Id,
+            RecordTypeId = repairCodeRt.getRecordTypeId(),
+            PricebookEntryId = pbe.Id,
+            Quantity = 1
+        );
+        insert repairLine;
+
+        Test.startTest();
+        List<WorkOrderLineItem> rows = WorkOrderLineItemsSelector.selectRepairCodeIdsByParent(
+            parentLine.Id,
+            repairCodeRt.getRecordTypeId()
+        );
+        List<WorkOrderLineItem> nullParent =
+            WorkOrderLineItemsSelector.selectRepairCodeIdsByParent(
+                null,
+                repairCodeRt.getRecordTypeId()
+            );
+        Test.stopTest();
+
+        Assert.areEqual(1, rows.size());
+        Assert.areEqual(repairLine.Id, rows[0].Id);
+        Assert.isTrue(nullParent.isEmpty());
+    }
+
+    @IsTest
+    static void testSelectWithWorkOrderAssetById_guardsAndHappyPath() {
+        Assert.isTrue(WorkOrderLineItemsSelector.selectWithWorkOrderAssetById(null).isEmpty());
+
+        WorkOrderLineItem existing = [SELECT Id FROM WorkOrderLineItem LIMIT 1];
+
+        Test.startTest();
+        List<WorkOrderLineItem> rows =
+            WorkOrderLineItemsSelector.selectWithWorkOrderAssetById(existing.Id);
+        Test.stopTest();
+
+        Assert.areEqual(1, rows.size());
+        Assert.areEqual(existing.Id, rows[0].Id);
+    }
+
+    @IsTest
+    static void testSelectPriorPartsForBillingType_nullGuards() {
+        WorkOrder workOrder = [SELECT Id FROM WorkOrder LIMIT 1];
+        Product2 product = new Product2(Name = 'Prior Parts Guard Product', IsActive = true);
+        insert product;
+
+        Test.startTest();
+        Assert.isTrue(
+            WorkOrderLineItemsSelector.selectPriorPartsForBillingType(
+                    null,
+                    workOrder.Id,
+                    product.Id,
+                    Datetime.now()
+                )
+                .isEmpty()
+        );
+        Assert.isTrue(
+            WorkOrderLineItemsSelector.selectPriorPartsForBillingType(
+                    workOrder.Id,
+                    null,
+                    product.Id,
+                    Datetime.now()
+                )
+                .isEmpty()
+        );
+        Assert.isTrue(
+            WorkOrderLineItemsSelector.selectPriorPartsForBillingType(
+                    workOrder.Id,
+                    workOrder.Id,
+                    null,
+                    Datetime.now()
+                )
+                .isEmpty()
+        );
+        Assert.isTrue(
+            WorkOrderLineItemsSelector.selectPriorPartsForBillingType(
+                    workOrder.Id,
+                    workOrder.Id,
+                    product.Id,
+                    null
+                )
+                .isEmpty()
+        );
+        List<WorkOrderLineItem> noMatch =
+            WorkOrderLineItemsSelector.selectPriorPartsForBillingType(
+                workOrder.Id,
+                workOrder.Id,
+                product.Id,
+                Datetime.now().addDays(-90)
+            );
+        Test.stopTest();
+
+        Assert.isTrue(noMatch.isEmpty(), 'No prior parts should exist for synthetic asset Id');
+    }
+
+    @IsTest
+    static void testSelectActiveInstrumentLines_guardsAndHappyPath() {
+        Assert.isTrue(WorkOrderLineItemsSelector.selectActiveInstrumentLines(null).isEmpty());
+        Assert.isTrue(
+            WorkOrderLineItemsSelector.selectActiveInstrumentLines(new Set<Id>()).isEmpty()
+        );
+
+        // LineType Instrument is not available on org WOLI record types; still cover the query path.
+        WorkOrder workOrder = new WorkOrder(
+            Subject = 'WOLI Sel Instrument Cov WO',
+            Status = 'Received',
+            Pricebook2Id = Test.getStandardPricebookId()
+        );
+        insert workOrder;
+
+        Test.startTest();
+        List<WorkOrderLineItem> rows = WorkOrderLineItemsSelector.selectActiveInstrumentLines(
+            new Set<Id>{ workOrder.Id }
+        );
+        Test.stopTest();
+
+        Assert.isNotNull(rows);
+        Assert.isTrue(rows.isEmpty(), 'No Instrument lines expected without that picklist on RT');
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static User buildTestUser() {
         adb_User builder = new adb_User();
         builder.persist();
         return (User) builder.record;
+    }
+
+    @IsTest
+    static void testModifierAndPricingSelectors_sprint93Coverage() {
+        WorkOrder workOrder = [SELECT Id FROM WorkOrder LIMIT 1];
+        WorkOrderLineItem existing = [SELECT Id FROM WorkOrderLineItem LIMIT 1];
+
+        Test.startTest();
+        Assert.isTrue(WorkOrderLineItemsSelector.selectForModifierCodes(null).isEmpty());
+        List<WorkOrderLineItem> modifierLines =
+            WorkOrderLineItemsSelector.selectForModifierCodes(workOrder.Id);
+        Assert.isTrue(WorkOrderLineItemsSelector.selectForModifierUpdate(null).isEmpty());
+        List<WorkOrderLineItem> modifierUpdate =
+            WorkOrderLineItemsSelector.selectForModifierUpdate(existing.Id);
+        Assert.isTrue(WorkOrderLineItemsSelector.selectModifierParents(null).isEmpty());
+        Assert.isTrue(
+            WorkOrderLineItemsSelector.selectModifierParents(new Set<Id>()).isEmpty()
+        );
+        List<WorkOrderLineItem> modifierParents =
+            WorkOrderLineItemsSelector.selectModifierParents(new Set<Id>{ existing.Id });
+        Assert.isTrue(WorkOrderLineItemsSelector.selectServiceCodeChildren(null).isEmpty());
+        List<WorkOrderLineItem> serviceChildren =
+            WorkOrderLineItemsSelector.selectServiceCodeChildren(existing.Id);
+
+        Assert.areEqual(
+            0,
+            WorkOrderLineItemsSelector.sumRepairCodeTotalPrice(null, null, null)
+        );
+        Id fakeRt = WorkOrderLineItem.SObjectType.getDescribe().getRecordTypeInfos()[0].getRecordTypeId();
+        Decimal sumStandalone =
+            WorkOrderLineItemsSelector.sumRepairCodeTotalPrice(workOrder.Id, workOrder.Id, fakeRt);
+        Decimal sumWithParent =
+            WorkOrderLineItemsSelector.sumRepairCodeTotalPrice(workOrder.Id, UserInfo.getUserId(), fakeRt);
+
+        Assert.isTrue(
+            WorkOrderLineItemsSelector.selectForPricingFrameworkByWorkOrderIds(null).isEmpty()
+        );
+        List<WorkOrderLineItem> pricingRows =
+            WorkOrderLineItemsSelector.selectForPricingFrameworkByWorkOrderIds(
+                new Set<Id>{ workOrder.Id }
+            );
+        Assert.isTrue(
+            WorkOrderLineItemsSelector.selectForPricingFrameworkHeadlessByIds(null).isEmpty()
+        );
+        Map<Id, WorkOrderLineItem> headless =
+            WorkOrderLineItemsSelector.selectForPricingFrameworkHeadlessByIds(
+                new Set<Id>{ existing.Id }
+            );
+        Assert.isTrue(
+            WorkOrderLineItemsSelector.selectForVendorConsolidationByWorkOrderIds(null).isEmpty()
+        );
+        List<WorkOrderLineItem> vendorRows =
+            WorkOrderLineItemsSelector.selectForVendorConsolidationByWorkOrderIds(
+                new Set<Id>{ workOrder.Id }
+            );
+        Assert.isTrue(WorkOrderLineItemsSelector.selectCrssInspectedLines(null).isEmpty());
+        List<WorkOrderLineItem> crssRows =
+            WorkOrderLineItemsSelector.selectCrssInspectedLines(workOrder.Id);
+        Assert.isTrue(
+            WorkOrderLineItemsSelector.selectQualityInspectionProductServiced(null, null, null)
+                .isEmpty()
+        );
+        List<WorkOrderLineItem> qiRows =
+            WorkOrderLineItemsSelector.selectQualityInspectionProductServiced(
+                workOrder.Id,
+                workOrder.Id,
+                WorkOrderLineItem.SObjectType.getDescribe().getRecordTypeInfos()[0].getRecordTypeId()
+            );
+        Test.stopTest();
+
+        Assert.isNotNull(modifierLines);
+        Assert.isFalse(modifierUpdate.isEmpty());
+        Assert.isFalse(modifierParents.isEmpty());
+        Assert.isNotNull(serviceChildren);
+        Assert.areEqual(0, sumStandalone);
+        Assert.areEqual(0, sumWithParent);
+        Assert.isNotNull(pricingRows);
+        Assert.isFalse(headless.isEmpty());
+        Assert.isNotNull(vendorRows);
+        Assert.isNotNull(crssRows);
+        Assert.isNotNull(qiRows);
     }
 }

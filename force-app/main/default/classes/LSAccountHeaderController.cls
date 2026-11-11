@@ -1,13 +1,13 @@
 /**
- * @author Surya
+ * @author PWC Developer
  * @date 2026/10/30
  *
  * @group Life Sciences Account
  *
  * @description
- * GCL-100 - LWC controller for the out-of-territory Account header.
- * Delegates the access decision to LSAccountHeaderService. Field display stays in
- * the Lightning component so field-level security is enforced by the UI API.
+ * GCL-100 - LWC controller for the Life Sciences Customer 360 panes.
+ * Delegates Full or Base to LSAccountHeaderService. Field display stays in
+ * the Lightning components so field-level security is enforced by the UI API.
  */
 public with sharing class LSAccountHeaderController {
 
@@ -20,10 +20,10 @@ public with sharing class LSAccountHeaderController {
 
     /**
      * @description
-     * GCL-100 - Returns whether the running user should see the read-only header.
+     * GCL-100 - Returns Full or Base for the running user on this Account.
      *
      * @param accountId Account record opened on the Life Sciences record page.
-     * @return Header decision. showHeaderOnly is false when the user should keep the standard page.
+     * @return Full for the Account owner and for an Account Team member. Base otherwise.
      *
      * @example
      * LSAccountHeaderController.getHeaderView(accountId);

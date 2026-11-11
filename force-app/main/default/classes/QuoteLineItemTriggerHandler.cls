@@ -13,6 +13,7 @@ public with sharing class QuoteLineItemTriggerHandler extends TriggerHandler {
      */
     public override void afterInsert() {
         QuoteLineItemService.handleAfterInsert((List<QuoteLineItem>) Trigger.new);
+        QuoteLineItemOrderCloseService.handleAfterSave((List<QuoteLineItem>) Trigger.new, null);
         // GW-4777 / GW-5676 - Contract Adjustments (Model Qty, Inc/Exc) from the line's coverage JSON
         ContractModifierService.syncAdjustmentsFromQuoteLines((List<QuoteLineItem>) Trigger.new, null);
     }
@@ -29,6 +30,10 @@ public with sharing class QuoteLineItemTriggerHandler extends TriggerHandler {
      */
     public override void afterUpdate() {
         QuoteLineItemService.handleAfterUpdate((List<QuoteLineItem>) Trigger.new, (Map<Id, QuoteLineItem>) Trigger.oldMap);
+        QuoteLineItemOrderCloseService.handleAfterSave(
+            (List<QuoteLineItem>) Trigger.new,
+            (Map<Id, QuoteLineItem>) Trigger.oldMap
+        );
         // GW-4777 / GW-5676 - Contract Adjustments (Model Qty, Inc/Exc) from the line's coverage JSON
         ContractModifierService.syncAdjustmentsFromQuoteLines((List<QuoteLineItem>) Trigger.new, (Map<Id, QuoteLineItem>) Trigger.oldMap);
     }

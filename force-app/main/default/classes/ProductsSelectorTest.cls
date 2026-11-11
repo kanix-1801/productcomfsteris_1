@@ -203,4 +203,71 @@ private class ProductsSelectorTest {
             Assert.areEqual('IE-CASE-01', byCategory[0].ProductCode);
         }
     }
+
+    @IsTest
+    static void testSelectCreateReturnOrderMethods_happyPathAndGuards() {
+        User testUser = new User(Id = UserInfo.getUserId());
+        System.runAs(testUser) {
+            Product2 defaultProduct = new Product2(
+                Name = 'Default Product',
+                IsActive = true,
+                ProductType__c = 'Service Asset',
+                ProductLine__c = 'INSTRUMENT',
+                ProductCode = 'CRO-DEF-001',
+                Model__c = 'Model-Def'
+            );
+            Product2 otherProduct = new Product2(
+                Name = 'CRO Other Product',
+                IsActive = true,
+                ProductType__c = 'Category Code',
+                ProductLine__c = 'INSTRUMENT',
+                ProductCode = 'CRO-OTH-001',
+                Model__c = 'Model-Oth'
+            );
+            insert new List<Product2>{ defaultProduct, otherProduct };
+
+            Test.startTest();
+            List<Product2> byDefaultName =
+                ProductsSelector.selectDefaultActiveByName('Default Product');
+            List<Product2> blankDefault =
+                ProductsSelector.selectDefaultActiveByName(' ');
+            List<Product2> detailsServiceAsset =
+                ProductsSelector.selectActiveDetailsForCreateReturnOrder(defaultProduct.Id, true);
+            List<Product2> detailsAnyType =
+                ProductsSelector.selectActiveDetailsForCreateReturnOrder(otherProduct.Id, false);
+            List<Product2> detailsNull =
+                ProductsSelector.selectActiveDetailsForCreateReturnOrder(null, true);
+            List<Product2> filtered =
+                ProductsSelector.selectForCreateReturnOrderLine(
+                    'INSTRUMENT',
+                    true,
+                    '%CRO-DEF%',
+                    50
+                );
+            List<Product2> routing =
+                ProductsSelector.selectForCreateReturnOrderRouting(
+                    new Set<Id>{ defaultProduct.Id, otherProduct.Id }
+                );
+            List<Product2> routingNull =
+                ProductsSelector.selectForCreateReturnOrderRouting(null);
+            List<Product2> approveReject =
+                ProductsSelector.selectForApproveRejectByIds(new Set<Id>{ defaultProduct.Id });
+            List<Product2> quoteEmail =
+                ProductsSelector.selectForQuoteEmailReplyByIds(new Set<Id>{ defaultProduct.Id });
+            Test.stopTest();
+
+            Assert.areEqual(1, byDefaultName.size());
+            Assert.areEqual(defaultProduct.Id, byDefaultName[0].Id);
+            Assert.isTrue(blankDefault.isEmpty());
+            Assert.areEqual(1, detailsServiceAsset.size());
+            Assert.areEqual(1, detailsAnyType.size());
+            Assert.isTrue(detailsNull.isEmpty());
+            Assert.areEqual(1, filtered.size());
+            Assert.areEqual(defaultProduct.Id, filtered[0].Id);
+            Assert.areEqual(2, routing.size());
+            Assert.isTrue(routingNull.isEmpty());
+            Assert.areEqual(1, approveReject.size());
+            Assert.areEqual(1, quoteEmail.size());
+        }
+    }
 }

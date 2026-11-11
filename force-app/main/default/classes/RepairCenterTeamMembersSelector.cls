@@ -43,4 +43,21 @@ public with sharing class RepairCenterTeamMembersSelector {
         ];
         return rows.isEmpty() ? null : rows[0];
     }
+
+    /**
+     * @description GW-3400 - Signature Ids linked to Work Order Line Items (delete dependents).
+     * @param lineItemIds WorkOrderLineItem Ids
+     * @return Matching RepairCenterTeamMember__c rows (Id only)
+     */
+    public static List<RepairCenterTeamMember__c> selectIdsByWorkOrderLineItemIds(Set<Id> lineItemIds) {
+        if (lineItemIds == null || lineItemIds.isEmpty()) {
+            return new List<RepairCenterTeamMember__c>();
+        }
+        return (List<RepairCenterTeamMember__c>) SoqlQueryBuilder.fromObject(
+                'RepairCenterTeamMember__c'
+            )
+            .selectFields(new List<String>{ 'Id' })
+            .whereField('WorkOrderLineItem__c', 'IN', new List<Id>(lineItemIds))
+            .execute();
+    }
 }

@@ -1,0 +1,22 @@
+<!--
+    @description : GCL-100 - Three vertical panes for the LS Customer 360 record page.
+                   Left, center, and right, matching the Healthcare Customer 360 layout.
+                   This template only arranges regions. It does not call Apex.
+    @author      : PWC Developer
+    @date        : 2026/11/06
+-->
+<aura:component
+    implements="lightning:recordHomeTemplate"
+    access="global"
+    description="LS Customer 360 Three Column Template">
+
+    <aura:attribute name="left" type="Aura.Component[]" />
+    <aura:attribute name="main" type="Aura.Component[]" />
+    <aura:attribute name="right" type="Aura.Component[]" />
+
+    <div class="ls-columns">
+        <div class="ls-left">{!v.left}</div>
+        <div class="ls-main">{!v.main}</div>
+        <div class="ls-right">{!v.right}</div>
+    </div>
+</aura:component>

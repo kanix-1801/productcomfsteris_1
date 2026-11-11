@@ -17,16 +17,20 @@ public without sharing class WoDebriefCrssReviewController {
 		@AuraEnabled public List<String> returnOrderLines;
 		/** @description Product Serviced lines without a Mobile Device Picture. */
 		@AuraEnabled public List<String> linesMissingPictures;
+		/** @description True when Work Order Review Done was checked. */
+		@AuraEnabled public Boolean reviewDone;
 	}
 
 	/**
 	 * @description GW-6017 - Checks the CRSS work order before the service report.
-	 *              When no line is waiting for a return order, Work Order Review Done is checked.
+	 *              When no line is waiting for a return order, Work Order Review Done is checked,
+	 *              unless a line has no picture and the technician has not chosen to continue.
 	 * @param workOrderId CRSS Work Order Id
+	 * @param continueWithoutPictures True when the technician chose to finish without the missing pictures
 	 * @return Review result
 	 */
 	@AuraEnabled
-	public static WorkOrderReviewResult checkWorkOrderReview(Id workOrderId) {
+	public static WorkOrderReviewResult checkWorkOrderReview(Id workOrderId, Boolean continueWithoutPictures) {
 		if (workOrderId == null) {
 			throw handledException('Work order could not be identified.');
 		}
@@ -52,7 +56,9 @@ public without sharing class WoDebriefCrssReviewController {
 			}
 		}
 		result.canFinish = result.returnOrderLines.isEmpty();
-		if (result.canFinish) {
+		result.reviewDone = result.canFinish
+			&& (result.linesMissingPictures.isEmpty() || continueWithoutPictures == true);
+		if (result.reviewDone) {
 			try {
 				update new WorkOrder(Id = workOrderId, WorkOrderReviewDone__c = true);
 			} catch (DmlException ex) {
@@ -77,7 +83,7 @@ public without sharing class WoDebriefCrssReviewController {
 			SELECT LinkedEntityId
 			FROM ContentDocumentLink
 			WHERE LinkedEntityId IN :lineIds
-				AND ContentDocument.Title = :WoDebriefIMSchildWOController.MOBILE_DEVICE_PICTURE_TITLE
+				AND ContentDocument.Title IN :WoDebriefIMSchildWOController.PICTURE_TITLES
 		]) {
 			withPictures.add(link.LinkedEntityId);
 		}

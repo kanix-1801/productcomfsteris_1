@@ -250,6 +250,14 @@
                                     </template>
                                 </div>
                                 <div class="workspace-header-actions">
+                                    <template lwc:if={showRepairCostHeader}>
+                                        <div class="repair-cost-header slds-m-right_small">
+                                            <span class="repair-cost-header__label">Current Repair Cost</span>
+                                            <span class="repair-cost-header__value">{currentRepairCostDisplay}</span>
+                                            <span class="repair-cost-header__label">Updated Repair Cost</span>
+                                            <span class="repair-cost-header__value">{updatedRepairCostDisplay}</span>
+                                        </div>
+                                    </template>
                                     <p class="slds-text-body_small slds-text-color_weak slds-m-right_small">
                                         Selected codes: {selectedCount}
                                     </p>
@@ -590,6 +598,13 @@
                                     No selected observation codes.
                                 </p>
                             </template>
+                        </template>
+
+                        <template lwc:elseif={isModifierCodesTab}>
+                            <c-modifier-codes
+                                work-order-id={workOrderId}
+                                variant="device"
+                            ></c-modifier-codes>
                         </template>
 
                         <template lwc:elseif={isCategoryTab}>

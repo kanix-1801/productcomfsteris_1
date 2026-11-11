@@ -164,8 +164,7 @@ private class LSAccountCustomerTasServiceTest {
             Country = 'United States',
             City = 'Cleveland',
             Org_ID__c = '82',
-            Class_Code__c = 'SC',
-            Sales_Category__c = 'LS'
+            Class_Code__c = 'SC'
         );
         System.assertEquals('SC', TasAssignmentRequest.fromLead(leadRecord).toJsonMap().get('classCode'));
 

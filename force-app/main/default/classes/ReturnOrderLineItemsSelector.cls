@@ -1,13 +1,14 @@
 /**
  * @description Selector class for the ReturnOrderLineItem SObject.
- *              Extends SoqlQueryBuilder for generic queries; legacy selectBy* methods remain.
+ *              Extends SoqlQueryBuilder for invoker-built queries; legacy selectBy* methods
+ *              remain for QACBM parity.
  */
 public with sharing class ReturnOrderLineItemsSelector extends SoqlQueryBuilder {
     /**
-     * @description GW-5492 - Binds this selector to ReturnOrderLineItem for SoqlQueryBuilder queries.
+     * @description Binds this selector to ReturnOrderLineItem for SoqlQueryBuilder queries.
      */
     public ReturnOrderLineItemsSelector() {
-        this.objectName = 'ReturnOrderLineItem';
+        super('ReturnOrderLineItem');
     }
 
     private static final String BASE_FIELDS =
@@ -47,82 +48,6 @@ public with sharing class ReturnOrderLineItemsSelector extends SoqlQueryBuilder 
             ' WITH USER_MODE' +
             ' ORDER BY CreatedDate ASC'
         );
-    }
-
-    private static final List<String> RECEIVING_FINISH_FIELDS = new List<String>{
-        'Id',
-        'ReturnOrderId',
-        'ReturnOrderLineItemNumber',
-        'Status__c',
-        'AssetId',
-        'Product2Id',
-        'Product2.ProductCode',
-        'Product2.Description',
-        'Product2.DeviceType__c',
-        'ProductLine__c',
-        'LineType__c',
-        'QuantityReturned',
-        'QuantityReceived',
-        'SerialNumber__c',
-        'Model__c',
-        'CustomerPO__c',
-        'CustomerReference__c',
-        'PreviousReturnOrder__c',
-        'Contact__c',
-        'Department__c',
-        'Description',
-        'ReportedProblem__c',
-        'IsLoanerAsset__c',
-        'LoanerRequested__c',
-        'EstimateRequired__c',
-        'EstimateContact__c',
-        'Disinfected__c',
-        'DestinationLocationId',
-        'SourceLocationId',
-        'QuantityExpected',
-        'QuantityUnitOfMeasure',
-        'ReasonForReturn',
-        'RepaymentMethod',
-        'ProcessingPlan',
-        'HospitalReferencedTrayName__c',
-        'RepairWarranty__c',
-        'WarrantyNotes__c',
-        'IsPriorityRepair__c',
-        'ModRequest__c',
-        'ParentROLI__c'
-    };
-
-    /**
-     * @description GW-5492 - Line items for Finish Receiving WO creation.
-     * @param ids Return Order Line Item Ids
-     * @return Matching line items
-     */
-    public static List<ReturnOrderLineItem> selectForReceivingFinish(Set<Id> ids) {
-        if (ids == null || ids.isEmpty()) {
-            return new List<ReturnOrderLineItem>();
-        }
-        return (List<ReturnOrderLineItem>) new ReturnOrderLineItemsSelector()
-            .selectFields(RECEIVING_FINISH_FIELDS)
-            .whereIn('Id', new List<Id>(ids))
-            .execute();
-    }
-
-    /**
-     * @description GW-4348 / GW-5996 - All Finish-Receiving fields for lines on a Return Order.
-     * @param returnOrderId Return Order Id
-     * @return Line items ordered by line number
-     */
-    public static List<ReturnOrderLineItem> selectForReceivingFinishByReturnOrderId(
-        Id returnOrderId
-    ) {
-        if (returnOrderId == null) {
-            return new List<ReturnOrderLineItem>();
-        }
-        return (List<ReturnOrderLineItem>) new ReturnOrderLineItemsSelector()
-            .selectFields(RECEIVING_FINISH_FIELDS)
-            .whereEquals('ReturnOrderId', returnOrderId)
-            .orderBy('ReturnOrderLineItemNumber')
-            .execute();
     }
 
     /**
@@ -188,18 +113,59 @@ public with sharing class ReturnOrderLineItemsSelector extends SoqlQueryBuilder 
     }
 
     /**
-     * @description GW-5492 - Counts open Created line items for a Return Order.
-     * @param returnOrderId Return Order Id
-     * @return Count of Created lines
+     * @description GW-1509 - Open Return Order lines for an Asset (Create Return Order warning).
+     * @param assetId Asset Id
+     * @param closedStatuses Return Order statuses treated as closed
+     * @return Matching ReturnOrderLineItem rows
      */
-    public static Integer countCreatedByReturnOrderId(Id returnOrderId) {
-        if (returnOrderId == null) {
-            return 0;
+    public static List<ReturnOrderLineItem> selectOpenByAssetId(
+        Id assetId,
+        Set<String> closedStatuses
+    ) {
+        if (assetId == null) {
+            return new List<ReturnOrderLineItem>();
         }
-        return new ReturnOrderLineItemsSelector()
-            .whereEquals('ReturnOrderId', returnOrderId)
-            .whereEquals('Status__c', 'Created')
-            .count();
+        List<String> closedStatusList = closedStatuses == null
+            ? new List<String>()
+            : new List<String>(closedStatuses);
+        return (List<ReturnOrderLineItem>) SoqlQueryBuilder.fromObject('ReturnOrderLineItem')
+            .selectFields(
+                new List<String>{
+                    'ReturnOrderId',
+                    'ReturnOrder.ReturnOrderNumber',
+                    'ReturnOrder.Status'
+                }
+            )
+            .whereEquals('AssetId', assetId)
+            .whereField('ReturnOrder.Status', 'NOT IN', closedStatusList)
+            .orderBy('ReturnOrder.ReturnOrderNumber', false, true)
+            .execute();
     }
 
+    /**
+     * @description GW-5677 - Return Order lines used to build Additional Services Requested.
+     * @param returnOrderId Return Order Id
+     * @return All lines on the Return Order, ordered by line number
+     */
+    public static List<ReturnOrderLineItem> selectAdditionalServicesByReturnOrderId(Id returnOrderId) {
+        if (returnOrderId == null) {
+            return new List<ReturnOrderLineItem>();
+        }
+        return [
+            SELECT
+                Id,
+                ReturnOrderLineItemNumber,
+                ItemDescription__c,
+                AdditionalServiceRepair__c,
+                ColorDipping__c,
+                NumberOfRings__c,
+                InsulationPowderCoating__c,
+                LaserMarking__c,
+                LegPositionersStirrup__c
+            FROM ReturnOrderLineItem
+            WHERE ReturnOrderId = :returnOrderId
+            WITH USER_MODE
+            ORDER BY ReturnOrderLineItemNumber
+        ];
+    }
 }

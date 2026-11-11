@@ -17,7 +17,8 @@ import submitOverlayAssignments from '@salesforce/apex/LsOverlayAssignmentContro
  *
  * Supports the end-to-end Life Sciences Sales Overlay flow:
  * 1. Select one or more territories/Accounts.
- * 2. Review accounts associated to selected search criteria.
+ * 2. Review the Customer accounts for the selected search criteria.
+ * GPO, IDN, and Address are not shown. Submit adds the user to the selected Customer and its child accounts.
  * 3. Select one or more overlay users.
  * 4. Review summary and confirm assignment creation.
  * Only Account access is extended on submit.
@@ -86,26 +87,20 @@ export default class LsOverlayAssignment extends LightningElement {
         { label: 'Account Type', fieldName: 'accountType' }
     ];
 
-    accountColumns = [
-        { label: 'Territory ID', fieldName: 'territoryId' },
-        { label: 'Territory Description', fieldName: 'territoryDescription' },
-        { label: 'Street', fieldName: 'street' },
-        { label: 'City', fieldName: 'city' },
-        { label: 'State', fieldName: 'state' },
-        { label: 'Postal Code', fieldName: 'postalCode' },
-        { label: 'Country', fieldName: 'country' },
-        { label: 'Associated Account', fieldName: 'associatedAccountName' },
+    accountColumnsBase = [
         { label: 'Account Name', fieldName: 'accountName' },
         { label: 'Account Number', fieldName: 'accountNumber' },
         { label: 'Account Type', fieldName: 'accountType' }
     ];
 
+    accountTerritoryColumns = [
+        { label: 'Territory ID', fieldName: 'territoryId', sortable: true },
+        { label: 'Territory Description', fieldName: 'territoryDescription', sortable: true }
+    ];
+
     accountTypeOptions = [
         { label: '--None--', value: '' },
-        { label: 'Customer', value: 'Customer' },
-        { label: 'IDN', value: 'IDN' },
-        { label: 'GPO', value: 'GPO' },
-        { label: 'Address', value: 'Address' }
+        { label: 'Customer', value: 'Customer' }
     ];
 
     /**
@@ -154,6 +149,17 @@ export default class LsOverlayAssignment extends LightningElement {
     get hasSelectedTerritories() { return this.selectedTerritoryRecords.length > 0; }
     get hasAccountSearchResults() { return this.accountSearchData.length > 0; }
     get hasSelectedSearchAccounts() { return this.selectedSearchAccountRecords.length > 0; }
+    get isTerritoryBasedSearch() {
+        return this.selectedTerritoryIds.length > 0;
+    }
+    get accountColumns() {
+        return this.isTerritoryBasedSearch
+            ? [...this.accountColumnsBase, ...this.accountTerritoryColumns]
+            : [...this.accountColumnsBase];
+    }
+    get accountTableKey() {
+        return this.isTerritoryBasedSearch ? 'territory-search-table' : 'account-search-table';
+    }
     get accountSearchPageSizeValue() { return String(this.accountSearchPageSize); }
     get accountPageSizeValue() { return String(this.accountPageSize); }
     get disablePreviousAccountSearchPage() { return this.accountSearchPageNumber <= 1; }

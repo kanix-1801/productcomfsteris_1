@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>65.0</apiVersion>
+    <isExposed>true</isExposed>
+    <masterLabel>Create Product Request</masterLabel>
+    <description>GW-6212: Creates a Product Request from a Work Order or as a replenishment order. Owner: Field Service</description>
+    <targets>
+        <target>lightning__RecordAction</target>
+        <target>lightning__GlobalAction</target>
+        <target>lightning__FlowScreen</target>
+        <target>lightning__AppPage</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightning__RecordAction">
+            <actionType>ScreenAction</actionType>
+            <objects>
+                <object>WorkOrder</object>
+                <object>ServiceResource</object>
+            </objects>
+        </targetConfig>
+        <targetConfig targets="lightning__GlobalAction">
+            <actionType>ScreenAction</actionType>
+        </targetConfig>
+        <targetConfig targets="lightning__FlowScreen">
+            <property name="recordId" type="String" label="Work Order Id" description="Work Order Id passed by the mobile flow. Leave blank for a replenishment order." role="inputOnly"/>
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

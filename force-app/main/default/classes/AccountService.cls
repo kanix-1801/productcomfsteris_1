@@ -8,6 +8,7 @@
      *              2. Identify eligible Prospect Account records with required TAS fields.
      *              3. Identify eligible Oracle-sourced Customer Accounts with OracleAddressId__c populated.
      *              4. Enqueue TAS queueables for immediate post-save Boomi callouts.
+     *              5. Enable Customer Accounts with Type Dealer as partner accounts. GC-3617
      * GC-3021
      */
     public with sharing class AccountService  {
@@ -596,6 +597,36 @@
          */
         public static List<Account> getShipToAddressAccounts(Id parentAccountId) {
             return AccountSelector.selectShipToAddressAccountsByParentId(parentAccountId);
+        }
+
+        /**
+         * @description GC-3617. Sets IsPartner on Customer Accounts whose Type is Dealer.
+         *              IsPartner cannot be set during insert, so this updates after save.
+         * @param newAccounts Accounts from the trigger.
+         * @return None.
+         */
+        public static void enableDealerAccounts(List<Account> newAccounts) {
+            if (newAccounts == null || newAccounts.isEmpty()) {
+                return;
+            }
+
+            Id customerRecordTypeId = getCustomerRecordTypeId();
+            List<Account> accountsToEnable = new List<Account>();
+            for (Account accountRecord : newAccounts) {
+                if (accountRecord != null
+                    && accountRecord.RecordTypeId == customerRecordTypeId
+                    && accountRecord.Type == 'Dealer'
+                    && accountRecord.IsPartner != true) {
+                    accountsToEnable.add(new Account(
+                        Id = accountRecord.Id,
+                        IsPartner = true
+                    ));
+                }
+            }
+
+            if (!accountsToEnable.isEmpty()) {
+                update accountsToEnable;
+            }
         }
 
     }

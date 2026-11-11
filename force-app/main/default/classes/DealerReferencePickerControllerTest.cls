@@ -121,6 +121,148 @@ private class DealerReferencePickerControllerTest {
     }
 
     @IsTest
+    static void saveOpportunityReferences_createsOnceAndUpdatesTwoOpportunities() {
+        Account account = new Account(Name = 'Cleveland Network');
+        insert account;
+        List<Opportunity> opportunities = new List<Opportunity>{
+            new Opportunity(Name = 'Dealer One', AccountId = account.Id, StageName = 'Discovery', CloseDate = Date.today().addDays(30), BypassValidations__c = true),
+            new Opportunity(Name = 'Dealer Two', AccountId = account.Id, StageName = 'Discovery', CloseDate = Date.today().addDays(40), BypassValidations__c = true)
+        };
+        insert opportunities;
+        Id architectId = [SELECT Id FROM DealerReferenceValue__c WHERE Name = 'Alpha Architect' LIMIT 1].Id;
+
+        DealerReferencePickerController.ReferenceUpdate first = new DealerReferencePickerController.ReferenceUpdate();
+        first.opportunityId = opportunities[0].Id;
+        first.architectToken = architectId;
+        first.architectName = 'Alpha Architect';
+        first.endCustomerToken = 'pending:' + EncodingUtil.urlEncode('Shared Hospital', 'UTF-8');
+        first.endCustomerName = 'Shared Hospital';
+        first.competitorTokens = 'pending:' + EncodingUtil.urlEncode('Shared Rival', 'UTF-8');
+        first.competitorNames = 'Shared Rival';
+
+        DealerReferencePickerController.ReferenceUpdate second = new DealerReferencePickerController.ReferenceUpdate();
+        second.opportunityId = opportunities[1].Id;
+        second.architectToken = 'pending:' + EncodingUtil.urlEncode('Shared Hospital', 'UTF-8');
+        second.architectName = 'Shared Hospital';
+        second.endCustomerToken = 'pending:' + EncodingUtil.urlEncode('Shared Hospital', 'UTF-8');
+        second.endCustomerName = 'Shared Hospital';
+
+        Test.startTest();
+        DealerReferencePickerController.saveReferenceUpdates(new List<DealerReferencePickerController.ReferenceUpdate>{
+            first,
+            second
+        });
+        Test.stopTest();
+
+        System.assertEquals(
+            1,
+            [SELECT COUNT() FROM DealerReferenceValue__c WHERE Type__c = 'EndCustomer' AND Name = 'Shared Hospital']
+        );
+        Id hospitalId = [SELECT Id FROM DealerReferenceValue__c WHERE Type__c = 'EndCustomer' AND Name = 'Shared Hospital' LIMIT 1].Id;
+        Map<Id, Opportunity> saved = new Map<Id, Opportunity>([
+            SELECT EndCustomerName__c, ArchitectName__c, DealerCompetitors__c
+            FROM Opportunity
+            WHERE Id IN :opportunities
+        ]);
+        System.assertEquals('Shared Hospital', saved.get(opportunities[0].Id).EndCustomerName__c);
+        System.assertEquals('Alpha Architect', saved.get(opportunities[0].Id).ArchitectName__c);
+        System.assertEquals('Shared Rival', saved.get(opportunities[0].Id).DealerCompetitors__c);
+        System.assertEquals('Shared Hospital', saved.get(opportunities[1].Id).EndCustomerName__c);
+        System.assertEquals('Shared Hospital', saved.get(opportunities[1].Id).ArchitectName__c);
+
+        DealerReferencePickerController.OpportunityReferences loaded =
+            DealerReferencePickerController.loadOpportunityReferences(opportunities[0].Id);
+        System.assertEquals('Shared Hospital', loaded.endCustomerName);
+        System.assertEquals(String.valueOf(hospitalId), loaded.endCustomerId);
+        System.assertEquals('Alpha Architect', loaded.architectName);
+        System.assertEquals(String.valueOf(architectId), loaded.architectId);
+        System.assertEquals('Shared Rival', loaded.competitorNames);
+    }
+
+    @IsTest
+    static void save_textareaCompetitors_storesSemicolonSeparatedNames() {
+        Account account = new Account(Name = 'Cleveland Network');
+        insert account;
+        Opportunity opportunity = new Opportunity(
+            Name = 'Competitor Text',
+            AccountId = account.Id,
+            StageName = 'Discovery',
+            CloseDate = Date.today().addDays(15),
+            BypassValidations__c = true
+        );
+        insert opportunity;
+
+        DealerReferencePickerController.ReferenceUpdate updateRow = new DealerReferencePickerController.ReferenceUpdate();
+        updateRow.opportunityId = opportunity.Id;
+        updateRow.competitorNames = 'Beta Competitor\nNew Rival; Beta Competitor';
+
+        Test.startTest();
+        DealerReferencePickerController.saveReferenceUpdates(
+            new List<DealerReferencePickerController.ReferenceUpdate>{ updateRow }
+        );
+        Test.stopTest();
+
+        Opportunity saved = [
+            SELECT DealerCompetitors__c
+            FROM Opportunity
+            WHERE Id = :opportunity.Id
+        ];
+        System.assertEquals('Beta Competitor;New Rival', saved.DealerCompetitors__c);
+        System.assertEquals(
+            1,
+            [SELECT COUNT() FROM DealerReferenceValue__c WHERE Type__c = 'Competitor' AND Name = 'Beta Competitor']
+        );
+        System.assertEquals(
+            1,
+            [SELECT COUNT() FROM DealerReferenceValue__c WHERE Type__c = 'Competitor' AND Name = 'New Rival']
+        );
+    }
+
+    @IsTest
+    static void resolve_textareaCompetitors_returnsSemicolonNames() {
+        DealerReferencePickerController.ResolveRequest request = new DealerReferencePickerController.ResolveRequest();
+        request.competitorNames = 'Acme\nBeta Competitor; Acme';
+
+        Test.startTest();
+        List<DealerReferencePickerController.ResolveResult> results =
+            DealerReferencePickerController.resolve(new List<DealerReferencePickerController.ResolveRequest>{ request });
+        Test.stopTest();
+
+        System.assertEquals('Acme;Beta Competitor', results[0].competitorNames);
+        System.assertEquals(
+            1,
+            [SELECT COUNT() FROM DealerReferenceValue__c WHERE Type__c = 'Competitor' AND Name = 'Acme']
+        );
+        System.assertEquals(
+            1,
+            [SELECT COUNT() FROM DealerReferenceValue__c WHERE Type__c = 'Competitor' AND Name = 'Beta Competitor']
+        );
+    }
+
+    @IsTest
+    static void load_returnsStoredName() {
+        Account account = new Account(Name = 'Cleveland Network');
+        insert account;
+        Opportunity opportunity = new Opportunity(
+            Name = 'Named Dealer',
+            AccountId = account.Id,
+            StageName = 'Discovery',
+            CloseDate = Date.today().addDays(20),
+            BypassValidations__c = true,
+            EndCustomerName__c = 'Rahul'
+        );
+        insert opportunity;
+
+        Test.startTest();
+        DealerReferencePickerController.OpportunityReferences loaded =
+            DealerReferencePickerController.loadOpportunityReferences(opportunity.Id);
+        Test.stopTest();
+
+        System.assertEquals('Rahul', loaded.endCustomerName);
+        System.assert(loaded.endCustomerId.startsWith('pending:'), 'Stored name should be shown on the picker');
+    }
+
+    @IsTest
     static void search_invalidType_throws() {
         Boolean threw = false;
         try {

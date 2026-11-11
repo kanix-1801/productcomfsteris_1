@@ -97,16 +97,16 @@ public with sharing class LSGenerateQuoteController {
      * @return Create quote response DTO.
      */
     @AuraEnabled
-    public static GenerateQuoteController.CreateQuoteResponse createQuote(
+    public static CreateQuoteResponse createQuote(
         Id opportunityId,
         String quoteType,
         Id trialId,
         Id sampleId
     ) {
         try {
-            return GenerateQuoteService.createQuote(
+            return LSGenerateQuoteService.createQuote(
                 opportunityId,
-                String.isBlank(quoteType) ? GenerateQuoteService.QUOTE_TYPE_NORMAL : quoteType,
+                String.isBlank(quoteType) ? LSGenerateQuoteService.QUOTE_TYPE_NORMAL : quoteType,
                 trialId,
                 sampleId
             );

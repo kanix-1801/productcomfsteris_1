@@ -4,7 +4,6 @@ import { CurrentPageReference } from 'lightning/navigation';
 import { getRecord, getFieldValue, getRecordNotifyChange } from 'lightning/uiRecordApi';
 import { registerRefreshHandler, unregisterRefreshHandler, RefreshEvent } from 'lightning/refresh';
 import OPPORTUNITY_QUOTE_COUNT from '@salesforce/schema/Opportunity.Quote_Count__c';
-import OPPORTUNITY_RECORD_TYPE from '@salesforce/schema/Opportunity.RecordType.DeveloperName';
 import TRIAL_OPPORTUNITY from '@salesforce/schema/Trial__c.Opportunity__c';
 import SAMPLE_OPPORTUNITY from '@salesforce/schema/Sample__c.RelatedOpportunity__c';
 import {
@@ -29,7 +28,6 @@ import REFRESH_QUOTE_SUCCESS_MESSAGE from '@salesforce/label/c.RefreshQuoteSucce
 import { FlowNavigationFinishEvent } from 'lightning/flowSupport'; //GC-3609
 
 const QUOTES_PAGE_SIZE = 5;
-const OPPORTUNITY_RECORD_TYPE_GOODWILL = 'HC_Sales_Customer_Goodwill_Support';
 const QUOTE_TYPE_GOODWILL = 'Goodwill Quote';
 const QUOTE_TYPE_TRIAL = 'Trial Quote';
 const QUOTE_TYPE_SAMPLE = 'Sample Quote';
@@ -89,7 +87,7 @@ export default class GenerateQuote extends LightningElement {
 
     @wire(getRecord, {
         recordId: '$opportunityIdForQuoteOperations',
-        fields: [OPPORTUNITY_QUOTE_COUNT, OPPORTUNITY_RECORD_TYPE]
+        fields: [OPPORTUNITY_QUOTE_COUNT]
     })
     wiredOpportunityRecord(result) {
         this.wiredOpportunity = result;
@@ -314,26 +312,10 @@ export default class GenerateQuote extends LightningElement {
         return this.quoteContextMode;
     }
 
-    get isGoodwillOpportunity() {
-        if (!this.wiredOpportunity?.data) {
-            return false;
-        }
-
-        return (
-            getFieldValue(this.wiredOpportunity.data, OPPORTUNITY_RECORD_TYPE) ===
-            OPPORTUNITY_RECORD_TYPE_GOODWILL
-        );
-    }
-
-    get isGoodwillGenerateContext() {
-        return this.quickActionMode === 'generate' && this.isGoodwillOpportunity;
-    }
-
     get isTypedQuoteQuickAction() {
         return (
             this.quickActionMode === 'generate_trial' ||
-            this.quickActionMode === 'generate_sample' ||
-            this.isGoodwillGenerateContext
+            this.quickActionMode === 'generate_sample'
         );
     }
 
@@ -344,9 +326,6 @@ export default class GenerateQuote extends LightningElement {
         if (this.quickActionMode === 'generate_sample') {
             return 'Sample';
         }
-        if (this.isGoodwillGenerateContext) {
-            return 'Goodwill';
-        }
         return null;
     }
 
@@ -356,9 +335,6 @@ export default class GenerateQuote extends LightningElement {
         }
         if (this.quickActionMode === 'generate_sample') {
             return 'Sample Quote';
-        }
-        if (this.isGoodwillGenerateContext) {
-            return QUOTE_TYPE_GOODWILL;
         }
 
         return 'Normal Quote';
@@ -378,9 +354,6 @@ export default class GenerateQuote extends LightningElement {
         }
         if (this.quickActionMode === 'generate_sample') {
             return 'Sample Quote';
-        }
-        if (this.isGoodwillGenerateContext) {
-            return QUOTE_TYPE_GOODWILL;
         }
 
         return null;
@@ -605,8 +578,17 @@ export default class GenerateQuote extends LightningElement {
         return this.isDealerPortal !== true;
     }
 
+    get showTotalColumn() {
+        if (this.isDealerPortal !== true) {
+            return true;
+        }
+
+        return this.allQuotes.some((quote) => quote.showPricing);
+    }
+
     get headerColumnCount() {
-        return this.isDealerPortal === true ? 6 : 8;
+        const columnCount = this.isDealerPortal === true ? 6 : 8;
+        return this.showTotalColumn ? columnCount : columnCount - 1;
     }
 
     get groupColumnLabel() {
@@ -734,6 +716,12 @@ export default class GenerateQuote extends LightningElement {
             approvalStatus: quote.approvalStatus || '—',
             showPricing,
             lineDetailColspan: showPricing ? 2 : 1,
+            childTableClass: showPricing
+                ? 'slds-table slds-table_bordered slds-table_cell-buffer child-table'
+                : 'slds-table slds-table_bordered slds-table_cell-buffer child-table child-table--no-pricing',
+            lineItemTableClass: showPricing
+                ? 'slds-table slds-table_bordered slds-table_cell-buffer line-item-table'
+                : 'slds-table slds-table_bordered slds-table_cell-buffer line-item-table line-item-table--no-pricing',
             totalWithoutFreight: showPricing ? this.formatCurrency(quote.quoteTotalWithoutFreight) : '',
             currencyCode: quote.currencyIsoCode || '',
             lastModifiedDate: this.formatDateTime(quote.lastModifiedDate),
@@ -980,6 +968,7 @@ export default class GenerateQuote extends LightningElement {
             });
 
             this.showToast('Success', 'Quote Forecast Confidence was saved.', 'success');
+            this.scheduleOpportunityRecordRefresh();
         } catch (error) {
             this.showToast('Error', this.reduceError(error), 'error');
         } finally {

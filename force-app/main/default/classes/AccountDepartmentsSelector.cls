@@ -1,12 +1,18 @@
 /**
  * @description Selector class for the AccountDepartment__c SObject.
  *              Centralizes all SOQL queries for AccountDepartments.
- *              Enforces security via WITH SECURITY_ENFORCED.
+ *              Queries use SoqlQueryBuilder (USER_MODE).
  */
 public with sharing class AccountDepartmentsSelector {
 
-    private static final String BASE_FIELDS =
-        'Id, Name, Account__c, Department__c, CreatedDate, LastModifiedDate';
+    private static final List<String> BASE_FIELDS = new List<String>{
+        'Id',
+        'Name',
+        'Account__c',
+        'Department__c',
+        'CreatedDate',
+        'LastModifiedDate'
+    };
 
     /**
      * @description Retrieves AccountDepartment__c records by their Ids.
@@ -17,12 +23,10 @@ public with sharing class AccountDepartmentsSelector {
         if (ids == null || ids.isEmpty()) {
             return new List<AccountDepartment__c>();
         }
-        return Database.query(
-            'SELECT ' + BASE_FIELDS +
-            ' FROM AccountDepartment__c' +
-            ' WHERE Id IN :ids' +
-            ' WITH SECURITY_ENFORCED'
-        );
+        return (List<AccountDepartment__c>) SoqlQueryBuilder.fromObject('AccountDepartment__c')
+            .selectFields(BASE_FIELDS)
+            .whereField('Id', 'IN', new List<Id>(ids))
+            .execute();
     }
 
     /**
@@ -34,13 +38,11 @@ public with sharing class AccountDepartmentsSelector {
         if (accountIds == null || accountIds.isEmpty()) {
             return new List<AccountDepartment__c>();
         }
-        return Database.query(
-            'SELECT ' + BASE_FIELDS +
-            ' FROM AccountDepartment__c' +
-            ' WHERE Account__c IN :accountIds' +
-            ' WITH SECURITY_ENFORCED' +
-            ' ORDER BY CreatedDate ASC'
-        );
+        return (List<AccountDepartment__c>) SoqlQueryBuilder.fromObject('AccountDepartment__c')
+            .selectFields(BASE_FIELDS)
+            .whereField('Account__c', 'IN', new List<Id>(accountIds))
+            .orderBy('CreatedDate')
+            .execute();
     }
 
     /**
@@ -52,12 +54,28 @@ public with sharing class AccountDepartmentsSelector {
         if (departmentIds == null || departmentIds.isEmpty()) {
             return new List<AccountDepartment__c>();
         }
-        return Database.query(
-            'SELECT ' + BASE_FIELDS +
-            ' FROM AccountDepartment__c' +
-            ' WHERE Department__c IN :departmentIds' +
-            ' WITH SECURITY_ENFORCED' +
-            ' ORDER BY CreatedDate ASC'
-        );
+        return (List<AccountDepartment__c>) SoqlQueryBuilder.fromObject('AccountDepartment__c')
+            .selectFields(BASE_FIELDS)
+            .whereField('Department__c', 'IN', new List<Id>(departmentIds))
+            .orderBy('CreatedDate')
+            .execute();
     }
+
+    /**
+     * @description GW-1509 - Account departments for Create Return Order department picklist.
+     * @param accountId Account Id
+     * @return Matching AccountDepartment__c rows
+     */
+    public static List<AccountDepartment__c> selectDepartmentsForCreateReturnOrder(Id accountId) {
+        if (accountId == null) {
+            return new List<AccountDepartment__c>();
+        }
+        return (List<AccountDepartment__c>) SoqlQueryBuilder.fromObject('AccountDepartment__c')
+            .selectFields(new List<String>{ 'Department__c', 'Department__r.Name' })
+            .whereEquals('Account__c', accountId)
+            .whereField('Department__c', '!=', null)
+            .orderBy('Department__r.Name', false, true)
+            .execute();
+    }
+
 }

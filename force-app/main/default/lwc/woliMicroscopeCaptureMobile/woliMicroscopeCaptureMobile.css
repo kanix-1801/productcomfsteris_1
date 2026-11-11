@@ -37,6 +37,11 @@
   object-fit: contain;
 }
 
+/* Embedded in another component's modal: leave room for the header, Capture and Done. */
+.capture-panel_embedded .preview-video {
+  max-height: 40vh;
+}
+
 .hidden-canvas {
   display: none;
 }

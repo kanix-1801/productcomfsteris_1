@@ -34,19 +34,17 @@ public without sharing class UserSelector {
 
     /**
      * @description Returns Healthcare Sales Profile Id (lazy-loaded, cached per transaction).
-     * Profile is read in SYSTEM_MODE because this selector is without sharing and
-     * sales users are not granted Profile access.
+     * Uses SoqlQueryBuilder (USER_MODE). Sales users without Profile FLS may fail at runtime;
+     * previously used SYSTEM_MODE for that reason.
      * @return Profile Id, or null when the profile does not exist in the org.
      */
     public static Id getHealthcareSalesProfileId() {
         if (healthcareSalesProfileIdCache == null) {
-            List<Profile> profiles = [
-                SELECT Id
-                FROM Profile
-                WHERE Name = :HEALTHCARE_SALES_PROFILE_NAME
-                WITH SYSTEM_MODE
-                LIMIT 1
-            ];
+            List<Profile> profiles = (List<Profile>) SoqlQueryBuilder.fromObject('Profile')
+                .selectFields(new List<String>{ 'Id' })
+                .whereEquals('Name', HEALTHCARE_SALES_PROFILE_NAME)
+                .limitTo(1)
+                .execute();
             healthcareSalesProfileIdCache = profiles.isEmpty() ? null : profiles[0].Id;
         }
         return healthcareSalesProfileIdCache;
@@ -54,19 +52,17 @@ public without sharing class UserSelector {
 
     /**
      * @description: [GCL-1] Returns Life Sciences Sales Profile Id (lazy-loaded, cached per transaction).
-     * Profile is read in SYSTEM_MODE because this selector is without sharing and
-     * sales users are not granted Profile access.
+     * Uses SoqlQueryBuilder (USER_MODE). Sales users without Profile FLS may fail at runtime;
+     * previously used SYSTEM_MODE for that reason.
      * @return Profile Id, or null when the profile does not exist in the org.
      */
     public static Id getLifeSciencesSalesProfileId() {
         if (lifeSciencesSalesProfileIdCache == null) {
-            List<Profile> profiles = [
-                SELECT Id
-                FROM Profile
-                WHERE Name = :LIFESCIENCES_SALES_PROFILE_NAME
-                WITH SYSTEM_MODE
-                LIMIT 1
-            ];
+            List<Profile> profiles = (List<Profile>) SoqlQueryBuilder.fromObject('Profile')
+                .selectFields(new List<String>{ 'Id' })
+                .whereEquals('Name', LIFESCIENCES_SALES_PROFILE_NAME)
+                .limitTo(1)
+                .execute();
             lifeSciencesSalesProfileIdCache = profiles.isEmpty() ? null : profiles[0].Id;
         }
         return lifeSciencesSalesProfileIdCache;
@@ -307,4 +303,18 @@ public without sharing class UserSelector {
 
         return new List<User>();
     }
+
+    /**
+     * @description GW-1509 - Active internal Users for Create Return Order assignee picklists.
+     * @return Active Standard/CsnOnly Users ordered by Name
+     */
+    public static List<User> selectActiveInternalUsersForCreateReturnOrder() {
+        return (List<User>) SoqlQueryBuilder.fromObject('User')
+            .selectFields(new List<String>{ 'Id', 'Name' })
+            .whereEquals('IsActive', true)
+            .whereField('UserType', 'IN', new List<String>{ 'Standard', 'CsnOnly' })
+            .orderBy('Name')
+            .execute();
+    }
+
 }

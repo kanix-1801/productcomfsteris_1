@@ -425,7 +425,7 @@ private class ReturnOrderLineItemsServiceTest {
             ReturnOrderLineItemsService.countCreatedByReturnOrderId(returnOrder.Id);
         Integer nullCount = ReturnOrderLineItemsService.countCreatedByReturnOrderId(null);
         Integer selectorCount =
-            ReturnOrderLineItemsSelector.countCreatedByReturnOrderId(returnOrder.Id);
+            ReturnOrderLineItemsService.countCreatedByReturnOrderId(returnOrder.Id);
         Test.stopTest();
 
         Assert.areEqual(lines.size() - 1, createdCount, 'Only Created lines should count');

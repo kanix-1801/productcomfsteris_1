@@ -11,8 +11,8 @@
         <targetConfig targets="lightning__ServiceDocument">
             <property name="revision" type="String" label="Revision" default="Rev 26.0" description="Form revision printed top right (document control)."/>
             <property name="formNumber" type="String" label="Form Number" default="RSR033" description="Form number printed top right (document control)."/>
-            <property name="fsrFooter" type="String" label="Field Service Report Footer" default="This is only an estimate and not an invoice. Tax is not included."/>
-            <property name="proformaFooter" type="String" label="Proforma Invoice Footer" default="" description="Footer for Proforma Invoice, supplied by Finance."/>
+            <property name="fsrFooter" type="String" label="Field Service Report Footer" default="This is only an estimate and not an invoice. Tax is not included." description="Not used (GW-5878): the footer is fixed text in the component. Kept because the STE_Field_Service_Report template sets it."/>
+            <property name="proformaFooter" type="String" label="Proforma Invoice Footer" default="" description="Not used (GW-5878): the footer is fixed text in the component. Kept because the STE_Field_Service_Report template sets it."/>
             <supportedFormFactors>
                 <supportedFormFactor type="Small"/>
                 <supportedFormFactor type="Large"/>

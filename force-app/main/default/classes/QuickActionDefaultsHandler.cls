@@ -35,6 +35,11 @@ public class QuickActionDefaultsHandler implements QuickAction.QuickActionDefaul
 				EmailAddressDefaultController.defaultSDNEmailAddresses(sendEmailDefaults, c,'Pre-Ship');
             }
             
+            if(c.EmailType__c == 'TRADEIN_NOTIFY_US') {
+                EmailAddressDefaultController.defaultSDNEmailAddresses(sendEmailDefaults, c,'Trade In Email');
+
+            }
+            
             if (c.EmailType__c == 'COA Project' && c.EmailLanguage__c=='English'){
                 
                 EmailTemplate template = [SELECT Id FROM EmailTemplate WHERE Name = 'COA Projects' LIMIT 1];

@@ -156,12 +156,58 @@ public with sharing class Product2Selector extends SoqlQueryBuilder {
     }
 
     /**
-     * @description
-     * GC-3230 - Escapes SOQL LIKE wildcards so user input is matched literally.
-     *
+     * @description Active Part products whose name or product code contains the search text.
+     * @param searchKey Name or product code fragment.
+     * @param rowLimit Maximum rows to return.
+     * @return Matching Product2 rows ordered by Name.
+     * @example
+     * Product2Selector.selectActivePartsBySearchKey('seal', 25);
+     */
+    public static List<Product2> selectActivePartsBySearchKey(String searchKey, Integer rowLimit) {
+        if (String.isBlank(searchKey)) {
+            return new List<Product2>();
+        }
+        String searchPattern = '%' + escapeLikeWildcards(searchKey) + '%';
+        Integer searchLimit = rowLimit == null || rowLimit <= 0 ? 25 : rowLimit;
+        return (List<Product2>) SoqlQueryBuilder.fromObject('Product2')
+            .selectFields(new List<String>{
+                'Id', 'Name', 'ProductCode', 'QuantityUnitOfMeasure', 'SubstitutePart__r.Name'
+            })
+            .whereEquals('IsActive', true)
+            .whereEquals('ProductType__c', 'Part')
+            .whereField('Name', 'LIKE', searchPattern)
+            .whereField('ProductCode', 'LIKE', searchPattern)
+            .withFilterLogic('1 AND 2 AND (3 OR 4)')
+            .orderBy('Name')
+            .limitTo(searchLimit)
+            .execute();
+    }
+
+    /**
+     * @description Active Part products for the Ids selected on a Product Request.
+     * @param product2Ids Product2 Ids.
+     * @return Matching active Part products, including the unit of measure and description.
+     * @example
+     * Product2Selector.selectActivePartsByIds(productIdSet);
+     */
+    public static List<Product2> selectActivePartsByIds(Set<Id> product2Ids) {
+        if (product2Ids == null || product2Ids.isEmpty()) {
+            return new List<Product2>();
+        }
+        return (List<Product2>) SoqlQueryBuilder.fromObject('Product2')
+            .selectFields(new List<String>{
+                'Id', 'Name', 'ProductCode', 'QuantityUnitOfMeasure', 'Description'
+            })
+            .whereField('Id', 'IN', new List<Id>(product2Ids))
+            .whereEquals('IsActive', true)
+            .whereEquals('ProductType__c', 'Part')
+            .execute();
+    }
+
+    /**
+     * @description Escapes SOQL LIKE wildcards so user input is matched literally.
      * @param searchKey Raw user-entered search text.
      * @return Search text with % and _ escaped, or an empty string when blank.
-     *
      * @example
      * Product2Selector.escapeLikeWildcards('50%');
      */

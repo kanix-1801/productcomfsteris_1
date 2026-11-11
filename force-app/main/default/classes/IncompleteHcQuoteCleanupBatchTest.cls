@@ -203,6 +203,92 @@ private class IncompleteHcQuoteCleanupBatchTest {
         }
     }
 
+    @IsTest
+    static void cleanupRestoresQuoteTriggerBypassState() {
+        System.runAs(runningUser()) {
+            QuoteFixture fixture = insertQuotes(true);
+            TriggerHandler.bypass('QuoteLineItemTriggerHandler');
+
+            IncompleteHcQuoteCleanupService.deleteIncompleteQuotes(
+                new List<Quote>{ new Quote(Id = fixture.incompleteQuoteId) }
+            );
+
+            Assert.isFalse(
+                TriggerHandler.isBypassed('QuoteTriggerHandler'),
+                'Quote trigger bypass is released after cleanup'
+            );
+            Assert.isTrue(
+                TriggerHandler.isBypassed('QuoteLineItemTriggerHandler'),
+                'Quote line bypass set by the caller is left in place'
+            );
+            TriggerHandler.clearBypass('QuoteLineItemTriggerHandler');
+        }
+    }
+
+    @IsTest
+    static void validationBypassIsClearedAfterCleanup() {
+        System.runAs(runningUser()) {
+            QuoteFixture fixture = insertQuotes(false);
+            List<Automation_Setting_Validation_Rule__c> beforeSettings = userValidationSettings();
+
+            IncompleteHcQuoteCleanupService.deleteIncompleteQuotes(
+                new List<Quote>{ new Quote(Id = fixture.incompleteQuoteId) }
+            );
+
+            List<Automation_Setting_Validation_Rule__c> afterSettings = userValidationSettings();
+            Assert.areEqual(
+                beforeSettings.size(),
+                afterSettings.size(),
+                'Cleanup does not leave a user validation setting behind'
+            );
+        }
+    }
+
+    @IsTest
+    static void existingValidationSettingIsRestoredWhenDeleteFails() {
+        System.runAs(runningUser()) {
+            QuoteFixture fixture = insertQuotes(false);
+            Automation_Setting_Validation_Rule__c setting = userValidationSetting();
+            setting.disableAll__c = false;
+            upsert setting;
+
+            IncompleteHcQuoteCleanupService.testQuoteDeleteResults = new List<Database.DeleteResult>{
+                failedDeleteResult()
+            };
+            try {
+                IncompleteHcQuoteCleanupService.deleteIncompleteQuotes(
+                    new List<Quote>{ new Quote(Id = fixture.incompleteQuoteId) }
+                );
+            } finally {
+                IncompleteHcQuoteCleanupService.testQuoteDeleteResults = null;
+            }
+
+            Automation_Setting_Validation_Rule__c restored = userValidationSetting();
+            Assert.areEqual(setting.Id, restored.Id, 'The existing user validation setting is kept');
+            Assert.areEqual(false, restored.disableAll__c, 'disableAll is restored after a failed delete');
+        }
+    }
+
+    @IsTest
+    static void startFailureClearsValidationBypass() {
+        System.runAs(runningUser()) {
+            Integer beforeCount = userValidationSettings().size();
+            IncompleteHcQuoteCleanupBatch.throwInStart = true;
+            try {
+                new IncompleteHcQuoteCleanupBatch().start(null);
+                Assert.fail('Start should rethrow the test failure');
+            } catch (QueryException exceptionValue) {
+                Assert.areEqual(
+                    beforeCount,
+                    userValidationSettings().size(),
+                    'A failed start removes the validation bypass it created'
+                );
+            } finally {
+                IncompleteHcQuoteCleanupBatch.throwInStart = false;
+            }
+        }
+    }
+
     private static Database.DeleteResult failedDeleteResult() {
         return (Database.DeleteResult) JSON.deserialize(
             '{"success":false,"errors":[{"message":"Delete blocked","statusCode":"FIELD_CUSTOM_VALIDATION_EXCEPTION","fields":[]}]}',
@@ -313,6 +399,22 @@ private class IncompleteHcQuoteCleanupBatchTest {
 
     private static User runningUser() {
         return new User(Id = UserInfo.getUserId());
+    }
+
+    private static List<Automation_Setting_Validation_Rule__c> userValidationSettings() {
+        return [
+            SELECT Id, disableAll__c
+            FROM Automation_Setting_Validation_Rule__c
+            WHERE SetupOwnerId = :UserInfo.getUserId()
+        ];
+    }
+
+    private static Automation_Setting_Validation_Rule__c userValidationSetting() {
+        List<Automation_Setting_Validation_Rule__c> settings = userValidationSettings();
+        if (!settings.isEmpty()) {
+            return settings[0];
+        }
+        return new Automation_Setting_Validation_Rule__c(SetupOwnerId = UserInfo.getUserId());
     }
 
     private static Id accountRecordTypeId(String developerName) {

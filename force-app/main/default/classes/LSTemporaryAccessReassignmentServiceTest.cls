@@ -96,6 +96,110 @@ private class LSTemporaryAccessReassignmentServiceTest {
         System.assertEquals(UserInfo.getUserId(), [SELECT CreatedById FROM Task WHERE Id = :completedTask.Id].CreatedById);
     }
 
+    @IsTest
+    static void assignedOpportunityOnAnotherAccountReturnsToTheOriginalRep() {
+        User originalRep = insertUser('orig2');
+        User coverageRep = insertUser('cov2');
+        stopTemporaryAccessFlows(UserInfo.getUserId());
+        insert new Automation_Setting_Validation_Rule__c(SetupOwnerId = UserInfo.getUserId(), disableAll__c = true);
+        Account covered = new Account(Name = 'GCL103 Covered Two');
+        Account other = new Account(Name = 'GCL103 Other Two');
+        insert new List<Account>{ covered, other };
+
+        Id equipmentRecordTypeId = Schema.SObjectType.Opportunity.getRecordTypeInfosByDeveloperName()
+            .get('LSEquipmentService').getRecordTypeId();
+        Opportunity assignedOpportunity = new Opportunity(
+            Name = 'GCL103 Assigned Closed',
+            AccountId = other.Id,
+            StageName = 'Closed Won',
+            CloseDate = Date.today(),
+            OwnerId = coverageRep.Id,
+            RecordTypeId = equipmentRecordTypeId
+        );
+        Opportunity unrelatedOpportunity = new Opportunity(
+            Name = 'GCL103 Unrelated',
+            AccountId = other.Id,
+            StageName = 'Closed Won',
+            CloseDate = Date.today().addDays(3),
+            OwnerId = coverageRep.Id,
+            RecordTypeId = equipmentRecordTypeId
+        );
+        insert new List<Opportunity>{ assignedOpportunity, unrelatedOpportunity };
+        Task taskOnAssignedOpportunity = new Task(
+            Subject = 'GCL103 On Assigned Opp',
+            WhatId = assignedOpportunity.Id,
+            OwnerId = coverageRep.Id,
+            Status = 'Completed'
+        );
+        insert taskOnAssignedOpportunity;
+
+        TemporaryAccessException__c request = new TemporaryAccessException__c(
+            Requester__c = originalRep.Id,
+            CoverageRep__c = coverageRep.Id,
+            ExceptionCategory__c = 'PTO',
+            StartDate__c = Date.today(),
+            EndDate__c = Date.today().addDays(1)
+        );
+        insert request;
+        insert new List<TAE_AssignedRecord__c>{
+            new TAE_AssignedRecord__c(TemporaryAccessException__c = request.Id, Account__c = covered.Id),
+            new TAE_AssignedRecord__c(TemporaryAccessException__c = request.Id, Opportunity__c = assignedOpportunity.Id)
+        };
+
+        LSTemporaryAccessReassignmentService.reassignOnExpiry(
+            new List<TemporaryAccessException__c>{ request },
+            new Set<Id>{ request.Id }
+        );
+
+        System.assertEquals(originalRep.Id, [SELECT OwnerId FROM Opportunity WHERE Id = :assignedOpportunity.Id].OwnerId);
+        System.assertEquals(coverageRep.Id, [SELECT OwnerId FROM Opportunity WHERE Id = :unrelatedOpportunity.Id].OwnerId);
+        System.assertEquals(originalRep.Id, [SELECT OwnerId FROM Task WHERE Id = :taskOnAssignedOpportunity.Id].OwnerId);
+    }
+
+    @IsTest
+    static void handbackIgnoresPositionInFunnelRuleAndRestoresTheSwitch() {
+        User originalRep = insertUser('orig3');
+        User coverageRep = insertUser('cov3');
+        stopTemporaryAccessFlows(UserInfo.getUserId());
+        Automation_Setting_Validation_Rule__c setupSwitch =
+            new Automation_Setting_Validation_Rule__c(SetupOwnerId = UserInfo.getUserId(), disableAll__c = true);
+        insert setupSwitch;
+        Account covered = new Account(Name = 'GCL103 Covered Three');
+        insert covered;
+        Opportunity closedWon = new Opportunity(
+            Name = 'GCL103 Closed Won No Funnel',
+            AccountId = covered.Id,
+            StageName = 'Closed Won',
+            CloseDate = Date.today(),
+            OwnerId = coverageRep.Id,
+            RecordTypeId = Schema.SObjectType.Opportunity.getRecordTypeInfosByDeveloperName()
+                .get('LSEquipmentService').getRecordTypeId()
+        );
+        insert closedWon;
+        TemporaryAccessException__c request = new TemporaryAccessException__c(
+            Requester__c = originalRep.Id,
+            CoverageRep__c = coverageRep.Id,
+            ExceptionCategory__c = 'PTO',
+            StartDate__c = Date.today(),
+            EndDate__c = Date.today().addDays(1)
+        );
+        insert request;
+        insert new TAE_AssignedRecord__c(TemporaryAccessException__c = request.Id, Account__c = covered.Id);
+        delete setupSwitch;
+
+        LSTemporaryAccessReassignmentService.reassignOnExpiry(
+            new List<TemporaryAccessException__c>{ request },
+            new Set<Id>{ request.Id }
+        );
+
+        System.assertEquals(originalRep.Id, [SELECT OwnerId FROM Opportunity WHERE Id = :closedWon.Id].OwnerId);
+        System.assertEquals(
+            0,
+            [SELECT COUNT() FROM Automation_Setting_Validation_Rule__c WHERE SetupOwnerId = :UserInfo.getUserId()],
+            'The temporary validation switch must be removed after the handback.'
+        );
+    }
+
     private static void stopTemporaryAccessFlows(Id userId) {
         insert new Automation_Setting_Flow__c(
             SetupOwnerId = userId,

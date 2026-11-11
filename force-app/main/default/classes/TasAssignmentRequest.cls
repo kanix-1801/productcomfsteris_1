@@ -15,7 +15,6 @@
  *                "classCode": "HC",
  *                "prospectId": "001...",
  *                "leadId": null,
- *                "salesCategory": null,
  *                "sourceSystem": "GlobalSF"
  *              }
  */
@@ -40,7 +39,6 @@ public class TasAssignmentRequest {
     public String prospectId;
     //GC-3279 START
     public String leadId;
-    public String salesCategory;
     //GC-3279 END
     public String sourceSystem;
     private static final String SOURCE_SYSTEM = 'GlobalSF';
@@ -92,7 +90,6 @@ public class TasAssignmentRequest {
         req.classCode = leadRecord.Class_Code__c;
         req.prospectId = null;
         req.leadId = leadRecord.Id;
-        req.salesCategory = leadRecord.Sales_Category__c;
         req.sourceSystem = SOURCE_SYSTEM;
         return req;
     }
@@ -123,7 +120,6 @@ public class TasAssignmentRequest {
             'prospectId' => prospectId,
             //GC-3279 START
             'leadId' => leadId,
-            'salesCategory' => salesCategory,
             //GC-3279 END
             'sourceSystem' => sourceSystem//,
         };

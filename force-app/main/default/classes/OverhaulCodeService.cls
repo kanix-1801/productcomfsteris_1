@@ -17,6 +17,16 @@ public with sharing class OverhaulCodeService {
     private static List<OverhaulCodeMapping__mdt> mappingOverride;
 
     /**
+     * @description Test hook for orgs where Quote.RepairCenter is not available to the
+     *              running user. Production still requires that record type.
+     */
+    @TestVisible
+    private static Boolean treatAsRepairCenterQuote = false;
+
+    /** @description One describe per transaction for Work Order Line Item record types. */
+    private static Map<String, Schema.RecordTypeInfo> workOrderLineItemRecordTypes;
+
+    /**
      * @description Applies overhaul Service Code WOLIs for each Quote Id.
      * @param quoteIds Repair Center Quote Ids
      * @return Overhaul ProductCode per Quote Id (null when no mapping matched)
@@ -27,11 +37,15 @@ public with sharing class OverhaulCodeService {
             return overhaulProductCodes;
         }
 
-        List<Quote> quotes = [
-            SELECT Id, WorkOrder__c, Pricebook2Id, RecordType.DeveloperName
-            FROM Quote
-            WHERE Id IN :quoteIds
-        ];
+        List<Quote> quotes = (List<Quote>) new QuoteSelector()
+            .selectFields(new List<String>{
+                'Id',
+                'WorkOrder__c',
+                'Pricebook2Id',
+                'RecordType.DeveloperName'
+            })
+            .whereField('Id', 'IN', quoteIds)
+            .execute();
         Map<Id, Quote> quotesById = new Map<Id, Quote>(quotes);
 
         Set<Id> parentWorkOrderIds = new Set<Id>();
@@ -86,8 +100,13 @@ public with sharing class OverhaulCodeService {
     }
 
     private static Boolean isRepairCenterQuote(Quote quoteRecord) {
-        return quoteRecord != null
-            && quoteRecord.RecordType != null
+        if (quoteRecord == null) {
+            return false;
+        }
+        if (treatAsRepairCenterQuote) {
+            return true;
+        }
+        return quoteRecord.RecordType != null
             && QUOTE_RECORD_TYPE_REPAIR_CENTER.equals(quoteRecord.RecordType.DeveloperName);
     }
 
@@ -95,10 +114,7 @@ public with sharing class OverhaulCodeService {
         if (mappingOverride != null) {
             return mappingOverride;
         }
-        return [
-            SELECT Model__c, TriggerProductCode__c, OverhaulProductCode__c
-            FROM OverhaulCodeMapping__mdt
-        ];
+        return OverhaulCodeMappingSelector.selectAll();
     }
 
     private static Map<Id, List<WorkOrderLineItem>> loadServiceCodeLinesByParent(
@@ -109,25 +125,26 @@ public with sharing class OverhaulCodeService {
             return linesByParent;
         }
 
-        for (WorkOrderLineItem lineItem : [
-            SELECT
-                Id,
-                WorkOrderId,
-                TopLevelWorkOrder__c,
-                ProductCodeWoli__c,
-                Product2.ProductCode,
-                Model__c,
-                AssetId,
-                Asset.SerialNumber,
-                Asset.Product2Id,
-                Asset.Product2.Model__c,
-                Asset.Product2.ProductCode,
-                Asset.Product2.Name,
-                Asset.Product2.Description
-            FROM WorkOrderLineItem
-            WHERE TopLevelWorkOrder__c IN :parentWorkOrderIds
-                AND LineType__c = :LINE_TYPE_SERVICE_CODE
-        ]) {
+        for (WorkOrderLineItem lineItem : (List<WorkOrderLineItem>) new WorkOrderLineItemsSelector()
+            .selectFields(new List<String>{
+                'Id',
+                'WorkOrderId',
+                'TopLevelWorkOrder__c',
+                'ProductCodeWoli__c',
+                'Product2.ProductCode',
+                'Model__c',
+                'AssetId',
+                'Asset.SerialNumber',
+                'Asset.Product2Id',
+                'Asset.Product2.Model__c',
+                'Asset.Product2.ProductCode',
+                'Asset.Product2.Name',
+                'Asset.Product2.Description'
+            })
+            .whereField('TopLevelWorkOrder__c', 'IN', new List<Id>(parentWorkOrderIds))
+            .whereEquals('LineType__c', LINE_TYPE_SERVICE_CODE)
+            .execute()
+        ) {
             if (!linesByParent.containsKey(lineItem.TopLevelWorkOrder__c)) {
                 linesByParent.put(lineItem.TopLevelWorkOrder__c, new List<WorkOrderLineItem>());
             }
@@ -150,24 +167,26 @@ public with sharing class OverhaulCodeService {
         if (workOrderIds.isEmpty()) {
             return new Map<Id, WorkOrder>();
         }
-        return new Map<Id, WorkOrder>([
-            SELECT
-                Id,
-                AssetId,
-                CurrencyIsoCode,
-                EstimateRequired__c,
-                ParentWorkOrderId,
-                Pricebook2Id,
-                ParentWorkOrder.Pricebook2Id,
-                Asset.SerialNumber,
-                Asset.Product2Id,
-                Asset.Product2.Model__c,
-                Asset.Product2.ProductCode,
-                Asset.Product2.Name,
-                Asset.Product2.Description
-            FROM WorkOrder
-            WHERE Id IN :workOrderIds
-        ]);
+        return new Map<Id, WorkOrder>(
+            (List<WorkOrder>) new WorkOrdersSelector()
+                .selectFields(new List<String>{
+                    'Id',
+                    'AssetId',
+                    'CurrencyIsoCode',
+                    'EstimateRequired__c',
+                    'ParentWorkOrderId',
+                    'Pricebook2Id',
+                    'ParentWorkOrder.Pricebook2Id',
+                    'Asset.SerialNumber',
+                    'Asset.Product2Id',
+                    'Asset.Product2.Model__c',
+                    'Asset.Product2.ProductCode',
+                    'Asset.Product2.Name',
+                    'Asset.Product2.Description'
+                })
+                .whereField('Id', 'IN', new List<Id>(workOrderIds))
+                .execute()
+        );
     }
 
     private static Map<String, Product2> loadOverhaulProducts(
@@ -183,12 +202,12 @@ public with sharing class OverhaulCodeService {
         if (productCodes.isEmpty()) {
             return productsByCode;
         }
-        for (Product2 product : [
-            SELECT Id, Name, ProductCode, Description
-            FROM Product2
-            WHERE ProductCode IN :productCodes
-                AND IsActive = true
-        ]) {
+        for (Product2 product : (List<Product2>) new ProductsSelector()
+            .selectFields(new List<String>{ 'Id', 'Name', 'ProductCode', 'Description' })
+            .whereField('ProductCode', 'IN', new List<String>(productCodes))
+            .whereEquals('IsActive', true)
+            .execute()
+        ) {
             productsByCode.put(product.ProductCode, product);
         }
         return productsByCode;
@@ -403,34 +422,33 @@ public with sharing class OverhaulCodeService {
     }
 
     private static Id getPricebookEntryId(Id productId, Id pricebookId, String currencyIsoCode) {
-        List<PricebookEntry> entries;
+        SoqlQueryBuilder query = new PricebookEntriesSelector()
+            .selectField('Id')
+            .whereEquals('Product2Id', productId)
+            .whereEquals('Pricebook2Id', pricebookId)
+            .whereEquals('IsActive', true)
+            .limitTo(1);
         if (String.isNotBlank(currencyIsoCode)) {
-            entries = [
-                SELECT Id
-                FROM PricebookEntry
-                WHERE Product2Id = :productId
-                    AND Pricebook2Id = :pricebookId
-                    AND CurrencyIsoCode = :currencyIsoCode
-                    AND IsActive = true
-                LIMIT 1
-            ];
-        } else {
-            entries = [
-                SELECT Id
-                FROM PricebookEntry
-                WHERE Product2Id = :productId
-                    AND Pricebook2Id = :pricebookId
-                    AND IsActive = true
-                LIMIT 1
-            ];
+            query.whereEquals('CurrencyIsoCode', currencyIsoCode);
         }
+        List<PricebookEntry> entries = (List<PricebookEntry>) query.execute();
         return entries.isEmpty() ? null : entries[0].Id;
     }
 
+    /**
+     * @description Repair Code record type Id, cached for the transaction.
+     * @return Record type Id, or null when the record type is unavailable
+     */
     private static Id getRepairCodeRecordTypeId() {
-        Schema.RecordTypeInfo info = Schema.SObjectType.WorkOrderLineItem
-            .getRecordTypeInfosByDeveloperName()
-            .get(WOLI_RECORD_TYPE_REPAIR_CODE);
+        return cachedWorkOrderLineItemRecordTypeId(WOLI_RECORD_TYPE_REPAIR_CODE);
+    }
+
+    private static Id cachedWorkOrderLineItemRecordTypeId(String developerName) {
+        if (workOrderLineItemRecordTypes == null) {
+            workOrderLineItemRecordTypes =
+                Schema.SObjectType.WorkOrderLineItem.getRecordTypeInfosByDeveloperName();
+        }
+        Schema.RecordTypeInfo info = workOrderLineItemRecordTypes.get(developerName);
         return info == null ? null : info.getRecordTypeId();
     }
 
@@ -442,22 +460,19 @@ public with sharing class OverhaulCodeService {
     }
 
     private static Id getNewestProductServicedWoliId(Id workOrderId, Id assetId) {
-        Schema.RecordTypeInfo info = Schema.SObjectType.WorkOrderLineItem
-            .getRecordTypeInfosByDeveloperName()
-            .get(WOLI_RECORD_TYPE_PRODUCT_SERVICED);
-        if (info == null || workOrderId == null) {
+        Id recordTypeId = cachedWorkOrderLineItemRecordTypeId(WOLI_RECORD_TYPE_PRODUCT_SERVICED);
+        if (recordTypeId == null || workOrderId == null) {
             return null;
         }
-        Id recordTypeId = info.getRecordTypeId();
-        List<WorkOrderLineItem> productServicedLines = [
-            SELECT Id
-            FROM WorkOrderLineItem
-            WHERE WorkOrderId = :workOrderId
-                AND RecordTypeId = :recordTypeId
-                AND AssetId = :assetId
-            ORDER BY CreatedDate DESC
-            LIMIT 1
-        ];
+        List<WorkOrderLineItem> productServicedLines =
+            (List<WorkOrderLineItem>) new WorkOrderLineItemsSelector()
+                .selectField('Id')
+                .whereEquals('WorkOrderId', workOrderId)
+                .whereEquals('RecordTypeId', recordTypeId)
+                .whereEquals('AssetId', assetId)
+                .orderByDesc('CreatedDate')
+                .limitTo(1)
+                .execute();
         return productServicedLines.isEmpty() ? null : productServicedLines[0].Id;
     }
 

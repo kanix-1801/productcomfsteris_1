@@ -1,12 +1,17 @@
 /**
  * @description Selector class for the Department__c SObject.
  *              Centralizes all SOQL queries for Departments.
- *              Enforces security via WITH SECURITY_ENFORCED.
+ *              Queries use SoqlQueryBuilder (USER_MODE).
  */
 public with sharing class DepartmentsSelector {
 
-    private static final String BASE_FIELDS =
-        'Id, Name, OwnerId, CreatedDate, LastModifiedDate';
+    private static final List<String> BASE_FIELDS = new List<String>{
+        'Id',
+        'Name',
+        'OwnerId',
+        'CreatedDate',
+        'LastModifiedDate'
+    };
 
     /**
      * @description Retrieves Department__c records by their Ids.
@@ -17,12 +22,10 @@ public with sharing class DepartmentsSelector {
         if (ids == null || ids.isEmpty()) {
             return new List<Department__c>();
         }
-        return Database.query(
-            'SELECT ' + BASE_FIELDS +
-            ' FROM Department__c' +
-            ' WHERE Id IN :ids' +
-            ' WITH SECURITY_ENFORCED'
-        );
+        return (List<Department__c>) SoqlQueryBuilder.fromObject('Department__c')
+            .selectFields(BASE_FIELDS)
+            .whereField('Id', 'IN', new List<Id>(ids))
+            .execute();
     }
 
     /**
@@ -34,12 +37,30 @@ public with sharing class DepartmentsSelector {
         if (names == null || names.isEmpty()) {
             return new List<Department__c>();
         }
-        return Database.query(
-            'SELECT ' + BASE_FIELDS +
-            ' FROM Department__c' +
-            ' WHERE Name IN :names' +
-            ' WITH SECURITY_ENFORCED' +
-            ' ORDER BY Name ASC'
-        );
+        return (List<Department__c>) SoqlQueryBuilder.fromObject('Department__c')
+            .selectFields(BASE_FIELDS)
+            .whereField('Name', 'IN', new List<String>(names))
+            .orderBy('Name')
+            .execute();
     }
+
+    /**
+     * @description GW-1509 - Departments by Id for Create Return Order picklists and summaries.
+     * @param departmentIds Department__c Ids
+     * @param orderByName When true, order by Name ASC
+     * @return Matching Department__c rows
+     */
+    public static List<Department__c> selectNamesByIds(Set<Id> departmentIds, Boolean orderByName) {
+        if (departmentIds == null || departmentIds.isEmpty()) {
+            return new List<Department__c>();
+        }
+        SoqlQueryBuilder builder = SoqlQueryBuilder.fromObject('Department__c')
+            .selectFields(new List<String>{ 'Id', 'Name' })
+            .whereField('Id', 'IN', new List<Id>(departmentIds));
+        if (orderByName == true) {
+            builder.orderBy('Name');
+        }
+        return (List<Department__c>) builder.execute();
+    }
+
 }

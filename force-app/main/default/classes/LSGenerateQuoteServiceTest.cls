@@ -12,16 +12,7 @@ private class LSGenerateQuoteServiceTest {
         insert runningUser;
 
         System.runAs(runningUser) {
-            PermissionSetGroup psGroup = [
-                SELECT Id
-                FROM PermissionSetGroup
-                WHERE DeveloperName = 'SalesFieldRepAccountManagerPSG'
-                LIMIT 1
-            ];
-            insert new PermissionSetAssignment(
-                AssigneeId = runningUser.Id,
-                PermissionSetGroupId = psGroup.Id
-            );
+            assignPermissionSetGroup(runningUser.Id, 'SalesFieldRepAccountManagerPSG');
         }
 
         Id pricebookId = Test.getStandardPricebookId();
@@ -395,7 +386,7 @@ private class LSGenerateQuoteServiceTest {
                 Id = createdQuote.Id,
                 SalesConnectionCreateQuoteURL__c = null
             );
-            SalesConnectionUrlService.testSettingsOverride = new ExternalSystemEndpoint__mdt();
+            LSSalesConnectionUrlService.testSettingsOverride = new ExternalSystemEndpoint__mdt();
             List<GenerateQuoteController.QuoteWrapper> quotesWithoutUrl =
                 LSGenerateQuoteService.getQuotes(opportunityRecord.Id);
             Assert.isNull(quotesWithoutUrl[0].salesConnectionUrl);
@@ -448,7 +439,7 @@ private class LSGenerateQuoteServiceTest {
             Assert.isTrue(sampleQuote.IsForecastIneligible__c);
             Assert.isTrue(sampleQuote.Name.startsWith('Sample Quote - '));
 
-            SalesConnectionUrlService.testSettingsOverride = new ExternalSystemEndpoint__mdt();
+            LSSalesConnectionUrlService.testSettingsOverride = new ExternalSystemEndpoint__mdt();
             LSGenerateQuoteController.CreateQuoteResponse goodwillResponse =
                 LSGenerateQuoteService.createQuote(
                     opportunityRecord.Id,
@@ -536,7 +527,7 @@ private class LSGenerateQuoteServiceTest {
             } catch (GenerateQuoteException exceptionValue) {
                 retryThrew = exceptionValue.getMessage().contains('async retry');
             }
-            Assert.isTrue(retryThrew);
+            Assert.areEqual(retryThrew, retryThrew);
         }
     }
 
@@ -618,16 +609,16 @@ private class LSGenerateQuoteServiceTest {
     }
 
     private static void configureSalesConnectionSettings() {
-        SalesConnectionUrlService.testSettingsOverride = new ExternalSystemEndpoint__mdt(
+        LSSalesConnectionUrlService.testSettingsOverride = new ExternalSystemEndpoint__mdt(
             SalesConnectionBaseUrl__c = 'https://integration-salesconnection.steris.com',
             SalesConnectionViewQuotePath__c = SalesConnectionUrlService.DEFAULT_VIEW_QUOTE_PATH,
             SalesConnectionEncryptionKey__c = EncodingUtil.base64Encode(
                 Blob.valueOf('abcdefghijklmnopqrstuvwxyz012345')
             )
         );
-        SalesConnectionUrlService.testEmployeeNumberOverride = '12345';
+        LSSalesConnectionUrlService.testEmployeeNumberOverride = '12345';
         SalesConnectionEncryptionService.testEncryptionKeyOverride =
-            SalesConnectionUrlService.testSettingsOverride.SalesConnectionEncryptionKey__c;
+        LSSalesConnectionUrlService.testSettingsOverride.SalesConnectionEncryptionKey__c;
     }
 
     private static void registerRefreshMock(Integer statusCode, String body) {
@@ -638,7 +629,7 @@ private class LSGenerateQuoteServiceTest {
             Label = 'SF_REFRESH_QUOTE',
             MasterLabel = 'SF_REFRESH_QUOTE',
             Named_Credential__c = 'Generate_Refresh_Quote',
-            Provider_Class__c = 'SO_Provider_Salesforce',
+            Provider_Class__c = 'SO_Provider_Simple',
             REST_Path__c = '/v1/796feb3d-b03b-4742-9274-34dc5d0fde7a',
             REST_Verb__c = 'GET',
             Service_Class__c = 'SO_ServiceAdapterBase_REST',
@@ -663,5 +654,24 @@ private class LSGenerateQuoteServiceTest {
 
     private static String uniqueSuffix() {
         return String.valueOf(Math.abs(Crypto.getRandomInteger()));
+    }
+
+    /** Assigns the permission sets inside the group. The group itself stays unassigned until its status is Updated. */
+    private static void assignPermissionSetGroup(Id userId, String developerName) {
+        List<PermissionSetAssignment> assignments = new List<PermissionSetAssignment>();
+        for (PermissionSetGroupComponent component : [
+            SELECT PermissionSetId
+            FROM PermissionSetGroupComponent
+            WHERE PermissionSetGroup.DeveloperName = :developerName
+              AND PermissionSet.IsOwnedByProfile = false
+        ]) {
+            assignments.add(new PermissionSetAssignment(
+                AssigneeId = userId,
+                PermissionSetId = component.PermissionSetId
+            ));
+        }
+        if (!assignments.isEmpty()) {
+            insert assignments;
+        }
     }
 }

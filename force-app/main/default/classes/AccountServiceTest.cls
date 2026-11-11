@@ -1,6 +1,7 @@
 /**
  * @description GW-4786 - Covers AccountService from its own test class, including the
  *              ship-to lookup used by Create Return Order and the existing TAS paths.
+ *              GC-3617 covers Dealer Customer partner enablement.
  */
 @IsTest
     private class AccountServiceTest {
@@ -412,5 +413,180 @@
         String suffix = String.valueOf(idSequence).leftPad(12, '0');
         idSequence++;
         return (Id) (sobjectType.getDescribe().getKeyPrefix() + suffix);
+    }
+
+    /**
+     * @description GC-3617. A Customer Account with Type Dealer becomes a partner
+     *              account when the owner has a role.
+     */
+    @IsTest
+    static void testEnableDealerAccounts_WhenDealerCustomerInserted() {
+        User accountOwner = createDealerOwner();
+
+        System.runAs(accountOwner) {
+            Account dealerAccount = newDealerAccount('GC3617 Dealer Insert');
+            Assert.areNotEqual(true, dealerAccount.IsPartner, 'Account is not a partner before insert');
+
+            Test.startTest();
+            insert dealerAccount;
+            Test.stopTest();
+
+            Account savedAccount = [
+                SELECT IsPartner, Type, RecordType.DeveloperName
+                FROM Account
+                WHERE Id = :dealerAccount.Id
+            ];
+            Assert.areEqual(true, savedAccount.IsPartner, 'Dealer Customer should be enabled as a partner');
+            Assert.areEqual('Dealer', savedAccount.Type);
+            Assert.areEqual('Customer', savedAccount.RecordType.DeveloperName);
+        }
+    }
+
+    /**
+     * @description GC-3617. Changing Type to Dealer on an existing Customer enables the partner flag.
+     */
+    @IsTest
+    static void testEnableDealerAccounts_WhenTypeChangesToDealer() {
+        User accountOwner = createDealerOwner();
+
+        System.runAs(accountOwner) {
+            Account customerAccount = newDealerAccount('GC3617 Type Change');
+            customerAccount.Type = 'Customer';
+            insert customerAccount;
+
+            Account beforeUpdate = [
+                SELECT IsPartner
+                FROM Account
+                WHERE Id = :customerAccount.Id
+            ];
+            Assert.areNotEqual(true, beforeUpdate.IsPartner, 'Customer Type should not enable the partner flag');
+
+            Test.startTest();
+            customerAccount.Type = 'Dealer';
+            update customerAccount;
+            Test.stopTest();
+
+            Account savedAccount = [
+                SELECT IsPartner
+                FROM Account
+                WHERE Id = :customerAccount.Id
+            ];
+            Assert.areEqual(true, savedAccount.IsPartner, 'Updating Type to Dealer should enable the partner flag');
+        }
+    }
+
+    /**
+     * @description GC-3617. A bulk load enables every eligible Dealer Account in one update.
+     */
+    @IsTest
+    static void testEnableDealerAccounts_WhenBulkDealerCustomersInserted() {
+        User accountOwner = createDealerOwner();
+        List<Account> dealerAccounts = new List<Account>();
+        for (Integer index = 0; index < 200; index++) {
+            dealerAccounts.add(newDealerAccount('GC3617 Bulk ' + index));
+        }
+
+        System.runAs(accountOwner) {
+            Test.startTest();
+            insert dealerAccounts;
+            Test.stopTest();
+
+            Integer partnerCount = [
+                SELECT COUNT()
+                FROM Account
+                WHERE Id IN :dealerAccounts
+                AND IsPartner = TRUE
+            ];
+            Assert.areEqual(200, partnerCount, 'Every Dealer Account in the bulk load should be a partner');
+        }
+    }
+
+    /**
+     * @description GC-3617. Customers that are not Dealers, and Dealer Prospects, stay non-partner.
+     */
+    @IsTest
+    static void testEnableDealerAccounts_WhenAccountIsNotDealerCustomer() {
+        User accountOwner = createDealerOwner();
+
+        System.runAs(accountOwner) {
+            Account customerAccount = newDealerAccount('GC3617 Customer');
+            customerAccount.Type = 'Customer';
+            Account prospectAccount = newDealerAccount('GC3617 Prospect');
+            prospectAccount.RecordTypeId = recordTypeId('Prospect');
+            prospectAccount.BillingStreet = '1 Main St';
+            prospectAccount.BillingCity = 'Mentor';
+            prospectAccount.BillingState = 'OH';
+            prospectAccount.BillingPostalCode = '44060';
+            prospectAccount.BillingCountry = 'US';
+
+            Test.startTest();
+            insert new List<Account>{ customerAccount, prospectAccount };
+            Test.stopTest();
+
+            Map<Id, Account> savedAccounts = new Map<Id, Account>([
+                SELECT IsPartner
+                FROM Account
+                WHERE Id IN :new List<Id>{ customerAccount.Id, prospectAccount.Id }
+            ]);
+            Assert.areNotEqual(
+                true,
+                savedAccounts.get(customerAccount.Id).IsPartner,
+                'A Customer that is not a Dealer should stay a non-partner'
+            );
+            Assert.areNotEqual(
+                true,
+                savedAccounts.get(prospectAccount.Id).IsPartner,
+                'A Prospect Dealer should stay a non-partner'
+            );
+        }
+    }
+
+    /**
+     * @description Creates a System Administrator with a role. Partner enablement
+     *              requires the Account owner to have a role.
+     * @return Inserted user.
+     */
+    private static User createDealerOwner() {
+        Profile adminProfile = [
+            SELECT Id
+            FROM Profile
+            WHERE Name = 'System Administrator'
+            LIMIT 1
+        ];
+        String uniqueKey = String.valueOf(DateTime.now().getTime()) +
+            String.valueOf(Math.abs(Crypto.getRandomInteger()));
+        User userRecord = new User(
+            FirstName = 'GC3617',
+            LastName = 'Dealer Owner',
+            Email = 'gc3617.' + uniqueKey + '@example.com',
+            Username = 'gc3617.' + uniqueKey + '@example.com',
+            Alias = 'd3617',
+            TimeZoneSidKey = 'America/New_York',
+            LocaleSidKey = 'en_US',
+            EmailEncodingKey = 'UTF-8',
+            LanguageLocaleKey = 'en_US',
+            ProfileId = adminProfile.Id,
+            UserRoleId = [
+                SELECT Id
+                FROM UserRole
+                WHERE PortalType = 'None'
+                LIMIT 1
+            ].Id
+        );
+        insert userRecord;
+        return userRecord;
+    }
+
+    /**
+     * @description Builds an unsaved Customer Account with Type Dealer.
+     * @param accountName Account name.
+     * @return Unsaved Account.
+     */
+    private static Account newDealerAccount(String accountName) {
+        return new Account(
+            Name = accountName,
+            RecordTypeId = recordTypeId('Customer'),
+            Type = 'Dealer'
+        );
     }
 }

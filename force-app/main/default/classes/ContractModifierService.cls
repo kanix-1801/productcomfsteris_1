@@ -15,6 +15,8 @@
  *    inclusion through ParentContractModifier__c.
  * A blank criteria field means "any value". Every record carries the line's term (Start/End Date) and is
  * linked to the Quote and the Quote Line Item.
+ * Pricing Programs: reads the active PricingProgram__c records and their CT codes (PricingProgramLines__c) for
+ * the LWC search. The programs picked are kept in the JSON ("pricingPrograms"); no records are created yet.
  */
 public with sharing class ContractModifierService {
 
@@ -31,6 +33,8 @@ public with sharing class ContractModifierService {
     private static final Integer MANUFACTURER_MAX_LENGTH = 255; // ContractModifier__c.Manufacture__c
     private static final Integer QTY_MAX = 99999; // ModelQty__c is Number(5, 0)
     private static final Integer MAX_ASSETS = 10000;
+    private static final Integer PRICING_PROGRAM_MIN_SEARCH_LENGTH = 3; // same as the LWC
+    private static final Integer PRICING_PROGRAM_MAX_RESULTS = 50;
     /**
      * @description Restricted picklists the criteria are written to, by JSON property.
      */
@@ -83,7 +87,8 @@ public with sharing class ContractModifierService {
     public class ContractAdjustments {
         public List<InclusionRule> inclusions = new List<InclusionRule>();
         public List<ModelQtyEntry> models = new List<ModelQtyEntry>();
-        public String pricingProgram;
+        public List<PricingProgramEntry> pricingPrograms = new List<PricingProgramEntry>();
+        public String pricingProgram; // legacy single value, passed through unchanged
     }
 
     /**
@@ -97,6 +102,36 @@ public with sharing class ContractModifierService {
         @AuraEnabled public String manufacturer;
         @AuraEnabled public String model;
         @AuraEnabled public Integer assetCount = 0;
+    }
+
+    /**
+     * @description One CT code of a pricing program (a PricingProgramLines__c record), as stored in the JSON.
+     */
+    public class PricingProgramCtCode {
+        @AuraEnabled public String code; // CategoryCode__c
+        @AuraEnabled public String name; // CategoryCodeName__c
+    }
+
+    /**
+     * @description A pricing program picked on the line: the "pricingPrograms" rows of ModelQtyCoverage__c.
+     */
+    public virtual class PricingProgramEntry {
+        @AuraEnabled public String programId; // PricingProgram__c.Id
+        @AuraEnabled public String program; // PricingProgram__c.Name, e.g. PP-0009 (the LWC row key)
+        @AuraEnabled public String description; // DisplayName__c, or ProgramName__c
+        @AuraEnabled public List<PricingProgramCtCode> ctCodes = new List<PricingProgramCtCode>();
+    }
+
+    /**
+     * @description A pricing program offered in the LWC search: the stored entry plus fields that are only shown
+     *              or searched, not saved.
+     */
+    public class PricingProgramOption extends PricingProgramEntry {
+        @AuraEnabled public String category; // ProductLine__c
+        @AuraEnabled public String manufacturer;
+        @AuraEnabled public String deviceType;
+        @AuraEnabled public Date startDate;
+        @AuraEnabled public Date endDate;
     }
 
     /**
@@ -132,6 +167,9 @@ public with sharing class ContractModifierService {
                 if (rule != null && rule.exclusions == null) {
                     rule.exclusions = new List<Criteria>();
                 }
+            }
+            if (adjustments.pricingPrograms == null) {
+                adjustments.pricingPrograms = new List<PricingProgramEntry>();
             }
             return adjustments;
         } catch (JSONException e) {
@@ -391,6 +429,39 @@ public with sharing class ContractModifierService {
         return groupList;
     }
 
+    /**
+     * @description Active, in-date pricing programs whose name, program name, display name, or one of whose CT
+     *              codes / CT names contains the search text, each with its CT codes (Pricing Programs search).
+     * @param searchTerm Text typed in the LWC (3 characters minimum)
+     * @return Matching programs sorted by name (at most 50); empty for a blank or too-short term
+     */
+    public static List<PricingProgramOption> searchPricingPrograms(String searchTerm) {
+        String term = searchTerm?.trim();
+        if (String.isBlank(term) || term.length() < PRICING_PROGRAM_MIN_SEARCH_LENGTH) {
+            return new List<PricingProgramOption>();
+        }
+        return toPricingProgramOptions(selectPricingPrograms(toLikeTerm(term), null, Date.today()));
+    }
+
+    /**
+     * @description Pricing programs by name with their current CT codes, to refresh the rows saved on a line.
+     *              No status or date filter, so a program that has since expired still shows on an older quote.
+     * @param programNames PricingProgram__c names, e.g. PP-0009
+     * @return The programs found, sorted by name
+     */
+    public static List<PricingProgramOption> getPricingProgramsByNames(List<String> programNames) {
+        Set<String> nameSet = new Set<String>();
+        for (String name : programNames == null ? new List<String>() : programNames) {
+            if (String.isNotBlank(name)) {
+                nameSet.add(name.trim());
+            }
+        }
+        if (nameSet.isEmpty()) {
+            return new List<PricingProgramOption>();
+        }
+        return toPricingProgramOptions(selectPricingPrograms(null, nameSet, null));
+    }
+
     /* =====================  MODEL QTY  ===================== */
 
     /**
@@ -571,6 +642,41 @@ public with sharing class ContractModifierService {
             parent.exclusions.add(exclusion);
         }
         return incExcSignature(ruleList);
+    }
+
+    /* =====================  Pricing Programs  ===================== */
+
+    // PricingProgram__c records (queried with their lines) -> LWC options. CT codes keep the query order.
+    private static List<PricingProgramOption> toPricingProgramOptions(List<PricingProgram__c> programList) {
+        List<PricingProgramOption> optionList = new List<PricingProgramOption>();
+        for (PricingProgram__c programRecord : programList) {
+            PricingProgramOption option = new PricingProgramOption();
+            option.programId = programRecord.Id;
+            option.program = programRecord.Name;
+            option.description = String.isNotBlank(programRecord.DisplayName__c)
+                ? programRecord.DisplayName__c : programRecord.ProgramName__c;
+            option.category = programRecord.ProductLine__c;
+            option.manufacturer = programRecord.Manufacturer__c;
+            option.deviceType = programRecord.DeviceType__c;
+            option.startDate = programRecord.StartDate__c;
+            option.endDate = programRecord.EndDate__c;
+            for (PricingProgramLines__c lineRecord : programRecord.PricingProgramLines__r) {
+                if (String.isBlank(lineRecord.CategoryCode__c)) {
+                    continue; // a line without a CT code product has nothing to show
+                }
+                PricingProgramCtCode ctCode = new PricingProgramCtCode();
+                ctCode.code = lineRecord.CategoryCode__c;
+                ctCode.name = lineRecord.CategoryCodeName__c;
+                option.ctCodes.add(ctCode);
+            }
+            optionList.add(option);
+        }
+        return optionList;
+    }
+
+    // "%text%" for a LIKE bind, with the LIKE wildcards typed by the user escaped.
+    private static String toLikeTerm(String term) {
+        return '%' + term.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_') + '%';
     }
 
     /* =====================  SHARED HELPERS  ===================== */
@@ -758,6 +864,39 @@ public with sharing class ContractModifierService {
             .whereField('Type__c', 'IN', typeValues)
             .orderBy('CreatedDate')
             .execute();
+    }
+
+    // Pricing programs with their CT code lines, in USER_MODE. With likeTerm: search mode (Active, in date on
+    // asOf, text match). With nameSet: lookup by name, no status or date filter. Inline SOQL because
+    // SoqlQueryBuilder has no child subqueries (same approach as WorkOrdersSelector.selectByIdWithLineItems);
+    // user input is only ever a bind variable.
+    private static List<PricingProgram__c> selectPricingPrograms(String likeTerm, Set<String> nameSet, Date asOf) {
+        Map<String, Object> bindMap = new Map<String, Object>{
+            'likeTerm' => likeTerm,
+            'nameSet' => nameSet,
+            'asOf' => asOf,
+            'status' => ContractModifierSelector.PRICING_PROGRAM_STATUS_ACTIVE,
+            'maxRows' => PRICING_PROGRAM_MAX_RESULTS
+        };
+        String soql = 'SELECT Id, Name, ProgramName__c, DisplayName__c, ProductLine__c, Manufacturer__c, '
+            + 'DeviceType__c, StartDate__c, EndDate__c, '
+            + '(SELECT Id, CategoryCode__c, CategoryCodeName__c FROM PricingProgramLines__r '
+            + 'ORDER BY CategoryCode__c) '
+            // + 'FROM PricingProgram__c';
+            + 'FROM PricingProgram__c WHERE '
+            + 'Status__c = :status ';
+        // if (nameSet != null) {
+        //     soql += 'Name IN :nameSet';
+        // } else {
+        //     soql += 'Status__c = :status '
+        //         + 'AND (StartDate__c = null OR StartDate__c <= :asOf) '
+        //         + 'AND (EndDate__c = null OR EndDate__c >= :asOf) '
+        //         + 'AND (Name LIKE :likeTerm OR ProgramName__c LIKE :likeTerm OR DisplayName__c LIKE :likeTerm '
+        //         + 'OR Id IN (SELECT PricingProgram__c FROM PricingProgramLines__c '
+        //         + 'WHERE CategoryCode__c LIKE :likeTerm OR CategoryCodeName__c LIKE :likeTerm))';
+        // }
+        soql += ' ORDER BY Name LIMIT :maxRows';
+        return (List<PricingProgram__c>) Database.queryWithBinds(soql, bindMap, AccessLevel.USER_MODE);
     }
 
     // Assets on the given accounts with the given fields, ordered by serial number (nulls last) and name.

@@ -130,7 +130,8 @@ public with sharing class ReturnOrdersService {
 
     /**
      * @description GW-2793 - Requests an inbound FedEx shipping label for one Return Order via
-     *              FedExService, writes InboundTrackingNumber__c, and attaches the label PDF.
+     *              FedExService, creates a Shipment with the tracking number (GW-6358), and attaches
+     *              the label PDF.
      * @param returnOrderId Return Order Id
      * @throws ReturnOrdersServiceException when validation, callout, or persistence fails
      */
@@ -167,11 +168,14 @@ public with sharing class ReturnOrdersService {
                 );
             }
 
-            updateReturnOrders(
-                new List<ReturnOrder>{
-                    new ReturnOrder(
-                        Id = returnOrderRecord.Id,
-                        InboundTrackingNumber__c = response.trackingNumber
+            // GW-6358: tracking is kept on a Shipment, not on the Return Order.
+            ShipmentsService.createShipments(
+                new List<Shipment>{
+                    ShipmentsService.buildFedExShipment(
+                        returnOrderRecord.Id,
+                        null,
+                        response.trackingNumber,
+                        null
                     )
                 }
             );
@@ -1447,6 +1451,7 @@ public with sharing class ReturnOrdersService {
 
             ReturnOrderLineItemsService.createReturnOrderLineItems(inboundLines);
             WorkOrdersService.updateWorkOrderStatusToShipToVendor(workOrders);
+            RepairCenterDocGenService.generateVendorPaperwork(workOrders);
 
             VendorConsolidationCompleteResult result = new VendorConsolidationCompleteResult();
             result.returnOrderIds = new List<Id>();
@@ -1802,17 +1807,21 @@ public with sharing class ReturnOrdersService {
         List<VendorShipmentWork> jobs,
         Map<Id, List<ReturnOrderLineItem>> outboundLinesByRoId
     ) {
-        List<ReturnOrder> returnOrdersToUpdate = new List<ReturnOrder>();
         List<ContentVersion> filesToInsert = new List<ContentVersion>();
-        Map<Id, String> trackingByReturnOrderId = new Map<Id, String>();
+        // GW-6358: one Shipment per shipped set; its Work Orders look up to it.
+        List<Shipment> shipmentsToInsert = new List<Shipment>();
+        Map<Id, Id> parentWorkOrderIdByWorkOrderIdMap = WorkOrdersService.getParentWorkOrderIdByWorkOrderId(
+            collectVendorShipmentWorkOrderIds(jobs)
+        );
 
         for (VendorShipmentWork job : jobs) {
             String trackingNumber = job.response.trackingNumber;
-            trackingByReturnOrderId.put(job.returnOrder.Id, trackingNumber);
-            returnOrdersToUpdate.add(
-                new ReturnOrder(
-                    Id = job.returnOrder.Id,
-                    InboundTrackingNumber__c = trackingNumber
+            shipmentsToInsert.add(
+                ShipmentsService.buildFedExShipment(
+                    job.returnOrder.Id,
+                    resolveSharedParentWorkOrderId(job.workOrders, parentWorkOrderIdByWorkOrderIdMap),
+                    trackingNumber,
+                    job.returnOrder.Account == null ? null : job.returnOrder.Account.Name
                 )
             );
 
@@ -1845,13 +1854,51 @@ public with sharing class ReturnOrdersService {
             filesToInsert.add(packingSlip);
         }
 
-        if (!returnOrdersToUpdate.isEmpty()) {
-            updateReturnOrders(returnOrdersToUpdate);
+        ShipmentsService.createShipments(shipmentsToInsert);
+        Map<Id, Id> shipmentIdByWorkOrderIdMap = new Map<Id, Id>();
+        for (Integer i = 0; i < jobs.size(); i++) {
+            for (WorkOrder workOrderRecord : jobs[i].workOrders) {
+                shipmentIdByWorkOrderIdMap.put(workOrderRecord.Id, shipmentsToInsert[i].Id);
+            }
         }
-        WorkOrdersService.updateWorkOrdersWithVendorFedExTracking(trackingByReturnOrderId);
+        ShipmentsService.linkWorkOrdersToShipments(shipmentIdByWorkOrderIdMap);
         if (!filesToInsert.isEmpty()) {
             insert filesToInsert;
         }
+    }
+
+    /**
+     * @description GW-6358 - Ids of all Work Orders in the vendor shipment jobs.
+     * @param jobs Vendor shipment jobs
+     * @return Work Order Ids
+     */
+    private static Set<Id> collectVendorShipmentWorkOrderIds(List<VendorShipmentWork> jobs) {
+        Set<Id> workOrderIdSet = new Set<Id>();
+        for (VendorShipmentWork job : jobs) {
+            for (WorkOrder workOrderRecord : job.workOrders) {
+                workOrderIdSet.add(workOrderRecord.Id);
+            }
+        }
+        return workOrderIdSet;
+    }
+
+    /**
+     * @description GW-6358 - Parent Work Order of a shipped set: set only when all its Work Orders
+     *              have the same parent.
+     * @param workOrders Work Orders in the shipment
+     * @param parentWorkOrderIdByWorkOrderIdMap Parent Work Order Id by Work Order Id
+     * @return Shared parent Work Order Id, or null when there is none or the parents differ
+     */
+    @TestVisible
+    private static Id resolveSharedParentWorkOrderId(
+        List<WorkOrder> workOrders,
+        Map<Id, Id> parentWorkOrderIdByWorkOrderIdMap
+    ) {
+        Set<Id> parentWorkOrderIdSet = new Set<Id>();
+        for (WorkOrder workOrderRecord : workOrders) {
+            parentWorkOrderIdSet.add(parentWorkOrderIdByWorkOrderIdMap.get(workOrderRecord.Id));
+        }
+        return parentWorkOrderIdSet.size() == 1 ? new List<Id>(parentWorkOrderIdSet)[0] : null;
     }
 
     @TestVisible
@@ -2312,11 +2359,8 @@ public with sharing class ReturnOrdersService {
             line.DestinationLocationId = repairCenterId;
         }
 
-        Id productId = woli.Product2Id != null
-            ? woli.Product2Id
-            : (Id) woli.get('Product__c');
-        if (productId != null) {
-            line.Product2Id = productId;
+        if (woli.Product2Id != null) {
+            line.Product2Id = woli.Product2Id;
         }
         if (woli.AssetId != null) {
             line.AssetId = woli.AssetId;
@@ -2331,9 +2375,6 @@ public with sharing class ReturnOrdersService {
         String productLine = null;
         if (woli.Product2Id != null && woli.Product2 != null) {
             productLine = (String) woli.Product2.get('ProductLine__c');
-        }
-        if (String.isBlank(productLine) && woli.getSObject('Product__r') != null) {
-            productLine = (String) woli.getSObject('Product__r').get('ProductLine__c');
         }
         if (String.isNotBlank(productLine)) {
             line.put('ProductLine__c', productLine);
@@ -2592,16 +2633,44 @@ public with sharing class ReturnOrdersService {
      * @param returnOrderId Return Order Id
      * @param workOrderId Work Order Id
      */
+
+    private static Id getCustomerReturnRecordTypeId() {
+        if (!customerReturnRecordTypeResolved) {
+            Schema.RecordTypeInfo info = Schema.SObjectType.ReturnOrder
+                .getRecordTypeInfosByDeveloperName()
+                .get('CustomerReturn');
+            cachedCustomerReturnRecordTypeId = info == null ? null : info.getRecordTypeId();
+            customerReturnRecordTypeResolved = true;
+        }
+        return cachedCustomerReturnRecordTypeId;
+    }
+
+    private static Id getInboundRoliRecordTypeId() {
+        if (!inboundRoliRecordTypeResolved) {
+            Schema.RecordTypeInfo info = Schema.SObjectType.ReturnOrderLineItem
+                .getRecordTypeInfosByDeveloperName()
+                .get('Inbound');
+            cachedInboundRoliRecordTypeId = info == null ? null : info.getRecordTypeId();
+            inboundRoliRecordTypeResolved = true;
+        }
+        return cachedInboundRoliRecordTypeId;
+    }
+
+    /**
+     * @description GW-5492 - Updates a Return Order with a field patch.
+     */
+    private static void updateReturnOrderForReceiving(ReturnOrder patch) {
+        if (patch == null || patch.Id == null) {
+            return;
+        }
+        Database.update(new List<ReturnOrder>{ patch }, AccessLevel.USER_MODE);
+    }
+
     public static void linkWorkOrderForReceiving(Id returnOrderId, Id workOrderId) {
         if (returnOrderId == null || workOrderId == null) {
             return;
         }
-        Database.update(
-            new List<ReturnOrder>{
-                new ReturnOrder(Id = returnOrderId, WorkOrder__c = workOrderId)
-            },
-            AccessLevel.USER_MODE
-        );
+        updateReturnOrderForReceiving(new ReturnOrder(Id = returnOrderId, WorkOrder__c = workOrderId));
     }
 
     /**
@@ -2613,12 +2682,7 @@ public with sharing class ReturnOrdersService {
             return;
         }
         Integer workOrderCount = WorkOrdersService.countByReturnOrderId(returnOrderId);
-        Database.update(
-            new List<ReturnOrder>{
-                new ReturnOrder(Id = returnOrderId, WOCount__c = workOrderCount)
-            },
-            AccessLevel.USER_MODE
-        );
+        updateReturnOrderForReceiving(new ReturnOrder(Id = returnOrderId, WOCount__c = workOrderCount));
     }
 
     /**
@@ -2630,11 +2694,8 @@ public with sharing class ReturnOrdersService {
         if (returnOrderId == null || quantityReceived == null) {
             return;
         }
-        Database.update(
-            new List<ReturnOrder>{
-                new ReturnOrder(Id = returnOrderId, QuantityReceived__c = quantityReceived)
-            },
-            AccessLevel.USER_MODE
+        updateReturnOrderForReceiving(
+            new ReturnOrder(Id = returnOrderId, QuantityReceived__c = quantityReceived)
         );
     }
 
@@ -2651,35 +2712,8 @@ public with sharing class ReturnOrdersService {
         if (openCount > 0) {
             return false;
         }
-        Database.update(
-            new List<ReturnOrder>{
-                new ReturnOrder(Id = returnOrderId, Status = 'Received')
-            },
-            AccessLevel.USER_MODE
-        );
+        updateReturnOrderForReceiving(new ReturnOrder(Id = returnOrderId, Status = 'Received'));
         return true;
-    }
-
-    /**
-     * @description GW-5492 - Clones RO/ROLI for Redirect and marks source ROLI Redirected.
-     * @param sourceReturnOrderId Source Return Order Id
-     * @param sourceLineItemId Source line item Id
-     * @param repairCenterId Destination Repair Center Location Id
-     * @param redirectionNotes Optional notes
-     * @return Redirect result
-     */
-    public static ReceivingRedirectResult redirectLineItemForReceiving(
-        Id sourceReturnOrderId,
-        Id sourceLineItemId,
-        Id repairCenterId,
-        String redirectionNotes
-    ) {
-        return redirectLinesForReceiving(
-            sourceReturnOrderId,
-            new Set<Id>{ sourceLineItemId },
-            repairCenterId,
-            redirectionNotes
-        );
     }
 
     /**
@@ -2710,12 +2744,7 @@ public with sharing class ReturnOrdersService {
             throw new ReturnOrdersServiceException('Return Order Line Item was not found.');
         }
 
-        Schema.RecordTypeInfo customerReturnRtInfo = Schema.SObjectType.ReturnOrder
-            .getRecordTypeInfosByDeveloperName()
-            .get('CustomerReturn');
-        Id customerReturnRtId = customerReturnRtInfo == null
-            ? null
-            : customerReturnRtInfo.getRecordTypeId();
+        Id customerReturnRtId = getCustomerReturnRecordTypeId();
 
         ReturnOrder clonedReturnOrder = new ReturnOrder();
         if (customerReturnRtId != null) {
@@ -2770,12 +2799,7 @@ public with sharing class ReturnOrdersService {
         Boolean fullyRedirected =
             ReturnOrderLineItemsService.countCreatedByReturnOrderId(source.Id) == 0;
         if (fullyRedirected) {
-            Database.update(
-                new List<ReturnOrder>{
-                    new ReturnOrder(Id = source.Id, Status = 'Redirected')
-                },
-                AccessLevel.USER_MODE
-            );
+            updateReturnOrderForReceiving(new ReturnOrder(Id = source.Id, Status = 'Redirected'));
         }
 
         List<ReturnOrder> inserted = ReturnOrdersSelector.selectForReceivingFinish(
@@ -2807,35 +2831,30 @@ public with sharing class ReturnOrdersService {
         Id clonedReturnOrderId,
         Id repairCenterId
     ) {
+        // Queried relationship records break SObject.clone() inserts; copy createable
+        // scalar fields only (skip autonumber/formula and relationship objects).
         ReturnOrderLineItem clonedLine = new ReturnOrderLineItem();
+        Map<String, Schema.SObjectField> fieldMap =
+            Schema.SObjectType.ReturnOrderLineItem.fields.getMap();
+        Map<String, Object> populatedFields = sourceLine.getPopulatedFieldsAsMap();
+        for (String fieldName : populatedFields.keySet()) {
+            Object value = populatedFields.get(fieldName);
+            if (fieldName == 'Id' || value instanceof SObject || value instanceof List<SObject>) {
+                continue;
+            }
+            Schema.SObjectField fieldToken = fieldMap.get(fieldName);
+            if (fieldToken == null || !fieldToken.getDescribe().isCreateable()) {
+                continue;
+            }
+            clonedLine.put(fieldName, value);
+        }
         clonedLine.ReturnOrderId = clonedReturnOrderId;
         clonedLine.Status__c = 'Created';
         clonedLine.ParentROLI__c = sourceLine.Id;
-        clonedLine.AssetId = sourceLine.AssetId;
-        clonedLine.Product2Id = sourceLine.Product2Id;
-        clonedLine.ProductLine__c = sourceLine.ProductLine__c;
-        clonedLine.LineType__c = sourceLine.LineType__c;
-        clonedLine.QuantityReturned = sourceLine.QuantityReturned;
-        clonedLine.CustomerPO__c = sourceLine.CustomerPO__c;
-        clonedLine.CustomerReference__c = sourceLine.CustomerReference__c;
-        clonedLine.Contact__c = sourceLine.Contact__c;
-        clonedLine.Department__c = sourceLine.Department__c;
-        clonedLine.Description = sourceLine.Description;
-        clonedLine.Model__c = sourceLine.Model__c;
-        clonedLine.SerialNumber__c = sourceLine.SerialNumber__c;
-        clonedLine.ReportedProblem__c = sourceLine.ReportedProblem__c;
-        clonedLine.IsLoanerAsset__c = sourceLine.IsLoanerAsset__c;
-        clonedLine.LoanerRequested__c = sourceLine.LoanerRequested__c;
-        clonedLine.EstimateRequired__c = sourceLine.EstimateRequired__c;
-        clonedLine.Disinfected__c = sourceLine.Disinfected__c;
         clonedLine.DestinationLocationId = repairCenterId;
-        clonedLine.SourceLocationId = sourceLine.SourceLocationId;
-        clonedLine.QuantityExpected = sourceLine.QuantityExpected;
-        clonedLine.QuantityUnitOfMeasure = sourceLine.QuantityUnitOfMeasure;
-        clonedLine.ReasonForReturn = sourceLine.ReasonForReturn;
-        clonedLine.RepaymentMethod = sourceLine.RepaymentMethod;
-        clonedLine.ProcessingPlan = sourceLine.ProcessingPlan;
-        clonedLine.HospitalReferencedTrayName__c = sourceLine.HospitalReferencedTrayName__c;
+        clonedLine.QuantityReceived = null;
+        clonedLine.Receiver__c = null;
+        clonedLine.ReceivedDateTime__c = null;
         return clonedLine;
     }
 
@@ -2849,6 +2868,40 @@ public with sharing class ReturnOrdersService {
         public String repairCenterName;
         public Integer lineCount;
     }
+
+    /**
+     * @description Typed group payload for createGroupedReturnOrders JSON.
+     */
+    private class CreateGroupedOrderPayload {
+        public Boolean requiresRepairCenterSelection;
+        public String repairCenterId;
+        public String lineItemsJson;
+        public Map<String, Object> orderHeader;
+    }
+
+    private static List<CreateGroupedOrderPayload> parseGroupedOrderPayloads(String groupsJson) {
+        List<CreateGroupedOrderPayload> payloads = new List<CreateGroupedOrderPayload>();
+        if (String.isBlank(groupsJson)) {
+            return payloads;
+        }
+        List<Object> rawGroups = (List<Object>) JSON.deserializeUntyped(groupsJson);
+        for (Object rawGroup : rawGroups) {
+            Map<String, Object> groupMap = (Map<String, Object>) rawGroup;
+            CreateGroupedOrderPayload payload = new CreateGroupedOrderPayload();
+            payload.requiresRepairCenterSelection = toBoolean(
+                groupMap.get('requiresRepairCenterSelection')
+            );
+            payload.repairCenterId = (String) groupMap.get('repairCenterId');
+            Object lineItemsJson = groupMap.get('lineItemsJson');
+            payload.lineItemsJson = lineItemsJson == null ? null : String.valueOf(lineItemsJson);
+            payload.orderHeader = groupMap.get('orderHeader') == null
+                ? null
+                : (Map<String, Object>) groupMap.get('orderHeader');
+            payloads.add(payload);
+        }
+        return payloads;
+    }
+
 
     private static final String STATUS_CREATED = 'Created';
     private static final String FLEXIBLE_SCOPE_PRODUCT_LINE = 'FLEXIBLE SCOPE';
@@ -2866,6 +2919,10 @@ public with sharing class ReturnOrdersService {
     private static final String ESTIMATE_REQUIRED_QUOTE_VALUE = 'Estimate Required';
     private static final String RETURN_ORDER_TYPE_FIELD = 'ReturnOrderType__c';
     private static Map<String, String> itemTypeToProductLineCache;
+    private static Id cachedCustomerReturnRecordTypeId;
+    private static Boolean customerReturnRecordTypeResolved = false;
+    private static Id cachedInboundRoliRecordTypeId;
+    private static Boolean inboundRoliRecordTypeResolved = false;
 
     /**
      * @description Creates one Customer Return Order per group.
@@ -2879,20 +2936,17 @@ public with sharing class ReturnOrdersService {
     ) {
         try {
             Map<String, Object> header = (Map<String, Object>) JSON.deserializeUntyped(headerJson);
-            List<Object> groupObjects = groupsJson != null
-                ? (List<Object>) JSON.deserializeUntyped(groupsJson)
-                : new List<Object>();
-            if (groupObjects.isEmpty()) {
+            // Typed payload class cannot use Map<String, Object> with JSON.deserialize
+            // (Apex Type unsupported in JSON: Object). Build typed rows from untyped JSON.
+            List<CreateGroupedOrderPayload> groupPayloads = parseGroupedOrderPayloads(groupsJson);
+            if (groupPayloads.isEmpty()) {
                 throw new ReturnOrdersServiceException('No return orders to create.');
             }
             List<GroupedReturnOrderResult> createdOrders = new List<GroupedReturnOrderResult>();
-            for (Object groupObj : groupObjects) {
-                Map<String, Object> groupPayload = (Map<String, Object>) groupObj;
-                Boolean requiresSelection = toBoolean(
-                    groupPayload.get('requiresRepairCenterSelection')
-                );
-                Id repairCenterId = parseId(String.valueOf(groupPayload.get('repairCenterId')));
-                if (requiresSelection == true && repairCenterId == null) {
+            for (CreateGroupedOrderPayload groupPayload : groupPayloads) {
+                Boolean requiresSelection = groupPayload.requiresRepairCenterSelection == true;
+                Id repairCenterId = parseId(groupPayload.repairCenterId);
+                if (requiresSelection && repairCenterId == null) {
                     throw new ReturnOrdersServiceException(
                         'Select a repair center for lines without a routing rule match.'
                     );
@@ -2902,32 +2956,27 @@ public with sharing class ReturnOrdersService {
                         'Repair center is required for each return order group.'
                     );
                 }
-                String lineItemsJson = (String) groupPayload.get('lineItemsJson');
-                List<Object> lineObjects = String.isNotBlank(lineItemsJson)
-                    ? (List<Object>) JSON.deserializeUntyped(lineItemsJson)
+                List<Object> lineObjects = String.isNotBlank(groupPayload.lineItemsJson)
+                    ? (List<Object>) JSON.deserializeUntyped(groupPayload.lineItemsJson)
                     : new List<Object>();
                 createdOrders.add(
                     insertReturnOrder(
                         header,
                         repairCenterId,
                         lineObjects,
-                        (Map<String, Object>) groupPayload.get('orderHeader')
+                        groupPayload.orderHeader
                     )
                 );
             }
             return createdOrders;
-        } catch (ReturnOrdersServiceException e) {
-            throw e;
-        } catch (DmlException e) {
-            throw new ReturnOrdersServiceException(
-                'Error creating return orders: ' + e.getDmlMessage(0),
-                e
-            );
         } catch (Exception e) {
-            throw new ReturnOrdersServiceException(
-                'Error creating return orders: ' + e.getMessage(),
-                e
-            );
+            if (e instanceof ReturnOrdersServiceException) {
+                throw e;
+            }
+            String detail = e instanceof DmlException
+                ? ((DmlException) e).getDmlMessage(0)
+                : e.getMessage();
+            throw new ReturnOrdersServiceException('Error creating return orders: ' + detail, e);
         }
     }
 
@@ -2948,18 +2997,14 @@ public with sharing class ReturnOrdersService {
                 : new List<Object>();
             Id repairCenterId = parseId((String) header.get('repairCenterId'));
             return insertReturnOrder(header, repairCenterId, lineObjects, null);
-        } catch (ReturnOrdersServiceException e) {
-            throw e;
-        } catch (DmlException e) {
-            throw new ReturnOrdersServiceException(
-                'Error creating return order: ' + e.getDmlMessage(0),
-                e
-            );
         } catch (Exception e) {
-            throw new ReturnOrdersServiceException(
-                'Error creating return order: ' + e.getMessage(),
-                e
-            );
+            if (e instanceof ReturnOrdersServiceException) {
+                throw e;
+            }
+            String detail = e instanceof DmlException
+                ? ((DmlException) e).getDmlMessage(0)
+                : e.getMessage();
+            throw new ReturnOrdersServiceException('Error creating return order: ' + detail, e);
         }
     }
 
@@ -2984,48 +3029,20 @@ public with sharing class ReturnOrdersService {
         populateReturnOrderEstimateContact(returnOrder, orderHeader, estimateRequired);
         populateReturnOrderModRequestContact(returnOrder, orderHeader);
 
-        String hospitalTrayName = (String) orderHeader.get('hospitalReferencedTrayName');
-        setReturnOrderCustomFieldValue(
-            returnOrder,
-            'HospitalReferencedTrayName__c',
-            String.isNotBlank(hospitalTrayName) ? hospitalTrayName.trim() : null
-        );
-
-        String customerReference = (String) orderHeader.get('customerReference');
-        setReturnOrderCustomFieldValue(
-            returnOrder,
-            'CustomerReference__c',
-            String.isNotBlank(customerReference) ? customerReference.trim() : null
-        );
-
-        String repairWarranty = (String) orderHeader.get('repairWarranty');
-        if (String.isNotBlank(repairWarranty)) {
-            setReturnOrderCustomFieldValue(
-                returnOrder,
-                'RepairWarranty__c',
-                repairWarranty.trim()
-            );
+        List<List<String>> headerTextFields = new List<List<String>>{
+            new List<String>{ 'hospitalReferencedTrayName', 'HospitalReferencedTrayName__c' },
+            new List<String>{ 'customerReference', 'CustomerReference__c' },
+            new List<String>{ 'repairWarranty', 'RepairWarranty__c' },
+            new List<String>{ 'previousReturnOrder', 'PreviousReturnOrder__c' },
+            new List<String>{ 'warrantyNotes', 'WarrantyNotes__c' },
+            new List<String>{ 'customerPo', 'CustomerPO__c' }
+        };
+        for (List<String> fieldPair : headerTextFields) {
+            String rawValue = (String) orderHeader.get(fieldPair[0]);
+            if (String.isNotBlank(rawValue)) {
+                setReturnOrderCustomFieldValue(returnOrder, fieldPair[1], rawValue.trim());
+            }
         }
-
-        String previousReturnOrder = (String) orderHeader.get('previousReturnOrder');
-        String warrantyNotes = (String) orderHeader.get('warrantyNotes');
-        setReturnOrderCustomFieldValue(
-            returnOrder,
-            'PreviousReturnOrder__c',
-            String.isNotBlank(previousReturnOrder) ? previousReturnOrder.trim() : null
-        );
-        setReturnOrderCustomFieldValue(
-            returnOrder,
-            'WarrantyNotes__c',
-            String.isNotBlank(warrantyNotes) ? warrantyNotes.trim() : null
-        );
-
-        String customerPo = (String) orderHeader.get('customerPo');
-        setReturnOrderCustomFieldValue(
-            returnOrder,
-            'CustomerPO__c',
-            String.isNotBlank(customerPo) ? customerPo.trim() : null
-        );
     }
 
     private static void applyReturnOrderType(
@@ -3119,9 +3136,7 @@ public with sharing class ReturnOrdersService {
             Boolean isOther = isOtherLine(line);
             ReturnOrderLineItem item = new ReturnOrderLineItem();
             item.ReturnOrderId = returnOrderId;
-            Id inboundRtId = Schema.SObjectType.ReturnOrderLineItem.getRecordTypeInfosByDeveloperName()
-                .get('Inbound')
-                ?.getRecordTypeId();
+            Id inboundRtId = getInboundRoliRecordTypeId();
             if (inboundRtId != null) {
                 item.RecordTypeId = inboundRtId;
             }
@@ -3153,10 +3168,9 @@ public with sharing class ReturnOrdersService {
 
             String model = (String) line.get('model');
             if (isSerialized) {
-                if (String.isBlank(model)) {
-                    throw new ReturnOrdersServiceException('Model is required on serialized line items.');
-                }
-                item.Model__c = normalizeUppercaseValue(model);
+                item.Model__c = normalizeUppercaseValue(
+                    requireNonBlank(model, 'Model is required on serialized line items.')
+                );
             } else if (String.isNotBlank(model)) {
                 item.Model__c = normalizeUppercaseValue(model);
             }
@@ -3183,43 +3197,35 @@ public with sharing class ReturnOrdersService {
             if (instrumentsLine) {
                 productLine = INSTRUMENT_PRODUCT_LINE;
             } else if (isOther) {
-                String itemType = (String) line.get('itemType');
-                if (String.isBlank(itemType)) {
-                    throw new ReturnOrdersServiceException('Item Type is required on Other line items.');
-                }
-                productLine = resolveProductLineForItemType(itemType.trim());
+                String itemType = requireNonBlank(
+                    (String) line.get('itemType'),
+                    'Item Type is required on Other line items.'
+                );
+                productLine = resolveProductLineForItemType(itemType);
                 if (String.isBlank(productLine)) {
                     throw new ReturnOrdersServiceException(
-                        'No Product Line mapping found for Item Type ' + itemType.trim() + '.'
+                        'No Product Line mapping found for Item Type ' + itemType + '.'
                     );
                 }
             } else {
                 productLine = (String) line.get('productLine');
             }
-            if (String.isBlank(productLine)) {
-                throw new ReturnOrdersServiceException('Product Line is required on all line items.');
-            }
-            item.ProductLine__c = productLine;
+            item.ProductLine__c = requireNonBlank(
+                productLine,
+                'Product Line is required on all line items.'
+            );
 
             if (isSerialized) {
-                String serialNumber = (String) line.get('serialNumber');
-                if (String.isNotBlank(serialNumber)) {
-                    item.SerialNumber__c = normalizeUppercaseValue(serialNumber);
-                }
-
+                applyOptionalSerialNumber(item, line);
                 populateDisinfected(
                     item,
                     line,
                     'Disinfected is required on serialized line items.'
                 );
-
-                String reportedProblem = (String) line.get('reportedProblem');
-                if (String.isBlank(reportedProblem)) {
-                    throw new ReturnOrdersServiceException(
-                        'Reported Problem is required on serialized line items.'
-                    );
-                }
-                item.ReportedProblem__c = reportedProblem.trim();
+                item.ReportedProblem__c = requireNonBlank(
+                    (String) line.get('reportedProblem'),
+                    'Reported Problem is required on serialized line items.'
+                );
                 item.CustomerReference__c = (String) line.get('customerReference');
                 item.CustomerPO__c = (String) line.get('customerPo');
                 item.IsLoanerAsset__c = toBoolean(line.get('isLoanerAsset'));
@@ -3227,59 +3233,49 @@ public with sharing class ReturnOrdersService {
             } else {
                 if (!(instrumentsLine && useInstrumentOrderHeader)) {
                     item.CustomerPO__c = (String) line.get('customerPo');
-                }
-                if (!(instrumentsLine && useInstrumentOrderHeader)) {
-                    String hospitalTrayName = (String) line.get('hospitalReferencedTrayName');
-                    if (String.isNotBlank(hospitalTrayName)) {
-                        item.HospitalReferencedTrayName__c = hospitalTrayName.trim();
-                    }
-                }
-                if (!instrumentsLine) {
-                    String customerReference = (String) line.get('customerReference');
-                    if (String.isNotBlank(customerReference)) {
-                        item.CustomerReference__c = customerReference.trim();
-                    }
-                }
-
-                String reportedProblem = (String) line.get('reportedProblem');
-                if (String.isBlank(reportedProblem)) {
-                    throw new ReturnOrdersServiceException(
-                        'Reported Problem is required on non-serialized line items.'
+                    applyOptionalTrimmedField(
+                        item,
+                        'HospitalReferencedTrayName__c',
+                        (String) line.get('hospitalReferencedTrayName')
                     );
                 }
-                item.ReportedProblem__c = reportedProblem.trim();
+                if (!instrumentsLine) {
+                    applyOptionalTrimmedField(
+                        item,
+                        'CustomerReference__c',
+                        (String) line.get('customerReference')
+                    );
+                }
+
+                item.ReportedProblem__c = requireNonBlank(
+                    (String) line.get('reportedProblem'),
+                    'Reported Problem is required on non-serialized line items.'
+                );
 
                 if (instrumentsLine) {
-                    String itemDescription = (String) line.get('itemDescription');
-                    if (String.isNotBlank(itemDescription)) {
-                        item.ItemDescription__c = itemDescription.trim();
-                    }
-
+                    applyOptionalTrimmedField(
+                        item,
+                        'ItemDescription__c',
+                        (String) line.get('itemDescription')
+                    );
                     populateDisinfected(
                         item,
                         line,
                         'Disinfected is required on instrument line items.'
                     );
-
-                    String serialNumber = (String) line.get('serialNumber');
-                    if (String.isNotBlank(serialNumber)) {
-                        item.SerialNumber__c = normalizeUppercaseValue(serialNumber);
-                    }
-
+                    applyOptionalSerialNumber(item, line);
                     item.ModRequest__c = toBoolean(line.get('modRequest'));
                     populateInstrumentAdditionalServiceFields(item, line);
                 } else {
-                    String itemType = (String) line.get('itemType');
-                    if (String.isBlank(itemType)) {
-                        throw new ReturnOrdersServiceException('Item Type is required on Other line items.');
-                    }
-                    item.ItemType__c = itemType.trim();
-
-                    String itemDescription = (String) line.get('itemDescription');
-                    if (String.isNotBlank(itemDescription)) {
-                        item.ItemDescription__c = itemDescription.trim();
-                    }
-
+                    item.ItemType__c = requireNonBlank(
+                        (String) line.get('itemType'),
+                        'Item Type is required on Other line items.'
+                    );
+                    applyOptionalTrimmedField(
+                        item,
+                        'ItemDescription__c',
+                        (String) line.get('itemDescription')
+                    );
                     populateDisinfected(
                         item,
                         line,
@@ -3287,13 +3283,12 @@ public with sharing class ReturnOrdersService {
                     );
 
                     if (isOtherSerializedLine(line)) {
-                        String serialNumber = (String) line.get('serialNumber');
-                        if (String.isBlank(serialNumber)) {
-                            throw new ReturnOrdersServiceException(
+                        item.SerialNumber__c = normalizeUppercaseValue(
+                            requireNonBlank(
+                                (String) line.get('serialNumber'),
                                 'Serial Number is required on Other (Serialized) line items.'
-                            );
-                        }
-                        item.SerialNumber__c = normalizeUppercaseValue(serialNumber);
+                            )
+                        );
                     }
                 }
             }
@@ -3318,41 +3313,20 @@ public with sharing class ReturnOrdersService {
         return lineItems;
     }
 
-    private static Account getAccountDetails(Id accountId) {
-        try {
-            if (accountId == null) {
-                return null;
-            }
-
-            List<Account> accounts = [
-                SELECT
-                    Id,
-                    Name,
-                    SystemID__c,
-                    OrgIDs__c,
-                    BillingState
-                FROM Account
-                WHERE Id = :accountId
-                WITH USER_MODE
-                LIMIT 1
-            ];
-            return accounts.isEmpty() ? null : accounts[0];
-        } catch (Exception e) {
-            throw new ReturnOrdersServiceException('Error retrieving account: ' + e.getMessage());
-        }
-    }
-
     private static Map<String, String> getItemTypeToProductLineMappings() {
         if (itemTypeToProductLineCache != null) {
             return itemTypeToProductLineCache;
         }
 
         itemTypeToProductLineCache = new Map<String, String>();
-        for (ROLIItemTypeandProductLine__mdt mapping : [
-            SELECT ItemType__c, ProductLine__c
-            FROM ROLIItemTypeandProductLine__mdt
-            WHERE ItemType__c != NULL AND ProductLine__c != NULL AND IsActive__c = TRUE
-        ]) {
+        List<ROLIItemTypeandProductLine__mdt> mappings =
+            (List<ROLIItemTypeandProductLine__mdt>) new ROLIItemTypeandProductLineSelector()
+                .selectFields(new List<String>{ 'ItemType__c', 'ProductLine__c' })
+                .whereField('ItemType__c', '!=', null)
+                .whereField('ProductLine__c', '!=', null)
+                .whereEquals('IsActive__c', true)
+                .execute();
+        for (ROLIItemTypeandProductLine__mdt mapping : mappings) {
             itemTypeToProductLineCache.put(mapping.ItemType__c, mapping.ProductLine__c);
         }
         return itemTypeToProductLineCache;
@@ -3379,9 +3353,7 @@ public with sharing class ReturnOrdersService {
         }
 
         ReturnOrder returnOrder = new ReturnOrder();
-        Id customerReturnRtId = Schema.SObjectType.ReturnOrder.getRecordTypeInfosByDeveloperName()
-            .get('CustomerReturn')
-            ?.getRecordTypeId();
+        Id customerReturnRtId = getCustomerReturnRecordTypeId();
         if (customerReturnRtId != null) {
             returnOrder.RecordTypeId = customerReturnRtId;
         }
@@ -3465,8 +3437,9 @@ public with sharing class ReturnOrdersService {
         if (isOtherLine(line)) {
             return false;
         }
-        if (line != null && line.containsKey('lineType')) {
-            return 'instruments'.equalsIgnoreCase((String) line.get('lineType'));
+        String lineType = lineTypeValue(line);
+        if (lineType != null) {
+            return lineType == 'instruments';
         }
         return !isSerializedLine(line);
     }
@@ -3476,24 +3449,22 @@ public with sharing class ReturnOrdersService {
         return message != null && message.contains('Invalid field');
     }
 
+    private static String lineTypeValue(Map<String, Object> line) {
+        if (line == null || !line.containsKey('lineType') || line.get('lineType') == null) {
+            return null;
+        }
+        return ((String) line.get('lineType')).toLowerCase();
+    }
+
     private static Boolean isOtherLine(Map<String, Object> line) {
-        if (line == null) {
-            return false;
-        }
-        if (line.containsKey('lineType')) {
-            String lineType = ((String) line.get('lineType')).toLowerCase();
-            return lineType == 'other' ||
-                lineType == 'other-serialized' ||
-                lineType == 'other-non-serialized';
-        }
-        return false;
+        String lineType = lineTypeValue(line);
+        return lineType == 'other' ||
+            lineType == 'other-serialized' ||
+            lineType == 'other-non-serialized';
     }
 
     private static Boolean isOtherNonSerializedLine(Map<String, Object> line) {
-        if (line == null || !line.containsKey('lineType')) {
-            return false;
-        }
-        String lineType = ((String) line.get('lineType')).toLowerCase();
+        String lineType = lineTypeValue(line);
         if (lineType == 'other-non-serialized') {
             return true;
         }
@@ -3501,10 +3472,7 @@ public with sharing class ReturnOrdersService {
     }
 
     private static Boolean isOtherSerializedLine(Map<String, Object> line) {
-        if (line == null || !line.containsKey('lineType')) {
-            return false;
-        }
-        String lineType = ((String) line.get('lineType')).toLowerCase();
+        String lineType = lineTypeValue(line);
         if (lineType == 'other-serialized') {
             return true;
         }
@@ -3515,8 +3483,9 @@ public with sharing class ReturnOrdersService {
         if (line == null) {
             return true;
         }
-        if (line.containsKey('lineType')) {
-            return 'serialized'.equalsIgnoreCase((String) line.get('lineType'));
+        String lineType = lineTypeValue(line);
+        if (lineType != null) {
+            return lineType == 'serialized';
         }
         if (line.containsKey('serialized')) {
             return toBoolean(line.get('serialized'));
@@ -3563,58 +3532,24 @@ public with sharing class ReturnOrdersService {
         return String.isBlank(value) ? null : value.trim().toUpperCase();
     }
 
+    private static String requireNonBlank(String value, String message) {
+        if (String.isBlank(value)) {
+            throw new ReturnOrdersServiceException(message);
+        }
+        return value.trim();
+    }
+
+
     private static List<Id> parseContentDocumentIds(Object value) {
-        List<Id> contentDocumentIds = new List<Id>();
-        if (value == null) {
-            return contentDocumentIds;
-        }
-
-        if (value instanceof List<Object>) {
-            for (Object documentIdValue : (List<Object>) value) {
-                Id contentDocumentId = parseId(String.valueOf(documentIdValue));
-                if (contentDocumentId != null) {
-                    contentDocumentIds.add(contentDocumentId);
-                }
-            }
-        }
-
-        return contentDocumentIds;
+        return PlatformUtilities.parseIdList(value);
     }
 
     private static Id parseId(String value) {
-        if (String.isBlank(value)) {
-            return null;
-        }
-        try {
-            return (Id) value;
-        } catch (Exception e) {
-            return null;
-        }
+        return PlatformUtilities.parseId(value);
     }
 
     private static Decimal parseQuantityReturned(Object value) {
-        if (value == null) {
-            return QUANTITY_RETURNED_DEFAULT;
-        }
-        if (value instanceof Decimal) {
-            return ((Decimal) value) > 0 ? (Decimal) value : QUANTITY_RETURNED_DEFAULT;
-        }
-        if (value instanceof Integer) {
-            Integer intValue = (Integer) value;
-            return intValue > 0 ? Decimal.valueOf(intValue) : QUANTITY_RETURNED_DEFAULT;
-        }
-        if (value instanceof Long) {
-            Long longValue = (Long) value;
-            return longValue > 0 ? Decimal.valueOf(longValue) : QUANTITY_RETURNED_DEFAULT;
-        }
-
-        String text = String.valueOf(value);
-        if (String.isBlank(text)) {
-            return QUANTITY_RETURNED_DEFAULT;
-        }
-
-        Decimal parsed = Decimal.valueOf(text);
-        return parsed > 0 ? parsed : QUANTITY_RETURNED_DEFAULT;
+        return PlatformUtilities.parsePositiveDecimal(value, QUANTITY_RETURNED_DEFAULT);
     }
 
     private static void populateDisinfected(
@@ -3622,11 +3557,28 @@ public with sharing class ReturnOrdersService {
         Map<String, Object> line,
         String requiredMessage
     ) {
-        String disinfected = (String) line.get('disinfected');
-        if (String.isBlank(disinfected)) {
-            throw new ReturnOrdersServiceException(requiredMessage);
+        item.Disinfected__c = requireNonBlank((String) line.get('disinfected'), requiredMessage);
+    }
+
+    private static void applyOptionalTrimmedField(
+        SObject record,
+        String fieldApiName,
+        String value
+    ) {
+        if (record == null || String.isBlank(fieldApiName) || String.isBlank(value)) {
+            return;
         }
-        item.Disinfected__c = disinfected;
+        record.put(fieldApiName, value.trim());
+    }
+
+    private static void applyOptionalSerialNumber(
+        ReturnOrderLineItem item,
+        Map<String, Object> line
+    ) {
+        String serialNumber = (String) line.get('serialNumber');
+        if (String.isNotBlank(serialNumber)) {
+            item.SerialNumber__c = normalizeUppercaseValue(serialNumber);
+        }
     }
 
     private static void populateEstimateRequiredFields(
@@ -3889,7 +3841,23 @@ public with sharing class ReturnOrdersService {
             return null;
         }
 
-        return readAccountOperatingUnit(getAccountDetails(accountId));
+        try {
+            Account account = (Account) new AccountSelector()
+                .selectFields(
+                    new List<String>{
+                        'Id',
+                        'Name',
+                        'SystemID__c',
+                        'OrgIDs__c',
+                        'BillingState'
+                    }
+                )
+                .whereEquals('Id', accountId)
+                .first();
+            return readAccountOperatingUnit(account);
+        } catch (Exception e) {
+            throw new ReturnOrdersServiceException('Error retrieving account: ' + e.getMessage());
+        }
     }
 
     private static String resolveProductLineForItemType(String itemType) {
@@ -4064,14 +4032,7 @@ public with sharing class ReturnOrdersService {
     }
 
     private static Boolean toBoolean(Object value) {
-        if (value == null) {
-            return false;
-        }
-        if (value instanceof Boolean) {
-            return (Boolean) value;
-        }
-        String text = String.valueOf(value);
-        return 'true'.equalsIgnoreCase(text) || '1'.equals(text) || 'yes'.equalsIgnoreCase(text);
+        return PlatformUtilities.toBoolean(value);
     }
 
     private static void validateContactHasEmail(Id contactId, String message) {

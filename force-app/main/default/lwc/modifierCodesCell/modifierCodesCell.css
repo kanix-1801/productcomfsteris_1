@@ -1,0 +1,38 @@
+.modifier-cell {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.25rem;
+    min-height: 2.75rem;
+}
+
+.modifier-name {
+    margin-right: 0.25rem;
+    text-align: right;
+}
+
+.icon-button,
+.add-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border: 1px solid #c9c9c9;
+    border-radius: 50%;
+    background: #fff;
+    color: #181818;
+    cursor: pointer;
+}
+
+.icon-button:hover,
+.add-button:hover,
+.icon-button:focus,
+.add-button:focus {
+    background: #f3f3f3;
+}
+
+.add-button {
+    font-size: 1.25rem;
+    line-height: 1;
+}

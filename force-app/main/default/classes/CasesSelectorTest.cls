@@ -379,4 +379,85 @@ private class CasesSelectorTest {
         }
         return null;
     }
+
+    @IsTest
+    static void testSelectByIdNullOrEmptyReturnsEmpty_sprint93Coverage() {
+        Assert.areEqual(0, CasesSelector.selectById(null).size());
+        Assert.areEqual(0, CasesSelector.selectById(new Set<Id>()).size());
+    }
+
+    @IsTest
+    static void testCreateReturnOrderCaseSelectors_sprint93Coverage() {
+        Assert.areEqual(0, CasesSelector.selectOpenByAccountIdForCreateReturnOrder(null).size());
+        Assert.isTrue(CasesSelector.selectAccountContextById(null).isEmpty());
+        Assert.areEqual(0, CasesSelector.selectByAccountIds(null).size());
+        Assert.areEqual(0, CasesSelector.selectByAccountIds(new Set<Id>()).size());
+        Assert.areEqual(0, CasesSelector.selectByContactIds(null).size());
+        Assert.areEqual(0, CasesSelector.selectByOrderIds(null).size());
+        Assert.areEqual(0, CasesSelector.selectOpenCasesByAccountIds(null).size());
+        Assert.areEqual(0, CasesSelector.selectByIdWithExtendedFields(null).size());
+    }
+
+
+    @IsTest
+    static void testFcrSelectors_sprint93Coverage() {
+        Date startDate = Date.today().addDays(-7);
+        Date endDate = Date.today().addDays(-6);
+
+        Test.startTest();
+        Database.QueryLocator locator =
+            CasesSelector.selectClosedInboxSupportForFcrQueryLocator(startDate, endDate);
+        Assert.isNotNull(locator);
+
+        Assert.areEqual(
+            0,
+            CasesSelector.selectRelatedCasesForFcr(
+                null,
+                new Set<Id>(),
+                new Set<Id>(),
+                new Set<String>(),
+                new Set<String>(),
+                Datetime.now().addDays(-30),
+                Datetime.now()
+            ).size()
+        );
+        Assert.areEqual(
+            0,
+            CasesSelector.selectRelatedCasesForFcr(
+                new Set<String>{ 'Equipment' },
+                null,
+                null,
+                null,
+                null,
+                Datetime.now().addDays(-30),
+                Datetime.now()
+            ).size()
+        );
+        List<Case> related = CasesSelector.selectRelatedCasesForFcr(
+            new Set<String>{ 'Equipment' },
+            new Set<Id>{ UserInfo.getUserId() },
+            new Set<Id>(),
+            new Set<String>{ 'SN-FCR-NONE' },
+            new Set<String>{ 'fcr-none@example.com' },
+            Datetime.now().addDays(-30),
+            Datetime.now()
+        );
+        Test.stopTest();
+
+        Assert.isNotNull(related);
+        Assert.isTrue(related.isEmpty(), 'No FCR-related cases expected for synthetic identifiers');
+
+        Account accountRecord = new Account(
+            Name = 'Case FCR Cov Account',
+            SystemID__c = 'LEG-FCR-COV',
+            SourceSystemID__c = 'TEST-ORACLE-FCR-COV',
+            OrgIDs__c = '82'
+        );
+        insert accountRecord;
+        Assert.areEqual(
+            0,
+            CasesSelector.selectOpenByAccountIdForCreateReturnOrder(accountRecord.Id).size()
+        );
+        Assert.isTrue(CasesSelector.selectAccountContextById(UserInfo.getUserId()).isEmpty());
+    }
 }

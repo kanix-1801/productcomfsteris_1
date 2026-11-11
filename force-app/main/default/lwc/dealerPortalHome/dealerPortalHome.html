@@ -5,7 +5,7 @@
                 <h1>Welcome back, let's close some deals!</h1>
                 <p>Your dealer pipeline, expected orders, and opportunities that need attention.</p>
             </div>
-            <lightning-button variant="brand" label="Create Opportunity" onclick={openCreate}></lightning-button>
+            <lightning-button variant="brand" label="Create Opportunity" onclick={openCreateFlow}></lightning-button>
         </header>
 
         <template if:true={errorMessage}>
@@ -143,5 +143,24 @@
             </c-dealer-opportunity-table>
         </article>
     </div>
-    <c-dealer-opportunity-create is-open={isCreateOpen} onclose={closeCreate} oncreated={handleCreated}></c-dealer-opportunity-create>
+    <template if:true={isFlowOpen}>
+        <section role="dialog" aria-modal="true" aria-labelledby="create-opportunity-title" class="modal-backdrop" onclick={closeFlowFromBackdrop}>
+            <div class="modal modal-flow" onclick={stopFlowClose}>
+                <header class="modal-header">
+                    <h2 id="create-opportunity-title">Create Opportunity</h2>
+                    <button type="button" class="close-button" onclick={closeCreateFlow}>Close</button>
+                </header>
+                <div class="modal-body">
+                    <lightning-flow
+                        flow-api-name="CreateDealerOpportunity"
+                        onstatuschange={handleFlowStatusChange}>
+                    </lightning-flow>
+                </div>
+            </div>
+        </section>
+    </template>
+    <!-- Static reference so the published LWR page includes this flow screen component. -->
+    <template lwc:if={keepPickerInSiteBundle}>
+        <c-dealer-reference-picker></c-dealer-reference-picker>
+    </template>
 </template>

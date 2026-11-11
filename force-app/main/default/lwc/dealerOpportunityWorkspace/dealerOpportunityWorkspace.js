@@ -1,6 +1,5 @@
 import { LightningElement, wire } from 'lwc';
-import { CurrentPageReference } from 'lightning/navigation';
-import Toast from 'lightning/toast';
+import { CurrentPageReference, NavigationMixin } from 'lightning/navigation';
 import OPPORTUNITY_ICON from '@salesforce/resourceUrl/DealerOpportunityIcon';
 import PIPELINE_ICON from '@salesforce/resourceUrl/DealerPipelineIcon';
 import ACTIVE_ICON from '@salesforce/resourceUrl/DealerActiveIcon';
@@ -16,7 +15,7 @@ const STAGE_TABS = [
     'Closed Lost'
 ];
 
-export default class DealerOpportunityWorkspace extends LightningElement {
+export default class DealerOpportunityWorkspace extends NavigationMixin(LightningElement) {
     opportunityIconUrl = OPPORTUNITY_ICON;
     pipelineIconUrl = PIPELINE_ICON;
     activeIconUrl = ACTIVE_ICON;
@@ -28,7 +27,11 @@ export default class DealerOpportunityWorkspace extends LightningElement {
     sortDirection = 'ASC';
     pastDueOnly = false;
     pageNumber = 1;
-    isCreateOpen = false;
+    isDealerFlowOpen = false;
+
+    get keepPickerInSiteBundle() {
+        return false;
+    }
 
     @wire(CurrentPageReference)
     setPageReference(pageReference) {
@@ -157,24 +160,52 @@ export default class DealerOpportunityWorkspace extends LightningElement {
         }
     }
 
-    openCreate() {
-        this.isCreateOpen = true;
+    openDealerFlow() {
+        this.isDealerFlowOpen = true;
     }
 
-    closeCreate() {
-        this.isCreateOpen = false;
+    closeDealerFlow() {
+        this.isDealerFlowOpen = false;
     }
 
-    handleCreated() {
-        this.isCreateOpen = false;
-        Toast.show({
-            label: 'Opportunity created',
-            message: 'The opportunity was created.',
-            variant: 'success',
-            mode: 'dismissible'
-        }, this);
-        this.loadWorkspace();
+    closeDealerFlowFromBackdrop() {
+        this.closeDealerFlow();
     }
+
+    stopDealerFlowClose(event) {
+        event.stopPropagation();
+    }
+
+    handleDealerFlowStatusChange(event) {
+        const status = event.detail && event.detail.status;
+        if (status !== 'FINISHED' && status !== 'FINISHED_SCREEN') {
+            return;
+        }
+        const recordId = outputValue(event.detail, 'createdOpportunityId');
+        this.isDealerFlowOpen = false;
+        if (!recordId) {
+            this.loadWorkspace();
+            return;
+        }
+        this[NavigationMixin.Navigate]({
+            type: 'standard__recordPage',
+            attributes: {
+                recordId,
+                objectApiName: 'Opportunity',
+                actionName: 'view'
+            }
+        });
+    }
+
+}
+
+function outputValue(detail, name) {
+    const outputs = detail && detail.outputVariables;
+    if (!outputs) {
+        return null;
+    }
+    const match = outputs.find((item) => item.name === name);
+    return match && match.value ? match.value : null;
 }
 
 function compactCurrency(amount) {

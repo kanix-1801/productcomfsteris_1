@@ -235,6 +235,7 @@ public with sharing class EmailAddressDefaultController {
         throw ex;
     }
 }
+     
   
     /**
      * @description Sets default email addresses for C1 emails

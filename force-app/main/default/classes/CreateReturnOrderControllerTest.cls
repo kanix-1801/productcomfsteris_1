@@ -698,7 +698,9 @@ private class CreateReturnOrderControllerTest {
             RecordTypeId = productServicedRecordTypeId,
             AssetId = markedAsset.Id,
             LineType__c = 'Product Serviced',
-            SendToRepairCenter__c = true
+            SendToRepairCenter__c = true,
+            Department__c = headerAsset.Department__c,
+            ReportedProblem__c = 'Broken hinge'
         );
         WorkOrderLineItem unmarkedLine = new WorkOrderLineItem(
             WorkOrderId = workOrder.Id,
@@ -719,6 +721,9 @@ private class CreateReturnOrderControllerTest {
 
         System.assertEquals(1, ctx.assetIds.size(), 'Only the marked line asset should be returned.');
         System.assertEquals(String.valueOf(markedAsset.Id), ctx.assetIds[0]);
+        CreateReturnOrderController.AssetLineDefaults defaults = ctx.lineDefaultsByAssetId.get(ctx.assetIds[0]);
+        System.assertEquals(headerAsset.Department__c, defaults.departmentId, 'Department should come from the line.');
+        System.assertEquals('Broken hinge', defaults.reportedProblem, 'Reported problem should come from the line.');
         System.assertEquals(
             false,
             [SELECT SendToRepairCenter__c FROM WorkOrderLineItem WHERE Id = :markedLine.Id].SendToRepairCenter__c,
@@ -4991,7 +4996,7 @@ private class CreateReturnOrderControllerTest {
         System.assertEquals(String.valueOf(product.Id), lines[0].product2Id);
         System.assertEquals(product.Name, lines[0].productName);
         System.assertEquals('Bent forceps', lines[0].itemDescription);
-        System.assertEquals('SN-RC-1', lines[0].serialNumber);
+        System.assertEquals(null, lines[0].serialNumber, 'Make on the work order line must not become the serial number');
         System.assertEquals('Forceps', lines[0].model);
         System.assertEquals(String.valueOf(testDepartment.Id), lines[0].departmentId);
         System.assertEquals('Tip bent', lines[0].reportedProblem);

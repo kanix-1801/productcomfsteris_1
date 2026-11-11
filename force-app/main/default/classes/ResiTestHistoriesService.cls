@@ -2,6 +2,32 @@
  * @description Service for ResiTestHistory__c (GW-5492 Receiving).
  */
 public with sharing class ResiTestHistoriesService {
+    private static final String DISINFECTION_STATUS_CLEAN = 'Clean';
+    private static final String DISINFECTION_STATUS_CONTAMINATED = 'Contaminated';
+
+    private static final List<String> BASE_FIELDS = new List<String>{
+        'Id',
+        'WorkOrder__c',
+        'WorkOrderLineItem__c',
+        'TestCompletionDate__c',
+        'DisinfectionStatus__c'
+    };
+
+    /**
+     * @description Loads Resi-Test History rows by Id.
+     * @param ids Record Ids
+     * @return Matching rows
+     */
+    public static List<ResiTestHistory__c> getById(Set<Id> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return new List<ResiTestHistory__c>();
+        }
+        return (List<ResiTestHistory__c>) new ResiTestHistoriesSelector()
+            .selectFields(BASE_FIELDS)
+            .whereIn('Id', new List<Id>(ids))
+            .execute();
+    }
+
     /**
      * @description Creates a Resi-Test History row for Finish Receiving.
      * @param workOrderId Child Work Order Id
@@ -27,7 +53,6 @@ public with sharing class ResiTestHistoriesService {
             return history.Id;
         } catch (Exception e) {
             Logger.error('ResiTestHistoriesService.createForReceiving: Unexpected error.', e);
-            Logger.saveLog();
             throw new ResiTestHistoriesServiceException(
                 'Unable to create Resi-Test History: ' + e.getMessage(),
                 e
@@ -38,11 +63,11 @@ public with sharing class ResiTestHistoriesService {
     }
 
     private static String mapDisinfectionStatus(String uiValue) {
-        if ('Contaminated'.equalsIgnoreCase(uiValue)) {
-            return 'Contaminated';
+        if (uiValue == DISINFECTION_STATUS_CONTAMINATED) {
+            return DISINFECTION_STATUS_CONTAMINATED;
         }
-        if ('Clean'.equalsIgnoreCase(uiValue)) {
-            return 'Clean';
+        if (uiValue == DISINFECTION_STATUS_CLEAN) {
+            return DISINFECTION_STATUS_CLEAN;
         }
         return uiValue;
     }

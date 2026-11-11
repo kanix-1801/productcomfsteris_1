@@ -363,14 +363,14 @@ public with sharing class ContentDocumentLinksService {
                     repairCodeRtId
                 )
             ) {
-                productIdByWoliId.put(lineItem.Id, lineItem.Product__c);
-                if (lineItem.Product__r != null) {
-                    productCodeByProductId.put(lineItem.Product__c, lineItem.Product__r.ProductCode);
+                productIdByWoliId.put(lineItem.Id, lineItem.Product2Id);
+                if (lineItem.Product2 != null) {
+                    productCodeByProductId.put(lineItem.Product2Id, lineItem.Product2.ProductCode);
                     productNameByProductId.put(
-                        lineItem.Product__c,
-                        String.isNotBlank(lineItem.Product__r.Description)
-                            ? lineItem.Product__r.Description
-                            : lineItem.Product__r.Name
+                        lineItem.Product2Id,
+                        String.isNotBlank(lineItem.Product2.Description)
+                            ? lineItem.Product2.Description
+                            : lineItem.Product2.Name
                     );
                 }
             }
@@ -437,8 +437,8 @@ public with sharing class ContentDocumentLinksService {
                 selectedProductIds
             )
         ) {
-            if (lineItem.Product__c != null && !woliIdByProductId.containsKey(lineItem.Product__c)) {
-                woliIdByProductId.put(lineItem.Product__c, lineItem.Id);
+            if (lineItem.Product2Id != null && !woliIdByProductId.containsKey(lineItem.Product2Id)) {
+                woliIdByProductId.put(lineItem.Product2Id, lineItem.Id);
             }
         }
         if (woliIdByProductId.isEmpty()) {

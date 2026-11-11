@@ -362,11 +362,9 @@ public with sharing class TechAccountAlignmentService {
         List<List<String>> table;
         if (isExcel) {
             try {
-                table = parseXlsx(version.VersionData);
-            } catch (AuraHandledException e) {
-                throw e;
-            } catch (Exception e) {
-                throw auraError('Unable to read the Excel file. Download the template and save it as CSV.');
+                table = ExcelFileParser.readFirstSheet(version.VersionData);
+            } catch (ExcelFileParser.ParseException e) {
+                throw auraError(excelUploadMessage(e));
             }
         } else {
             table = parseCsv(version.VersionData.toString());
@@ -490,135 +488,12 @@ public with sharing class TechAccountAlignmentService {
         return true;
     }
 
-    private static List<List<String>> parseXlsx(Blob fileBody) {
-        Compression.ZipReader zipReader = new Compression.ZipReader(fileBody);
-        String sharedStringsXml;
-        String sheetXml;
-        for (Compression.ZipEntry entry : zipReader.getEntries()) {
-            String entryName = entry.getName() == null ? '' : entry.getName().replace('\\', '/').toLowerCase();
-            if (entryName.endsWith('xl/sharedstrings.xml')) {
-                sharedStringsXml = zipReader.extract(entry).toString();
-            } else if (entryName.endsWith('xl/worksheets/sheet1.xml')) {
-                sheetXml = zipReader.extract(entry).toString();
-            } else if (sheetXml == null && entryName.contains('xl/worksheets/sheet') && entryName.endsWith('.xml')) {
-                sheetXml = zipReader.extract(entry).toString();
-            }
+    private static String excelUploadMessage(ExcelFileParser.ParseException e) {
+        String detail = e == null ? null : e.getMessage();
+        if (String.isNotBlank(detail) && detail.contains('worksheet')) {
+            return 'The Excel file does not contain a worksheet that can be read. Save the template as CSV and try again.';
         }
-        if (String.isBlank(sheetXml)) {
-            throw auraError('The Excel file does not contain a worksheet that can be read. Save the template as CSV and try again.');
-        }
-        List<String> sharedStrings = parseSharedStrings(sharedStringsXml);
-        return parseSheetXml(sheetXml, sharedStrings);
-    }
-
-    private static List<String> parseSharedStrings(String xmlBody) {
-        List<String> values = new List<String>();
-        if (String.isBlank(xmlBody)) {
-            return values;
-        }
-        XmlStreamReader reader = new XmlStreamReader(xmlBody);
-        while (reader.hasNext()) {
-            if (reader.getEventType() == XmlTag.START_ELEMENT && reader.getLocalName() == 't') {
-                reader.next();
-                values.add(reader.getEventType() == XmlTag.CHARACTERS ? reader.getText() : '');
-            }
-            reader.next();
-        }
-        return values;
-    }
-
-    private static List<List<String>> parseSheetXml(String xmlBody, List<String> sharedStrings) {
-        Map<Integer, Map<Integer, String>> cellsByRow = new Map<Integer, Map<Integer, String>>();
-        Integer maxColumn = 0;
-        XmlStreamReader reader = new XmlStreamReader(xmlBody);
-        String cellRef;
-        String cellType;
-        while (reader.hasNext()) {
-            if (reader.getEventType() == XmlTag.START_ELEMENT) {
-                String localName = reader.getLocalName();
-                if (localName == 'c') {
-                    cellRef = reader.getAttributeValue(null, 'r');
-                    cellType = reader.getAttributeValue(null, 't');
-                } else if (localName == 'v' && String.isNotBlank(cellRef)) {
-                    reader.next();
-                    String rawValue = reader.getEventType() == XmlTag.CHARACTERS ? reader.getText() : '';
-                    putCell(cellsByRow, cellRef, resolveCellValue(cellType, rawValue, sharedStrings));
-                    Integer columnIndex = columnIndexFromRef(cellRef);
-                    if (columnIndex > maxColumn) {
-                        maxColumn = columnIndex;
-                    }
-                } else if (localName == 't' && cellType == 'inlineStr' && String.isNotBlank(cellRef)) {
-                    reader.next();
-                    String rawValue = reader.getEventType() == XmlTag.CHARACTERS ? reader.getText() : '';
-                    putCell(cellsByRow, cellRef, rawValue);
-                    Integer columnIndex = columnIndexFromRef(cellRef);
-                    if (columnIndex > maxColumn) {
-                        maxColumn = columnIndex;
-                    }
-                }
-            }
-            reader.next();
-        }
-
-        List<Integer> rowNumbers = new List<Integer>(cellsByRow.keySet());
-        rowNumbers.sort();
-        List<List<String>> table = new List<List<String>>();
-        for (Integer rowNumber : rowNumbers) {
-            Map<Integer, String> rowCells = cellsByRow.get(rowNumber);
-            List<String> row = new List<String>();
-            for (Integer columnIndex = 0; columnIndex <= maxColumn; columnIndex++) {
-                row.add(rowCells.containsKey(columnIndex) ? rowCells.get(columnIndex) : '');
-            }
-            if (!isEmptyRow(row)) {
-                table.add(row);
-            }
-        }
-        return table;
-    }
-
-    private static void putCell(Map<Integer, Map<Integer, String>> cellsByRow, String cellRef, String value) {
-        Integer rowNumber = rowIndexFromRef(cellRef);
-        Integer columnIndex = columnIndexFromRef(cellRef);
-        if (!cellsByRow.containsKey(rowNumber)) {
-            cellsByRow.put(rowNumber, new Map<Integer, String>());
-        }
-        cellsByRow.get(rowNumber).put(columnIndex, value);
-    }
-
-    private static String resolveCellValue(String cellType, String rawValue, List<String> sharedStrings) {
-        if (cellType == 's') {
-            Integer index = Integer.valueOf(rawValue);
-            return index >= 0 && index < sharedStrings.size() ? sharedStrings[index] : rawValue;
-        }
-        return rawValue;
-    }
-
-    private static Integer columnIndexFromRef(String cellRef) {
-        String letters = '';
-        for (Integer i = 0; i < cellRef.length(); i++) {
-            String currentChar = cellRef.substring(i, i + 1);
-            if (currentChar >= 'A' && currentChar <= 'Z') {
-                letters += currentChar;
-            } else {
-                break;
-            }
-        }
-        Integer index = 0;
-        for (Integer i = 0; i < letters.length(); i++) {
-            index = (index * 26) + (letters.charAt(i) - 64);
-        }
-        return index - 1;
-    }
-
-    private static Integer rowIndexFromRef(String cellRef) {
-        String digits = '';
-        for (Integer i = 0; i < cellRef.length(); i++) {
-            String currentChar = cellRef.substring(i, i + 1);
-            if (currentChar >= '0' && currentChar <= '9') {
-                digits += currentChar;
-            }
-        }
-        return Integer.valueOf(digits);
+        return 'Unable to read the Excel file. Download the template and save it as CSV.';
     }
 
     private static AuraHandledException auraError(String message) {

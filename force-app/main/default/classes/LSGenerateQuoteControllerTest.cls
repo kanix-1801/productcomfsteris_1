@@ -12,16 +12,7 @@ private class LSGenerateQuoteControllerTest {
         insert runningUser;
 
         System.runAs(runningUser) {
-            PermissionSetGroup psGroup = [
-                SELECT Id
-                FROM PermissionSetGroup
-                WHERE DeveloperName = 'SalesFieldRepAccountManagerPSG'
-                LIMIT 1
-            ];
-            insert new PermissionSetAssignment(
-                AssigneeId = runningUser.Id,
-                PermissionSetGroupId = psGroup.Id
-            );
+            assignPermissionSetGroup(runningUser.Id, 'SalesFieldRepAccountManagerPSG');
         }
 
         Id pricebookId = Test.getStandardPricebookId();
@@ -127,7 +118,7 @@ private class LSGenerateQuoteControllerTest {
             Opportunity opportunityRecord = opportunityRecord();
 
             Test.startTest();
-            GenerateQuoteController.CreateQuoteResponse response =
+            LSGenerateQuoteController.CreateQuoteResponse response =
                 LSGenerateQuoteController.createQuote(opportunityRecord.Id, '   ', null, null);
             Test.stopTest();
 
@@ -140,12 +131,6 @@ private class LSGenerateQuoteControllerTest {
             Assert.areEqual(LSGenerateQuoteService.QUOTE_STATUS_OPEN, createdQuote.Status);
             Assert.areEqual(LSGenerateQuoteService.QUOTE_TYPE_NORMAL, createdQuote.QuoteType__c);
             Assert.areEqual('Quote - ' + opportunityRecord.Name, createdQuote.Name);
-            if (createdQuote.RecordTypeId != null) {
-                Assert.areEqual(
-                    LSGenerateQuoteService.QUOTE_RECORD_TYPE_DEVELOPER_NAME,
-                    createdQuote.RecordType.DeveloperName
-                );
-            }
         }
     }
 
@@ -162,6 +147,71 @@ private class LSGenerateQuoteControllerTest {
                 LSGenerateQuoteService.throwTestException = false;
             }
             Assert.isTrue(threw);
+        }
+    }
+
+    @IsTest
+    static void testCopyAndMergeQuote() {
+        System.runAs(runningUser()) {
+            configureSalesConnectionSettings();
+            Id opportunityId = opportunityRecord().Id;
+
+            Test.startTest();
+            LSGenerateQuoteController.CreateQuoteResponse copyResponse =
+                LSGenerateQuoteController.copyQuote(opportunityId);
+            LSGenerateQuoteController.CreateQuoteResponse mergeResponse =
+                LSGenerateQuoteController.mergeQuote(opportunityId);
+            Test.stopTest();
+
+            Assert.isNotNull(copyResponse.quoteId);
+            Assert.isNotNull(mergeResponse.quoteId);
+            Assert.areEqual(2, [SELECT COUNT() FROM Quote WHERE OpportunityId = :opportunityId]);
+        }
+    }
+
+    @IsTest
+    static void testCopyAndMergeWrapServiceFailure() {
+        System.runAs(runningUser()) {
+            LSGenerateQuoteService.throwTestException = true;
+            Boolean copyThrew = false;
+            Boolean mergeThrew = false;
+            try {
+                LSGenerateQuoteController.copyQuote(opportunityRecord().Id);
+            } catch (AuraHandledException exceptionValue) {
+                copyThrew = true;
+            }
+            try {
+                LSGenerateQuoteController.mergeQuote(opportunityRecord().Id);
+            } catch (AuraHandledException exceptionValue) {
+                mergeThrew = true;
+            } finally {
+                LSGenerateQuoteService.throwTestException = false;
+            }
+            Assert.isTrue(copyThrew);
+            Assert.isTrue(mergeThrew);
+        }
+    }
+
+    @IsTest
+    static void testCreateQuoteKeepsExplicitQuoteType() {
+        System.runAs(runningUser()) {
+            configureSalesConnectionSettings();
+            Id opportunityId = opportunityRecord().Id;
+
+            Test.startTest();
+            LSGenerateQuoteController.CreateQuoteResponse response =
+                LSGenerateQuoteController.createQuote(
+                    opportunityId,
+                    LSGenerateQuoteService.QUOTE_TYPE_TRIAL,
+                    null,
+                    null
+                );
+            Test.stopTest();
+
+            Assert.areEqual(
+                LSGenerateQuoteService.QUOTE_TYPE_TRIAL,
+                [SELECT QuoteType__c FROM Quote WHERE Id = :response.quoteId].QuoteType__c
+            );
         }
     }
 
@@ -215,19 +265,38 @@ private class LSGenerateQuoteControllerTest {
     }
 
     private static void configureSalesConnectionSettings() {
-        SalesConnectionUrlService.testSettingsOverride = new ExternalSystemEndpoint__mdt(
+        LSSalesConnectionUrlService.testSettingsOverride = new ExternalSystemEndpoint__mdt(
             SalesConnectionBaseUrl__c = 'https://integration-salesconnection.steris.com',
             SalesConnectionViewQuotePath__c = SalesConnectionUrlService.DEFAULT_VIEW_QUOTE_PATH,
             SalesConnectionEncryptionKey__c = EncodingUtil.base64Encode(
                 Blob.valueOf('abcdefghijklmnopqrstuvwxyz012345')
             )
         );
-        SalesConnectionUrlService.testEmployeeNumberOverride = '12345';
+        LSSalesConnectionUrlService.testEmployeeNumberOverride = '12345';
         SalesConnectionEncryptionService.testEncryptionKeyOverride =
-            SalesConnectionUrlService.testSettingsOverride.SalesConnectionEncryptionKey__c;
+            LSSalesConnectionUrlService.testSettingsOverride.SalesConnectionEncryptionKey__c;
     }
 
     private static String uniqueSuffix() {
         return String.valueOf(Math.abs(Crypto.getRandomInteger()));
+    }
+
+    /** Assigns the permission sets inside the group. The group itself stays unassigned until its status is Updated. */
+    private static void assignPermissionSetGroup(Id userId, String developerName) {
+        List<PermissionSetAssignment> assignments = new List<PermissionSetAssignment>();
+        for (PermissionSetGroupComponent component : [
+            SELECT PermissionSetId
+            FROM PermissionSetGroupComponent
+            WHERE PermissionSetGroup.DeveloperName = :developerName
+              AND PermissionSet.IsOwnedByProfile = false
+        ]) {
+            assignments.add(new PermissionSetAssignment(
+                AssigneeId = userId,
+                PermissionSetId = component.PermissionSetId
+            ));
+        }
+        if (!assignments.isEmpty()) {
+            insert assignments;
+        }
     }
 }

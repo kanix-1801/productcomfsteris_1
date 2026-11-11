@@ -4,14 +4,167 @@
  *
  * @group Quote Line Item
  *
- * @description Orchestrates before-save and after-save Quote Line Item trigger behavior.
+ * @description Orchestrates Quote Line Item trigger behavior and Sprint 9 Repair Center queries.
  */
 public with sharing class QuoteLineItemService {
+    private static final List<String> PRICING_FRAMEWORK_FIELDS = new List<String>{
+        'Id',
+        'Product2.ProductCode',
+        'Product2.PricingSource__c',
+        'Quantity'
+    };
+
+    private static final List<String> PRICING_FRAMEWORK_HEADLESS_FIELDS = new List<String>{
+        'Id',
+        'QuoteId',
+        'Product2Id',
+        'Product2.ProductCode',
+        'Product2.PricingSource__c',
+        'PricebookEntryId',
+        'Quantity',
+        'PricebookEntry.Pricebook2Id',
+        'Quote.Pricebook2Id',
+        'Quote.CurrencyIsoCode',
+        'Quote.AccountId'
+    };
+
     @TestVisible
     private static List<AssetAction> testAssetActions;
 
     @TestVisible
     private static List<AssetActionSource> testAssetActionSources;
+
+    /**
+     * @description GW-5102 - Quote Line Items used when processing Repair Center quote email replies.
+     *              SYSTEM_MODE retained (builder is USER_MODE only).
+     * @param quoteId Quote Id
+     * @return Matching Quote Line Item rows
+     */
+    public static List<QuoteLineItem> getForQuoteEmailReplyByQuoteId(Id quoteId) {
+        if (quoteId == null) {
+            return new List<QuoteLineItem>();
+        }
+        return [
+            SELECT
+                Id,
+                QuoteId,
+                Quantity,
+                Description,
+                LineType__c,
+                Status__c,
+                Product2Id,
+                Product2.Name,
+                Product2.ProductCode,
+                Product2.Description,
+                Product2.Model__c,
+                Product2.ProductType__c,
+                WorkOrderLineItem__c,
+                ParentWorkOrderLineItem__c,
+                Asset__c,
+                SerialNumber__c,
+                Item__c,
+                ItemCode__c,
+                ItemDescription__c,
+                ProductDescription__c,
+                WorkOrder__c,
+                TopLevelWorkOrder__c
+            FROM QuoteLineItem
+            WHERE QuoteId = :quoteId
+            WITH SYSTEM_MODE
+            ORDER BY LineNumber ASC
+        ];
+    }
+
+    /**
+     * @description GW-5333 - Selects Quote Line Items for Approve/Reject Quote.
+     *              SYSTEM_MODE retained (builder is USER_MODE only).
+     * @param quoteId Quote Id
+     * @return Matching Quote Line Item rows
+     */
+    public static List<QuoteLineItem> getForApproveRejectByQuoteId(Id quoteId) {
+        if (quoteId == null) {
+            return new List<QuoteLineItem>();
+        }
+        return [
+            SELECT
+                Id,
+                QuoteId,
+                LineNumber,
+                Quantity,
+                Description,
+                TotalPrice,
+                LineType__c,
+                Status__c,
+                QuoteComments__c,
+                ParentQuoteLineItemId,
+                Product2Id,
+                WorkOrderLineItem__c,
+                ParentWorkOrderLineItem__c,
+                Asset__c,
+                SerialNumber__c,
+                Item__c,
+                ItemCode__c,
+                ItemDescription__c,
+                ProductDescription__c,
+                WorkOrder__c,
+                TopLevelWorkOrder__c
+            FROM QuoteLineItem
+            WHERE QuoteId = :quoteId
+            WITH SYSTEM_MODE
+            ORDER BY LineNumber ASC
+        ];
+    }
+
+    /**
+     * @description GW-5333 - Selects a Quote Line Item for comment updates.
+     *              SYSTEM_MODE retained (builder is USER_MODE only).
+     * @param quoteLineItemId Quote Line Item Id
+     * @return Matching Quote Line Item, or null
+     */
+    public static QuoteLineItem getForApproveRejectById(Id quoteLineItemId) {
+        if (quoteLineItemId == null) {
+            return null;
+        }
+        List<QuoteLineItem> lineItems = [
+            SELECT Id, QuoteId, QuoteComments__c
+            FROM QuoteLineItem
+            WHERE Id = :quoteLineItemId
+            WITH SYSTEM_MODE
+            LIMIT 1
+        ];
+        return lineItems.isEmpty() ? null : lineItems[0];
+    }
+
+    /**
+     * @description GW-4585 - Quote lines used when pricing JSON does not include line rows.
+     * @param quoteIds Quote header Ids
+     * @return Quote line items with product pricing fields
+     */
+    public static List<QuoteLineItem> getForPricingFrameworkByQuoteIds(Set<Id> quoteIds) {
+        if (quoteIds == null || quoteIds.isEmpty()) {
+            return new List<QuoteLineItem>();
+        }
+        return (List<QuoteLineItem>) new QuoteLineItemSelector()
+            .selectFields(PRICING_FRAMEWORK_FIELDS)
+            .whereIn('QuoteId', new List<Id>(quoteIds))
+            .execute();
+    }
+
+    /**
+     * @description GW-4585 - Quote lines used to build Salesforce Headless Pricing JSON.
+     * @param lineIds Quote line item Ids
+     * @return Quote line items with header and price book context
+     */
+    public static Map<Id, QuoteLineItem> getForPricingFrameworkHeadlessByIds(Set<Id> lineIds) {
+        if (lineIds == null || lineIds.isEmpty()) {
+            return new Map<Id, QuoteLineItem>();
+        }
+        List<QuoteLineItem> rows = (List<QuoteLineItem>) new QuoteLineItemSelector()
+            .selectFields(PRICING_FRAMEWORK_HEADLESS_FIELDS)
+            .whereIn('Id', new List<Id>(lineIds))
+            .execute();
+        return new Map<Id, QuoteLineItem>(rows);
+    }
 
     /**
      * @description Before-insert orchestration: constraint engine node status (GW-5302).
@@ -367,7 +520,6 @@ public with sharing class QuoteLineItemService {
                     'LineType__c',
                     'Status__c',
                     'TotalPrice',
-                    'NetTotalPrice',
                     'NetTotalPrice__c',
                     'ProductLine__c',
                     'ParentWorkOrderLineItem__c',
@@ -399,7 +551,7 @@ public with sharing class QuoteLineItemService {
      * @return Matching Quote Line Item rows
      */
     public static List<QuoteLineItem> getLineItemsForApproveReject(Id quoteId) {
-        return QuoteLineItemSelector.selectForApproveRejectByQuoteId(quoteId);
+        return getForApproveRejectByQuoteId(quoteId);
     }
 
     /**
@@ -434,7 +586,7 @@ public with sharing class QuoteLineItemService {
      * @return Updated Quote Line Item
      */
     public static QuoteLineItem saveQuoteComments(Id quoteLineItemId, String comments) {
-        QuoteLineItem lineItem = QuoteLineItemSelector.selectForApproveRejectById(quoteLineItemId);
+        QuoteLineItem lineItem = getForApproveRejectById(quoteLineItemId);
         if (lineItem == null) {
             throw new QuoteLineItemServiceException('Quote Line Item was not found.');
         }

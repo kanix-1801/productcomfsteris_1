@@ -15,21 +15,42 @@ public without sharing class LSOpportunityOwnerSelector {
 
     /**
      * @description
-     * GCL-73 - Profile and role of the running user.
+     * GCL-73 - Id and role of the running user. UserInfo is used because a
+     * Life Sciences Sales user cannot query User.Profile or User.UserRoleId.
      *
-     * @return Running user, or null when the row cannot be read.
+     * @return Running user.
      *
      * @example
      * LSOpportunityOwnerSelector.selectRunningUser();
      */
     public static User selectRunningUser() {
-        List<User> users = [
-            SELECT Id, Profile.Name, UserRoleId
-            FROM User
-            WHERE Id = :UserInfo.getUserId()
-            LIMIT 1
-        ];
-        return users.isEmpty() ? null : users[0];
+        return new User(
+            Id = UserInfo.getUserId(),
+            UserRoleId = UserInfo.getUserRoleId()
+        );
+    }
+
+    /**
+     * @description
+     * GCL-73 - Profile name for a Profile Id. System mode is required because
+     * a Life Sciences Sales user cannot query Profile.
+     *
+     * @param profileId Profile Id from UserInfo.getProfileId.
+     * @return Profile name, or null when the profile cannot be read.
+     *
+     * @example
+     * LSOpportunityOwnerSelector.selectProfileName(profileId);
+     */
+    public static String selectProfileName(Id profileId) {
+        if (profileId == null) {
+            return null;
+        }
+        List<Profile> profiles = Database.queryWithBinds(
+            'SELECT Name FROM Profile WHERE Id = :profileId LIMIT 1',
+            new Map<String, Object>{ 'profileId' => profileId },
+            AccessLevel.SYSTEM_MODE
+        );
+        return profiles.isEmpty() ? null : profiles[0].Name;
     }
 
     /**
@@ -47,13 +68,15 @@ public without sharing class LSOpportunityOwnerSelector {
         if (userId == null) {
             return false;
         }
-        return ![
-            SELECT Id
-            FROM PermissionSetAssignment
-            WHERE AssigneeId = :userId
-            AND PermissionSet.Name = :BUSINESS_SYSTEM_ADMIN_PERMISSION_SET
-            LIMIT 1
-        ].isEmpty();
+        List<PermissionSetAssignment> assignments = Database.queryWithBinds(
+            'SELECT Id FROM PermissionSetAssignment WHERE AssigneeId = :userId AND PermissionSet.Name = :permissionSetName LIMIT 1',
+            new Map<String, Object>{
+                'userId' => userId,
+                'permissionSetName' => BUSINESS_SYSTEM_ADMIN_PERMISSION_SET
+            },
+            AccessLevel.SYSTEM_MODE
+        );
+        return !assignments.isEmpty();
     }
 
     /**
@@ -71,11 +94,12 @@ public without sharing class LSOpportunityOwnerSelector {
         if (userIds == null || userIds.isEmpty()) {
             return roleIdByUserId;
         }
-        for (User owner : [
-            SELECT Id, UserRoleId
-            FROM User
-            WHERE Id IN :userIds
-        ]) {
+        List<User> owners = Database.queryWithBinds(
+            'SELECT Id, UserRoleId FROM User WHERE Id IN :userIds',
+            new Map<String, Object>{ 'userIds' => userIds },
+            AccessLevel.SYSTEM_MODE
+        );
+        for (User owner : owners) {
             roleIdByUserId.put(owner.Id, owner.UserRoleId);
         }
         return roleIdByUserId;
@@ -93,11 +117,12 @@ public without sharing class LSOpportunityOwnerSelector {
      */
     public static Map<Id, Id> selectParentRoleIdByRoleId() {
         Map<Id, Id> parentRoleIdByRoleId = new Map<Id, Id>();
-        for (UserRole roleRecord : [
-            SELECT Id, ParentRoleId
-            FROM UserRole
-            WHERE PortalType = 'None'
-        ]) {
+        List<UserRole> roles = Database.queryWithBinds(
+            'SELECT Id, ParentRoleId FROM UserRole WHERE PortalType = :portalType',
+            new Map<String, Object>{ 'portalType' => 'None' },
+            AccessLevel.SYSTEM_MODE
+        );
+        for (UserRole roleRecord : roles) {
             parentRoleIdByRoleId.put(roleRecord.Id, roleRecord.ParentRoleId);
         }
         return parentRoleIdByRoleId;

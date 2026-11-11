@@ -149,13 +149,66 @@ private class ModelQtyCoverageControllerTest {
             } catch (AuraHandledException e) {
                 thrownCount++;
             }
+            try {
+                ModelQtyCoverageController.searchPricingPrograms('ZZPP');
+            } catch (AuraHandledException e) {
+                thrownCount++;
+            }
+            try {
+                ModelQtyCoverageController.getPricingProgramsByNames(new List<String>{ 'PP-0001' });
+            } catch (AuraHandledException e) {
+                thrownCount++;
+            }
         }
         Test.stopTest();
 
         /********************************************
         * THEN
         ********************************************/
-        Assert.areEqual(4, thrownCount, 'Each method should throw an AuraHandledException');
+        Assert.areEqual(6, thrownCount, 'Each method should throw an AuraHandledException');
+    }
+
+    /**
+     * @description The Pricing Programs search returns active programs with their CT codes, and a saved program
+     *              is found again by its name.
+     */
+    @IsTest
+    static void testPricingPrograms() {
+        /********************************************
+        * SETUP
+        ********************************************/
+        ModelQtyCoverageTestDataFactory.grantPricingProgramAccess();
+        User contextUser = new User(Id = UserInfo.getUserId());
+        PricingProgram__c programRecord = ModelQtyCoverageTestDataFactory.createPricingProgram(
+            'ZZPP Controller', 'Active', Date.today(), null, new List<String>{ 'CT.ZZC01' }
+        );
+
+        /********************************************
+        * GIVEN
+        ********************************************/
+        Assert.areEqual(1, [SELECT COUNT() FROM PricingProgramLines__c], 'One CT code line');
+
+        /********************************************
+        * WHEN
+        ********************************************/
+        List<ContractModifierService.PricingProgramOption> searchList;
+        List<ContractModifierService.PricingProgramOption> byNameList;
+        Test.startTest();
+        System.runAs(contextUser) {
+            searchList = ModelQtyCoverageController.searchPricingPrograms('ZZPP Contr');
+            byNameList = ModelQtyCoverageController.getPricingProgramsByNames(
+                new List<String>{ programRecord.Name }
+            );
+        }
+        Test.stopTest();
+
+        /********************************************
+        * THEN
+        ********************************************/
+        Assert.areEqual(1, searchList.size(), 'The active program is found');
+        Assert.areEqual(programRecord.Name, searchList[0].program, 'Program name');
+        Assert.areEqual('CT.ZZC01', searchList[0].ctCodes[0].code, 'CT code of the program');
+        Assert.areEqual(1, byNameList.size(), 'The program is found by its name');
     }
 
     /**

@@ -184,4 +184,49 @@ private class AssetsSelectorTest {
 
         Assert.areEqual(1, results.size());
     }
+
+    @IsTest
+    static void selectByAccountIdWithLimit_orderAscending_returnsAlphaFirst() {
+        Id acc1Id = accountId('Asset Test Account 1');
+
+        Test.startTest();
+        List<Asset> limited = AssetsSelector.selectByAccountId(new Set<Id>{ acc1Id }, 1, 'Name ASC');
+        Test.stopTest();
+
+        Assert.areEqual(1, limited.size());
+        Assert.areEqual('Alpha Pump', limited[0].Name);
+    }
+
+    @IsTest
+    static void selectForCreateReturnOrder_guardsAndHappyPaths() {
+        Id acc1Id = accountId('Asset Test Account 1');
+        Asset alpha = [
+            SELECT Id, SerialNumber
+            FROM Asset
+            WHERE Name = 'Alpha Pump'
+            LIMIT 1
+        ];
+
+        Test.startTest();
+        Assert.isTrue(AssetsSelector.selectForCreateReturnOrderByAccountId(null).isEmpty());
+        List<Asset> byAccount = AssetsSelector.selectForCreateReturnOrderByAccountId(acc1Id);
+        Assert.isTrue(AssetsSelector.selectForCreateReturnOrderByIds(null).isEmpty());
+        Assert.isTrue(AssetsSelector.selectForCreateReturnOrderByIds(new Set<Id>()).isEmpty());
+        List<Asset> byIds = AssetsSelector.selectForCreateReturnOrderByIds(new Set<Id>{ alpha.Id });
+        Assert.isTrue(AssetsSelector.selectForCreateReturnOrderBySerialNumber(null).isEmpty());
+        Assert.isTrue(AssetsSelector.selectForCreateReturnOrderBySerialNumber('').isEmpty());
+        List<Asset> bySerial =
+            AssetsSelector.selectForCreateReturnOrderBySerialNumber(alpha.SerialNumber);
+        Assert.isTrue(AssetsSelector.selectAccountIdsByIds(null).isEmpty());
+        Assert.isTrue(AssetsSelector.selectAccountIdsByIds(new Set<Id>()).isEmpty());
+        List<Asset> accountIds = AssetsSelector.selectAccountIdsByIds(new Set<Id>{ alpha.Id });
+        Test.stopTest();
+
+        Assert.isFalse(byAccount.isEmpty());
+        Assert.areEqual(1, byIds.size());
+        Assert.areEqual(alpha.Id, byIds[0].Id);
+        Assert.isFalse(bySerial.isEmpty());
+        Assert.areEqual(1, accountIds.size());
+        Assert.areEqual(acc1Id, accountIds[0].AccountId);
+    }
 }

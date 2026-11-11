@@ -2,9 +2,40 @@
  * @author Uptima
  * @date 2026-09-21
  * @group Repair Center
- * @description Selector for NonconformanceReport__c records.
+ * @description Selector for NonconformanceReport__c records. Queries use SoqlQueryBuilder.
  */
-public with sharing class NonconformanceReportsSelector {
+public with sharing class NonconformanceReportsSelector extends SoqlQueryBuilder {
+    private static final List<String> BY_WORK_ORDER_FIELDS = new List<String>{
+        'Id',
+        'Name',
+        'WorkOrder__c',
+        'WorkOrderLineItem__c',
+        'Account__c',
+        'Account__r.Name',
+        'RepairCenter__c',
+        'RepairCenter__r.Name',
+        'Department__c',
+        'Department__r.Name',
+        'NCRType__c',
+        'NCRStatus__c',
+        'Asset__c',
+        'SerialNumber__c',
+        'Product__c',
+        'Product__r.Name',
+        'ProductLine__c',
+        'Model__c',
+        'Manufacturer__c',
+        'WorkOrderLineItem__r.LineItemNumber',
+        'CreatedDate'
+    };
+
+    /**
+     * @description Binds this selector to NonconformanceReport__c for SoqlQueryBuilder queries.
+     */
+    public NonconformanceReportsSelector() {
+        this.objectName = 'NonconformanceReport__c';
+    }
+
     /**
      * @description GW-5497 / GW-5845 - Loads all NCR headers for a Work Order, number ascending.
      * @param workOrderId Work Order Id
@@ -14,34 +45,11 @@ public with sharing class NonconformanceReportsSelector {
         if (workOrderId == null) {
             return new List<NonconformanceReport__c>();
         }
-        return [
-            SELECT
-                Id,
-                Name,
-                WorkOrder__c,
-                WorkOrderLineItem__c,
-                Account__c,
-                Account__r.Name,
-                RepairCenter__c,
-                RepairCenter__r.Name,
-                Department__c,
-                Department__r.Name,
-                NCRType__c,
-                NCRStatus__c,
-                Asset__c,
-                SerialNumber__c,
-                Product__c,
-                Product__r.Name,
-                ProductLine__c,
-                Model__c,
-                Manufacturer__c,
-                WorkOrderLineItem__r.LineItemNumber,
-                CreatedDate
-            FROM NonconformanceReport__c
-            WHERE WorkOrder__c = :workOrderId
-            WITH USER_MODE
-            ORDER BY Name ASC
-        ];
+        return (List<NonconformanceReport__c>) SoqlQueryBuilder.fromObject('NonconformanceReport__c')
+            .selectFields(BY_WORK_ORDER_FIELDS)
+            .whereEquals('WorkOrder__c', workOrderId)
+            .orderBy('Name')
+            .execute();
     }
 
     /**
@@ -53,11 +61,9 @@ public with sharing class NonconformanceReportsSelector {
         if (reportIds == null || reportIds.isEmpty()) {
             return new List<NonconformanceReport__c>();
         }
-        return [
-            SELECT Id, Name
-            FROM NonconformanceReport__c
-            WHERE Id IN :reportIds
-            WITH USER_MODE
-        ];
+        return (List<NonconformanceReport__c>) SoqlQueryBuilder.fromObject('NonconformanceReport__c')
+            .selectFields(new List<String>{ 'Id', 'Name' })
+            .whereField('Id', 'IN', new List<Id>(reportIds))
+            .execute();
     }
 }

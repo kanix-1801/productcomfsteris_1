@@ -72,11 +72,11 @@ public with sharing class RepairCenterQuoteEmailSendAction {
                 return;
             }
             sendMessages(messages);
-        } catch (RepairCenterQuoteEmailSendException e) {
-            Logger.error('RepairCenterQuoteEmailSendAction.send', e);
-            throw e;
         } catch (Exception e) {
             Logger.error('RepairCenterQuoteEmailSendAction.send', e);
+            if (e instanceof RepairCenterQuoteEmailSendException) {
+                throw e;
+            }
             throw new RepairCenterQuoteEmailSendException(
                 'Quote email could not be sent: ' + e.getMessage(),
                 e

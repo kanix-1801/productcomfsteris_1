@@ -140,7 +140,7 @@ public with sharing class RepairCenterQuoteEmailService {
         mail.setHtmlBody(htmlBody);
         mail.setPlainTextBody(textBody);
 
-        QuoteDocument quoteDocument = QuoteDocumentsSelector.selectLatestByQuoteId(
+        QuoteDocument quoteDocument = QuoteDocumentsService.getLatestByQuoteId(
             quoteWorkOrder.ActiveQuote__c
         );
         if (quoteDocument != null && quoteDocument.Document != null) {
@@ -291,12 +291,14 @@ public with sharing class RepairCenterQuoteEmailService {
 
     private static void applyApproved(WorkOrder quoteWorkOrder) {
         List<QuoteLineItem> lineItems =
-            QuoteLineItemSelector.selectForQuoteEmailReplyByQuoteId(quoteWorkOrder.ActiveQuote__c);
+            QuoteLineItemService.getForQuoteEmailReplyByQuoteId(quoteWorkOrder.ActiveQuote__c);
         List<QuoteLineItem> lineUpdates = new List<QuoteLineItem>();
         for (QuoteLineItem lineItem : lineItems) {
             lineUpdates.add(new QuoteLineItem(Id = lineItem.Id, Status__c = QLI_STATUS_APPROVED));
         }
-        QuoteLineItemService.updateQuoteLineItems(lineUpdates);
+        if (!lineUpdates.isEmpty()) {
+            update lineUpdates;
+        }
         updateQuotes(
             new List<Quote>{
                 new Quote(Id = quoteWorkOrder.ActiveQuote__c, Status = QUOTE_STATUS_APPROVED)
@@ -306,7 +308,7 @@ public with sharing class RepairCenterQuoteEmailService {
 
     private static void applyRejected(WorkOrder quoteWorkOrder) {
         List<QuoteLineItem> lineItems =
-            QuoteLineItemSelector.selectForQuoteEmailReplyByQuoteId(quoteWorkOrder.ActiveQuote__c);
+            QuoteLineItemService.getForQuoteEmailReplyByQuoteId(quoteWorkOrder.ActiveQuote__c);
         Map<Id, Product2> productsById = loadProducts(lineItems);
         List<QuoteLineItem> lineUpdates = new List<QuoteLineItem>();
         List<QuoteLineItem> productServicedRejected = new List<QuoteLineItem>();
@@ -320,7 +322,9 @@ public with sharing class RepairCenterQuoteEmailService {
             }
         }
 
-        QuoteLineItemService.updateQuoteLineItems(lineUpdates);
+        if (!lineUpdates.isEmpty()) {
+            update lineUpdates;
+        }
         updateQuotes(
             new List<Quote>{
                 new Quote(Id = quoteWorkOrder.ActiveQuote__c, Status = QUOTE_STATUS_REJECTED)
@@ -370,16 +374,8 @@ public with sharing class RepairCenterQuoteEmailService {
             );
         }
         Product2 product = productId == null ? null : productsById.get(productId);
-        if (product == null) {
-            return false;
-        }
-        try {
-            Object serviceCodeType = product.get('ServiceCodeType__c');
-            return serviceCodeType != null &&
-                SERVICE_CODE_TYPE_DISINFECTION.equalsIgnoreCase(String.valueOf(serviceCodeType));
-        } catch (SObjectException ignored) {
-            return false;
-        }
+        return product != null &&
+            SERVICE_CODE_TYPE_DISINFECTION.equalsIgnoreCase(product.ServiceCodeType__c);
     }
 
     /**
@@ -465,7 +461,6 @@ public with sharing class RepairCenterQuoteEmailService {
                 ? lineItem.ItemDescription__c
                 : lineItem.Description;
             inspectionLine.PricebookEntryId = entry.Id;
-            inspectionLine.Product__c = inspectionProductId;
             inspectionLine.ProductCodeWoli__c = firstNonBlank(
                 inspectionProduct == null ? null : inspectionProduct.ProductCode,
                 entry.Product2 == null ? null : entry.Product2.ProductCode
@@ -509,28 +504,13 @@ public with sharing class RepairCenterQuoteEmailService {
     }
 
     private static Id inspectionProductFromProduct(Product2 product) {
-        if (product == null) {
+        if (product == null || product.InspectionFeeApplicable__c != true) {
             return null;
         }
-        try {
-            Object applicable = product.get('InspectionFeeApplicable__c');
-            if (applicable != true) {
-                return null;
-            }
-            return (Id) product.get('InspectionServiceCode__c');
-        } catch (SObjectException ignored) {
-            return null;
-        }
+        return product.InspectionServiceCode__c;
     }
 
     private static String resolveInspectionLineType(Product2 inspectionProduct) {
-        String serviceProductCategory = productFieldString(
-            inspectionProduct,
-            'ServiceProductCategory__c'
-        );
-        if (String.isNotBlank(serviceProductCategory)) {
-            return serviceProductCategory;
-        }
         if (inspectionProduct != null &&
             String.isNotBlank(inspectionProduct.ProductType__c) &&
             (inspectionProduct.ProductType__c == LINE_TYPE_SERVICE_CODE ||
@@ -538,18 +518,6 @@ public with sharing class RepairCenterQuoteEmailService {
             return inspectionProduct.ProductType__c;
         }
         return LINE_TYPE_SERVICE_CODE;
-    }
-
-    private static String productFieldString(Product2 product, String fieldApiName) {
-        if (product == null || String.isBlank(fieldApiName)) {
-            return null;
-        }
-        try {
-            Object value = product.get(fieldApiName);
-            return value == null ? null : String.valueOf(value);
-        } catch (SObjectException ignored) {
-            return null;
-        }
     }
 
     private static String firstNonBlank(String left, String right) {

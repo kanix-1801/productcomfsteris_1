@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>66.0</apiVersion>
+    <isExposed>true</isExposed>
+    <masterLabel>LS Customer 360 Panes</masterLabel>
+    <description>GCL-100 - Single Customer 360 view for the Customer record type only. The owner and Account Team members keep the existing page. Everyone else sees the read-only left pane and Details pane.</description>
+    <targets>
+        <target>lightning__RecordPage</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightning__RecordPage">
+            <property name="pane" type="String" label="Pane" datasource="Left,Center" default="Left" description="Left is the account card. Center is the Customer 360 details card." />
+            <objects>
+                <object>Account</object>
+            </objects>
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

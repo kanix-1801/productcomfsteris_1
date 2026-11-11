@@ -1,0 +1,51 @@
+<template>
+    <div class="button-wrap">
+        <lightning-button
+            variant="brand"
+            label="Create Opportunity"
+            title="Create Opportunity"
+            onclick={handleOpen}
+        ></lightning-button>
+    </div>
+
+    <template if:true={isOpen}>
+        <section
+            role="dialog"
+            tabindex="-1"
+            aria-modal="true"
+            aria-labelledby="dealer-opp-flow-title"
+            class="slds-modal slds-fade-in-open slds-modal_large"
+        >
+            <div class="slds-modal__container">
+                <header class="slds-modal__header">
+                    <button
+                        class="slds-button slds-button_icon slds-modal__close slds-button_icon-inverse"
+                        title="Close"
+                        onclick={handleClose}
+                    >
+                        <lightning-icon
+                            icon-name="utility:close"
+                            alternative-text="Close"
+                            variant="inverse"
+                            size="small"
+                        ></lightning-icon>
+                    </button>
+                    <h2 id="dealer-opp-flow-title" class="slds-text-heading_medium">
+                        Create Opportunity
+                    </h2>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium">
+                    <lightning-flow
+                        flow-api-name="CreateDealerOpportunity"
+                        onstatuschange={handleFlowStatusChange}
+                    ></lightning-flow>
+                </div>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open"></div>
+    </template>
+    <!-- Static reference so the published LWR page includes this flow screen component. -->
+    <template lwc:if={keepPickerInSiteBundle}>
+        <c-dealer-reference-picker></c-dealer-reference-picker>
+    </template>
+</template>

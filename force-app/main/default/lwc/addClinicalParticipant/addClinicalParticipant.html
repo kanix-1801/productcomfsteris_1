@@ -1,10 +1,20 @@
 <template>
-    <div class="participant-action">
-        <lightning-button
-            label="Add Clinical Participant"
-            title="Add Clinical Participant"
-            onclick={openPopup}>
-        </lightning-button>
-        <p class="summary">{summary}</p>
-    </div>
+    <template lwc:if={isNewLaunch}>
+        <template lwc:if={errorMessage}>
+            <div class="form">
+                <p class="slds-text-color_error slds-m-bottom_small">{errorMessage}</p>
+                <lightning-button variant="brand" label="Add Clinical Participant" onclick={openFromNew}></lightning-button>
+            </div>
+        </template>
+    </template>
+    <template lwc:else>
+        <div class="participant-action">
+            <lightning-button
+                label="Add Clinical Participant"
+                title="Add Clinical Participant"
+                onclick={openPopup}>
+            </lightning-button>
+            <p class="summary">{summary}</p>
+        </div>
+    </template>
 </template>

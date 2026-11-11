@@ -253,6 +253,14 @@
                         </template>
                     </div>
                     <div slot="actions-right">
+                        <template lwc:if={showRepairCostHeader}>
+                            <div class="repair-cost-header slds-m-right_small">
+                                <span class="repair-cost-header__label">Current Repair Cost</span>
+                                <span class="repair-cost-header__value">{currentRepairCostDisplay}</span>
+                                <span class="repair-cost-header__label">Updated Repair Cost</span>
+                                <span class="repair-cost-header__value">{updatedRepairCostDisplay}</span>
+                            </div>
+                        </template>
                         <template lwc:if={isWorkspaceMode}>
                             <lightning-button
                                 label="Next"
@@ -346,6 +354,18 @@
                                         </div>
                                     </div>
                                 </div>
+                            </div>
+                            <div class="additional-services-requested">
+                                <template lwc:if={workOrderId}>
+                                    <lightning-record-view-form
+                                        record-id={workOrderId}
+                                        object-api-name="WorkOrder"
+                                    >
+                                        <lightning-output-field
+                                            field-name="AdditionalServicesRequested__c"
+                                        ></lightning-output-field>
+                                    </lightning-record-view-form>
+                                </template>
                             </div>
                         </template>
                         <c-contamination-information
@@ -497,8 +517,21 @@
                                 quantity-hint={assetQuantityHint}
                                 done-label={assetPrimaryLabel}
                                 disabled={isAssetPrimaryDisabled}
+                                show-services
                                 ondone={handleAssetAddToSummary}
                             >
+                                <div slot="services">
+                                    <template lwc:if={workOrderId}>
+                                        <lightning-record-view-form
+                                            record-id={workOrderId}
+                                            object-api-name="WorkOrder"
+                                        >
+                                            <lightning-output-field
+                                                field-name="AdditionalServicesRequested__c"
+                                            ></lightning-output-field>
+                                        </lightning-record-view-form>
+                                    </template>
+                                </div>
                                 <div slot="toolbar">
                                     <lightning-button
                                         label="Take Photo"
@@ -805,6 +838,13 @@
                                 {emptySummaryMessage}
                             </p>
                         </template>
+                    </template>
+
+                    <template lwc:elseif={isModifierCodesTab}>
+                        <c-modifier-codes
+                            work-order-id={workOrderId}
+                            variant="instrument"
+                        ></c-modifier-codes>
                     </template>
 
                     <template lwc:elseif={isWorkPerformedTab}>
@@ -1201,9 +1241,22 @@
                                 quantity-disabled={modalQuantityDisabled}
                                 done-label={modalPrimaryLabel}
                                 disabled={modalBusy}
+                                show-services
                                 onquantitychange={handleModalQuantityChange}
                                 ondone={handleModalSave}
                             >
+                                <div slot="services">
+                                    <template lwc:if={workOrderId}>
+                                        <lightning-record-view-form
+                                            record-id={workOrderId}
+                                            object-api-name="WorkOrder"
+                                        >
+                                            <lightning-output-field
+                                                field-name="AdditionalServicesRequested__c"
+                                            ></lightning-output-field>
+                                        </lightning-record-view-form>
+                                    </template>
+                                </div>
                                 <div slot="toolbar">
                                     <lightning-button
                                         label="Take Photo"

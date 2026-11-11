@@ -9,9 +9,9 @@ private class PricingFrameworkSelectorsTest {
         System.assertNotEquals(null, new QuoteLineItemSelector());
         System.assertEquals(0, QuoteLineItemSelector.selectByOpportunityIds(null).size());
         System.assertEquals(0, QuoteLineItemSelector.selectByOpportunityIds(new Set<Id>()).size());
-        System.assertEquals(0, QuoteLineItemSelector.selectForQuoteEmailReplyByQuoteId(null).size());
-        System.assertEquals(0, QuoteLineItemSelector.selectForApproveRejectByQuoteId(null).size());
-        System.assertEquals(null, QuoteLineItemSelector.selectForApproveRejectById(null));
+        System.assertEquals(0, QuoteLineItemService.getForQuoteEmailReplyByQuoteId(null).size());
+        System.assertEquals(0, QuoteLineItemService.getForApproveRejectByQuoteId(null).size());
+        System.assertEquals(null, QuoteLineItemService.getForApproveRejectById(null));
         System.assertEquals(
             0,
             QuoteLineItemSelector.selectQuoteLineItemById(null, new List<String>{ 'Id' }).size()
@@ -23,10 +23,10 @@ private class PricingFrameworkSelectorsTest {
                 new List<String>()
             ).size()
         );
-        System.assertEquals(0, QuoteLineItemSelector.selectForPricingFrameworkByQuoteIds(null).size());
+        System.assertEquals(0, QuoteLineItemService.getForPricingFrameworkByQuoteIds(null).size());
         System.assertEquals(
             0,
-            QuoteLineItemSelector.selectForPricingFrameworkHeadlessByIds(null).size()
+            QuoteLineItemService.getForPricingFrameworkHeadlessByIds(null).size()
         );
         Test.stopTest();
     }
@@ -40,13 +40,13 @@ private class PricingFrameworkSelectorsTest {
         Test.startTest();
         System.assertEquals(
             0,
-            QuoteLineItemSelector.selectForPricingFrameworkByQuoteIds(
+            QuoteLineItemService.getForPricingFrameworkByQuoteIds(
                 new Set<Id>{ fakeQuoteId }
             ).size()
         );
         System.assertEquals(
             0,
-            QuoteLineItemSelector.selectForPricingFrameworkHeadlessByIds(
+            QuoteLineItemService.getForPricingFrameworkHeadlessByIds(
                 new Set<Id>{ fakeLineId }
             ).size()
         );
@@ -56,13 +56,13 @@ private class PricingFrameworkSelectorsTest {
         );
         System.assertEquals(
             0,
-            QuoteLineItemSelector.selectForQuoteEmailReplyByQuoteId(fakeQuoteId).size()
+            QuoteLineItemService.getForQuoteEmailReplyByQuoteId(fakeQuoteId).size()
         );
         System.assertEquals(
             0,
-            QuoteLineItemSelector.selectForApproveRejectByQuoteId(fakeQuoteId).size()
+            QuoteLineItemService.getForApproveRejectByQuoteId(fakeQuoteId).size()
         );
-        System.assertEquals(null, QuoteLineItemSelector.selectForApproveRejectById(fakeLineId));
+        System.assertEquals(null, QuoteLineItemService.getForApproveRejectById(fakeLineId));
         System.assertEquals(
             0,
             QuoteLineItemSelector.selectQuoteLineItemById(

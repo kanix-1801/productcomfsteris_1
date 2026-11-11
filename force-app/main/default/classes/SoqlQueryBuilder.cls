@@ -211,11 +211,19 @@ public virtual with sharing class SoqlQueryBuilder {
     }
 
     /**
-     * @description Builds and runs the query.
+     * @description Builds and runs the query in USER_MODE.
      * @return The matching records.
      */
     public List<SObject> execute() {
         return DynamicSoqlQuery.execute(build());
+    }
+
+    /**
+     * @description Builds and runs the query in SYSTEM_MODE (bypasses sharing; describe FLS still applies).
+     * @return The matching records.
+     */
+    public List<SObject> executeSystemMode() {
+        return DynamicSoqlQuery.execute(build(), System.AccessLevel.SYSTEM_MODE);
     }
 
     /**
@@ -226,6 +234,17 @@ public virtual with sharing class SoqlQueryBuilder {
     public Integer count() {
         return DynamicSoqlQuery.count(
             DynamicSoqlQuery.prepareCount(objectName, filters, filterLogic)
+        );
+    }
+
+    /**
+     * @description Builds and runs SELECT COUNT() in SYSTEM_MODE using the accumulated WHERE filters.
+     * @return Matching row count
+     */
+    public Integer countSystemMode() {
+        return DynamicSoqlQuery.count(
+            DynamicSoqlQuery.prepareCount(objectName, filters, filterLogic),
+            System.AccessLevel.SYSTEM_MODE
         );
     }
 

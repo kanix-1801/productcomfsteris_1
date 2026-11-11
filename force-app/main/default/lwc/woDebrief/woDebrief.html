@@ -1344,6 +1344,30 @@
 		<div class="slds-backdrop slds-backdrop_open picture-review-backdrop"></div>
 	</template>
 
+	<template lwc:if={showMissingPicturesPrompt}>
+		<section role="dialog" tabindex="-1" aria-modal="true" aria-labelledby="missing-pictures-heading" class="slds-modal slds-fade-in-open">
+			<div class="slds-modal__container">
+				<header class="slds-modal__header">
+					<h2 id="missing-pictures-heading" class="slds-modal__title">Pictures missing</h2>
+				</header>
+				<div class="slds-modal__content slds-p-around_medium">
+					<p class="slds-m-bottom_small">These Product Serviced lines have no picture:</p>
+					<ul class="slds-list_dotted slds-m-bottom_small">
+						<template for:each={missingPictureLines} for:item="line">
+							<li key={line.key}>{line.label}</li>
+						</template>
+					</ul>
+					<p>Return to take the pictures, or continue to finish the review without them.</p>
+				</div>
+				<footer class="slds-modal__footer">
+					<lightning-button label="Return to Take Pictures" onclick={handleMissingPicturesReturn}></lightning-button>
+					<lightning-button label="Continue" variant="brand" class="slds-m-left_x-small" onclick={handleMissingPicturesContinue}></lightning-button>
+				</footer>
+			</div>
+		</section>
+		<div class="slds-backdrop slds-backdrop_open"></div>
+	</template>
+
 	<template lwc:if={showPictureCommentCapture}>
 		<section role="dialog" tabindex="-1" aria-modal="true" aria-labelledby="picture-comment-capture-heading" class="slds-modal slds-fade-in-open picture-comment-capture-modal">
 			<div class="slds-modal__container">

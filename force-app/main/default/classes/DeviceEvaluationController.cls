@@ -278,6 +278,12 @@ public with sharing class DeviceEvaluationController {
         @AuraEnabled public Date shippedToVendorDate;
         @AuraEnabled public String trackingNumber;
         @AuraEnabled public String vendorAddress;
+        /** GW-3377 - Current Repair Cost (test header, Repair only). */
+        @AuraEnabled public Decimal originalNetTotalPrice;
+        /** GW-3377 - Updated Repair Cost after pricing (test header, Repair only). */
+        @AuraEnabled public Decimal newNetTotalPrice;
+        /** GW-3377 - Yellow warning when a Repair save exceeds the approved cost. */
+        @AuraEnabled public String requoteWarning;
     }
 
     /**
@@ -574,6 +580,48 @@ public with sharing class DeviceEvaluationController {
             logError('DeviceEvaluationController.completeEvaluation failed', e);
             throw PlatformUtilities.buildAuraException(
                 'Unable to complete Device Evaluation: ' + PlatformUtilities.resolveExceptionMessage(e)
+            );
+        } finally {
+            Logger.saveLog();
+        }
+    }
+
+    /**
+     * @description GW-3377 - Execute Pricing after WOLI DML has committed, then optionally Complete.
+     *              Separate Aura request from saveEvaluation so the Oracle callout is legal.
+     */
+    @AuraEnabled
+    public static EvaluationWorkspace finalizeDeviceEvaluationAfterPricing(
+        Id workOrderId,
+        Decimal originalNetTotal,
+        Boolean applyCompletion,
+        List<Id> restoreProductIds,
+        String subStatus
+    ) {
+        try {
+            if (workOrderId == null) {
+                throw PlatformUtilities.buildAuraException('Work Order is required.');
+            }
+            return mapContextToWorkspace(
+                WorkOrdersService.finalizeDeviceEvaluationAfterPricing(
+                    workOrderId,
+                    originalNetTotal,
+                    applyCompletion == true,
+                    restoreProductIds,
+                    subStatus
+                )
+            );
+        } catch (Exception e) {
+            if (e instanceof AuraHandledException) {
+                throw e;
+            }
+            if (isBusinessServiceException(e)) {
+                throw PlatformUtilities.buildAuraException(e.getMessage());
+            }
+            logError('DeviceEvaluationController.finalizeDeviceEvaluationAfterPricing failed', e);
+            throw PlatformUtilities.buildAuraException(
+                'Unable to price Device Evaluation: ' +
+                    PlatformUtilities.resolveExceptionMessage(e)
             );
         } finally {
             Logger.saveLog();
@@ -1247,6 +1295,9 @@ public with sharing class DeviceEvaluationController {
         workspace.productLine = context.productLine;
         workspace.workOrderProductLine = workOrder.ProductLine_f__c;
         workspace.deviceIdentityLine = context.deviceIdentityLine;
+        workspace.originalNetTotalPrice = context.originalNetTotalPrice;
+        workspace.newNetTotalPrice = context.newNetTotalPrice;
+        workspace.requoteWarning = context.requoteWarning;
         workspace.subStatusOptions = getSubStatusOptions(
             workOrder.Status,
             workOrder.ProductLine_f__c,
@@ -1275,7 +1326,7 @@ public with sharing class DeviceEvaluationController {
         workspace.vendorReferenceNumber = workOrder.VendorReferenceNumber__c;
         workspace.vendorCost = workOrder.VendorCost__c;
         workspace.shippedToVendorDate = workOrder.ShippedToVendorDate__c;
-        workspace.trackingNumber = workOrder.TrackingNumber__c;
+        // GW-6358: tracking number comes from the Vendor Work Order's shipment (set below).
         applyVendorWorkOrderHeaderToWorkspace(workspace, workOrder);
         if (workspace.vendorAccountId != null && String.isBlank(workspace.vendorAddress)) {
             workspace.vendorAddress = WorkOrdersService.getVendorAddress(
@@ -1291,7 +1342,7 @@ public with sharing class DeviceEvaluationController {
 
     /**
      * @description Prefers Vendor WO header fields when linked (matches Instrument Evaluation).
-     *              Tracking Number is written to the Vendor WO by shipment flows, not the eval WO.
+     *              Tracking Number comes from the first Shipment on the Vendor Return Order (GW-6358).
      */
     private static void applyVendorWorkOrderHeaderToWorkspace(
         EvaluationWorkspace workspace,
@@ -1362,7 +1413,7 @@ public with sharing class DeviceEvaluationController {
             row.id = signature.Id;
             row.workOrderLineItemId = signature.WorkOrderLineItem__c;
             row.productId = signature.WorkOrderLineItem__r != null
-                ? signature.WorkOrderLineItem__r.Product__c
+                ? signature.WorkOrderLineItem__r.Product2Id
                 : null;
             row.userId = signature.Person__c;
             row.userName = signature.Person__r != null &&
@@ -1479,8 +1530,8 @@ public with sharing class DeviceEvaluationController {
         Integer index = 0;
         for (WorkOrderLineItem lineItem : historyWorkOrder.WorkOrderLineItems) {
             String productCode =
-                lineItem.Product__r != null ? lineItem.Product__r.ProductCode : null;
-            String productName = lineItem.Product__r != null ? lineItem.Product__r.Name : null;
+                lineItem.Product2 != null ? lineItem.Product2.ProductCode : null;
+            String productName = lineItem.Product2 != null ? lineItem.Product2.Name : null;
             String label;
             if (String.isNotBlank(productCode) && String.isNotBlank(productName)) {
                 label = productCode + ': ' + productName;

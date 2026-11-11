@@ -1,0 +1,11 @@
+<design:component label="LS Customer 360 Three Column Template">
+    <flexipage:template>
+        <flexipage:region name="left" label="Left Pane" defaultWidth="Small" />
+        <flexipage:region name="main" label="Center Pane" defaultWidth="Large" />
+        <flexipage:region name="right" label="Right Pane" defaultWidth="Small" />
+    </flexipage:template>
+    <design:supportedFormFactors>
+        <design:supportedFormFactor type="Large" />
+        <design:supportedFormFactor type="Small" />
+    </design:supportedFormFactors>
+</design:component>

@@ -38,6 +38,21 @@ private class WorkOrderLineItemBillingTypeTest {
         );
         insert product;
 
+        Id pricebookId = Test.getStandardPricebookId();
+        insert new PricebookEntry(
+            Pricebook2Id = pricebookId,
+            Product2Id = product.Id,
+            UnitPrice = 1,
+            IsActive = true
+        );
+        Id pricebookEntryId = [
+            SELECT Id
+            FROM PricebookEntry
+            WHERE Product2Id = :product.Id AND Pricebook2Id = :pricebookId
+            LIMIT 1
+        ]
+        .Id;
+
         Asset asset = new Asset(
             Name = 'Billing Type Service Asset',
             AccountId = account.Id,
@@ -49,7 +64,8 @@ private class WorkOrderLineItemBillingTypeTest {
         WorkOrder priorWorkOrder = new WorkOrder(
             AccountId = account.Id,
             AssetId = asset.Id,
-            Subject = 'Prior Billing Type WO'
+            Subject = 'Prior Billing Type WO',
+            Pricebook2Id = pricebookId
         );
         insert priorWorkOrder;
 
@@ -61,7 +77,7 @@ private class WorkOrderLineItemBillingTypeTest {
         WorkOrderLineItem priorPart = new WorkOrderLineItem(
             WorkOrderId = priorWorkOrder.Id,
             LineType__c = 'Parts',
-            Product__c = product.Id
+            PricebookEntryId = pricebookEntryId
         );
         if (usageConsumptionRtId != null) {
             priorPart.RecordTypeId = usageConsumptionRtId;

@@ -636,7 +636,7 @@ public with sharing class CreateTaskHelper {
             List<OrderItem> lines = [
                 SELECT Id, OrderId, OrderLineStatus__c, Active__c, ScheduledDate__c, CreateSubcase__c, IsScheduleDateCaplinesChanged__c, RequestDate__c, OrderLineType__c, ActualShipmentDate__c, Warehouse__c, Order.isActiveLCHold__c, Order.OrderClassification__c, Order.FinalShipmentDateNonPreinstall__c, 
                 Product2Id, Quantity, Product2.SalesCategory__c, Product2.ItemType__c, Product2.PSAM__r.ProductFAMCode__c, TASSalesCategory__c, OrderLineTypeRollup__c, OrderLineHold__c, Hold__c, Order.isMigrated__c, Order.AllNonPreinstaLinsHavBlnkActualShipDate__c, Order.NoOfCapitalLines__c, 
-                Order.Account.CustomerClassCode__c, Order.Status, Order.isActiveC1Hold__c, Order.isActiveC2Hold__c, Order.TurnsProject__c, Order.CreatedDate, Order.Guaranteed_Delivery__c, Order.Country__c, Order.NoOfIOAHolds__c, Order.NoOfENGHolds__c, Order.isActiveDFHold__c, Order.FirstScheduledDateNonPreinstall__c, Order.TradeInScheduledDate__c, Order.AllCapitalLinesClosed__c, Order.Type, Order.RegistrationNumber__c, Order.AllCapitalLinesClosedDate__c, 
+                Order.Account.CustomerClassCode__c, Order.Status, Order.isActiveC1Hold__c, Order.isActiveC2Hold__c, Order.TurnsProject__c, Order.CreatedDate, Order.Guaranteed_Delivery__c, Order.Country__c, Order.NoOfIOAHolds__c, Order.NoOfENGHolds__c, Order.isActiveDFHold__c, Order.FirstScheduledDateNonPreinstall__c, Order.TradeInScheduledDate__c, OrderClosedDate__c, Order.AllCapitalLinesClosed__c, Order.Type, Order.RegistrationNumber__c, Order.AllCapitalLinesClosedDate__c, 
                 SubCase__r.Customer_Want_Date__c, SubCase__r.PreInstallItem__c, SubCase__r.Status, Order.OrderLevelHold__c, ShippableFlag__c, 
                 Case__r.UrgentOrder__c, Case__r.GoNoGoSentDate__c, Case__r.OverAll_GO_NOGODecision__c, Case__r.IPMDecision__c, Case__r.Sales_Decision__c, Case__r.Status 
                 FROM OrderItem
@@ -1100,7 +1100,7 @@ public with sharing class CreateTaskHelper {
                 SELECT Id, Subject, Priority, Status, CreatedDate, FirstScheduledDate__c, FirstNonPreinstallScheduledDate__c, ReminderDateTime, 
                        ActivityDate, OwnerId, WhatId, Order__c, RiskLevel__c, Phase__c, 
                        Order__r.NoOfCapitalLines__c, OrderLine__r.ScheduledDate__c, OrderLine__r.PreviousScheduleDate__c, OrderLine__r.Subcase__r.Customer_Want_Date__c, OrderLine__r.Subcase__r.PreInstallItem__c, OrderLine__r.ActualShipmentDate__c, OrderLine__r.Quantity, 
-                       Order__r.FinalShipmentDateNonPreinstall__c, Order__r.CreatedDate, Order__r.ParentCase__r.GoNoGoSentDate__c, Order__r.FirstScheduledDateNonPreinstall__c, Order__r.TradeInScheduledDate__c, Order__r.AllCapitalLinesClosedDate__c, Order__r.AllReprocessingScheduledDate__c
+                       Order__r.FinalShipmentDateNonPreinstall__c, Order__r.CreatedDate, Order__r.ParentCase__r.GoNoGoSentDate__c, Order__r.FirstScheduledDateNonPreinstall__c, Order__r.TradeInScheduledDate__c, OrderLine__r.OrderClosedDate__c, Order__r.AllCapitalLinesClosedDate__c, Order__r.AllReprocessingScheduledDate__c
                 FROM Task
                 WHERE IsDeleted = false
                   AND Order__c IN :orderIds

@@ -524,13 +524,18 @@ static void testRefreshQuotesReturnsIntegrationPayload() {
         System.assertNotEquals(null, response.quoteId, 'Trial quote Id should be returned.');
 
         Quote createdQuote = [
-            SELECT IsForecastIneligible__c, QuoteType__c
+            SELECT IsForecastIneligible__c, QuoteType__c, QuoteForecastConfidence__c
             FROM Quote
             WHERE Id = :response.quoteId
             LIMIT 1
         ];
         System.assertEquals(true, createdQuote.IsForecastIneligible__c);
         System.assertEquals(GenerateQuoteService.QUOTE_TYPE_TRIAL, createdQuote.QuoteType__c);
+        System.assertEquals(
+            null,
+            createdQuote.QuoteForecastConfidence__c,
+            'Trial quotes should not copy Opportunity Forecast Confidence on create.'
+        );
 
         Opportunity updatedOpportunity = [
             SELECT IsForecastChangeNotificationPending__c
@@ -585,13 +590,18 @@ static void testRefreshQuotesReturnsIntegrationPayload() {
         System.assertNotEquals(null, response.quoteId, 'Sample quote Id should be returned.');
 
         Quote createdQuote = [
-            SELECT IsForecastIneligible__c, QuoteType__c, Sample__c, Name
+            SELECT IsForecastIneligible__c, QuoteType__c, Sample__c, Name, QuoteForecastConfidence__c
             FROM Quote
             WHERE Id = :response.quoteId
             LIMIT 1
         ];
         System.assertEquals(true, createdQuote.IsForecastIneligible__c);
         System.assertEquals(GenerateQuoteService.QUOTE_TYPE_SAMPLE, createdQuote.QuoteType__c);
+        System.assertEquals(
+            null,
+            createdQuote.QuoteForecastConfidence__c,
+            'Sample quotes should not copy Opportunity Forecast Confidence on create.'
+        );
         System.assertEquals(sampleRecord.Id, createdQuote.Sample__c);
         System.assert(
             createdQuote.Name.startsWith('Sample Quote - '),
@@ -626,7 +636,7 @@ static void testRefreshQuotesReturnsIntegrationPayload() {
     }
 
     @IsTest
-    static void testCreateGoodwillQuoteForGoodwillOpportunity() {
+    static void testCreateNormalQuoteForGoodwillOpportunity() {
         User runningUser = getRunningUser();
 
         System.runAs(runningUser) {
@@ -652,7 +662,7 @@ static void testRefreshQuotesReturnsIntegrationPayload() {
             GenerateQuoteController.createQuote(opportunityRecord.Id, null, null, null);
         Test.stopTest();
 
-        System.assertNotEquals(null, response.quoteId, 'Goodwill quote Id should be returned.');
+        System.assertNotEquals(null, response.quoteId, 'Quote Id should be returned.');
 
         Quote createdQuote = [
             SELECT IsForecastIneligible__c, QuoteType__c, Name
@@ -660,23 +670,11 @@ static void testRefreshQuotesReturnsIntegrationPayload() {
             WHERE Id = :response.quoteId
             LIMIT 1
         ];
-        System.assertEquals(true, createdQuote.IsForecastIneligible__c);
-        System.assertEquals(GenerateQuoteService.QUOTE_TYPE_GOODWILL, createdQuote.QuoteType__c);
+        System.assertEquals(false, createdQuote.IsForecastIneligible__c);
+        System.assertEquals(GenerateQuoteService.QUOTE_TYPE_NORMAL, createdQuote.QuoteType__c);
         System.assert(
-            createdQuote.Name.startsWith('Goodwill Quote - '),
-            'Goodwill quote name should use the Goodwill prefix.'
-        );
-
-        Opportunity updatedOpportunity = [
-            SELECT IsForecastChangeNotificationPending__c
-            FROM Opportunity
-            WHERE Id = :opportunityRecord.Id
-            LIMIT 1
-        ];
-        System.assertEquals(
-            false,
-            updatedOpportunity.IsForecastChangeNotificationPending__c,
-            'Generate Goodwill Quote should not set the forecast change notification flag.'
+            createdQuote.Name.startsWith('Quote - '),
+            'Quote name should use the standard prefix on Goodwill Opportunities.'
         );
     }
     }

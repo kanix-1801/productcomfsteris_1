@@ -4,12 +4,10 @@
 @IsTest
 private class QuoteDocumentsSelectorTest {
     @IsTest
-    static void testSelectLatestByQuoteId_WhenNull_ReturnsNull() {
+    static void testConstructor_bindsQuoteDocument() {
         Test.startTest();
-        QuoteDocument document = QuoteDocumentsSelector.selectLatestByQuoteId(null);
-        QuoteDocument missing = QuoteDocumentsSelector.selectLatestByQuoteId(UserInfo.getUserId());
+        QuoteDocumentsSelector selector = new QuoteDocumentsSelector();
         Test.stopTest();
-        Assert.isNull(document);
-        Assert.isNull(missing);
+        Assert.isNotNull(selector);
     }
 }

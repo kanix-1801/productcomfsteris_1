@@ -6,7 +6,7 @@
  *
  * @description
  * GW-3600 / GW-5099 - Builds Repair Center Quote and Work Order document token data and submits
- * Document Generation requests.
+ * Document Generation requests. GW-4421 - Submits Vendor Form requests for vendor Work Orders.
  */
 public with sharing class RepairCenterDocGenService {
     public static final String LOGGER_TAG = 'RepairCenterQuoteDocGen';
@@ -52,6 +52,16 @@ public with sharing class RepairCenterDocGenService {
     public static final String DGP_STATUS = 'InProgress';
     public static final String DGP_INPUT_TYPE = 'DocumentTemplate';
     public static final String DGP_ADDITIONAL_INPUT_TYPE = 'ContextService';
+
+	public static final String VENDOR_PAPERWORK_TEMPLATE_NAME = 'WorkCenterVendorPaperworkTemplate';
+	public static final String VENDOR_PAPERWORK_TITLE_PREFIX = 'Vendor Form WO-';
+
+	// GW-5695 - Service Delivery Report (STERIS US) / Delivery Note (other Operating Units).
+	public static final String DOCUMENT_TYPE_DELIVERY = 'Delivery';
+	public static final String DOCUMENT_TITLE_SERVICE_DELIVERY_REPORT = 'Service Delivery Report';
+	public static final String DOCUMENT_TITLE_DELIVERY_NOTE = 'Delivery Note';
+	public static final Set<String> PRICED_WORK_ORDER_STATUSES = new Set<String>{ 'Ship', 'Completed', 'Closed' };
+	private static final String REQUEST_TEXT_DOCUMENT_TYPE_KEY = 'documentType';
 
     /**
      * @description Invocable entry point for Flow to submit a Repair Center Quote or Work Order
@@ -192,6 +202,43 @@ public with sharing class RepairCenterDocGenService {
         return processRecord.Id;
     }
 
+	/**
+	 * @description GW-4421 - Requests one Vendor Form PDF per vendor Work Order. Document Generation attaches
+	 *              each PDF to its Work Order. Failures are logged, never thrown, so vendor shipment Complete is not blocked.
+	 * @param workOrders Vendor Work Orders with Id and WorkOrderNumber populated.
+	 */
+	public static void generateVendorPaperwork(List<WorkOrder> workOrders) {
+		if (workOrders == null || workOrders.isEmpty()) {
+			return;
+		}
+		try {
+			Id templateId = DocumentTemplatesService.selectActiveIdByName(VENDOR_PAPERWORK_TEMPLATE_NAME);
+			if (templateId == null) {
+				throw new RepairCenterQuoteDocGenException('No active document template was found: ' + VENDOR_PAPERWORK_TEMPLATE_NAME);
+			}
+			Database.SaveResult[] saveResults = Database.insert(buildVendorPaperworkProcesses(workOrders, templateId), false, AccessLevel.USER_MODE);
+			for (Integer i = 0; i < saveResults.size(); i++) {
+				if (!saveResults[i].isSuccess()) {
+					Logger.error(new LogMessage('Vendor paperwork request failed for Work Order {0}: {1}', workOrders[i].WorkOrderNumber, firstSaveError(saveResults[i]))).addTag(LOGGER_TAG);
+				}
+			}
+		} catch (Exception ex) {
+			Logger.error(new LogMessage('Vendor paperwork generation failed: {0}', ex.getMessage()), ex).addTag(LOGGER_TAG);
+		} finally {
+			Logger.saveLog();
+		}
+	}
+
+	@TestVisible
+	private static List<DocumentGenerationProcess> buildVendorPaperworkProcesses(List<WorkOrder> workOrders, Id templateId) {
+		List<DocumentGenerationProcess> processes = new List<DocumentGenerationProcess>();
+		for (WorkOrder workOrderRecord : workOrders) {
+			String requestText = JSON.serialize(new Map<String, Object>{ 'keepIntermediate' => false, 'title' => VENDOR_PAPERWORK_TITLE_PREFIX + workOrderRecord.WorkOrderNumber });
+			processes.add(buildDocumentGenerationProcess(workOrderRecord.Id, templateId, requestText));
+		}
+		return processes;
+	}
+
     private static DocumentGenerationProcess buildDocumentGenerationProcess(
         Id referenceObjectId,
         Id templateId,
@@ -248,8 +295,67 @@ public with sharing class RepairCenterDocGenService {
                 ? defaultTemplateName
                 : request.documentTemplateName;
         }
+        if (DOCUMENT_TYPE_DELIVERY.equalsIgnoreCase(request.documentType)) {
+            prepareDeliveryRequest(prepared, isWorkOrderRequest);
+        }
         return prepared;
     }
+
+	/**
+	 * @description GW-5695 - Points a delivery request at the parent Work Order (the file attaches there) and
+	 *              stamps the document type into RequestText so transformTokenData builds delivery tokens.
+	 * @param prepared Prepared request; reference Id, request text, or error message are updated in place.
+	 * @param isWorkOrderRequest True when the request has a Work Order Id.
+	 */
+	private static void prepareDeliveryRequest(PreparedDocumentGeneration prepared, Boolean isWorkOrderRequest) {
+		if (!isWorkOrderRequest) {
+			prepared.errorMessage = 'Work Order Id is required for delivery documents.';
+			return;
+		}
+		WorkOrder seedWorkOrder = WorkOrdersService.selectForRepairCenterDocumentGeneration(prepared.referenceObjectId);
+		if (seedWorkOrder == null) {
+			prepared.errorMessage = 'Work Order record was not found for document generation.';
+			return;
+		}
+		Id familyRootId = WorkOrdersService.resolveDocumentFamilyRootId(seedWorkOrder);
+		WorkOrder headerWorkOrder = familyRootId == seedWorkOrder.Id ? seedWorkOrder : WorkOrdersService.selectForRepairCenterDocumentGeneration(familyRootId);
+		String titleSuffix = resolveIsSterisUs(headerWorkOrder?.OperatingUnit__c) ? '-SDR' : '-DN';
+		prepared.referenceObjectId = familyRootId;
+		prepared.requestText = JSON.serialize(new Map<String, Object>{
+			'keepIntermediate' => false,
+			'title' => buildWorkOrderDocumentFileTitle(headerWorkOrder, familyRootId) + titleSuffix,
+			REQUEST_TEXT_DOCUMENT_TYPE_KEY => DOCUMENT_TYPE_DELIVERY
+		});
+	}
+
+	/**
+	 * @description GW-5695 - Reads the document type stamped on the in-progress Document Generation request for a Work Order.
+	 *              The transform only receives the Work Order Id, so this is how it tells a delivery document from the Order Acknowledgement.
+	 * @param workOrderId Reference Work Order Id.
+	 * @return True when the newest in-progress request for the Work Order asked for a delivery document.
+	 */
+	@TestVisible
+	private static Boolean isDeliveryDocumentRequested(Id workOrderId) {
+		try {
+			DocumentGenerationProcess process = (DocumentGenerationProcess) new DocumentGenerationProcessSelector()
+				.selectFields(new List<String>{ 'Id', 'RequestText' })
+				.whereEquals('ReferenceObject', workOrderId)
+				.whereEquals('Status', DGP_STATUS)
+				.orderByDesc('CreatedDate')
+				.first();
+			if (process == null || String.isBlank(process.RequestText)) {
+				return false;
+			}
+			Map<String, Object> requestText = (Map<String, Object>) JSON.deserializeUntyped(process.RequestText);
+			return DOCUMENT_TYPE_DELIVERY.equals(requestText.get(REQUEST_TEXT_DOCUMENT_TYPE_KEY));
+		} catch (Exception ex) {
+			// Free-text RequestText from older callers is not JSON; treat it as an Order Acknowledgement.
+			Logger.warn(new LogMessage('Could not read document type for Work Order {0}: {1}', workOrderId, ex.getMessage())).addTag(LOGGER_TAG);
+			return false;
+		} finally {
+			Logger.saveLog();
+		}
+	}
 
     /**
      * @description GW-5833 - Returns the default template name for a request. STERIS US uses the
@@ -419,7 +525,7 @@ public with sharing class RepairCenterDocGenService {
 
         Map<String, Object> transformedTokenData =
             referenceObjectId.getSObjectType() == WorkOrder.SObjectType
-                ? buildWorkOrderDocumentTokenData(referenceObjectId)
+                ? buildWorkOrderDocumentTokenData(referenceObjectId, isDeliveryDocumentRequested(referenceObjectId))
                 : buildDocumentTokenData(referenceObjectId);
         outputMap.put(TOKEN_DATA_KEY, JSON.serialize(transformedTokenData));
     }
@@ -587,9 +693,10 @@ public with sharing class RepairCenterDocGenService {
     /**
      * @description Builds the final token map for the Repair Center Work Order document template.
      * @param workOrderId Repair Center Work Order Id.
+     * @param isDeliveryDocument GW-5695 - True for the Service Delivery Report / Delivery Note, false for the Order Acknowledgement.
      * @return Token map consumed by the Word template.
      */
-    public static Map<String, Object> buildWorkOrderDocumentTokenData(Id workOrderId) {
+    public static Map<String, Object> buildWorkOrderDocumentTokenData(Id workOrderId, Boolean isDeliveryDocument) {
         WorkOrder seedWorkOrder =
             WorkOrdersService.selectForRepairCenterDocumentGeneration(workOrderId);
         if (seedWorkOrder == null) {
@@ -610,7 +717,7 @@ public with sharing class RepairCenterDocGenService {
 
         List<WorkOrderLineItem> familyLineItems =
             WorkOrderLineItemsService.selectForRepairCenterDocumentGeneration(familyRootId);
-        return buildDocumentTokenDataFromWorkOrder(headerWorkOrder, familyLineItems);
+        return buildDocumentTokenDataFromWorkOrder(headerWorkOrder, familyLineItems, isDeliveryDocument);
     }
 
     /**
@@ -624,14 +731,16 @@ public with sharing class RepairCenterDocGenService {
     ) {
         return buildDocumentTokenDataFromWorkOrder(
             workOrderRecord,
-            new List<WorkOrderLineItem>()
+            new List<WorkOrderLineItem>(),
+            false
         );
     }
 
     @TestVisible
     private static Map<String, Object> buildDocumentTokenDataFromWorkOrder(
         WorkOrder workOrderRecord,
-        List<WorkOrderLineItem> lineItems
+        List<WorkOrderLineItem> lineItems,
+        Boolean isDeliveryDocument
     ) {
         Map<String, Object> tokenData = new Map<String, Object>();
         String operatingUnit = workOrderRecord.OperatingUnit__c;
@@ -644,7 +753,14 @@ public with sharing class RepairCenterDocGenService {
             ? WORK_ORDER_TYPE_DEVICES
             : (isInstrumentsWorkOrder ? WORK_ORDER_TYPE_INSTRUMENTS : null);
 
-        tokenData.put('DocumentTitle', DOCUMENT_TITLE_ORDER_ACKNOWLEDGEMENT);
+        // GW-5695 - Header Ship Date is the parent Work Order's Actual Ship Date (delivery documents only).
+        Date shipDate = isDeliveryDocument ? workOrderRecord.ActualShipDate__c : null;
+        String deliveryTitle = isSterisUs ? DOCUMENT_TITLE_SERVICE_DELIVERY_REPORT : DOCUMENT_TITLE_DELIVERY_NOTE;
+        tokenData.put('DocumentTitle', isDeliveryDocument ? deliveryTitle : DOCUMENT_TITLE_ORDER_ACKNOWLEDGEMENT);
+        tokenData.put('IF_IsDeliveryDocument', isDeliveryDocument);
+        tokenData.put('IF_IsOrderAcknowledgement', !isDeliveryDocument);
+        tokenData.put('ShipDate', shipDate == null ? '' : formatDate(shipDate));
+        tokenData.put('IF_HasShipDate', shipDate != null);
         tokenData.put('IF_IsSterisUS', isSterisUs);
         tokenData.put('IF_IsSterisUK', !isSterisUs);
         tokenData.put('IF_IsDevicesWorkOrder', isDevicesWorkOrder);
@@ -716,7 +832,8 @@ public with sharing class RepairCenterDocGenService {
             workOrderType,
             isDevicesWorkOrder,
             isInstrumentsWorkOrder,
-            workOrderRecord.CurrencyIsoCode
+            workOrderRecord.CurrencyIsoCode,
+            isDeliveryDocument
         );
         tokenData.put('ProductServicedItems', productServicedItems);
         tokenData.put(
@@ -1334,7 +1451,8 @@ public with sharing class RepairCenterDocGenService {
         String workOrderType,
         Boolean isDevicesWorkOrder,
         Boolean isInstrumentsWorkOrder,
-        String currencyIsoCode
+        String currencyIsoCode,
+        Boolean isDeliveryDocument
     ) {
         List<Map<String, Object>> productServicedItems = new List<Map<String, Object>>();
 
@@ -1347,22 +1465,30 @@ public with sharing class RepairCenterDocGenService {
                 ? childLinesByParentId.get(lineItem.Id)
                 : new List<WorkOrderLineItem>();
 
-            Decimal itemTotal = sumWorkOrderChildLineTotals(childLines);
+            // GW-5695 - Delivery documents use the item's (child) Work Order Status and Actual Ship Date, and
+            // only price items in Ship, Completed, or Closed so the totals cover what is shown.
+            String status = isDeliveryDocument ? nullSafeString(lineItem.WorkOrder?.Status) : nullSafeString(lineItem.Status);
+            Boolean showPricing = !isDeliveryDocument || PRICED_WORK_ORDER_STATUSES.contains(status);
+            Date itemShipDate = isDeliveryDocument ? lineItem.WorkOrder?.ActualShipDate__c : null;
+            Decimal itemTotal = showPricing ? sumWorkOrderChildLineTotals(childLines) : 0;
             Map<String, Object> itemMap = new Map<String, Object>();
             itemMap.put('ItemNumber', resolveWorkOrderItemNumber(lineItem, workOrderType));
-            itemMap.put('Status', nullSafeString(lineItem.Status));
+            itemMap.put('Status', status);
             itemMap.put('TurnTime', lineItem.TurnTime__c);
+            itemMap.put('ShipDate', itemShipDate == null ? '' : formatDate(itemShipDate));
+            itemMap.put('IF_HasShipDate', itemShipDate != null);
+            itemMap.put('IF_ShowPricing', showPricing);
             itemMap.put('ProductDescription', nullSafeString(lineItem.ProductDescription__c));
             itemMap.put(
                 'RecommendedServices',
-                buildWorkOrderRecommendedServices(childLines, currencyIsoCode)
+                buildWorkOrderRecommendedServices(childLines, currencyIsoCode, showPricing)
             );
             itemMap.put(
                 'ReturnOrderLineItems',
                 buildWorkOrderReturnOrderLineItems(lineItem, isInstrumentsWorkOrder)
             );
             itemMap.put('ItemTotalAmount', itemTotal);
-            itemMap.put('ItemTotal', formatCurrency(itemTotal, currencyIsoCode));
+            itemMap.put('ItemTotal', showPricing ? formatCurrency(itemTotal, currencyIsoCode) : '');
             // Customer Facing Evaluator Comments = Evaluation Notes on the Product Serviced
             // line's Work Order (child device WO), matching Quote doc-gen behavior.
             itemMap.put(
@@ -1389,7 +1515,8 @@ public with sharing class RepairCenterDocGenService {
 
     private static List<Map<String, Object>> buildWorkOrderRecommendedServices(
         List<WorkOrderLineItem> childLines,
-        String currencyIsoCode
+        String currencyIsoCode,
+        Boolean showPricing
     ) {
         List<Map<String, Object>> recommendedServices = new List<Map<String, Object>>();
 
@@ -1407,7 +1534,7 @@ public with sharing class RepairCenterDocGenService {
             );
             serviceMap.put(
                 'TotalPrice',
-                formatCurrency(childLine.NetTotalPrice__c, currencyIsoCode)
+                showPricing ? formatCurrency(childLine.NetTotalPrice__c, currencyIsoCode) : ''
             );
             recommendedServices.add(serviceMap);
         }
@@ -1681,6 +1808,12 @@ public with sharing class RepairCenterDocGenService {
             description='Optional unique request text for the DocumentGenerationProcess record.'
         )
         public String requestText;
+
+		@InvocableVariable(
+			label='Document Type'
+			description='GW-5695 - Leave blank for the Order Acknowledgement. Delivery builds the Service Delivery Report (STERIS US) or Delivery Note (other Operating Units) on the parent Work Order; Request Text is ignored.'
+		)
+		public String documentType;
     }
 
     /**

@@ -15,12 +15,73 @@ private class ReceivingControllerTest {
         adb_Product2 productBuilder = new adb_Product2()
             .name('GW5492 Controller Product')
             .isActive(true);
+        Product2 product = (Product2) productBuilder.persist();
+        ensureReceivingPricebooksForProduct(product.Id);
+
         adb_ReturnOrderLineItem lineBuilder = new adb_ReturnOrderLineItem()
             .returnOrder(returnOrderBuilder)
             .quantityReturned(1);
-        lineBuilder.setParent(ReturnOrderLineItem.Product2Id, productBuilder);
+        lineBuilder.set(ReturnOrderLineItem.Product2Id, product.Id);
         lineBuilder.set(ReturnOrderLineItem.Status__c, 'Created');
         lineBuilder.persist();
+    }
+
+    /**
+     * @description Seeds Standard + IMS Service Pricebook entries for finish receiving.
+     * @param productId Product that will be received onto a Work Order
+     */
+    private static void ensureReceivingPricebooksForProduct(Id productId) {
+        ReceivingFinishService.resetDefaultPricebookCacheForTest();
+        Id standardPricebookId = Test.getStandardPricebookId();
+        update new Pricebook2(Id = standardPricebookId, IsActive = true);
+        Integer standardCount = [
+            SELECT COUNT()
+            FROM PricebookEntry
+            WHERE Pricebook2Id = :standardPricebookId
+            AND Product2Id = :productId
+        ];
+        if (standardCount == 0) {
+            insert new PricebookEntry(
+                Pricebook2Id = standardPricebookId,
+                Product2Id = productId,
+                UnitPrice = 1,
+                IsActive = true
+            );
+        }
+
+        List<Pricebook2> servicePricebooks = [
+            SELECT Id
+            FROM Pricebook2
+            WHERE Name = 'IMS Service Pricebook'
+            AND IsActive = TRUE
+            LIMIT 1
+        ];
+        Id servicePricebookId;
+        if (servicePricebooks.isEmpty()) {
+            Pricebook2 servicePricebook = new Pricebook2(
+                Name = 'IMS Service Pricebook',
+                IsActive = true
+            );
+            insert servicePricebook;
+            servicePricebookId = servicePricebook.Id;
+        } else {
+            servicePricebookId = servicePricebooks[0].Id;
+        }
+
+        Integer serviceCount = [
+            SELECT COUNT()
+            FROM PricebookEntry
+            WHERE Pricebook2Id = :servicePricebookId
+            AND Product2Id = :productId
+        ];
+        if (serviceCount == 0) {
+            insert new PricebookEntry(
+                Pricebook2Id = servicePricebookId,
+                Product2Id = productId,
+                UnitPrice = 1,
+                IsActive = true
+            );
+        }
     }
 
     @IsTest
@@ -396,7 +457,7 @@ private class ReceivingControllerTest {
     static void testSubmitVendorWorkOrderReceiving_delegates() {
         Account accountRecord = [SELECT Id FROM Account LIMIT 1];
         Id otherRecordTypeId = Schema.SObjectType.WorkOrder.getRecordTypeInfosByDeveloperName()
-            .get('RepairCenterOther')
+            .get('RepairCenterVendor')
             .getRecordTypeId();
         WorkOrder workOrder = new WorkOrder(
             Subject = 'GW5968 Controller Vendor WO',
@@ -412,4 +473,174 @@ private class ReceivingControllerTest {
         WorkOrder updated = [SELECT Status FROM WorkOrder WHERE Id = :workOrder.Id];
         Assert.areEqual('Receive from Vendor', updated.Status);
     }
+
+    @IsTest
+    static void testFinishReceivingItem_blankJson_throwsAuraHandled() {
+        Boolean threw = false;
+        Test.startTest();
+        try {
+            ReceivingController.finishReceivingItem('');
+        } catch (AuraHandledException e) {
+            threw = true;
+        }
+        Test.stopTest();
+        Assert.isTrue(threw, 'Blank finish JSON should throw AuraHandledException');
+    }
+
+    @IsTest
+    static void testDeleteAndRenameModFormPhoto_delegates() {
+        ReturnOrder returnOrder = [SELECT Id FROM ReturnOrder LIMIT 1];
+        String tinyPngBase64 =
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+        ReceivingService.ModFormPhoto photo = ReceivingController.stageModFormPhoto(
+            returnOrder.Id,
+            tinyPngBase64,
+            'ModForm-delete-ctrl.png'
+        );
+
+        Test.startTest();
+        ReceivingController.deleteModFormPhoto(returnOrder.Id, photo.contentDocumentId);
+        Test.stopTest();
+
+        Integer remaining = [
+            SELECT COUNT()
+            FROM ContentDocument
+            WHERE Id = :photo.contentDocumentId
+        ];
+        Assert.areEqual(0, remaining);
+    }
+
+    @IsTest
+    static void testRenameAndAttachReceivingPhoto_delegates() {
+        Account accountRecord = [SELECT Id FROM Account LIMIT 1];
+        Id devicesRecordTypeId = Schema.SObjectType.WorkOrder.getRecordTypeInfosByDeveloperName()
+            .get('RepairCenterDevices')
+            .getRecordTypeId();
+        WorkOrder workOrder = new WorkOrder(
+            Subject = 'GW5492 Controller Attach Photo',
+            AccountId = accountRecord.Id,
+            RecordTypeId = devicesRecordTypeId
+        );
+        insert workOrder;
+
+        String tinyPngBase64 =
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+        ReceivingService.ModFormPhoto staged = ReceivingController.stageReceivingPhoto(
+            tinyPngBase64,
+            'Receive-rename-ctrl.png'
+        );
+
+        Test.startTest();
+        ReceivingService.ModFormPhoto renamed = ReceivingController.renameReceivingPhoto(
+            staged.contentDocumentId,
+            'Controller Receive Title'
+        );
+        ReceivingController.attachReceivingPhotos(
+            workOrder.Id,
+            new List<Id>{ staged.contentDocumentId }
+        );
+        Test.stopTest();
+
+        Assert.areEqual('Controller Receive Title', renamed.title);
+        Integer links = [
+            SELECT COUNT()
+            FROM ContentDocumentLink
+            WHERE LinkedEntityId = :workOrder.Id
+              AND ContentDocumentId = :staged.contentDocumentId
+        ];
+        Assert.areEqual(1, links);
+    }
+
+    @IsTest
+    static void testControllerMethods_errorPaths_asAuraHandled() {
+        Boolean shellThrew = false;
+        Boolean qtyThrew = false;
+        Boolean woShellThrew = false;
+        Boolean vendorThrew = false;
+        Boolean deleteModThrew = false;
+        Boolean attachThrew = false;
+        Boolean deletePhotoThrew = false;
+        Boolean renamePhotoThrew = false;
+        Boolean serialThrew = false;
+        Boolean planThrew = false;
+        Boolean submitThrew = false;
+        Boolean createWoThrew = false;
+
+        Test.startTest();
+        try {
+            ReceivingController.getReceivingShellContext(null);
+        } catch (AuraHandledException e) {
+            shellThrew = true;
+        }
+        try {
+            ReceivingController.saveWorkOrderQuantityReceived(null, 1);
+        } catch (AuraHandledException e) {
+            qtyThrew = true;
+        }
+        try {
+            ReceivingController.getWorkOrderReceivingShellContext(null);
+        } catch (AuraHandledException e) {
+            woShellThrew = true;
+        }
+        try {
+            ReceivingController.submitVendorWorkOrderReceiving(null);
+        } catch (AuraHandledException e) {
+            vendorThrew = true;
+        }
+        try {
+            ReceivingController.deleteModFormPhoto(null, null);
+        } catch (AuraHandledException e) {
+            deleteModThrew = true;
+        }
+        try {
+            ReceivingController.attachReceivingPhotos(null, null);
+        } catch (AuraHandledException e) {
+            attachThrew = true;
+        }
+        try {
+            ReceivingController.deleteReceivingPhoto(null);
+        } catch (AuraHandledException e) {
+            deletePhotoThrew = true;
+        }
+        try {
+            ReceivingController.renameReceivingPhoto(null, 'Title');
+        } catch (AuraHandledException e) {
+            renamePhotoThrew = true;
+        }
+        try {
+            ReceivingController.applySerialOverride(null, '01');
+        } catch (AuraHandledException e) {
+            serialThrew = true;
+        }
+        try {
+            ReceivingController.buildCreateOrderPlan(null, null);
+        } catch (AuraHandledException e) {
+            planThrew = true;
+        }
+        try {
+            ReceivingController.submitCreateOrder(null, null);
+        } catch (AuraHandledException e) {
+            submitThrew = true;
+        }
+        try {
+            ReceivingController.createWorkOrdersForCreateOrder(null);
+        } catch (AuraHandledException e) {
+            createWoThrew = true;
+        }
+        Test.stopTest();
+
+        Assert.isTrue(shellThrew);
+        Assert.isTrue(qtyThrew);
+        Assert.isTrue(woShellThrew);
+        Assert.isTrue(vendorThrew);
+        Assert.isTrue(deleteModThrew);
+        Assert.isTrue(attachThrew);
+        Assert.isTrue(deletePhotoThrew);
+        Assert.isTrue(renamePhotoThrew);
+        Assert.isTrue(serialThrew);
+        Assert.isTrue(planThrew);
+        Assert.isTrue(submitThrew);
+        Assert.isTrue(createWoThrew);
+    }
+
 }

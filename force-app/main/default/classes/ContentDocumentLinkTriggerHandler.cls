@@ -35,13 +35,15 @@ public with sharing class ContentDocumentLinkTriggerHandler extends TriggerHandl
     }
 
     // ── After Insert ──────────────────────────────────────────────────────────
-    public override void afterInsert() {
+   public override void afterInsert() {
         if (!AutomationControl.isTriggerEnabled('ContentDocumentLinkTrigger')) {
             return;
         }
         MobileDevicePictureLinkHandler.completeMobileAppPictureLinks(
             (List<ContentDocumentLink>) Trigger.new
         );
+        // GW-3114 - Generate document: email the Repair Center Quote / Work Order PDF to the customer once it is linked.
+        RepairCenterDocumentEmailService.handleNewContentDocumentLinks((List<ContentDocumentLink>) Trigger.new);
     }
 
     // ── Before Delete ─────────────────────────────────────────────────────────

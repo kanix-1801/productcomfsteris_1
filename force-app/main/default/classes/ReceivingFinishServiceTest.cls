@@ -31,13 +31,7 @@ private class ReceivingFinishServiceTest {
             .isActive(true);
         productBuilder.set(Product2.ProductCode, 'FIN-PRD-5492');
         Product2 product = (Product2) productBuilder.persist();
-        Id standardPricebookId = Test.getStandardPricebookId();
-        insert new PricebookEntry(
-            Pricebook2Id = standardPricebookId,
-            Product2Id = product.Id,
-            UnitPrice = 1,
-            IsActive = true
-        );
+        ensureReceivingPricebooksForProduct(product.Id);
 
         adb_ReturnOrderLineItem lineBuilder = new adb_ReturnOrderLineItem()
             .returnOrder(returnOrderBuilder)
@@ -54,6 +48,65 @@ private class ReceivingFinishServiceTest {
         lineBuilder.set(ReturnOrderLineItem.WarrantyNotes__c, 'GW5492 device warranty');
         lineBuilder.set(ReturnOrderLineItem.IsPriorityRepair__c, true);
         lineBuilder.persist();
+    }
+
+    /**
+     * @description Seeds Standard + IMS Service Pricebook entries so finish receiving
+     *              can match RepairCenterDefaults.PriceList (IMS Service Pricebook).
+     * @param productId Product that will be received onto a Work Order
+     */
+    private static void ensureReceivingPricebooksForProduct(Id productId) {
+        ReceivingFinishService.resetDefaultPricebookCacheForTest();
+        Id standardPricebookId = Test.getStandardPricebookId();
+        update new Pricebook2(Id = standardPricebookId, IsActive = true);
+        Integer standardCount = [
+            SELECT COUNT()
+            FROM PricebookEntry
+            WHERE Pricebook2Id = :standardPricebookId
+            AND Product2Id = :productId
+        ];
+        if (standardCount == 0) {
+            insert new PricebookEntry(
+                Pricebook2Id = standardPricebookId,
+                Product2Id = productId,
+                UnitPrice = 1,
+                IsActive = true
+            );
+        }
+
+        List<Pricebook2> servicePricebooks = [
+            SELECT Id
+            FROM Pricebook2
+            WHERE Name = 'IMS Service Pricebook'
+            AND IsActive = TRUE
+            LIMIT 1
+        ];
+        Id servicePricebookId;
+        if (servicePricebooks.isEmpty()) {
+            Pricebook2 servicePricebook = new Pricebook2(
+                Name = 'IMS Service Pricebook',
+                IsActive = true
+            );
+            insert servicePricebook;
+            servicePricebookId = servicePricebook.Id;
+        } else {
+            servicePricebookId = servicePricebooks[0].Id;
+        }
+
+        Integer serviceCount = [
+            SELECT COUNT()
+            FROM PricebookEntry
+            WHERE Pricebook2Id = :servicePricebookId
+            AND Product2Id = :productId
+        ];
+        if (serviceCount == 0) {
+            insert new PricebookEntry(
+                Pricebook2Id = servicePricebookId,
+                Product2Id = productId,
+                UnitPrice = 1,
+                IsActive = true
+            );
+        }
     }
 
     @IsTest
@@ -643,18 +696,17 @@ private class ReceivingFinishServiceTest {
             UnitPrice = 1,
             IsActive = true
         );
-        Pricebook2 servicePricebook = new Pricebook2(
-            Name = 'IMS Service Pricebook',
-            IsActive = true
-        );
-        insert servicePricebook;
-        insert new PricebookEntry(
-            Pricebook2Id = servicePricebook.Id,
-            Product2Id = product.Id,
-            UnitPrice = 1,
-            IsActive = true,
-            CurrencyIsoCode = 'USD'
-        );
+        
+        ensureReceivingPricebooksForProduct(product.Id);
+        // Reuse the IMS Service Pricebook seeded above. A second insert with the same
+        // name leaves selectActiveByName resolving a different Id than this local variable.
+        Pricebook2 servicePricebook = [
+            SELECT Id
+            FROM Pricebook2
+            WHERE Name = 'IMS Service Pricebook'
+            AND IsActive = TRUE
+            LIMIT 1
+        ];
 
         adb_ReturnOrderLineItem lineBuilder = new adb_ReturnOrderLineItem()
             .returnOrder(returnOrderBuilder)
@@ -664,9 +716,15 @@ private class ReceivingFinishServiceTest {
         lineBuilder.set(ReturnOrderLineItem.SerialNumber__c, 'SN5492PB01');
         ReturnOrderLineItem lineItem = (ReturnOrderLineItem) lineBuilder.persist();
 
+        Id returnOrderAccountId = [
+            SELECT AccountId
+            FROM ReturnOrder
+            WHERE Id = :lineItem.ReturnOrderId
+        ].AccountId;
         insert new Account(
             Name = 'GW5492 Finish Bill To',
             AccountNumber = 'FIN5492-PB',
+            ParentId = returnOrderAccountId,
             Type = 'Address',
             BilltoAddressStatus__c = 'Primary',
             CurrencyIsoCode = 'USD',
@@ -678,7 +736,9 @@ private class ReceivingFinishServiceTest {
         );
         Account shipTo = new Account(
             Name = 'GW5492 Finish Ship To',
+            ParentId = returnOrderAccountId,
             Type = 'Address',
+            ShiptoAddressStatus__c = 'Primary',
             BillingStreet = '200 Ship St',
             BillingCity = 'Cleveland',
             BillingStateCode = 'OH',
@@ -814,6 +874,7 @@ private class ReceivingFinishServiceTest {
             .isActive(true);
         productBuilder.set(Product2.ProductCode, 'FIN-VINST-5492');
         Product2 product = (Product2) productBuilder.persist();
+        ensureReceivingPricebooksForProduct(product.Id);
 
         adb_ReturnOrderLineItem lineBuilder = new adb_ReturnOrderLineItem()
             .returnOrder(returnOrderBuilder)
@@ -885,7 +946,9 @@ private class ReceivingFinishServiceTest {
             IsActive = true
         );
 
-        adb_ReturnOrderLineItem firstLineBuilder = new adb_ReturnOrderLineItem()
+        
+        ensureReceivingPricebooksForProduct(product.Id);
+adb_ReturnOrderLineItem firstLineBuilder = new adb_ReturnOrderLineItem()
             .returnOrder(returnOrderBuilder)
             .quantityReturned(3);
         firstLineBuilder.set(ReturnOrderLineItem.Product2Id, product.Id);
@@ -1030,7 +1093,9 @@ private class ReceivingFinishServiceTest {
             IsActive = true
         );
 
-        adb_ReturnOrderLineItem lineBuilder = new adb_ReturnOrderLineItem()
+        
+        ensureReceivingPricebooksForProduct(product.Id);
+adb_ReturnOrderLineItem lineBuilder = new adb_ReturnOrderLineItem()
             .returnOrder(returnOrderBuilder)
             .quantityReturned(1);
         lineBuilder.set(ReturnOrderLineItem.Product2Id, product.Id);
@@ -1100,7 +1165,9 @@ private class ReceivingFinishServiceTest {
             IsActive = true
         );
 
-        adb_ReturnOrderLineItem lineBuilder = new adb_ReturnOrderLineItem()
+        
+        ensureReceivingPricebooksForProduct(product.Id);
+adb_ReturnOrderLineItem lineBuilder = new adb_ReturnOrderLineItem()
             .returnOrder(returnOrderBuilder)
             .quantityReturned(1);
         lineBuilder.set(ReturnOrderLineItem.Product2Id, product.Id);
@@ -1177,7 +1244,9 @@ private class ReceivingFinishServiceTest {
             IsActive = true
         );
 
-        adb_ReturnOrderLineItem lineBuilder = new adb_ReturnOrderLineItem()
+        
+        ensureReceivingPricebooksForProduct(product.Id);
+adb_ReturnOrderLineItem lineBuilder = new adb_ReturnOrderLineItem()
             .returnOrder(returnOrderBuilder)
             .quantityReturned(1);
         lineBuilder.set(ReturnOrderLineItem.Product2Id, product.Id);
@@ -1201,6 +1270,7 @@ private class ReceivingFinishServiceTest {
         Case cioCase = new Case(
             Subject = 'GW5492 Stirrup CIO',
             Status = 'New',
+            Origin = 'Repair Support',
             AccountId = returnOrder.AccountId,
             Category__c = 'Continuous Improvement Opportunity (CIO)'
         );
@@ -1315,7 +1385,9 @@ private class ReceivingFinishServiceTest {
             IsActive = true
         );
 
-        adb_ReturnOrderLineItem lineBuilder = new adb_ReturnOrderLineItem()
+        
+        ensureReceivingPricebooksForProduct(product.Id);
+adb_ReturnOrderLineItem lineBuilder = new adb_ReturnOrderLineItem()
             .returnOrder(returnOrderBuilder)
             .quantityReturned(1);
         lineBuilder.set(ReturnOrderLineItem.Product2Id, product.Id);
@@ -1334,6 +1406,7 @@ private class ReceivingFinishServiceTest {
         Case cioCase = new Case(
             Subject = 'GW5492 Vendor CIO',
             Status = 'New',
+            Origin = 'Repair Support',
             AccountId = returnOrder.AccountId,
             Category__c = 'Continuous Improvement Opportunity (CIO)'
         );
@@ -1374,7 +1447,7 @@ private class ReceivingFinishServiceTest {
             WHERE Id = :result.workOrderId
         ];
         Assert.isNull(workOrder.ParentWorkOrderId);
-        Assert.areEqual('RepairCenterOther', workOrder.RecordType.DeveloperName);
+        Assert.areEqual('RepairCenterVendor', workOrder.RecordType.DeveloperName);
         Assert.areEqual('Ship to Vendor', workOrder.SubStatus__c);
         Assert.areEqual(Date.today(), workOrder.ShippedToVendorDate__c);
         Assert.areEqual(vendor.Id, workOrder.Vendor__c);
@@ -1421,26 +1494,29 @@ private class ReceivingFinishServiceTest {
             IsActive = true
         );
 
+        
+        ensureReceivingPricebooksForProduct(product.Id);
         adb_ReturnOrderLineItem firstLineBuilder = new adb_ReturnOrderLineItem()
             .returnOrder(returnOrderBuilder)
             .quantityReturned(1);
         firstLineBuilder.set(ReturnOrderLineItem.Product2Id, product.Id);
         firstLineBuilder.set(ReturnOrderLineItem.Status__c, 'Created');
         ReturnOrderLineItem firstLine = (ReturnOrderLineItem) firstLineBuilder.persist();
-
-        adb_ReturnOrderLineItem secondLineBuilder = new adb_ReturnOrderLineItem()
-            .returnOrder(returnOrderBuilder)
-            .quantityReturned(2);
-        secondLineBuilder.set(ReturnOrderLineItem.Product2Id, product.Id);
-        secondLineBuilder.set(ReturnOrderLineItem.Status__c, 'Created');
-        ReturnOrderLineItem secondLine = (ReturnOrderLineItem) secondLineBuilder.persist();
-
-        adb_ReturnOrderLineItem thirdLineBuilder = new adb_ReturnOrderLineItem()
-            .returnOrder(returnOrderBuilder)
-            .quantityReturned(1);
-        thirdLineBuilder.set(ReturnOrderLineItem.Product2Id, product.Id);
-        thirdLineBuilder.set(ReturnOrderLineItem.Status__c, 'Created');
-        ReturnOrderLineItem thirdLine = (ReturnOrderLineItem) thirdLineBuilder.persist();
+        // Extra lines use plain DML. Re-persisting adb children against an already-saved
+        // Return Order builder corrupts the static adb graph and can NPE on sort.
+        ReturnOrderLineItem secondLine = new ReturnOrderLineItem(
+            ReturnOrderId = firstLine.ReturnOrderId,
+            Product2Id = product.Id,
+            QuantityReturned = 2,
+            Status__c = 'Created'
+        );
+        ReturnOrderLineItem thirdLine = new ReturnOrderLineItem(
+            ReturnOrderId = firstLine.ReturnOrderId,
+            Product2Id = product.Id,
+            QuantityReturned = 1,
+            Status__c = 'Created'
+        );
+        insert new List<ReturnOrderLineItem>{ secondLine, thirdLine };
 
         Account sameVendor = new Account(Name = 'GW5492 Shared Vendor A', Type = 'Vendor');
         Account otherVendor = new Account(Name = 'GW5492 Shared Vendor B', Type = 'Vendor');
@@ -1567,20 +1643,22 @@ private class ReceivingFinishServiceTest {
             IsActive = true
         );
 
+        
+        ensureReceivingPricebooksForProduct(product.Id);
         adb_ReturnOrderLineItem firstLineBuilder = new adb_ReturnOrderLineItem()
             .returnOrder(returnOrderBuilder)
             .quantityReturned(1);
         firstLineBuilder.set(ReturnOrderLineItem.Product2Id, product.Id);
         firstLineBuilder.set(ReturnOrderLineItem.Status__c, 'Created');
         ReturnOrderLineItem firstLine = (ReturnOrderLineItem) firstLineBuilder.persist();
-
-        adb_ReturnOrderLineItem secondLineBuilder = new adb_ReturnOrderLineItem()
-            .returnOrder(returnOrderBuilder)
-            .quantityReturned(1);
-        secondLineBuilder.set(ReturnOrderLineItem.Product2Id, product.Id);
-        secondLineBuilder.set(ReturnOrderLineItem.Status__c, 'Created');
-        secondLineBuilder.set(ReturnOrderLineItem.IsPriorityRepair__c, true);
-        ReturnOrderLineItem secondLine = (ReturnOrderLineItem) secondLineBuilder.persist();
+        ReturnOrderLineItem secondLine = new ReturnOrderLineItem(
+            ReturnOrderId = firstLine.ReturnOrderId,
+            Product2Id = product.Id,
+            QuantityReturned = 1,
+            Status__c = 'Created',
+            IsPriorityRepair__c = true
+        );
+        insert secondLine;
 
         Account vendor = new Account(Name = 'GW5492 Priority Vendor', Type = 'Vendor');
         insert vendor;

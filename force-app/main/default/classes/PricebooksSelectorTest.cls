@@ -6,6 +6,7 @@ private class PricebooksSelectorTest {
     @IsTest
     static void testSelectActiveStandard_returnsStandardPricebook() {
         Id standardPricebookId = Test.getStandardPricebookId();
+        update new Pricebook2(Id = standardPricebookId, IsActive = true);
 
         Test.startTest();
         List<Pricebook2> standardPricebooks = PricebooksSelector.selectActiveStandard();

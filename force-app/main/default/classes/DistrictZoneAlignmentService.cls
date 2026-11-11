@@ -1,646 +1,652 @@
 /**
- * @description GW-2706 - Creates or updates district Service Territories and their parent zones
- *              from a District Zone Alignment file. Generates and emails a user-specific error file.
- *              Blank or "-" Current District # creates a new district under the Future Zone,
- *              with Future ASM as Territory Manager. Otherwise, the existing district is updated
- *              with the Future ASM, Future Zone, District # and name wherever they differ.
- *              Invalid rows are skipped and logged in the error file. Current District Name,
- *              Current Zone #, Current Zone Name and Zone Name are reference-only columns.
+ * @author Sagar Anand
+ * @date 2026-11-06
+ * @group Field Service Backoffice
+ * @description GW-2706: District Zone Alignment. Reads the uploaded District Zone Alignment Excel file and
+ *              creates or updates district Service Territories:
+ *              - Current District # blank or "-": creates the district under the Future Zone, with the
+ *                Future ASM as Territory Manager.
+ *              - Current District # filled: updates the Territory Manager, parent zone, District # and name
+ *                where they differ.
+ *              Districts and zones are found by Region Number. A zone is a Van Region or Zone territory.
+ *              Skipped rows are written to the running user's error file, which is emailed to them.
  */
 public with sharing class DistrictZoneAlignmentService {
-    public static final String TEMPLATE_TITLE = 'District Zone Alignment Template';
-    public static final String TEMPLATE_RESOURCE_NAME = 'DistrictZoneAlignmentTemplate';
-    public static final String ERROR_FILE_TITLE = 'District Zone Alignment Errors';
-    public static final String ERROR_FILE_NAME = 'District_Zone_Alignment_Errors.csv';
-    public static final String DOWNLOAD_URL_PREFIX = '/sfc/servlet.shepherd/document/download/';
-    @TestVisible
-    private static final Integer MAX_ROWS = 2000;
-    private static final Integer NAME_MAX_LENGTH = 80;
-    private static final String INVALID_CURRENT_DISTRICT = 'Invalid current district#';
-    private static final String INVALID_FUTURE_DISTRICT = 'Invalid future district#';
-    private static final String INVALID_FUTURE_ZONE = 'Invalid future zone#';
-    private static final String INVALID_FUTURE_ASM = 'Invalid future ASM';
-    private static final List<String> CURRENT_DISTRICT_COLUMNS = new List<String>{ 'currentdistrict', 'currentdistrictnumber', 'currentdistrictno' };
-    private static final List<String> FUTURE_DISTRICT_COLUMNS = new List<String>{ 'futuredistrict', 'futuredistrictnumber', 'futuredistrictno' };
-    private static final List<String> FUTURE_ZONE_COLUMNS = new List<String>{ 'futurezone', 'futurezonenumber', 'futurezoneno' };
-    private static final List<String> FUTURE_ASM_COLUMNS = new List<String>{ 'futureasmnames', 'futureasmname', 'futureasm' };
-    private static final List<String> FUTURE_DISTRICT_NAME_COLUMNS = new List<String>{ 'futuredistrictname' };
+	public static final String TEMPLATE_TITLE = 'District Zone Alignment Template';
+	public static final String TEMPLATE_RESOURCE_NAME = 'DistrictZoneAlignmentTemplate';
+	public static final String TEMPLATE_FILE_NAME = 'District_Zone_Alignment_Template.xlsx';
+	public static final String ERROR_FILE_TITLE = 'District Zone Alignment Errors';
+	public static final String ERROR_FILE_NAME = 'District_Zone_Alignment_Errors.csv';
+	public static final String DOWNLOAD_URL_PREFIX = '/sfc/servlet.shepherd/document/download/';
+	public static final Set<String> ZONE_TERRITORY_TYPES = new Set<String>{ 'Van Region', 'Zone' };
+	@TestVisible
+	private static final Integer MAX_ROWS = 2000;
+	private static final Integer NAME_MAX_LENGTH = 80;
+	private static final String SCENARIO = 'District Zone Alignment';
+	private static final String LOG_TAG = 'Service Territory';
+	private static final String COLUMN_CURRENT_DISTRICT = 'Current District #';
+	private static final String COLUMN_FUTURE_DISTRICT = 'Future District #';
+	private static final String COLUMN_FUTURE_ASM = 'Future ASM Names';
+	private static final String COLUMN_FUTURE_DISTRICT_NAME = 'Future District Name';
+	private static final String COLUMN_FUTURE_ZONE = 'Future Zone #';
+	private static final List<String> REQUIRED_COLUMNS = new List<String>{
+		COLUMN_CURRENT_DISTRICT,
+		COLUMN_FUTURE_DISTRICT,
+		COLUMN_FUTURE_ASM,
+		COLUMN_FUTURE_ZONE
+	};
+	private static final List<String> TERRITORY_FIELDS = new List<String>{
+		'Id',
+		'Name',
+		'RegionNumber__c',
+		'TerritoryType__c',
+		'ParentTerritoryId',
+		'TerritoryManager__c',
+		'OperatingHoursId'
+	};
+	private static final List<String> USER_FIELDS = new List<String>{ 'Id', 'Name', 'Username', 'Email' };
 
-    /**
-     * @description Counts, skip messages and error file returned to the LWC after Start Upload.
-     */
-    public class ProcessResult {
-        @AuraEnabled public Integer processedCount;
-        @AuraEnabled public Integer createdCount;
-        @AuraEnabled public Integer updatedCount;
-        @AuraEnabled public Integer unchangedCount;
-        @AuraEnabled public Integer skippedCount;
-        @AuraEnabled public List<String> errors;
-        @AuraEnabled public Id errorFileDocumentId;
-        @AuraEnabled public Boolean emailSent;
+	/**
+	 * @description GW-2706: Thrown with a user-facing message when the upload, template or error file
+	 *              can't be processed.
+	 */
+	public class DistrictZoneAlignmentException extends Exception {}
 
-        /**
-         * @description Builds an empty result.
-         */
-        public ProcessResult() {
-            this.processedCount = 0;
-            this.createdCount = 0;
-            this.updatedCount = 0;
-            this.unchangedCount = 0;
-            this.skippedCount = 0;
-            this.errors = new List<String>();
-            this.emailSent = false;
-        }
-    }
+	/**
+	 * @description GW-2706: Counts, row errors and error file returned to the LWC after Start Upload.
+	 */
+	public class ProcessResult {
+		@AuraEnabled
+		public Integer processedCount = 0;
+		@AuraEnabled
+		public Integer createdCount = 0;
+		@AuraEnabled
+		public Integer updatedCount = 0;
+		@AuraEnabled
+		public Integer unchangedCount = 0;
+		@AuraEnabled
+		public Integer skippedCount = 0;
+		@AuraEnabled
+		public List<String> errors = new List<String>();
+		@AuraEnabled
+		public String summary;
+		@AuraEnabled
+		public Id errorFileDocumentId;
+		@AuraEnabled
+		public Boolean emailSent = false;
+	}
 
-    private class AlignmentRow {
-        Integer rowNumber;
-        String currentDistrict;
-        String futureDistrict;
-        String futureZone;
-        String futureAsm;
-        String districtName;
-        List<String> cells;
-        String errorMessage;
-    }
+	private class AlignmentRow {
+		Integer rowNumber;
+		List<String> cells;
+		String currentDistrict;
+		String futureDistrict;
+		String futureAsm;
+		String futureDistrictName;
+		String futureZone;
+		String errorMessage;
+	}
 
-    /**
-     * @description Copies the packaged template into Salesforce Files if needed and returns its ContentDocument Id.
-     * @return ContentDocument Id of the template file.
-     */
-    public static Id ensureTemplateDocumentId() {
-        FieldServiceBackofficeConfig__c config = FieldServiceBackofficeConfig__c.getOrgDefaults();
-        Id storedId = toId(config == null ? null : config.DistrictZoneAlignmentTemplateId__c);
-        if (storedId != null && !DistrictZoneAlignmentSelector.selectDocumentsById(storedId).isEmpty()) {
-            return storedId;
-        }
+	/**
+	 * @description GW-2706: Returns the template file, copying the packaged template into Salesforce Files
+	 *              and sharing it with all internal users the first time.
+	 * @return ContentDocument Id of the template file.
+	 * @throws DistrictZoneAlignmentException When the template is not available.
+	 * @example
+	 * Id templateId = DistrictZoneAlignmentService.ensureTemplateDocumentId();
+	 */
+	public static Id ensureTemplateDocumentId() {
+		try {
+			Id storedId = toId(FieldServiceBackofficeConfig__c.getOrgDefaults().DistrictZoneAlignmentTemplateId__c);
+			if (isAccessibleDocument(storedId)) {
+				return storedId;
+			}
+			List<ContentDocument> titledDocumentList = ContentDocumentsSelector.selectLatestByTitle(TEMPLATE_TITLE);
+			if (!titledDocumentList.isEmpty()) {
+				saveTemplateDocumentId(titledDocumentList[0].Id);
+				return titledDocumentList[0].Id;
+			}
+			return createTemplateDocument();
+		} catch (Exception e) {
+			throw toAlignmentException(e);
+		} finally {
+			Logger.saveLog();
+		}
+	}
 
-        List<ContentDocument> titledDocs = DistrictZoneAlignmentSelector.selectDocumentsByTitle(TEMPLATE_TITLE);
-        if (!titledDocs.isEmpty()) {
-            new ConfigStore().saveTemplateDocumentId(titledDocs[0].Id);
-            return titledDocs[0].Id;
-        }
+	/**
+	 * @description GW-2706: The running user's error file, or null when they haven't uploaded a file yet.
+	 * @return ContentDocument Id, or null.
+	 * @throws DistrictZoneAlignmentException When the error file can't be read.
+	 * @example
+	 * Id errorFileId = DistrictZoneAlignmentService.getErrorFileDocumentId();
+	 */
+	public static Id getErrorFileDocumentId() {
+		try {
+			FieldServiceBackofficeConfig__c config = FieldServiceBackofficeConfig__c.getValues(UserInfo.getUserId());
+			Id storedId = toId(config == null ? null : config.DistrictZoneAlignmentErrorFileId__c);
+			return isAccessibleDocument(storedId) ? storedId : null;
+		} catch (Exception e) {
+			throw toAlignmentException(e);
+		} finally {
+			Logger.saveLog();
+		}
+	}
 
-        List<StaticResource> resources = DistrictZoneAlignmentSelector.selectTemplateResource(TEMPLATE_RESOURCE_NAME);
-        if (resources.isEmpty() || resources[0].Body == null) {
-            throw auraError('District Zone Alignment template is not available.');
-        }
+	/**
+	 * @description GW-2706: Processes the uploaded file, adds a new version to the running user's error file
+	 *              and emails it to them.
+	 * @param contentDocumentId Salesforce Files document Id from lightning-file-upload.
+	 * @return Counts, row errors and the error file Id.
+	 * @throws DistrictZoneAlignmentException When the file is missing, unreadable or has the wrong columns.
+	 * @example
+	 * DistrictZoneAlignmentService.ProcessResult result = DistrictZoneAlignmentService.processUpload(documentId);
+	 */
+	public static ProcessResult processUpload(Id contentDocumentId) {
+		Logger.setScenario(SCENARIO);
+		try {
+			if (contentDocumentId == null) {
+				throw new DistrictZoneAlignmentException(Label.DZA_FileRequired);
+			}
+			List<List<String>> table = readUploadedFile(contentDocumentId);
+			List<AlignmentRow> rowList = toRows(table);
 
-        ContentVersion version = new ContentVersion();
-        version.Title = TEMPLATE_TITLE;
-        version.PathOnClient = 'District_Zone_Alignment_Template.csv';
-        version.VersionData = resources[0].Body;
-        version.IsMajorVersion = true;
-        insert version;
+			ProcessResult result = new ProcessResult();
+			result.processedCount = rowList.size();
+			if (!rowList.isEmpty()) {
+				applyRows(rowList, result);
+			}
+			for (AlignmentRow row : rowList) {
+				if (row.errorMessage != null) {
+					result.skippedCount++;
+					List<Object> parameterList = new List<Object>{ String.valueOf(row.rowNumber), row.errorMessage };
+					result.errors.add(String.format(Label.DZA_RowError, parameterList));
+				}
+			}
+			result.summary = String.format(
+				Label.DZA_Summary,
+				new List<Object>{
+					result.processedCount,
+					result.createdCount,
+					result.updatedCount,
+					result.unchangedCount,
+					result.skippedCount
+				}
+			);
 
-        Id documentId = documentIdOf(version.Id);
-        new ConfigStore().saveTemplateDocumentId(documentId);
-        return documentId;
-    }
+			ContentVersion errorFile = writeErrorFile(table[0], rowList);
+			result.errorFileDocumentId = errorFile.ContentDocumentId;
+			result.emailSent = sendResultEmail(result.summary, errorFile.Id);
+			Logger.info(result.summary).addTag(LOG_TAG);
+			return result;
+		} catch (Exception e) {
+			throw toAlignmentException(e);
+		} finally {
+			Logger.saveLog();
+		}
+	}
 
-    /**
-     * @description ContentDocument Id of the running user's error file, or null when none exists yet.
-     * @return ContentDocument Id, or null.
-     */
-    public static Id errorFileDocumentId() {
-        FieldServiceBackofficeConfig__c config = FieldServiceBackofficeConfig__c.getValues(UserInfo.getUserId());
-        Id storedId = toId(config == null ? null : config.DistrictZoneAlignmentErrorFileId__c);
-        if (storedId == null || DistrictZoneAlignmentSelector.selectDocumentsById(storedId).isEmpty()) {
-            return null;
-        }
-        return storedId;
-    }
+	private static List<List<String>> readUploadedFile(Id contentDocumentId) {
+		List<ContentVersion> versionList = ContentVersionsSelector.selectLatestForAlignmentUpload(contentDocumentId);
+		if (
+			versionList.isEmpty() ||
+			versionList[0].VersionData == null ||
+			versionList[0].FileExtension?.toLowerCase() != 'xlsx'
+		) {
+			throw new DistrictZoneAlignmentException(Label.DZA_FileUnreadable);
+		}
+		try {
+			return ExcelFileParser.readFirstSheet(versionList[0].VersionData);
+		} catch (ExcelFileParser.ParseException e) {
+			throw new DistrictZoneAlignmentException(Label.DZA_FileUnreadable, e);
+		}
+	}
 
-    /**
-     * @description Processes the uploaded file, writes the error file and emails it to the running user.
-     * @param contentDocumentId Salesforce Files document Id from lightning-file-upload.
-     * @return Counts, row-level skip messages and the error file Id.
-     */
-    public static ProcessResult processUpload(Id contentDocumentId) {
-        Logger.setScenario('District Zone Alignment');
-        ProcessResult result = new ProcessResult();
-        if (contentDocumentId == null) {
-            throw auraError('Upload a file before clicking Start Upload.');
-        }
+	private static List<AlignmentRow> toRows(List<List<String>> table) {
+		Map<String, Integer> columnIndexByHeaderMap = new Map<String, Integer>();
+		if (!table.isEmpty()) {
+			for (Integer i = 0; i < table[0].size(); i++) {
+				columnIndexByHeaderMap.put(headerKey(table[0][i]), i);
+			}
+		}
+		List<String> missingColumnList = new List<String>();
+		for (String column : REQUIRED_COLUMNS) {
+			if (!columnIndexByHeaderMap.containsKey(headerKey(column))) {
+				missingColumnList.add(column);
+			}
+		}
+		if (!missingColumnList.isEmpty()) {
+			throw new DistrictZoneAlignmentException(
+				String.format(Label.DZA_MissingColumns, new List<Object>{ String.join(missingColumnList, ', ') })
+			);
+		}
+		if (table.size() - 1 > MAX_ROWS) {
+			throw new DistrictZoneAlignmentException(
+				String.format(Label.DZA_TooManyRows, new List<Object>{ MAX_ROWS })
+			);
+		}
 
-        List<ContentVersion> versions = DistrictZoneAlignmentSelector.selectLatestVersion(contentDocumentId);
-        if (versions.isEmpty() || versions[0].VersionData == null) {
-            throw auraError('The uploaded file could not be read.');
-        }
+		List<AlignmentRow> rowList = new List<AlignmentRow>();
+		for (Integer i = 1; i < table.size(); i++) {
+			AlignmentRow row = new AlignmentRow();
+			row.rowNumber = i + 1;
+			row.cells = table[i];
+			row.currentDistrict = cellValue(row.cells, columnIndexByHeaderMap, COLUMN_CURRENT_DISTRICT);
+			row.futureDistrict = cellValue(row.cells, columnIndexByHeaderMap, COLUMN_FUTURE_DISTRICT);
+			row.futureAsm = cellValue(row.cells, columnIndexByHeaderMap, COLUMN_FUTURE_ASM);
+			row.futureDistrictName = cellValue(row.cells, columnIndexByHeaderMap, COLUMN_FUTURE_DISTRICT_NAME);
+			row.futureZone = cellValue(row.cells, columnIndexByHeaderMap, COLUMN_FUTURE_ZONE);
+			Boolean isBlankRow =
+				row.currentDistrict == null &&
+				row.futureDistrict == null &&
+				row.futureAsm == null &&
+				row.futureZone == null;
+			if (!isBlankRow) {
+				rowList.add(row);
+			}
+		}
+		return rowList;
+	}
 
-        List<List<String>> table = BackofficeUploadFileParser.parse(versions[0]);
-        List<AlignmentRow> rows = toRows(table);
-        result.processedCount = rows.size();
-        if (!rows.isEmpty()) {
-            applyRows(rows, result);
-        }
+	private static String headerKey(String header) {
+		return header == null ? '' : header.deleteWhitespace().toLowerCase();
+	}
 
-        for (AlignmentRow row : rows) {
-            if (row.errorMessage != null) {
-                result.skippedCount++;
-                result.errors.add('Row ' + row.rowNumber + ': ' + row.errorMessage);
-            }
-        }
+	/**
+	 * @description Trimmed cell value; blank and dash-only placeholders ("-") are returned as null.
+	 */
+	private static String cellValue(List<String> cells, Map<String, Integer> columnIndexByHeaderMap, String column) {
+		Integer index = columnIndexByHeaderMap.get(headerKey(column));
+		if (index == null || index >= cells.size() || cells[index] == null) {
+			return null;
+		}
+		String value = cells[index].trim();
+		return String.isBlank(value.replaceAll('\\p{Pd}', '')) ? null : value;
+	}
 
-        ContentVersion errorFile = writeErrorFile(table[0], rows);
-        result.errorFileDocumentId = errorFile.ContentDocumentId;
-        result.emailSent = sendResultEmail(result, errorFile.Id);
+	private static void applyRows(List<AlignmentRow> rowList, ProcessResult result) {
+		AlignmentPlan plan = new AlignmentPlan(rowList);
+		for (AlignmentRow row : rowList) {
+			row.errorMessage = row.currentDistrict == null ? plan.planCreate(row) : plan.planUpdate(row);
+		}
+		result.unchangedCount = plan.unchangedCount;
+		if (!plan.toInsertList.isEmpty()) {
+			List<Database.SaveResult> saveResultList = Database.insert(plan.toInsertList, false, AccessLevel.USER_MODE);
+			result.createdCount = recordSaveErrors(saveResultList, plan.insertRowList);
+		}
+		if (!plan.toUpdateList.isEmpty()) {
+			List<Database.SaveResult> saveResultList = Database.update(plan.toUpdateList, false, AccessLevel.USER_MODE);
+			result.updatedCount = recordSaveErrors(saveResultList, plan.updateRowList);
+		}
+	}
 
-        Logger.info('District Zone Alignment ' + summary(result));
-        Logger.saveLog();
-        return result;
-    }
+	/**
+	 * @description Puts the save error on each failed row and returns the number of saved records.
+	 */
+	private static Integer recordSaveErrors(List<Database.SaveResult> saveResultList, List<AlignmentRow> rowList) {
+		Integer savedCount = 0;
+		for (Integer i = 0; i < saveResultList.size(); i++) {
+			if (saveResultList[i].isSuccess()) {
+				savedCount++;
+			} else {
+				List<Database.Error> errorList = saveResultList[i].getErrors();
+				String message = errorList.isEmpty() ? '' : errorList[0].getMessage();
+				rowList[i].errorMessage = String.format(Label.DZA_SaveFailed, new List<Object>{ message });
+				Logger.warn(rowList[i].errorMessage).addTag(LOG_TAG);
+			}
+		}
+		return savedCount;
+	}
 
-    private static void applyRows(List<AlignmentRow> rows, ProcessResult result) {
-        AlignmentPlan plan = new AlignmentPlan(rows);
-        for (AlignmentRow row : rows) {
-            row.errorMessage = String.isBlank(row.currentDistrict) ? plan.planCreate(row) : plan.planUpdate(row);
-        }
-        result.unchangedCount = plan.unchangedCount;
+	/**
+	 * @description Looks up every territory and user in the file once, then turns each row into an insert,
+	 *              an update, no change, or an error message.
+	 */
+	private class AlignmentPlan {
+		Map<String, ServiceTerritory> territoryByRegionNumberMap = new Map<String, ServiceTerritory>();
+		Map<String, Map<Id, User>> usersByKeyMap = new Map<String, Map<Id, User>>();
+		Set<String> claimedNumberSet = new Set<String>();
+		Set<Id> touchedDistrictIdSet = new Set<Id>();
+		List<ServiceTerritory> toInsertList = new List<ServiceTerritory>();
+		List<AlignmentRow> insertRowList = new List<AlignmentRow>();
+		List<ServiceTerritory> toUpdateList = new List<ServiceTerritory>();
+		List<AlignmentRow> updateRowList = new List<AlignmentRow>();
+		Integer unchangedCount = 0;
 
-        TerritoryStore store = new TerritoryStore();
-        if (!plan.toInsert.isEmpty()) {
-            Database.SaveResult[] saveResults = store.insertTerritories(plan.toInsert);
-            for (Integer i = 0; i < saveResults.size(); i++) {
-                if (saveResults[i].isSuccess()) {
-                    result.createdCount++;
-                } else {
-                    plan.insertRows[i].errorMessage = 'Unable to create the district territory: ' + firstError(saveResults[i]);
-                }
-            }
-        }
-        if (!plan.toUpdate.isEmpty()) {
-            Database.SaveResult[] saveResults = store.updateTerritories(plan.toUpdate);
-            for (Integer i = 0; i < saveResults.size(); i++) {
-                if (saveResults[i].isSuccess()) {
-                    result.updatedCount++;
-                } else {
-                    plan.updateRows[i].errorMessage = 'Unable to update the district territory: ' + firstError(saveResults[i]);
-                }
-            }
-        }
-    }
+		AlignmentPlan(List<AlignmentRow> rowList) {
+			Set<String> regionNumberSet = new Set<String>();
+			Set<String> userKeySet = new Set<String>();
+			for (AlignmentRow row : rowList) {
+				addIfPresent(regionNumberSet, row.currentDistrict);
+				addIfPresent(regionNumberSet, row.futureDistrict);
+				addIfPresent(regionNumberSet, row.futureZone);
+				addIfPresent(userKeySet, row.futureAsm);
+			}
+			List<ServiceTerritory> territoryList = ServiceTerritoriesSelector.selectByRegionNumbers(
+				regionNumberSet,
+				TERRITORY_FIELDS
+			);
+			for (ServiceTerritory territory : territoryList) {
+				territoryByRegionNumberMap.put(territory.RegionNumber__c.toLowerCase(), territory);
+			}
+			for (User activeUser : selectActiveUsers(userKeySet)) {
+				addUser(activeUser.Name, activeUser);
+				addUser(activeUser.Username, activeUser);
+				addUser(activeUser.Email, activeUser);
+			}
+		}
 
-    /**
-     * @description Looks up every territory and user referenced by the file once, then turns each row into
-     *              an insert, an update, no change, or an error message.
-     */
-    private class AlignmentPlan {
-        Map<String, ServiceTerritory> districtByNumber = new Map<String, ServiceTerritory>();
-        Map<String, ServiceTerritory> zoneByRegionNumber = new Map<String, ServiceTerritory>();
-        Map<String, List<ServiceTerritory>> zonesByName = new Map<String, List<ServiceTerritory>>();
-        Map<Id, User> userById = new Map<Id, User>();
-        Map<String, User> userByUsername = new Map<String, User>();
-        Map<String, List<User>> usersByEmail = new Map<String, List<User>>();
-        Map<String, List<User>> usersByName = new Map<String, List<User>>();
-        Set<String> claimedNumbers = new Set<String>();
-        Set<Id> touchedDistrictIds = new Set<Id>();
-        List<ServiceTerritory> toInsert = new List<ServiceTerritory>();
-        List<AlignmentRow> insertRows = new List<AlignmentRow>();
-        List<ServiceTerritory> toUpdate = new List<ServiceTerritory>();
-        List<AlignmentRow> updateRows = new List<AlignmentRow>();
-        Integer unchangedCount = 0;
+		void addUser(String key, User activeUser) {
+			if (String.isBlank(key)) {
+				return;
+			}
+			String userKey = key.toLowerCase();
+			if (!usersByKeyMap.containsKey(userKey)) {
+				usersByKeyMap.put(userKey, new Map<Id, User>());
+			}
+			usersByKeyMap.get(userKey).put(activeUser.Id, activeUser);
+		}
 
-        AlignmentPlan(List<AlignmentRow> rows) {
-            Set<String> districtNumbers = new Set<String>();
-            Set<String> zoneKeys = new Set<String>();
-            Set<Id> userIds = new Set<Id>();
-            Set<String> userKeys = new Set<String>();
-            for (AlignmentRow row : rows) {
-                addIfPresent(districtNumbers, row.currentDistrict);
-                addIfPresent(districtNumbers, row.futureDistrict);
-                addIfPresent(zoneKeys, row.futureZone);
-                if (String.isNotBlank(row.futureAsm)) {
-                    Id userId = toUserId(row.futureAsm);
-                    if (userId != null) {
-                        userIds.add(userId);
-                    } else {
-                        userKeys.add(row.futureAsm);
-                    }
-                }
-            }
+		String planCreate(AlignmentRow row) {
+			String futureError = futureColumnsError(row);
+			if (futureError != null) {
+				return futureError;
+			}
+			if (isNumberTaken(row.futureDistrict, null)) {
+				return String.format(Label.DZA_DistrictExists, new List<Object>{ row.futureDistrict });
+			}
+			ServiceTerritory zone = findZone(row.futureZone);
+			if (zone.OperatingHoursId == null) {
+				return String.format(Label.DZA_ZoneNoOperatingHours, new List<Object>{ row.futureZone });
+			}
+			String asmError = asmError(row.futureAsm);
+			if (asmError != null) {
+				return asmError;
+			}
 
-            TerritoryStore store = new TerritoryStore();
-            for (ServiceTerritory territory : store.selectDistricts(districtNumbers)) {
-                districtByNumber.put(territory.RegionNumber__c.toLowerCase(), territory);
-            }
-            for (ServiceTerritory zone : store.selectZones(zoneKeys)) {
-                if (String.isNotBlank(zone.RegionNumber__c)) {
-                    zoneByRegionNumber.put(zone.RegionNumber__c.toLowerCase(), zone);
-                }
-                String nameKey = zone.Name.toLowerCase();
-                if (!zonesByName.containsKey(nameKey)) {
-                    zonesByName.put(nameKey, new List<ServiceTerritory>());
-                }
-                zonesByName.get(nameKey).add(zone);
-            }
-            for (User activeUser : store.selectUsers(userIds, userKeys)) {
-                userById.put(activeUser.Id, activeUser);
-                userByUsername.put(activeUser.Username.toLowerCase(), activeUser);
-                addToGroup(usersByEmail, activeUser.Email, activeUser);
-                addToGroup(usersByName, activeUser.Name, activeUser);
-            }
-        }
+			User asm = findAsm(row.futureAsm);
+			ServiceTerritory district = new ServiceTerritory(
+				Name = (row.futureDistrictName ?? row.futureDistrict).left(NAME_MAX_LENGTH),
+				RegionNumber__c = row.futureDistrict,
+				ParentTerritoryId = zone.Id,
+				OperatingHoursId = zone.OperatingHoursId,
+				TerritoryManager__c = asm?.Id,
+				IsActive = true
+			);
+			claimedNumberSet.add(row.futureDistrict.toLowerCase());
+			toInsertList.add(district);
+			insertRowList.add(row);
+			return null;
+		}
 
-        void addToGroup(Map<String, List<User>> usersByKey, String key, User activeUser) {
-            if (String.isBlank(key)) {
-                return;
-            }
-            String groupKey = key.toLowerCase();
-            if (!usersByKey.containsKey(groupKey)) {
-                usersByKey.put(groupKey, new List<User>());
-            }
-            usersByKey.get(groupKey).add(activeUser);
-        }
+		String planUpdate(AlignmentRow row) {
+			ServiceTerritory district = territoryByRegionNumberMap.get(row.currentDistrict.toLowerCase());
+			if (district == null) {
+				return String.format(Label.DZA_InvalidCurrentDistrict, new List<Object>{ row.currentDistrict });
+			}
+			if (touchedDistrictIdSet.contains(district.Id)) {
+				return String.format(Label.DZA_DuplicateCurrentDistrict, new List<Object>{ row.currentDistrict });
+			}
+			String futureError = futureColumnsError(row);
+			if (futureError != null) {
+				return futureError;
+			}
+			ServiceTerritory zone = findZone(row.futureZone);
+			if (zone.Id == district.Id) {
+				return Label.DZA_OwnZone;
+			}
+			Boolean isRenumbered = !row.futureDistrict.equalsIgnoreCase(district.RegionNumber__c);
+			if (isRenumbered && isNumberTaken(row.futureDistrict, district.Id)) {
+				return String.format(Label.DZA_DistrictNumberTaken, new List<Object>{ row.futureDistrict });
+			}
+			String asmError = asmError(row.futureAsm);
+			if (asmError != null) {
+				return asmError;
+			}
 
-        String planCreate(AlignmentRow row) {
-            String futureError = futureColumnsError(row);
-            if (futureError != null) {
-                return futureError;
-            }
-            if (isNumberTaken(row.futureDistrict, null)) {
-                return INVALID_FUTURE_DISTRICT + ': A territory with District # ' + row.futureDistrict +
-                    ' already exists. Enter it as Current District # to update it.';
-            }
-            ServiceTerritory zone = zoneFor(row.futureZone);
-            if (zone.OperatingHoursId == null) {
-                return INVALID_FUTURE_ZONE + ': Zone ' + row.futureZone + ' has no Operating Hours to copy to the new district.';
-            }
-            String managerError = asmError(row.futureAsm);
-            if (managerError != null) {
-                return managerError;
-            }
+			touchedDistrictIdSet.add(district.Id);
+			User asm = findAsm(row.futureAsm);
+			ServiceTerritory changes = new ServiceTerritory(Id = district.Id);
+			Boolean isChanged = false;
+			if (asm != null && asm.Id != district.TerritoryManager__c) {
+				changes.TerritoryManager__c = asm.Id;
+				isChanged = true;
+			}
+			if (zone.Id != district.ParentTerritoryId) {
+				changes.ParentTerritoryId = zone.Id;
+				isChanged = true;
+			}
+			if (isRenumbered) {
+				changes.RegionNumber__c = row.futureDistrict;
+				claimedNumberSet.add(row.futureDistrict.toLowerCase());
+				isChanged = true;
+			}
+			if (row.futureDistrictName != null && row.futureDistrictName.left(NAME_MAX_LENGTH) != district.Name) {
+				changes.Name = row.futureDistrictName.left(NAME_MAX_LENGTH);
+				isChanged = true;
+			}
+			if (!isChanged) {
+				unchangedCount++;
+				return null;
+			}
+			toUpdateList.add(changes);
+			updateRowList.add(row);
+			return null;
+		}
 
-            User asm = asmFor(row.futureAsm);
-            ServiceTerritory district = new ServiceTerritory();
-            district.Name = (String.isNotBlank(row.districtName) ? row.districtName : row.futureDistrict).left(NAME_MAX_LENGTH);
-            district.RegionNumber__c = row.futureDistrict;
-            district.ParentTerritoryId = zone.Id;
-            district.OperatingHoursId = zone.OperatingHoursId;
-            district.IsActive = true;
-            district.TerritoryManager__c = asm == null ? null : asm.Id;
-            claimedNumbers.add(row.futureDistrict.toLowerCase());
-            toInsert.add(district);
-            insertRows.add(row);
-            return null;
-        }
+		String futureColumnsError(AlignmentRow row) {
+			if (row.futureDistrict == null) {
+				return Label.DZA_FutureDistrictRequired;
+			}
+			if (row.futureZone == null) {
+				return Label.DZA_FutureZoneRequired;
+			}
+			if (findZone(row.futureZone) == null) {
+				return String.format(Label.DZA_ZoneNotFound, new List<Object>{ row.futureZone });
+			}
+			return null;
+		}
 
-        String planUpdate(AlignmentRow row) {
-            ServiceTerritory district = districtByNumber.get(row.currentDistrict.toLowerCase());
-            if (district == null) {
-                return INVALID_CURRENT_DISTRICT + ': No territory found with District # ' + row.currentDistrict + '.';
-            }
-            if (touchedDistrictIds.contains(district.Id)) {
-                return INVALID_CURRENT_DISTRICT + ': District # ' + row.currentDistrict + ' appears more than once in the file.';
-            }
-            String futureError = futureColumnsError(row);
-            if (futureError != null) {
-                return futureError;
-            }
-            ServiceTerritory zone = zoneFor(row.futureZone);
-            if (zone.Id == district.Id) {
-                return INVALID_FUTURE_ZONE + ': A district cannot be its own zone.';
-            }
-            Boolean renumbered = !row.futureDistrict.equals(district.RegionNumber__c);
-            if (renumbered && isNumberTaken(row.futureDistrict, district.Id)) {
-                return INVALID_FUTURE_DISTRICT + ': District # ' + row.futureDistrict + ' is already used by another territory.';
-            }
-            String managerError = asmError(row.futureAsm);
-            if (managerError != null) {
-                return managerError;
-            }
+		ServiceTerritory findZone(String zoneNumber) {
+			ServiceTerritory territory = territoryByRegionNumberMap.get(zoneNumber.toLowerCase());
+			return territory != null && ZONE_TERRITORY_TYPES.contains(territory.TerritoryType__c) ? territory : null;
+		}
 
-            touchedDistrictIds.add(district.Id);
-            User asm = asmFor(row.futureAsm);
-            ServiceTerritory changes = new ServiceTerritory(Id = district.Id);
-            Boolean changed = false;
-            if (asm != null && asm.Id != district.TerritoryManager__c) {
-                changes.TerritoryManager__c = asm.Id;
-                changed = true;
-            }
-            if (zone.Id != district.ParentTerritoryId) {
-                changes.ParentTerritoryId = zone.Id;
-                changed = true;
-            }
-            if (renumbered) {
-                changes.RegionNumber__c = row.futureDistrict;
-                claimedNumbers.add(row.futureDistrict.toLowerCase());
-                changed = true;
-            }
-            if (String.isNotBlank(row.districtName) && !row.districtName.left(NAME_MAX_LENGTH).equals(district.Name)) {
-                changes.Name = row.districtName.left(NAME_MAX_LENGTH);
-                changed = true;
-            }
-            if (!changed) {
-                unchangedCount++;
-                return null;
-            }
-            toUpdate.add(changes);
-            updateRows.add(row);
-            return null;
-        }
+		Boolean isNumberTaken(String districtNumber, Id ownDistrictId) {
+			String key = districtNumber.toLowerCase();
+			if (claimedNumberSet.contains(key)) {
+				return true;
+			}
+			ServiceTerritory existing = territoryByRegionNumberMap.get(key);
+			return existing != null && existing.Id != ownDistrictId;
+		}
 
-        String futureColumnsError(AlignmentRow row) {
-            if (String.isBlank(row.futureDistrict)) {
-                return INVALID_FUTURE_DISTRICT + ': Future District # is required.';
-            }
-            if (String.isBlank(row.futureZone)) {
-                return INVALID_FUTURE_ZONE + ': Future Zone # is required.';
-            }
-            String zoneKey = row.futureZone.toLowerCase();
-            if (zoneByRegionNumber.containsKey(zoneKey)) {
-                return null;
-            }
-            List<ServiceTerritory> namedZones = zonesByName.get(zoneKey);
-            if (namedZones == null || namedZones.isEmpty()) {
-                return INVALID_FUTURE_ZONE + ': No Zone territory found for ' + row.futureZone + '.';
-            }
-            if (namedZones.size() > 1) {
-                return INVALID_FUTURE_ZONE + ': More than one Zone territory is named ' + row.futureZone + '.';
-            }
-            return null;
-        }
+		String asmError(String asmValue) {
+			if (asmValue == null) {
+				return null;
+			}
+			Integer matchCount = usersByKeyMap.containsKey(asmValue.toLowerCase())
+				? usersByKeyMap.get(asmValue.toLowerCase()).size()
+				: 0;
+			if (matchCount == 0) {
+				return String.format(Label.DZA_AsmNotFound, new List<Object>{ asmValue });
+			}
+			if (matchCount > 1) {
+				return String.format(Label.DZA_AsmAmbiguous, new List<Object>{ asmValue });
+			}
+			return null;
+		}
 
-        ServiceTerritory zoneFor(String zoneValue) {
-            String zoneKey = zoneValue.toLowerCase();
-            return zoneByRegionNumber.containsKey(zoneKey) ? zoneByRegionNumber.get(zoneKey) : zonesByName.get(zoneKey)[0];
-        }
+		User findAsm(String asmValue) {
+			return asmValue == null ? null : usersByKeyMap.get(asmValue.toLowerCase()).values()[0];
+		}
+	}
 
-        Boolean isNumberTaken(String districtNumber, Id ownDistrictId) {
-            String key = districtNumber.toLowerCase();
-            if (claimedNumbers.contains(key)) {
-                return true;
-            }
-            ServiceTerritory existing = districtByNumber.get(key);
-            return existing != null && existing.Id != ownDistrictId;
-        }
+	/**
+	 * @description Adds a new version to the running user's error file, creating the file on first use.
+	 *              The file repeats the uploaded columns of each skipped row, with the row number first and
+	 *              the error last.
+	 */
+	private static ContentVersion writeErrorFile(List<String> header, List<AlignmentRow> rowList) {
+		List<String> lineList = new List<String>{
+			csvLine(Label.DZA_ErrorFileRowColumn, header, Label.DZA_ErrorFileErrorColumn, header.size())
+		};
+		for (AlignmentRow row : rowList) {
+			if (row.errorMessage != null) {
+				lineList.add(csvLine(String.valueOf(row.rowNumber), row.cells, row.errorMessage, header.size()));
+			}
+		}
 
-        String asmError(String asmValue) {
-            if (String.isBlank(asmValue)) {
-                return null;
-            }
-            List<User> matches = usersFor(asmValue);
-            if (matches.isEmpty()) {
-                return INVALID_FUTURE_ASM + ': No active user found for ' + asmValue + '.';
-            }
-            if (matches.size() > 1) {
-                return INVALID_FUTURE_ASM + ': More than one active user matches ' + asmValue + '. Use the User Id or Username.';
-            }
-            return null;
-        }
+		Id existingDocumentId = getErrorFileDocumentId();
+		ContentVersion version = new ContentVersion(
+			Title = ERROR_FILE_TITLE,
+			PathOnClient = ERROR_FILE_NAME,
+			VersionData = Blob.valueOf(String.join(lineList, '\n') + '\n'),
+			ReasonForChange = SCENARIO + ' ' + Datetime.now().format(),
+			ContentDocumentId = existingDocumentId
+		);
+		Database.insert(version, AccessLevel.USER_MODE);
 
-        User asmFor(String asmValue) {
-            if (String.isBlank(asmValue)) {
-                return null;
-            }
-            List<User> matches = usersFor(asmValue);
-            return matches.size() == 1 ? matches[0] : null;
-        }
+		ContentVersion saved = ContentVersionsSelector.selectDocumentIdByVersionId(version.Id)[0];
+		if (saved.ContentDocumentId != existingDocumentId) {
+			FieldServiceBackofficeConfig__c config = FieldServiceBackofficeConfig__c.getValues(UserInfo.getUserId());
+			if (config == null) {
+				config = new FieldServiceBackofficeConfig__c(SetupOwnerId = UserInfo.getUserId());
+			}
+			config.DistrictZoneAlignmentErrorFileId__c = saved.ContentDocumentId;
+			saveConfig(config);
+		}
+		return saved;
+	}
 
-        List<User> usersFor(String asmValue) {
-            Id userId = toUserId(asmValue);
-            if (userId != null) {
-                return userById.containsKey(userId) ? new List<User>{ userById.get(userId) } : new List<User>();
-            }
-            String key = asmValue.toLowerCase();
-            if (userByUsername.containsKey(key)) {
-                return new List<User>{ userByUsername.get(key) };
-            }
-            if (usersByEmail.containsKey(key)) {
-                return usersByEmail.get(key);
-            }
-            return usersByName.containsKey(key) ? usersByName.get(key) : new List<User>();
-        }
-    }
+	private static String csvLine(String first, List<String> cells, String last, Integer columnCount) {
+		List<String> valueList = new List<String>{ csvEscape(first) };
+		for (Integer i = 0; i < columnCount; i++) {
+			valueList.add(csvEscape(i < cells.size() ? cells[i] : null));
+		}
+		valueList.add(csvEscape(last));
+		return String.join(valueList, ',');
+	}
 
-    private static List<AlignmentRow> toRows(List<List<String>> table) {
-        Map<String, Integer> columnIndexByName = BackofficeUploadFileParser.columnIndexByName(table[0]);
-        if (
-            !BackofficeUploadFileParser.hasColumn(columnIndexByName, CURRENT_DISTRICT_COLUMNS) ||
-            !BackofficeUploadFileParser.hasColumn(columnIndexByName, FUTURE_DISTRICT_COLUMNS) ||
-            !BackofficeUploadFileParser.hasColumn(columnIndexByName, FUTURE_ZONE_COLUMNS) ||
-            !BackofficeUploadFileParser.hasColumn(columnIndexByName, FUTURE_ASM_COLUMNS)
-        ) {
-            throw auraError('The file must include Current District #, Future District #, Future Zone # and Future ASM Names columns.');
-        }
-        if (table.size() - 1 > MAX_ROWS) {
-            throw auraError('The file exceeds the maximum of ' + MAX_ROWS + ' data rows.');
-        }
+	private static String csvEscape(String value) {
+		if (value == null) {
+			return '';
+		}
+		if (value.containsAny(',"\n\r')) {
+			return '"' + value.replace('"', '""') + '"';
+		}
+		return value;
+	}
 
-        List<AlignmentRow> rows = new List<AlignmentRow>();
-        for (Integer i = 1; i < table.size(); i++) {
-            List<String> cells = table[i];
-            AlignmentRow row = new AlignmentRow();
-            row.rowNumber = i + 1;
-            row.cells = cells;
-            row.currentDistrict = columnValue(cells, columnIndexByName, CURRENT_DISTRICT_COLUMNS);
-            row.futureDistrict = columnValue(cells, columnIndexByName, FUTURE_DISTRICT_COLUMNS);
-            row.futureZone = columnValue(cells, columnIndexByName, FUTURE_ZONE_COLUMNS);
-            row.futureAsm = columnValue(cells, columnIndexByName, FUTURE_ASM_COLUMNS);
-            row.districtName = columnValue(cells, columnIndexByName, FUTURE_DISTRICT_NAME_COLUMNS);
-            if (String.isBlank(row.currentDistrict) && String.isBlank(row.futureDistrict) && String.isBlank(row.futureZone) && String.isBlank(row.futureAsm)) {
-                continue;
-            }
-            rows.add(row);
-        }
-        return rows;
-    }
+	private static Boolean sendResultEmail(String summary, Id errorFileVersionId) {
+		Messaging.SingleEmailMessage mail = new Messaging.SingleEmailMessage();
+		mail.setTargetObjectId(UserInfo.getUserId());
+		mail.setSaveAsActivity(false);
+		mail.setSubject(Label.DZA_EmailSubject);
+		mail.setPlainTextBody(String.format(Label.DZA_EmailBody, new List<Object>{ summary }));
+		mail.setEntityAttachments(new List<String>{ errorFileVersionId });
+		try {
+			Messaging.sendEmail(new List<Messaging.SingleEmailMessage>{ mail });
+			return true;
+		} catch (EmailException e) {
+			Logger.warn('District Zone Alignment result email could not be sent.', e).addTag(LOG_TAG);
+			return false;
+		}
+	}
 
-    /**
-     * @description Column value with a dash-only placeholder ("-") treated as blank.
-     * @param cells Row cells.
-     * @param columnIndexByName Column index keyed by normalized header name.
-     * @param keys Normalized header aliases.
-     * @return Trimmed value, or null.
-     */
-    private static String columnValue(List<String> cells, Map<String, Integer> columnIndexByName, List<String> keys) {
-        String value = BackofficeUploadFileParser.firstPresent(cells, columnIndexByName, keys);
-        if (value == null || String.isBlank(value.replaceAll('\\p{Pd}', ''))) {
-            return null;
-        }
-        return value;
-    }
+	private static Id createTemplateDocument() {
+		List<StaticResource> resourceList = StaticResourcesSelector.selectByName(TEMPLATE_RESOURCE_NAME);
+		if (resourceList.isEmpty() || resourceList[0].Body == null) {
+			throw new DistrictZoneAlignmentException(Label.DZA_TemplateUnavailable);
+		}
+		ContentVersion version = new ContentVersion(
+			Title = TEMPLATE_TITLE,
+			PathOnClient = TEMPLATE_FILE_NAME,
+			VersionData = resourceList[0].Body,
+			IsMajorVersion = true
+		);
+		Database.insert(version, AccessLevel.USER_MODE);
+		Id documentId = ContentVersionsSelector.selectDocumentIdByVersionId(version.Id)[0].ContentDocumentId;
+		// Shared with the whole org so every back-office user can download the same template.
+		Database.insert(
+			new ContentDocumentLink(
+				ContentDocumentId = documentId,
+				LinkedEntityId = UserInfo.getOrganizationId(),
+				ShareType = 'V',
+				Visibility = 'AllUsers'
+			),
+			AccessLevel.USER_MODE
+		);
+		saveTemplateDocumentId(documentId);
+		return documentId;
+	}
 
-    /**
-     * @description Adds a new version to the running user's error file, creating the file on first use. The file
-     *              repeats the uploaded columns for each skipped row, with the row number first and the error last.
-     * @param header Header row of the uploaded file.
-     * @param rows Processed rows.
-     * @return The inserted ContentVersion with its ContentDocumentId.
-     */
-    private static ContentVersion writeErrorFile(List<String> header, List<AlignmentRow> rows) {
-        List<String> lines = new List<String>{ csvLine('Row', header, 'Error', header.size()) };
-        for (AlignmentRow row : rows) {
-            if (row.errorMessage != null) {
-                lines.add(csvLine(String.valueOf(row.rowNumber), row.cells, row.errorMessage, header.size()));
-            }
-        }
+	private static void saveTemplateDocumentId(Id documentId) {
+		FieldServiceBackofficeConfig__c config = FieldServiceBackofficeConfig__c.getOrgDefaults();
+		if (config.Id == null) {
+			config.SetupOwnerId = UserInfo.getOrganizationId();
+		}
+		config.DistrictZoneAlignmentTemplateId__c = documentId;
+		saveConfig(config);
+	}
 
-        ContentVersion version = new ContentVersion();
-        version.Title = ERROR_FILE_TITLE;
-        version.PathOnClient = ERROR_FILE_NAME;
-        version.VersionData = Blob.valueOf(String.join(lines, '\n') + '\n');
-        version.ReasonForChange = 'District Zone Alignment upload ' + Datetime.now().format();
-        Id existingDocumentId = errorFileDocumentId();
-        if (existingDocumentId != null) {
-            version.ContentDocumentId = existingDocumentId;
-        }
-        try {
-            insert version;
-        } catch (DmlException e) {
-            if (existingDocumentId == null) {
-                throw e;
-            }
-            Logger.warn('District Zone Alignment error file could not be versioned; creating a new file. ' + e.getMessage());
-            version = version.clone(false, true);
-            version.ContentDocumentId = null;
-            insert version;
-        }
+	/**
+	 * @description Custom setting rows are saved in system mode: back-office users have no edit access to
+	 *              custom settings, and only these two file Id fields are written.
+	 */
+	private static void saveConfig(FieldServiceBackofficeConfig__c config) {
+		Database.upsert(config, AccessLevel.SYSTEM_MODE);
+	}
 
-        // ContentDocumentId is create-only, so read it back instead of setting it on the inserted record.
-        ContentVersion saved = [
-            SELECT Id, ContentDocumentId
-            FROM ContentVersion
-            WHERE Id = :version.Id
-        ];
-        if (saved.ContentDocumentId != existingDocumentId) {
-            new ConfigStore().saveErrorFileId(UserInfo.getUserId(), saved.ContentDocumentId);
-        }
-        return saved;
-    }
+	/**
+	 * @description Active users whose full name, username or email matches an ASM value from the file.
+	 */
+	private static List<User> selectActiveUsers(Set<String> keySet) {
+		if (keySet.isEmpty()) {
+			return new List<User>();
+		}
+		List<String> keyList = new List<String>(keySet);
+		return (List<User>) SoqlQueryBuilder.fromObject('User')
+			.selectFields(USER_FIELDS)
+			.whereEquals('IsActive', true)
+			.whereIn('Name', keyList)
+			.whereIn('Username', keyList)
+			.whereIn('Email', keyList)
+			.withFilterLogic('1 AND (2 OR 3 OR 4)')
+			.execute();
+	}
 
-    private static String csvLine(String first, List<String> cells, String last, Integer columnCount) {
-        List<String> values = new List<String>{ BackofficeUploadFileParser.csvEscape(first) };
-        for (Integer i = 0; i < columnCount; i++) {
-            values.add(BackofficeUploadFileParser.csvEscape(i < cells.size() ? cells[i] : null));
-        }
-        values.add(BackofficeUploadFileParser.csvEscape(last));
-        return String.join(values, ',');
-    }
+	private static Boolean isAccessibleDocument(Id documentId) {
+		return documentId != null &&
+			!ContentDocumentsSelector.selectIdAndTitleByIds(new Set<Id>{ documentId }).isEmpty();
+	}
 
-    private static Boolean sendResultEmail(ProcessResult result, Id errorFileVersionId) {
-        Messaging.SingleEmailMessage mail = new Messaging.SingleEmailMessage();
-        mail.setTargetObjectId(UserInfo.getUserId());
-        mail.setSaveAsActivity(false);
-        mail.setSubject('District Zone Alignment upload results');
-        mail.setPlainTextBody(
-            'Your District Zone Alignment upload has finished.\n\n' +
-            summary(result) +
-            '\n\nThe attached error file lists every row that was skipped and why. ' +
-            'You can also download it with Download Error File on the District Zone Alignment tab.'
-        );
-        mail.setEntityAttachments(new List<String>{ errorFileVersionId });
-        try {
-            Messaging.sendEmail(new List<Messaging.SingleEmailMessage>{ mail });
-            return true;
-        } catch (Exception e) {
-            Logger.warn('District Zone Alignment result email could not be sent. ' + e.getMessage());
-            return false;
-        }
-    }
+	private static void addIfPresent(Set<String> valueSet, String value) {
+		if (value != null) {
+			valueSet.add(value);
+		}
+	}
 
-    private static String summary(ProcessResult result) {
-        return 'Processed ' + result.processedCount + ' row(s). Created ' + result.createdCount +
-            ', updated ' + result.updatedCount +
-            ', unchanged ' + result.unchangedCount +
-            ', skipped ' + result.skippedCount + '.';
-    }
+	private static Id toId(String value) {
+		if (String.isBlank(value)) {
+			return null;
+		}
+		try {
+			return Id.valueOf(value.trim());
+		} catch (StringException e) {
+			return null;
+		}
+	}
 
-    private static void addIfPresent(Set<String> values, String value) {
-        if (String.isNotBlank(value)) {
-            values.add(value);
-        }
-    }
-
-    private static String firstError(Database.SaveResult saveResult) {
-        return saveResult.getErrors().isEmpty() ? 'Unknown error.' : saveResult.getErrors()[0].getMessage();
-    }
-
-    private static Id documentIdOf(Id contentVersionId) {
-        return [
-            SELECT ContentDocumentId
-            FROM ContentVersion
-            WHERE Id = :contentVersionId
-        ].ContentDocumentId;
-    }
-
-    private static Id toId(String value) {
-        if (String.isBlank(value)) {
-            return null;
-        }
-        try {
-            return Id.valueOf(value.trim());
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private static Id toUserId(String value) {
-        Id candidate = toId(value);
-        return candidate != null && candidate.getSobjectType() == User.SObjectType ? candidate : null;
-    }
-
-    private static AuraHandledException auraError(String message) {
-        AuraHandledException ex = new AuraHandledException(message);
-        ex.setMessage(message);
-        return ex;
-    }
-
-    /**
-     * @description ServiceTerritory is Private; back-office users maintain every district, so lookups and DML
-     *              run without sharing. Access is controlled by the FieldServiceBackofficeTool permission set.
-     */
-    private without sharing class TerritoryStore {
-        List<ServiceTerritory> selectDistricts(Set<String> regionNumbers) {
-            return DistrictZoneAlignmentSelector.selectTerritoriesByRegionNumbers(regionNumbers);
-        }
-
-        List<ServiceTerritory> selectZones(Set<String> zoneKeys) {
-            return DistrictZoneAlignmentSelector.selectZonesByRegionNumberOrName(zoneKeys);
-        }
-
-        List<User> selectUsers(Set<Id> userIds, Set<String> userKeys) {
-            return DistrictZoneAlignmentSelector.selectActiveUsers(userIds, userKeys);
-        }
-
-        Database.SaveResult[] insertTerritories(List<ServiceTerritory> territories) {
-            return Database.insert(territories, false);
-        }
-
-        Database.SaveResult[] updateTerritories(List<ServiceTerritory> territories) {
-            return Database.update(territories, false);
-        }
-    }
-
-    private without sharing class ConfigStore {
-        /**
-         * @description Stores the template ContentDocument Id on the org-level custom setting.
-         * @param documentId Salesforce Files document Id.
-         */
-        void saveTemplateDocumentId(Id documentId) {
-            FieldServiceBackofficeConfig__c config = FieldServiceBackofficeConfig__c.getOrgDefaults();
-            if (config == null) {
-                config = new FieldServiceBackofficeConfig__c();
-            }
-            if (config.Id == null) {
-                config.SetupOwnerId = UserInfo.getOrganizationId();
-            }
-            config.DistrictZoneAlignmentTemplateId__c = String.valueOf(documentId);
-            upsert config;
-        }
-
-        /**
-         * @description Stores the user's error file ContentDocument Id on their user-level custom setting.
-         * @param userId User who ran the upload.
-         * @param documentId Salesforce Files document Id.
-         */
-        void saveErrorFileId(Id userId, Id documentId) {
-            FieldServiceBackofficeConfig__c config = FieldServiceBackofficeConfig__c.getValues(userId);
-            if (config == null) {
-                config = new FieldServiceBackofficeConfig__c(SetupOwnerId = userId);
-            }
-            config.DistrictZoneAlignmentErrorFileId__c = String.valueOf(documentId);
-            upsert config;
-        }
-    }
+	/**
+	 * @description Logs the failure and returns an exception with a user-facing message.
+	 */
+	private static DistrictZoneAlignmentException toAlignmentException(Exception e) {
+		if (e instanceof DistrictZoneAlignmentException) {
+			Logger.warn(e.getMessage()).addTag(LOG_TAG);
+			return (DistrictZoneAlignmentException) e;
+		}
+		Logger.error('District Zone Alignment failed.', e).addTag(LOG_TAG);
+		return new DistrictZoneAlignmentException(Label.DZA_UnexpectedError, e);
+	}
 }

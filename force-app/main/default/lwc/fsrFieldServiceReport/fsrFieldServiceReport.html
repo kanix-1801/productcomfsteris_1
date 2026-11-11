@@ -2,7 +2,7 @@
   @description       : 
   @author            : 
   @group             : 
-  @last modified on  : 10-30-2026
+  @last modified on  : 11-05-2026
   @last modified by  : 
 -->
 <template>
@@ -244,22 +244,12 @@
                                 <div><b>Unit Condition:</b> {unitCondition}</div>
                                 <div><b>Quantity of Parts Consumed:</b> {partsConsumedQty}</div>
                             </div>
-                            
-                            <!-- The signer name and signature image come from the standard Document Builder Signature
-                                 component (SignatureType Customer), placed directly below this component in the template. -->
-                            <!-- <div class="signature">
-                                <div class="authorizing">Authorizing signature indicates the services listed above were performed.</div>
-                                <div class="signature-box">
-                                    <div class="signature-line"></div>
-                                    <div class="signature-caption">CUSTOMER SIGNATURE</div>
-                                </div>
-                            </div>
-
-                            <div class="footer">{footerText}</div> -->
                         </div>
                     </td>
                 </tr>
             </tbody>
         </table>
+        <!-- GW-5878: the footer is printed by CSS (@page @bottom-center in fsrFieldServiceReport.css),
+             in the bottom margin of every PDF page, the same way as "Page x of y" at the top right. -->
     </template>
 </template>

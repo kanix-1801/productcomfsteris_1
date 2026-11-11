@@ -98,4 +98,30 @@ private class Product2QueryUtilTest {
             Product2QueryUtil.queryProductsByProductLineForCorrection('', true).size()
         );
     }
+
+    @IsTest
+    static void testGetProductById_nullId_returnsNull() {
+        Assert.isNull(Product2QueryUtil.getProductById(null, true));
+        Assert.isNull(Product2QueryUtil.getProductById(null, false));
+        Assert.isNull(Product2QueryUtil.getProductById(null, null));
+    }
+
+    @IsTest
+    static void testQueryProductsForReturnOrderPicklist_blankLineWithoutServiceAsset_returnsEmpty() {
+        Test.startTest();
+        List<Product2> blankLine =
+            Product2QueryUtil.queryProductsForReturnOrderPicklist('', false, 'anything');
+        List<Product2> nullLine =
+            Product2QueryUtil.queryProductsForReturnOrderPicklist(null, false, null);
+        Test.stopTest();
+
+        Assert.isTrue(
+            blankLine.isEmpty(),
+            'Blank product line with requireServiceAsset false should early-return'
+        );
+        Assert.isTrue(
+            nullLine.isEmpty(),
+            'Null product line with requireServiceAsset false should early-return'
+        );
+    }
 }

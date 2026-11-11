@@ -4,33 +4,72 @@ import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import getTemplateDownloadUrl from '@salesforce/apex/DistrictZoneAlignmentController.getTemplateDownloadUrl';
 import getErrorFileDownloadUrl from '@salesforce/apex/DistrictZoneAlignmentController.getErrorFileDownloadUrl';
 import processUpload from '@salesforce/apex/DistrictZoneAlignmentController.processUpload';
+import cardTitle from '@salesforce/label/c.DZA_CardTitle';
+import instructions from '@salesforce/label/c.DZA_Instructions';
+import uploadLabel from '@salesforce/label/c.DZA_UploadLabel';
+import selectedFile from '@salesforce/label/c.DZA_SelectedFile';
+import startUpload from '@salesforce/label/c.DZA_StartUpload';
+import downloadTemplate from '@salesforce/label/c.DZA_DownloadTemplate';
+import downloadErrorFile from '@salesforce/label/c.DZA_DownloadErrorFile';
+import processing from '@salesforce/label/c.DZA_Processing';
+import fileUploadedTitle from '@salesforce/label/c.DZA_FileUploadedTitle';
+import fileUploadedMessage from '@salesforce/label/c.DZA_FileUploadedMessage';
+import uploadCompleteTitle from '@salesforce/label/c.DZA_UploadCompleteTitle';
+import uploadFailedTitle from '@salesforce/label/c.DZA_UploadFailedTitle';
+import downloadFailedTitle from '@salesforce/label/c.DZA_DownloadFailedTitle';
+import emailSent from '@salesforce/label/c.DZA_EmailSent';
+import emailNotSent from '@salesforce/label/c.DZA_EmailNotSent';
+import moreErrors from '@salesforce/label/c.DZA_MoreErrors';
+import unexpectedError from '@salesforce/label/c.DZA_UnexpectedError';
 
 const VISIBLE_ERROR_LIMIT = 20;
 
+/**
+ * GW-2706: District Zone Alignment. Uploads the district to zone Excel file, starts processing and
+ * downloads the template or the user's latest error file. Opened from the Field Service Backoffice Tool.
+ */
 export default class DistrictZoneAlignment extends NavigationMixin(LightningElement) {
-    acceptedFormats = ['.csv', '.xlsx'];
-    visibleErrorLimit = VISIBLE_ERROR_LIMIT;
+    label = {
+        cardTitle,
+        instructions,
+        uploadLabel,
+        startUpload,
+        downloadTemplate,
+        downloadErrorFile,
+        processing
+    };
+    acceptedFormats = ['.xlsx'];
     contentDocumentId;
     uploadedFileName;
     isBusy = false;
-    resultSummary;
-    emailMessage;
-    errors = [];
+    result;
 
     get isStartDisabled() {
         return this.isBusy || !this.contentDocumentId;
     }
 
+    get uploadedFileText() {
+        return this.uploadedFileName ? format(selectedFile, this.uploadedFileName) : undefined;
+    }
+
+    get emailMessage() {
+        return this.result && this.result.emailSent ? emailSent : emailNotSent;
+    }
+
     get hasErrors() {
-        return this.errors && this.errors.length > 0;
+        return Boolean(this.result && this.result.errors && this.result.errors.length);
     }
 
     get hasHiddenErrors() {
-        return this.errors && this.errors.length > VISIBLE_ERROR_LIMIT;
+        return this.hasErrors && this.result.errors.length > VISIBLE_ERROR_LIMIT;
+    }
+
+    get moreErrorsText() {
+        return format(moreErrors, VISIBLE_ERROR_LIMIT);
     }
 
     get visibleErrors() {
-        return (this.errors || []).slice(0, VISIBLE_ERROR_LIMIT).map((message, index) => ({
+        return this.result.errors.slice(0, VISIBLE_ERROR_LIMIT).map((message, index) => ({
             key: String(index),
             message
         }));
@@ -38,120 +77,68 @@ export default class DistrictZoneAlignment extends NavigationMixin(LightningElem
 
     handleUploadFinished(event) {
         const uploadedFiles = event.detail.files || [];
-        if (uploadedFiles.length === 0) {
+        if (!uploadedFiles.length) {
             return;
         }
-        const uploadedFile = uploadedFiles[0];
-        this.contentDocumentId = uploadedFile.documentId;
-        this.uploadedFileName = uploadedFile.name;
-        this.resultSummary = undefined;
-        this.emailMessage = undefined;
-        this.errors = [];
-        this.dispatchEvent(
-            new ShowToastEvent({
-                title: 'File uploaded',
-                message: uploadedFile.name + ' is ready. Click Start Upload to process.',
-                variant: 'success'
-            })
-        );
+        this.contentDocumentId = uploadedFiles[0].documentId;
+        this.uploadedFileName = uploadedFiles[0].name;
+        this.result = undefined;
+        this.showToast(fileUploadedTitle, format(fileUploadedMessage, this.uploadedFileName), 'success');
     }
 
     handleDownloadTemplate() {
-        this.openFile(getTemplateDownloadUrl, 'Template download failed');
+        this.openFile(getTemplateDownloadUrl);
     }
 
     handleDownloadErrorFile() {
-        this.openFile(getErrorFileDownloadUrl, 'Error file download failed');
+        this.openFile(getErrorFileDownloadUrl);
     }
 
-    openFile(getUrl, failureTitle) {
+    handleStartUpload() {
+        this.isBusy = true;
+        this.result = undefined;
+        processUpload({ contentDocumentId: this.contentDocumentId })
+            .then((result) => {
+                this.result = result;
+                this.showToast(uploadCompleteTitle, result.summary, result.skippedCount > 0 ? 'warning' : 'success');
+            })
+            .catch((error) => {
+                this.showToast(uploadFailedTitle, reduceError(error), 'error');
+            })
+            .finally(() => {
+                this.isBusy = false;
+            });
+    }
+
+    openFile(getUrl) {
         this.isBusy = true;
         getUrl()
             .then((url) => {
                 this[NavigationMixin.Navigate]({
                     type: 'standard__webPage',
-                    attributes: {
-                        url
-                    }
+                    attributes: { url }
                 });
             })
             .catch((error) => {
-                this.dispatchEvent(
-                    new ShowToastEvent({
-                        title: failureTitle,
-                        message: this.reduceError(error),
-                        variant: 'error'
-                    })
-                );
+                this.showToast(downloadFailedTitle, reduceError(error), 'error');
             })
             .finally(() => {
                 this.isBusy = false;
             });
     }
 
-    handleStartUpload() {
-        if (!this.contentDocumentId) {
-            this.dispatchEvent(
-                new ShowToastEvent({
-                    title: 'No file selected',
-                    message: 'Upload a file before clicking Start Upload.',
-                    variant: 'warning'
-                })
-            );
-            return;
-        }
-
-        this.isBusy = true;
-        this.resultSummary = undefined;
-        this.emailMessage = undefined;
-        this.errors = [];
-        processUpload({ contentDocumentId: this.contentDocumentId })
-            .then((result) => {
-                this.errors = result.errors || [];
-                this.resultSummary =
-                    'Processed ' +
-                    result.processedCount +
-                    ' row(s). Created ' +
-                    result.createdCount +
-                    ', updated ' +
-                    result.updatedCount +
-                    ', unchanged ' +
-                    result.unchangedCount +
-                    ', skipped ' +
-                    result.skippedCount +
-                    '.';
-                this.emailMessage = result.emailSent
-                    ? 'The error file has been emailed to you. Use Download Error File to get it again.'
-                    : 'The error file could not be emailed. Use Download Error File to get it.';
-                this.dispatchEvent(
-                    new ShowToastEvent({
-                        title: 'Upload complete',
-                        message: this.resultSummary,
-                        variant: result.skippedCount > 0 ? 'warning' : 'success'
-                    })
-                );
-            })
-            .catch((error) => {
-                this.dispatchEvent(
-                    new ShowToastEvent({
-                        title: 'Upload failed',
-                        message: this.reduceError(error),
-                        variant: 'error'
-                    })
-                );
-            })
-            .finally(() => {
-                this.isBusy = false;
-            });
+    showToast(title, message, variant) {
+        this.dispatchEvent(new ShowToastEvent({ title, message, variant }));
     }
+}
 
-    reduceError(error) {
-        if (error && error.body && error.body.message) {
-            return error.body.message;
-        }
-        if (error && error.message) {
-            return error.message;
-        }
-        return 'Unexpected error.';
+function format(text, value) {
+    return text.replace('{0}', value);
+}
+
+function reduceError(error) {
+    if (error && error.body && error.body.message) {
+        return error.body.message;
     }
+    return unexpectedError;
 }

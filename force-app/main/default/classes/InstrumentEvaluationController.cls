@@ -427,6 +427,12 @@ public with sharing class InstrumentEvaluationController {
         public Boolean showItemSelection { get; set; }
         @AuraEnabled
         public Boolean canAddItems { get; set; }
+        /** GW-3377 - Current Repair Cost (test header, Repair only). */
+        @AuraEnabled
+        public Decimal originalNetTotalPrice { get; set; }
+        /** GW-3377 - Updated Repair Cost after pricing (test header, Repair only). */
+        @AuraEnabled
+        public Decimal newNetTotalPrice { get; set; }
         @AuraEnabled
         public String repairCategory { get; set; }
         @AuraEnabled
@@ -515,6 +521,21 @@ public with sharing class InstrumentEvaluationController {
         public List<RepairCodeCard> categoryCodes { get; set; }
         @AuraEnabled
         public List<RepairCodeCard> serviceCodes { get; set; }
+    }
+
+    /**
+     * @description GW-3377 - Draft save result including Repair Cost totals for the header.
+     */
+    public class DraftSaveResult {
+        @AuraEnabled
+        public List<Id> productServicedIds { get; set; }
+        @AuraEnabled
+        public Decimal originalNetTotalPrice { get; set; }
+        @AuraEnabled
+        public Decimal newNetTotalPrice { get; set; }
+        /** GW-3377 - Yellow warning when a Repair save exceeds the approved cost. */
+        @AuraEnabled
+        public String requoteWarning { get; set; }
     }
 
     /**
@@ -830,10 +851,10 @@ public with sharing class InstrumentEvaluationController {
      *              When productServicedId is set, syncs quantity and adds missing repair codes.
      * @param workOrderId Parent Work Order Id
      * @param draftItems Draft entries (item + codes + staged photo document Ids)
-     * @return Created or updated Product Serviced Ids
+     * @return Created or updated Product Serviced Ids and Repair Cost totals
      */
     @AuraEnabled
-    public static List<Id> saveDraftItems(
+    public static DraftSaveResult saveDraftItems(
         Id workOrderId,
         List<DraftItemInput> draftItems,
         Boolean reconcileRemovedLines
@@ -842,10 +863,12 @@ public with sharing class InstrumentEvaluationController {
             if (workOrderId == null) {
                 throw buildAuraException('Work Order is required.');
             }
-            return client().saveInstrumentEvaluationDraft(
-                workOrderId,
-                mapDraftItemInputs(draftItems),
-                reconcileRemovedLines == true
+            return toDraftSaveResult(
+                client().saveInstrumentEvaluationDraft(
+                    workOrderId,
+                    mapDraftItemInputs(draftItems),
+                    reconcileRemovedLines == true
+                )
             );
         } catch (WorkOrdersService.WorkOrdersServiceException e) {
             throw buildAuraException(e.getMessage());
@@ -884,6 +907,59 @@ public with sharing class InstrumentEvaluationController {
             Logger.saveLog();
             throw buildAuraException('Unable to complete Instrument Evaluation items.');
         }
+    }
+
+    /**
+     * @description GW-3377 - Execute Pricing after draft DML has committed, then optionally Complete.
+     */
+    @AuraEnabled
+    public static DraftSaveResult finalizeInstrumentEvaluationAfterPricing(
+        Id workOrderId,
+        Decimal originalNetTotal,
+        Boolean applyCompletion
+    ) {
+        try {
+            if (workOrderId == null) {
+                throw buildAuraException('Work Order is required.');
+            }
+            WorkOrdersService.finalizeInstrumentEvaluationAfterPricing(
+                workOrderId,
+                originalNetTotal,
+                applyCompletion == true
+            );
+            return toDraftSaveResult(new List<Id>());
+        } catch (WorkOrdersService.WorkOrdersServiceException e) {
+            throw buildAuraException(e.getMessage());
+        } catch (AuraHandledException e) {
+            throw e;
+        } catch (Exception e) {
+            Logger.error(
+                'InstrumentEvaluationController.finalizeInstrumentEvaluationAfterPricing failed',
+                e
+            );
+            Logger.saveLog();
+            throw buildAuraException('Unable to price Instrument Evaluation.');
+        }
+    }
+
+    /**
+     * @description GW-3377 - Copies Execute Pricing totals onto the draft save DTO.
+     * @param productServicedIds Persisted Product Serviced Ids
+     * @return Draft save result for the LWC
+     */
+    private static DraftSaveResult toDraftSaveResult(List<Id> productServicedIds) {
+        DraftSaveResult result = new DraftSaveResult();
+        result.productServicedIds =
+            productServicedIds == null ? new List<Id>() : productServicedIds;
+        WorkOrderRepairPricingService.PricingTotals totals =
+            WorkOrderRepairPricingService.lastTotals;
+        if (totals != null) {
+            result.originalNetTotalPrice = totals.originalNetTotal;
+            result.newNetTotalPrice = totals.newNetTotal;
+        }
+        result.requoteWarning = WorkOrderRepairPricingService.lastRequoteWarning;
+        WorkOrderRepairPricingService.lastRequoteWarning = null;
+        return result;
     }
 
     /**
@@ -1254,6 +1330,8 @@ public with sharing class InstrumentEvaluationController {
         workspace.hasAsset = context.hasAsset == true;
         workspace.showItemSelection = context.showItemSelection == true;
         workspace.canAddItems = context.canAddItems == true;
+        workspace.originalNetTotalPrice = context.originalNetTotalPrice;
+        workspace.newNetTotalPrice = context.newNetTotalPrice;
         workspace.repairCategory = workOrder.RepairCategory__c;
         workspace.quantityReceived = workOrder.QuantityReceived__c;
         workspace.returnOrderId =
@@ -1334,8 +1412,8 @@ public with sharing class InstrumentEvaluationController {
         Integer index = 0;
         for (WorkOrderLineItem lineItem : historyWorkOrder.WorkOrderLineItems) {
             String productCode =
-                lineItem.Product__r != null ? lineItem.Product__r.ProductCode : null;
-            String productName = lineItem.Product__r != null ? lineItem.Product__r.Name : null;
+                lineItem.Product2 != null ? lineItem.Product2.ProductCode : null;
+            String productName = lineItem.Product2 != null ? lineItem.Product2.Name : null;
             String label;
             if (String.isNotBlank(productCode) && String.isNotBlank(productName)) {
                 label = productCode + ': ' + productName;
@@ -1562,9 +1640,7 @@ public with sharing class InstrumentEvaluationController {
             row.id = signature.Id;
             row.workOrderLineItemId = signature.WorkOrderLineItem__c;
             row.productId = signature.WorkOrderLineItem__r != null
-                ? (signature.WorkOrderLineItem__r.Product2Id != null
-                      ? signature.WorkOrderLineItem__r.Product2Id
-                      : signature.WorkOrderLineItem__r.Product__c)
+                ? signature.WorkOrderLineItem__r.Product2Id
                 : null;
             row.userId = signature.Person__c;
             row.userName = signature.Person__r != null &&

@@ -11,6 +11,7 @@
 public with sharing class QuoteSelector extends SoqlQueryBuilder {
     /**
      * @description GW-3600 - Binds this selector to Quote for SoqlQueryBuilder queries.
+     *              But goes with PR for GW-4861.
      */
     public QuoteSelector() {
         this.objectName = 'Quote';
@@ -106,7 +107,6 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
                 return [
                     SELECT Id,
                         Name,
-                        CurrencyIsoCode,
                         QuoteNumber,
                         QuoteNumber__c,
                         ExpirationDate,
@@ -115,6 +115,7 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
                         Approval_Status__c,
                         Quote_Total_Without_Freight__c,
                         TotalPrice,
+                        CurrencyIsoCode,
                         LastModifiedDate,
                         LastModifiedDate__c,
                         IsForecastIneligible__c,
@@ -159,7 +160,6 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
                 return [
                     SELECT Id,
                         Name,
-                        CurrencyIsoCode,
                         QuoteNumber,
                         QuoteNumber__c,
                         ExpirationDate,
@@ -168,6 +168,7 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
                         Approval_Status__c,
                         Quote_Total_Without_Freight__c,
                         TotalPrice,
+                        CurrencyIsoCode,
                         LastModifiedDate,
                         LastModifiedDate__c,
                         IsForecastIneligible__c,
@@ -211,7 +212,6 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
             return [
                 SELECT Id,
                     Name,
-                    CurrencyIsoCode,
                     QuoteNumber,
                     QuoteNumber__c,
                     ExpirationDate,
@@ -220,6 +220,7 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
                     Approval_Status__c,
                     Quote_Total_Without_Freight__c,
                     TotalPrice,
+                    CurrencyIsoCode,
                     LastModifiedDate,
                     LastModifiedDate__c,
                     IsForecastIneligible__c,
@@ -264,7 +265,6 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
                 return [
                     SELECT Id,
                         Name,
-                        CurrencyIsoCode,
                         QuoteNumber,
                         QuoteNumber__c,
                         ExpirationDate,
@@ -273,6 +273,7 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
                         Approval_Status__c,
                         Quote_Total_Without_Freight__c,
                         TotalPrice,
+                        CurrencyIsoCode,
                         LastModifiedDate,
                         LastModifiedDate__c,
                         IsForecastIneligible__c,
@@ -317,7 +318,6 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
                 return [
                     SELECT Id,
                         Name,
-                        CurrencyIsoCode,
                         QuoteNumber,
                         QuoteNumber__c,
                         ExpirationDate,
@@ -326,6 +326,7 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
                         Approval_Status__c,
                         Quote_Total_Without_Freight__c,
                         TotalPrice,
+                        CurrencyIsoCode,
                         LastModifiedDate,
                         LastModifiedDate__c,
                         IsForecastIneligible__c,
@@ -369,7 +370,6 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
             return [
                 SELECT Id,
                     Name,
-                    CurrencyIsoCode,
                     QuoteNumber,
                     QuoteNumber__c,
                     ExpirationDate,
@@ -378,6 +378,7 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
                     Approval_Status__c,
                     Quote_Total_Without_Freight__c,
                     TotalPrice,
+                    CurrencyIsoCode,
                     LastModifiedDate,
                     LastModifiedDate__c,
                     IsForecastIneligible__c,
@@ -421,7 +422,6 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
             return [
                 SELECT Id,
                     Name,
-                    CurrencyIsoCode,
                     QuoteNumber,
                     QuoteNumber__c,
                     ExpirationDate,
@@ -430,6 +430,7 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
                     Approval_Status__c,
                     Quote_Total_Without_Freight__c,
                     TotalPrice,
+                    CurrencyIsoCode,
                     LastModifiedDate,
                     LastModifiedDate__c,
                     IsForecastIneligible__c,
@@ -472,7 +473,6 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
             return [
                 SELECT Id,
                     Name,
-                    CurrencyIsoCode,
                     QuoteNumber,
                     QuoteNumber__c,
                     ExpirationDate,
@@ -481,6 +481,7 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
                     Approval_Status__c,
                     Quote_Total_Without_Freight__c,
                     TotalPrice,
+                    CurrencyIsoCode,
                     LastModifiedDate,
                     LastModifiedDate__c,
                     IsForecastIneligible__c,
@@ -522,7 +523,6 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
         return [
             SELECT Id,
                 Name,
-                CurrencyIsoCode,
                 QuoteNumber,
                 QuoteNumber__c,
                 ExpirationDate,
@@ -531,6 +531,7 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
                 Approval_Status__c,
                 Quote_Total_Without_Freight__c,
                 TotalPrice,
+                CurrencyIsoCode,
                 LastModifiedDate,
                 LastModifiedDate__c,
                 IsForecastIneligible__c,
@@ -755,7 +756,6 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
         List<Quote> quoteList = [
             SELECT Id,
                 Name,
-                CurrencyIsoCode,
                 QuoteNumber,
                 QuoteNumber__c,
                 SalesConnectionQuoteID__c,
@@ -783,7 +783,6 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
         return [
             SELECT Id,
                 Name,
-                CurrencyIsoCode,
                 QuoteNumber,
                 QuoteNumber__c,
                 ExpirationDate,
@@ -792,6 +791,7 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
                 Approval_Status__c,
                 Quote_Total_Without_Freight__c,
                 TotalPrice,
+                CurrencyIsoCode,
                 LastModifiedDate,
                 LastModifiedDate__c,
                 IsForecastIneligible__c,
@@ -883,7 +883,6 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
         return [
             SELECT Id,
                 Name,
-                CurrencyIsoCode,
                 QuoteNumber,
                 QuoteNumber__c,
                 Status,
@@ -963,12 +962,28 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
     }
 
     /**
-     * @description Returns counts of quotes eligible for Opportunity forecast confidence propagation.
+     * @description Returns counts of open, forecast-eligible quotes whose Quote Forecast Confidence
+     *              differs from the parent Opportunity Forecast Confidence.
      * @param opportunityIds Opportunity Id set.
      * @return Quote counts keyed by Opportunity Id.
      */
     public static Map<Id, Integer> countPropagatableForecastConfidenceQuotesByOpportunityIds(
         Set<Id> opportunityIds
+    ) {
+        return countPropagatableForecastConfidenceQuotesByOpportunityIds(opportunityIds, null);
+    }
+
+    /**
+     * @description Returns counts of open, forecast-eligible quotes whose Quote Forecast Confidence
+     *              differs from the supplied Opportunity Forecast Confidence values.
+     * @param opportunityIds Opportunity Id set.
+     * @param opportunityForecastConfidenceLevelById In-flight Opportunity ForecastConfidenceLevel__c
+     *        values keyed by Opportunity Id; remaining Ids are loaded from the database.
+     * @return Quote counts keyed by Opportunity Id.
+     */
+    public static Map<Id, Integer> countPropagatableForecastConfidenceQuotesByOpportunityIds(
+        Set<Id> opportunityIds,
+        Map<Id, String> opportunityForecastConfidenceLevelById
     ) {
         Map<Id, Integer> quoteCountsByOpportunityId = new Map<Id, Integer>();
 
@@ -976,26 +991,29 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
             return quoteCountsByOpportunityId;
         }
 
-        Id salesConnectionRecordTypeId = resolveHcSalesRecordTypeId();
-        Set<String> includedQuoteTypes = forecastPropagateIncludedQuoteTypes();
+        Map<Id, String> forecastConfidenceByOpportunityId = resolveOpportunityForecastConfidenceLevels(
+            opportunityIds,
+            opportunityForecastConfidenceLevelById
+        );
 
-        for (AggregateResult aggregateResult : [
-            SELECT OpportunityId opportunityId, COUNT(Id) quoteCount
-            FROM Quote
-            WHERE OpportunityId IN :opportunityIds
-              AND (
-                    (
-                        RecordTypeId = :salesConnectionRecordTypeId
-                        AND IsForecastIneligible__c != TRUE
-                    )
-                    OR QuoteType__c IN :includedQuoteTypes
+        for (Quote quoteRecord : queryForecastPropagateCandidateQuotesForCount(opportunityIds)) {
+            String opportunityForecastConfidence = forecastConfidenceByOpportunityId.get(
+                quoteRecord.OpportunityId
+            );
+
+            if (
+                !quoteRequiresForecastConfidencePropagation(
+                    quoteRecord,
+                    opportunityForecastConfidence
                 )
-            WITH SYSTEM_MODE
-            GROUP BY OpportunityId
-        ]) {
+            ) {
+                continue;
+            }
+
+            Integer currentCount = quoteCountsByOpportunityId.get(quoteRecord.OpportunityId);
             quoteCountsByOpportunityId.put(
-                (Id) aggregateResult.get('opportunityId'),
-                (Integer) aggregateResult.get('quoteCount')
+                quoteRecord.OpportunityId,
+                currentCount == null ? 1 : currentCount + 1
             );
         }
 
@@ -1003,39 +1021,37 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
     }
 
     /**
-     * @description Returns quotes eligible for Opportunity forecast confidence propagation.
+     * @description Returns open, forecast-eligible quotes whose Quote Forecast Confidence differs
+     *              from the parent Opportunity Forecast Confidence.
      * @param opportunityId Opportunity Id.
-     * @return Applicable Quote records.
+     * @return Applicable Quote records for Review Quotes.
      */
     public static List<Quote> selectPropagatableForecastConfidenceQuotesByOpportunityId(Id opportunityId) {
         if (opportunityId == null) {
             return new List<Quote>();
         }
 
-        Id salesConnectionRecordTypeId = resolveHcSalesRecordTypeId();
-        Set<String> includedQuoteTypes = forecastPropagateIncludedQuoteTypes();
+        Map<Id, String> forecastConfidenceByOpportunityId = resolveOpportunityForecastConfidenceLevels(
+            new Set<Id>{ opportunityId },
+            null
+        );
+        String opportunityForecastConfidence = forecastConfidenceByOpportunityId.get(opportunityId);
+        List<Quote> applicableQuotes = new List<Quote>();
 
-        return [
-            SELECT Id,
-                Name,
-                CurrencyIsoCode,
-                QuoteNumber,
-                QuoteNumber__c,
-                Status,
-                QuoteForecastConfidence__c,
-                QuoteType__c
-            FROM Quote
-            WHERE OpportunityId = :opportunityId
-              AND (
-                    (
-                        RecordTypeId = :salesConnectionRecordTypeId
-                        AND IsForecastIneligible__c != TRUE
-                    )
-                    OR QuoteType__c IN :includedQuoteTypes
+        for (Quote quoteRecord :
+            queryForecastPropagateCandidateQuotesForReview(new Set<Id>{ opportunityId })
+        ) {
+            if (
+                quoteRequiresForecastConfidencePropagation(
+                    quoteRecord,
+                    opportunityForecastConfidence
                 )
-            WITH USER_MODE
-            ORDER BY LastModifiedDate DESC, CreatedDate DESC
-        ];
+            ) {
+                applicableQuotes.add(quoteRecord);
+            }
+        }
+
+        return applicableQuotes;
     }
 
     /**
@@ -1055,7 +1071,6 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
             return [
                 SELECT Id,
                     Name,
-                    CurrencyIsoCode,
                     QuoteNumber,
                     QuoteNumber__c,
                     Status,
@@ -1074,7 +1089,6 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
         return [
             SELECT Id,
                 Name,
-                CurrencyIsoCode,
                 QuoteNumber,
                 QuoteNumber__c,
                 Status,
@@ -1148,6 +1162,108 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
         return quoteCountsByOpportunityId;
     }
 
+    private static Map<Id, String> resolveOpportunityForecastConfidenceLevels(
+        Set<Id> opportunityIds,
+        Map<Id, String> opportunityForecastConfidenceLevelById
+    ) {
+        Map<Id, String> forecastConfidenceByOpportunityId = new Map<Id, String>();
+
+        if (opportunityForecastConfidenceLevelById != null) {
+            forecastConfidenceByOpportunityId.putAll(opportunityForecastConfidenceLevelById);
+        }
+
+        Set<Id> opportunityIdsToQuery = new Set<Id>();
+        for (Id opportunityId : opportunityIds) {
+            if (!forecastConfidenceByOpportunityId.containsKey(opportunityId)) {
+                opportunityIdsToQuery.add(opportunityId);
+            }
+        }
+
+        if (!opportunityIdsToQuery.isEmpty()) {
+            for (Opportunity opportunityRecord : [
+                SELECT Id, ForecastConfidenceLevel__c
+                FROM Opportunity
+                WHERE Id IN :opportunityIdsToQuery
+                WITH SYSTEM_MODE
+            ]) {
+                forecastConfidenceByOpportunityId.put(
+                    opportunityRecord.Id,
+                    opportunityRecord.ForecastConfidenceLevel__c
+                );
+            }
+        }
+
+        return forecastConfidenceByOpportunityId;
+    }
+
+    private static List<Quote> queryForecastPropagateCandidateQuotesForCount(Set<Id> opportunityIds) {
+        Id salesConnectionRecordTypeId = resolveHcSalesRecordTypeId();
+        if (salesConnectionRecordTypeId == null) {
+            return new List<Quote>();
+        }
+
+        return [
+            SELECT Id, OpportunityId, QuoteForecastConfidence__c
+            FROM Quote
+            WHERE OpportunityId IN :opportunityIds
+              AND Status != :CLOSED_STATUS_VALUE
+              AND RecordTypeId = :salesConnectionRecordTypeId
+              AND Forecast_Eligible__c = TRUE
+              AND IsForecastIneligible__c != TRUE
+            WITH SYSTEM_MODE
+        ];
+    }
+
+    private static List<Quote> queryForecastPropagateCandidateQuotesForReview(Set<Id> opportunityIds) {
+        Id salesConnectionRecordTypeId = resolveHcSalesRecordTypeId();
+        if (salesConnectionRecordTypeId == null) {
+            return new List<Quote>();
+        }
+
+        return [
+            SELECT Id,
+                OpportunityId,
+                Name,
+                QuoteNumber,
+                QuoteNumber__c,
+                Status,
+                QuoteForecastConfidence__c,
+                QuoteType__c
+            FROM Quote
+            WHERE OpportunityId IN :opportunityIds
+              AND Status != :CLOSED_STATUS_VALUE
+              AND RecordTypeId = :salesConnectionRecordTypeId
+              AND Forecast_Eligible__c = TRUE
+              AND IsForecastIneligible__c != TRUE
+            WITH USER_MODE
+            ORDER BY LastModifiedDate DESC, CreatedDate DESC
+        ];
+    }
+
+    private static Boolean quoteRequiresForecastConfidencePropagation(
+        Quote quoteRecord,
+        String opportunityForecastConfidenceLevel
+    ) {
+        if (quoteRecord == null) {
+            return false;
+        }
+
+        String mappedOpportunityConfidence = QuoteService.mapOpportunityForecastConfidenceToQuote(
+            opportunityForecastConfidenceLevel
+        );
+
+        if (String.isBlank(mappedOpportunityConfidence)) {
+            return false;
+        }
+
+        String quoteForecastConfidence = quoteRecord.QuoteForecastConfidence__c;
+        if (String.isBlank(quoteForecastConfidence)) {
+            return true;
+        }
+
+        return !mappedOpportunityConfidence.equalsIgnoreCase(quoteForecastConfidence.trim());
+    }
+
     private static Set<String> forecastPropagateIncludedQuoteTypes() {
         return salesConnectionSpecialQuoteTypes();
     }
@@ -1174,7 +1290,6 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
             SELECT
                 Id,
                 Name,
-                CurrencyIsoCode,
                 QuoteNumber,
                 Status,
                 Pricebook2Id,

@@ -275,4 +275,38 @@ public with sharing class CasesSelector {
             WITH SECURITY_ENFORCED
         ];
     }
+
+    /**
+     * @description GW-1509 - Open Cases for Create Return Order account picklist.
+     * @param accountId Account Id
+     * @return Open Cases ordered by CaseNumber
+     */
+    public static List<Case> selectOpenByAccountIdForCreateReturnOrder(Id accountId) {
+        if (accountId == null) {
+            return new List<Case>();
+        }
+        return (List<Case>) SoqlQueryBuilder.fromObject('Case')
+            .selectFields(new List<String>{ 'Id', 'CaseNumber', 'Subject' })
+            .whereEquals('AccountId', accountId)
+            .whereEquals('IsClosed', false)
+            .orderBy('CaseNumber')
+            .execute();
+    }
+
+    /**
+     * @description GW-1509 - Case account/label fields for Create Return Order launch context.
+     * @param caseId Case Id
+     * @return Matching Case rows (LIMIT 1)
+     */
+    public static List<Case> selectAccountContextById(Id caseId) {
+        if (caseId == null) {
+            return new List<Case>();
+        }
+        return (List<Case>) SoqlQueryBuilder.fromObject('Case')
+            .selectFields(new List<String>{ 'AccountId', 'CaseNumber', 'Subject' })
+            .whereEquals('Id', caseId)
+            .limitTo(1)
+            .execute();
+    }
+
 }

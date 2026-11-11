@@ -4,6 +4,7 @@
  * @author STERIS
  * @see AssetPendingInactivationSelector
  * @see AssetPendingInactivationBatch
+ * @see AssetTriggerHandler
  */
 public without sharing class AssetPendingInactivationService {
 
@@ -145,16 +146,7 @@ public without sharing class AssetPendingInactivationService {
             for (Asset assetRecord : pendingAssetList) {
                 if (blockedAssetIdSet.contains(assetRecord.Id)) {
                     result.blockedCount++;
-                    Logger.info(
-                        'AssetPendingInactivationService: Asset ' +
-                        assetRecord.Id +
-                        ' remains ' +
-                        STATUS_PENDING_INACTIVATION +
-                        '; open Work Order or active contract line found. timestamp=' +
-                        String.valueOf(System.now()) +
-                        ' userId=' +
-                        UserInfo.getUserId()
-                    );
+                    Logger.info('AssetPendingInactivationService: Asset ' + assetRecord.Id + ' remains ' + STATUS_PENDING_INACTIVATION + '; open Work Order or active contract line found. timestamp=' + String.valueOf(System.now()) + ' userId=' + UserInfo.getUserId());
                     continue;
                 }
                 assetsToInactivate.add(
@@ -173,33 +165,17 @@ public without sharing class AssetPendingInactivationService {
                 Asset updatedAsset = assetsToInactivate[index];
                 if (saveResult.isSuccess()) {
                     result.inactivatedCount++;
-                    Logger.info(
-                        'AssetPendingInactivationService: Asset ' +
-                        updatedAsset.Id +
-                        ' status ' +
-                        STATUS_PENDING_INACTIVATION +
-                        ' -> ' +
-                        STATUS_SERVICE_INACTIVE +
-                        '. timestamp=' +
-                        String.valueOf(System.now()) +
-                        ' userId=' +
-                        UserInfo.getUserId()
-                    );
+                    Logger.info('AssetPendingInactivationService: Asset ' + updatedAsset.Id + ' status ' + STATUS_PENDING_INACTIVATION + ' -> ' + STATUS_SERVICE_INACTIVE + '. timestamp=' + String.valueOf(System.now()) + ' userId=' + UserInfo.getUserId());
                 } else {
-                    Logger.error(
-                        'AssetPendingInactivationService: failed to inactivate Asset ' +
-                        updatedAsset.Id +
-                        ': ' +
-                        saveResult.getErrors()[0].getMessage()
-                    );
+                    Logger.error('AssetPendingInactivationService: failed to inactivate Asset ' + updatedAsset.Id + ': ' + saveResult.getErrors()[0].getMessage());
                 }
             }
             return result;
-        } catch (AssetPendingInactivationException e) {
-            Logger.error('AssetPendingInactivationService.evaluatePendingInactivation', e);
-            throw e;
         } catch (Exception e) {
             Logger.error('AssetPendingInactivationService.evaluatePendingInactivation', e);
+            if (e instanceof AssetPendingInactivationException) {
+                throw e;
+            }
             throw new AssetPendingInactivationException(
                 'An unexpected error occurred while evaluating Asset inactivation.',
                 e

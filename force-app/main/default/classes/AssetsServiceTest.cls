@@ -87,64 +87,6 @@ private class AssetsServiceTest {
         }
     }
 
-    // ── updateAssets ─────────────────────────────────────────────────────────
-
-    @IsTest
-    static void shouldUpdateAssets_WhenValidListProvided() {
-        /********************************************
-         * SETUP
-         ********************************************/
-        User testUser = new User(id=UserInfo.getUserId()); // Use current user to avoid permission issues in test context
-
-        System.runAs(testUser) {
-            /********************************************
-             * GIVEN
-             ********************************************/
-            List<Asset> assetList = [SELECT Id, Status FROM Asset LIMIT 3];
-            for (Asset a : assetList) {
-                a.Status = 'Installed';
-            }
-
-            /********************************************
-             * WHEN
-             ********************************************/
-            Test.startTest();
-            AssetsService.updateAssets(assetList);
-            Test.stopTest();
-
-            /********************************************
-             * THEN
-             ********************************************/
-            Set<Id> updatedIds = new Map<Id, Asset>(assetList).keySet();
-            List<Asset> updatedList = [SELECT Id, Status FROM Asset WHERE Id IN :updatedIds];
-            for (Asset a : updatedList) {
-                Assert.areEqual('Installed', a.Status, 'Status should be updated to Installed');
-            }
-        }
-    }
-
-    @IsTest
-    static void shouldDoNothing_WhenUpdateAssetsCalledWithNullInput() {
-        /********************************************
-         * SETUP
-         ********************************************/
-        User testUser = new User(id=UserInfo.getUserId()); // Use current user to avoid permission issues in test context
-
-        System.runAs(testUser) {
-            /********************************************
-             * WHEN
-             ********************************************/
-            Test.startTest();
-            AssetsService.updateAssets(null);
-            Test.stopTest();
-
-            /********************************************
-             * THEN
-             ********************************************/
-            Assert.isTrue(true, 'updateAssets with null should complete without error');
-        }
-    }
-
     // ── deleteAssets ─────────────────────────────────────────────────────────
 
     @IsTest
@@ -255,12 +197,132 @@ private class AssetsServiceTest {
     }
 
     @IsTest
-    static void shouldReturnEmpty_WhenSerialAndProductDoNotMatch() {
-        List<Asset> matches = AssetsService.getAssetsBySerialAndProduct(
-            new Set<String>{ 'NO-SUCH-SERIAL' },
-            UserInfo.getUserId()
+    static void shouldReturnMatchingAsset_WhenElevatedSerialAndProductMatch() {
+        Id accountId = [SELECT Id FROM Account LIMIT 1].Id;
+        Product2 product = new Product2(
+            Name = 'Asset Elevated Match Product',
+            ProductCode = 'ASSET-ELEV-1',
+            IsActive = true
         );
-        Assert.isTrue(matches.isEmpty());
+        insert product;
+        Asset matching = new Asset(
+            Name = 'Elevated Matching Asset',
+            AccountId = accountId,
+            Product2Id = product.Id,
+            SerialNumber = 'SN-ELEV-6877'
+        );
+        insert matching;
+
+        Test.startTest();
+        List<Asset> matches = AssetsService.getAssetsBySerialAndProductElevated(
+            new Set<String>{ 'SN-ELEV-6877' },
+            product.Id
+        );
+        Test.stopTest();
+
+        Assert.areEqual(1, matches.size(), 'Elevated lookup should return the matching Asset');
+        Assert.areEqual(matching.Id, matches[0].Id);
+        Assert.areEqual('SN-ELEV-6877', matches[0].SerialNumber);
+        Assert.areEqual(product.Id, matches[0].Product2Id);
+        Assert.areEqual('ASSET-ELEV-1', matches[0].Product2.ProductCode);
+    }
+
+    @IsTest
+    static void shouldReturnEmpty_WhenElevatedSerialOrProductGuardFails() {
+        Product2 product = new Product2(Name = 'Asset Elevated Guard Product', IsActive = true);
+        insert product;
+
+        Assert.isTrue(
+            AssetsService.getAssetsBySerialAndProductElevated(null, product.Id).isEmpty(),
+            'Null serials should return no Assets'
+        );
+        Assert.isTrue(
+            AssetsService.getAssetsBySerialAndProductElevated(new Set<String>(), product.Id).isEmpty(),
+            'Empty serials should return no Assets'
+        );
+        Assert.isTrue(
+            AssetsService.getAssetsBySerialAndProductElevated(new Set<String>{ 'SN-1' }, null).isEmpty(),
+            'Null product should return no Assets'
+        );
+    }
+
+    @IsTest
+    static void shouldUpdateAssets_WhenUpdateAssetsElevatedCalled() {
+        Asset assetRow = [SELECT Id, SerialNumber, Name FROM Asset LIMIT 1];
+        assetRow.SerialNumber = 'SN-ELEV-UPD-6877';
+        assetRow.Name = 'Elevated Update Asset';
+
+        Test.startTest();
+        AssetsService.updateAssetsElevated(new List<Asset>{ assetRow });
+        Test.stopTest();
+
+        Asset updated = [
+            SELECT Id, SerialNumber, Name
+            FROM Asset
+            WHERE Id = :assetRow.Id
+        ];
+        Assert.areEqual('SN-ELEV-UPD-6877', updated.SerialNumber);
+        Assert.areEqual('Elevated Update Asset', updated.Name);
+    }
+
+    @IsTest
+    static void shouldDoNothing_WhenUpdateAssetsElevatedCalledWithEmptyOrNull() {
+        Integer countBefore = [SELECT COUNT() FROM Asset];
+        AssetsService.updateAssetsElevated(null);
+        AssetsService.updateAssetsElevated(new List<Asset>());
+        Assert.areEqual(countBefore, [SELECT COUNT() FROM Asset]);
+    }
+
+    @IsTest
+    static void shouldDoNothing_WhenCreateAssetsCalledWithEmptyList() {
+        Integer countBefore = [SELECT COUNT() FROM Asset];
+        AssetsService.createAssets(new List<Asset>());
+        Assert.areEqual(countBefore, [SELECT COUNT() FROM Asset]);
+    }
+
+    @IsTest
+    static void shouldReturnEarly_WhenDeleteAssetsFindsNoRows() {
+        Set<Id> deletedIds = new Map<Id, Asset>([SELECT Id FROM Asset LIMIT 1]).keySet();
+        delete [SELECT Id FROM Asset WHERE Id IN :deletedIds];
+
+        Test.startTest();
+        AssetsService.deleteAssets(deletedIds);
+        Test.stopTest();
+
+        Assert.areEqual(0, [SELECT COUNT() FROM Asset WHERE Id IN :deletedIds]);
+    }
+
+    @IsTest
+    static void shouldThrow_WhenCreateAssetsFailsValidation() {
+        Boolean threw = false;
+        try {
+            AssetsService.createAssets(new List<Asset>{ new Asset() });
+        } catch (AssetsService.AssetsServiceException e) {
+            threw = true;
+            Assert.isTrue(
+                String.isNotBlank(e.getMessage()),
+                'Create failure should surface a service message'
+            );
+        }
+        Assert.isTrue(threw, 'Invalid Asset insert should throw AssetsServiceException');
+    }
+
+    @IsTest
+    static void shouldThrow_WhenUpdateAssetsElevatedFailsValidation() {
+        Asset assetRow = [SELECT Id, Name FROM Asset LIMIT 1];
+        assetRow.Id = null;
+
+        Boolean threw = false;
+        try {
+            AssetsService.updateAssetsElevated(new List<Asset>{ assetRow });
+        } catch (AssetsService.AssetsServiceException e) {
+            threw = true;
+            Assert.isTrue(
+                String.isNotBlank(e.getMessage()),
+                'Elevated update failure should surface a service message'
+            );
+        }
+        Assert.isTrue(threw, 'Elevated update without Id should throw AssetsServiceException');
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

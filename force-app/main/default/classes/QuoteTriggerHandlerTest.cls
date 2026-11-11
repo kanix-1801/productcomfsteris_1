@@ -153,6 +153,39 @@ private class QuoteTriggerHandlerTest {
     }
 
     @IsTest
+    static void testForecastIneligibleQuoteDoesNotCopyOpportunityForecastConfidenceOnInsert() {
+        Opportunity opportunityRecord = getTestOpportunity();
+        update new Opportunity(
+            Id = opportunityRecord.Id,
+            ForecastConfidenceLevel__c = 'Pipeline'
+        );
+
+        Test.startTest();
+        Quote ineligibleQuote = insertQuote(
+            opportunityRecord,
+            'No Opp Forecast Confidence Quote',
+            'Open',
+            Datetime.now().addDays(-10),
+            true
+        );
+        Test.stopTest();
+
+        Quote resultQuote = [
+            SELECT QuoteForecastConfidence__c, IsForecastIneligible__c
+            FROM Quote
+            WHERE Id = :ineligibleQuote.Id
+            LIMIT 1
+        ];
+
+        System.assertEquals(true, resultQuote.IsForecastIneligible__c);
+        System.assertEquals(
+            null,
+            resultQuote.QuoteForecastConfidence__c,
+            'Forecast-ineligible quotes should not copy Opportunity Forecast Confidence on insert.'
+        );
+    }
+
+    @IsTest
     static void testAutoDesignationSkipsIneligibleQuoteAndDesignatesNextEligibleQuote() {
         Opportunity opportunityRecord = getTestOpportunity();
 

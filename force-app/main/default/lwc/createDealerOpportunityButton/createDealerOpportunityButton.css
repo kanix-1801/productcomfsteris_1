@@ -1,0 +1,10 @@
+.button-wrap {
+    display: inline-flex;
+    align-items: center;
+}
+
+.slds-modal__content {
+    min-height: 20rem;
+    max-height: 70vh;
+    overflow: auto;
+}

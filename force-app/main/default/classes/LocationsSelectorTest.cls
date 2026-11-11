@@ -1,5 +1,7 @@
 /**
  * @description Tests for LocationsSelector (GW-2891 / GW-3816).
+ *              Constructor covers the thin SoqlQueryBuilder bind; legacy static methods
+ *              remain covered for QACBM parity.
  */
 @IsTest
 private class LocationsSelectorTest {
@@ -16,7 +18,6 @@ private class LocationsSelectorTest {
             LIMIT 1
         ]
         .Id;
-        // Repair_Category__c is RT-restricted; global describe [0] may not be valid on Service_Locations.
         Set<String> serviceLocationCategories = new Set<String>{
             'Bipolar',
             'Laps',
@@ -53,9 +54,12 @@ private class LocationsSelectorTest {
         );
     }
 
-    /**
-     * @description GW-2891 - Verifies blank Repair Category input returns no racks.
-     */
+    @IsTest
+    static void testConstructor_bindsLocationObject() {
+        LocationsSelector selector = new LocationsSelector();
+        Assert.isNotNull(selector);
+    }
+
     @IsTest
     static void testSelectRacksByRepairCategories_WhenInputBlank_ReturnsEmpty() {
         User testUser = new User(Id = UserInfo.getUserId());
@@ -72,9 +76,6 @@ private class LocationsSelectorTest {
         }
     }
 
-    /**
-     * @description GW-2891 - Verifies racks are returned for matching Repair Categories.
-     */
     @IsTest
     static void testSelectRacksByRepairCategories_returnsMatchingRacks() {
         String category = [
@@ -96,9 +97,6 @@ private class LocationsSelectorTest {
         Assert.areEqual(category, racks[0].Repair_Category__c);
     }
 
-    /**
-     * @description GW-3816 - Verifies blank rack input returns null.
-     */
     @IsTest
     static void testSelectRackByIdOrName_blankInputReturnsNull() {
         Test.startTest();
@@ -107,9 +105,6 @@ private class LocationsSelectorTest {
         Test.stopTest();
     }
 
-    /**
-     * @description GW-3816 - Verifies a Rack can be resolved by Name or Id.
-     */
     @IsTest
     static void testSelectRackByIdOrName_findsRackByNameAndId() {
         Schema.Location rack = [
@@ -135,24 +130,9 @@ private class LocationsSelectorTest {
     }
 
     @IsTest
-    static void testSelectRepairCenters_returnsRepairCenters() {
-        Schema.Location repairCenter = new Schema.Location(
-            Name = 'GW5492 Repair Center Selector',
-            LocationType = 'Repair Center'
-        );
-        insert repairCenter;
-
-        Test.startTest();
-        List<Schema.Location> centers = LocationsSelector.selectRepairCenters();
-        Test.stopTest();
-
-        Boolean found = false;
-        for (Schema.Location row : centers) {
-            if (row.Id == repairCenter.Id) {
-                found = true;
-                break;
-            }
-        }
-        Assert.isTrue(found);
+    static void testSelectByIdNullOrEmptyReturnsEmpty_sprint93Coverage() {
+        Assert.areEqual(0, LocationsSelector.selectById(null).size());
+        Assert.areEqual(0, LocationsSelector.selectById(new Set<Id>()).size());
     }
+
 }

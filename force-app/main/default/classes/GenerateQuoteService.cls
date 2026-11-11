@@ -605,22 +605,7 @@ public with sharing class GenerateQuoteService {
 
     @TestVisible
     private static String resolveEffectiveQuoteType(Opportunity opportunityRecord, String quoteType) {
-        String resolvedQuoteType = resolveQuoteType(quoteType);
-
-        if (
-            QUOTE_TYPE_NORMAL.equals(resolvedQuoteType) &&
-            isGoodwillSupportOpportunity(opportunityRecord)
-        ) {
-            return QUOTE_TYPE_GOODWILL;
-        }
-
-        return resolvedQuoteType;
-    }
-
-    @TestVisible
-    private static Boolean isGoodwillSupportOpportunity(Opportunity opportunityRecord) {
-        return opportunityRecord != null &&
-            OPPORTUNITY_RECORD_TYPE_GOODWILL.equals(opportunityRecord.RecordType?.DeveloperName);
+        return resolveQuoteType(quoteType);
     }
 
     @TestVisible

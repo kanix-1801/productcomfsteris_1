@@ -97,6 +97,13 @@
                                 <p lwc:if={programSearchTooShort} class="ca-search-hint" aria-live="polite">
                                     Type at least 3 characters to search.
                                 </p>
+                                <div lwc:if={showProgramSearchSpinner} class="ca-search-hint" aria-live="polite">
+                                    <lightning-spinner alternative-text="Searching pricing programs" size="small"
+                                        variant="brand" class="slds-is-relative"></lightning-spinner>
+                                </div>
+                                <p lwc:if={programSearchError} class="ca-search-hint slds-text-color_error" role="alert">
+                                    {programSearchError}
+                                </p>
 
                                 <div lwc:if={hasProgramSearchResults} class="ca-search-results">
                                     <table class="ca-table">

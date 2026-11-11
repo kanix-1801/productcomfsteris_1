@@ -1,21 +1,22 @@
 /**
- * @author Surya
+ * @author PWC Developer
  * @date 2026/10/30
  *
  * @group Life Sciences Account
  *
  * @description
- * GCL-100 - Tests the out-of-territory Account header decision. Covers the owner,
- * an Account Team member, a user on neither, a missing Account Id, and a query failure.
+ * GCL-100 - Tests Full and Base for the Life Sciences Customer 360 panes.
+ * Covers an owner who is not on the team, an Account Team member, a user on
+ * neither, a missing Account Id, and a query failure.
  */
 @IsTest(SeeAllData=false)
 private class LSAccountHeaderControllerTest {
 
     /**
-     * @description GCL-100 - The Account owner keeps the standard page.
+     * @description GCL-100 - The Account owner gets Full even when not on the Account Team.
      */
     @IsTest
-    static void ownerDoesNotSeeHeaderOnly() {
+    static void ownerSeesFull() {
         /********************************************
          * SETUP
          ********************************************/
@@ -26,19 +27,20 @@ private class LSAccountHeaderControllerTest {
          * WHEN
          ********************************************/
         System.runAs(ownerUser) {
-            Account accountRecord = insertAccount(ownerUser.Id);
+            Account accountRecord = insertAccount(ownerUser.Id, 'Customer');
             LSAccountHeaderService.HeaderView headerView =
                 LSAccountHeaderController.getHeaderView(accountRecord.Id);
 
+            System.assertEquals(LSAccountHeaderService.ACCESS_FULL, headerView.accessLevel);
             System.assertEquals(false, headerView.showHeaderOnly);
         }
     }
 
     /**
-     * @description GCL-100 - A user who is not the owner and not on the Account Team sees the header.
+     * @description GCL-100 - A user who is not the owner and not on the Account Team gets Base.
      */
     @IsTest
-    static void outsiderSeesHeaderOnly() {
+    static void userOutsideTheTeamSeesBase() {
         /********************************************
          * SETUP
          ********************************************/
@@ -48,7 +50,7 @@ private class LSAccountHeaderControllerTest {
 
         Account accountRecord;
         System.runAs(ownerUser) {
-            accountRecord = insertAccount(ownerUser.Id);
+            accountRecord = insertAccount(ownerUser.Id, 'Customer');
         }
 
         /********************************************
@@ -58,15 +60,16 @@ private class LSAccountHeaderControllerTest {
             LSAccountHeaderService.HeaderView headerView =
                 LSAccountHeaderController.getHeaderView(accountRecord.Id);
 
+            System.assertEquals(LSAccountHeaderService.ACCESS_BASE, headerView.accessLevel);
             System.assertEquals(true, headerView.showHeaderOnly);
         }
     }
 
     /**
-     * @description GCL-100 - Joining the Account Team removes the header-only view.
+     * @description GCL-100 - An Account Team member gets Full.
      */
     @IsTest
-    static void teamMemberDoesNotSeeHeaderOnly() {
+    static void teamMemberSeesFull() {
         /********************************************
          * SETUP
          ********************************************/
@@ -76,7 +79,7 @@ private class LSAccountHeaderControllerTest {
 
         Account accountRecord;
         System.runAs(ownerUser) {
-            accountRecord = insertAccount(ownerUser.Id);
+            accountRecord = insertAccount(ownerUser.Id, 'Customer');
             insert new AccountTeamMember(
                 AccountId = accountRecord.Id,
                 UserId = teamUser.Id,
@@ -92,6 +95,7 @@ private class LSAccountHeaderControllerTest {
             LSAccountHeaderService.HeaderView headerView =
                 LSAccountHeaderController.getHeaderView(accountRecord.Id);
 
+            System.assertEquals(LSAccountHeaderService.ACCESS_FULL, headerView.accessLevel);
             System.assertEquals(false, headerView.showHeaderOnly);
         }
     }
@@ -118,7 +122,7 @@ private class LSAccountHeaderControllerTest {
         insert ownerUser;
 
         System.runAs(ownerUser) {
-            Account accountRecord = insertAccount(ownerUser.Id);
+            Account accountRecord = insertAccount(ownerUser.Id, 'Customer');
             LSAccountHeaderService.throwTestException = true;
 
             try {
@@ -133,18 +137,50 @@ private class LSAccountHeaderControllerTest {
     /**
      * @description GCL-100 - A missing Account Id does not run a query.
      */
+    /**
+     * @description GCL-100 - A non-Customer record type is never reduced to Base.
+     */
+    @IsTest
+    static void prospectOutsideTheTeamSeesFull() {
+        User ownerUser = createUser('owner');
+        User outsideUser = createUser('outside');
+        insert new List<User>{ ownerUser, outsideUser };
+
+        Account accountRecord;
+        System.runAs(ownerUser) {
+            accountRecord = insertAccount(ownerUser.Id, 'Prospect');
+        }
+
+        System.runAs(outsideUser) {
+            LSAccountHeaderService.HeaderView headerView =
+                LSAccountHeaderController.getHeaderView(accountRecord.Id);
+
+            System.assertEquals(LSAccountHeaderService.ACCESS_FULL, headerView.accessLevel);
+            System.assertEquals(false, headerView.showHeaderOnly);
+        }
+    }
+
     @IsTest
     static void selectorReturnsEmptyForNullId() {
         System.assertEquals(0, LSAccountHeaderSelector.selectById(null).size());
         System.assertEquals(0, LSAccountHeaderSelector.selectCurrentUserTeamMember(null).size());
     }
 
-    private static Account insertAccount(Id ownerId) {
+    private static Account insertAccount(Id ownerId, String recordTypeDeveloperName) {
         Account accountRecord = new Account(
             Name = 'ADC Tech',
             SourceSystemID__c = uniqueToken('acct'),
-            OwnerId = ownerId
+            OwnerId = ownerId,
+            RecordTypeId = recordTypeId(recordTypeDeveloperName)
         );
+        if (recordTypeDeveloperName == 'Prospect') {
+            accountRecord.BillingStreet = '2210 Stockton Street';
+            accountRecord.BillingCity = 'San Francisco';
+            accountRecord.BillingStateCode = 'CA';
+            accountRecord.BillingPostalCode = '94133';
+            accountRecord.BillingCountryCode = 'US';
+            accountRecord.OrgIDs__c = operatingUnitValue();
+        }
         insert accountRecord;
         return accountRecord;
     }
@@ -171,6 +207,21 @@ private class LSAccountHeaderControllerTest {
 
     private static Id internalRoleId() {
         return [SELECT Id FROM UserRole WHERE PortalType = 'None' LIMIT 1].Id;
+    }
+
+    private static Id recordTypeId(String developerName) {
+        return Schema.SObjectType.Account.getRecordTypeInfosByDeveloperName()
+            .get(developerName)
+            .getRecordTypeId();
+    }
+
+    private static String operatingUnitValue() {
+        for (Schema.PicklistEntry entry : Account.OrgIDs__c.getDescribe().getPicklistValues()) {
+            if (entry.isActive()) {
+                return entry.getValue();
+            }
+        }
+        return null;
     }
 
     private static String accountTeamRole() {

@@ -86,6 +86,25 @@
     line-height: 1.35;
 }
 
+.repair-cost-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.75rem;
+    font-size: 0.8125rem;
+}
+
+.repair-cost-header__label {
+    color: #706e6b;
+    font-weight: 400;
+}
+
+.repair-cost-header__value {
+    color: #181818;
+    font-weight: 700;
+    margin-right: 0.35rem;
+}
+
 .header-edit-scroll {
     display: block;
     width: 100%;
@@ -840,4 +859,9 @@
         --eval-sticky-label-width: 6.5rem;
         --eval-sticky-control-width: 11rem;
     }
+}
+
+.additional-services-requested {
+    width: 100%;
+    margin-top: 0.75rem;
 }

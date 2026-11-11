@@ -15,7 +15,7 @@ public with sharing class LSOpportunityOwnerService {
     public static final String LOGGER_TAG = 'LSOpportunityOwner';
     public static final String BUSINESS_SYSTEM_ADMIN_PERMISSION_SET = 'LSBusinessSysAdminPS';
     public static final String OWNER_CHANGE_ERROR =
-        'You cannot change the Opportunity Owner. Only the current owner, a Life Sciences Business System Admin, or a user above the owner in the role hierarchy can reassign this Opportunity.';
+        'You cannot transfer this Opportunity. Only the current owner, a Life Sciences Business System Admin, or a user above the owner in the role hierarchy can transfer it.';
 
     private static final String CLASS_NAME = 'LSOpportunityOwnerService';
     private static final String LIFE_SCIENCES_SALES_PROFILE = 'Life Sciences Sales';
@@ -45,13 +45,18 @@ public with sharing class LSOpportunityOwnerService {
         List<Opportunity> opportunities,
         Map<Id, Opportunity> oldOpportunities
     ) {
+        if (isOwnerCheckDisabled()) {
+            return;
+        }
+
         List<Opportunity> changedOpportunities = ownerChanges(opportunities, oldOpportunities);
         if (changedOpportunities.isEmpty()) {
             return;
         }
 
         User runningUser = LSOpportunityOwnerSelector.selectRunningUser();
-        if (runningUser == null || runningUser.Profile.Name != LIFE_SCIENCES_SALES_PROFILE) {
+        String profileName = LSOpportunityOwnerSelector.selectProfileName(UserInfo.getProfileId());
+        if (runningUser == null || profileName != LIFE_SCIENCES_SALES_PROFILE) {
             return;
         }
 
@@ -73,6 +78,25 @@ public with sharing class LSOpportunityOwnerService {
         } finally {
             Logger.saveLog();
         }
+    }
+
+    /**
+     * @description
+     * GCL-73 - Org-wide and rule-level switches used by the other Life Sciences
+     * Opportunity validations. A checked flag skips this owner check.
+     *
+     * @return TRUE when the owner check must not run.
+     *
+     * @example
+     * isOwnerCheckDisabled();
+     */
+    private static Boolean isOwnerCheckDisabled() {
+        Automation_Setting_Global__c globalSetting = Automation_Setting_Global__c.getInstance();
+        Automation_Setting_Validation_Rule__c validationSetting = Automation_Setting_Validation_Rule__c.getInstance();
+        return (globalSetting != null && globalSetting.disableAll__c)
+            || (validationSetting != null
+                && (validationSetting.disableAll__c
+                    || validationSetting.LS_Opp_073_RestrictOwnerChange__c));
     }
 
     /**

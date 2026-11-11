@@ -160,4 +160,120 @@ private class PricebookEntriesSelectorTest {
             Test.stopTest();
         }
     }
+
+    @IsTest
+    static void testSelectStandardPricebookId_returnsStandardId() {
+        User testUser = new User(Id = UserInfo.getUserId());
+        System.runAs(testUser) {
+            Test.startTest();
+            Id firstCall = PricebookEntriesSelector.selectStandardPricebookId();
+            Id secondCall = PricebookEntriesSelector.selectStandardPricebookId();
+            Test.stopTest();
+
+            Assert.isNotNull(firstCall, 'Standard price book Id should resolve');
+            Assert.areEqual(firstCall, secondCall, 'Second call should use the cache');
+            Assert.areEqual(Test.getStandardPricebookId(), firstCall);
+        }
+    }
+
+    @IsTest
+    static void testSelectActiveIdByPricebookProductCurrency_happyPathAndGuards() {
+        User testUser = new User(Id = UserInfo.getUserId());
+        System.runAs(testUser) {
+            Product2 product = [SELECT Id FROM Product2 WHERE ProductCode = 'PBE-SEL-001' LIMIT 1];
+            PricebookEntry entry = [
+                SELECT Id, Pricebook2Id, Product2Id, CurrencyIsoCode
+                FROM PricebookEntry
+                WHERE Product2Id = :product.Id
+                LIMIT 1
+            ];
+
+            Test.startTest();
+            List<PricebookEntry> results =
+                PricebookEntriesSelector.selectActiveIdByPricebookProductCurrency(
+                    entry.Pricebook2Id,
+                    product.Id,
+                    entry.CurrencyIsoCode
+                );
+            Assert.isTrue(
+                PricebookEntriesSelector.selectActiveIdByPricebookProductCurrency(
+                        null,
+                        product.Id,
+                        'USD'
+                    )
+                    .isEmpty()
+            );
+            Assert.isTrue(
+                PricebookEntriesSelector.selectActiveIdByPricebookProductCurrency(
+                        entry.Pricebook2Id,
+                        null,
+                        'USD'
+                    )
+                    .isEmpty()
+            );
+            Assert.isTrue(
+                PricebookEntriesSelector.selectActiveIdByPricebookProductCurrency(
+                        entry.Pricebook2Id,
+                        product.Id,
+                        ' '
+                    )
+                    .isEmpty()
+            );
+            Test.stopTest();
+
+            Assert.areEqual(1, results.size());
+            Assert.areEqual(entry.Id, results[0].Id);
+        }
+    }
+
+    @IsTest
+    static void testSelectByStandardPricebookProductCurrency_happyPathAndGuards() {
+        User testUser = new User(Id = UserInfo.getUserId());
+        System.runAs(testUser) {
+            Product2 product = [SELECT Id FROM Product2 WHERE ProductCode = 'PBE-SEL-001' LIMIT 1];
+            PricebookEntry entry = [
+                SELECT Id, Pricebook2Id, Product2Id, CurrencyIsoCode, IsActive
+                FROM PricebookEntry
+                WHERE Product2Id = :product.Id
+                LIMIT 1
+            ];
+
+            Test.startTest();
+            List<PricebookEntry> results =
+                PricebookEntriesSelector.selectByStandardPricebookProductCurrency(
+                    entry.Pricebook2Id,
+                    product.Id,
+                    entry.CurrencyIsoCode
+                );
+            Assert.isTrue(
+                PricebookEntriesSelector.selectByStandardPricebookProductCurrency(
+                        null,
+                        product.Id,
+                        'USD'
+                    )
+                    .isEmpty()
+            );
+            Assert.isTrue(
+                PricebookEntriesSelector.selectByStandardPricebookProductCurrency(
+                        entry.Pricebook2Id,
+                        null,
+                        'USD'
+                    )
+                    .isEmpty()
+            );
+            Assert.isTrue(
+                PricebookEntriesSelector.selectByStandardPricebookProductCurrency(
+                        entry.Pricebook2Id,
+                        product.Id,
+                        null
+                    )
+                    .isEmpty()
+            );
+            Test.stopTest();
+
+            Assert.areEqual(1, results.size());
+            Assert.areEqual(entry.Id, results[0].Id);
+            Assert.areEqual(entry.IsActive, results[0].IsActive);
+        }
+    }
 }

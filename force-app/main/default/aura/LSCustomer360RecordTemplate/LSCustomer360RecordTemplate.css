@@ -1,0 +1,32 @@
+.THIS .ls-c360-grid {
+    display: grid;
+    grid-template-columns: 25% 1fr 30%;
+    gap: 0.75rem;
+    align-items: start;
+}
+
+.THIS .ls-full-header {
+    margin-bottom: 0.75rem;
+}
+
+.THIS .ls-full-grid {
+    display: grid;
+    grid-template-columns: 1fr 30%;
+    gap: 0.75rem;
+    align-items: start;
+}
+
+.THIS .ls-c360-left,
+.THIS .ls-c360-center,
+.THIS .ls-c360-right,
+.THIS .ls-full-main,
+.THIS .ls-full-sidebar {
+    min-width: 0;
+}
+
+@media only screen and (max-width: 768px) {
+    .THIS .ls-c360-grid,
+    .THIS .ls-full-grid {
+        grid-template-columns: 1fr;
+    }
+}

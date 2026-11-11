@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>65.0</apiVersion>
+    <isExposed>false</isExposed>
+    <masterLabel>Modifier Codes Cell</masterLabel>
+    <description>GW-3458 Modifier column actions for a work order line.</description>
+</LightningComponentBundle>

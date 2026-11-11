@@ -18,7 +18,7 @@ public with sharing class ReceivingService {
 
     private static final String PATH_RETURN_ORDER = 'ReturnOrder';
     private static final String PATH_WORK_ORDER = 'WorkOrder';
-    private static final String WO_RT_OTHER = 'RepairCenterOther';
+    private static final String WO_RT_VENDOR = 'RepairCenterVendor';
     private static final String WO_RT_DEVICES = 'RepairCenterDevices';
     private static final String WO_RT_INSTRUMENTS = 'RepairCenterInstruments';
     private static final String HEADER_VENDOR_WORK_ORDER = 'Vendor Work Order';
@@ -29,7 +29,7 @@ public with sharing class ReceivingService {
         'CAPITAL EQUIPMENT REPAIR CENTER'
     };
     private static final Set<String> RECEIVING_WORK_ORDER_RECORD_TYPES = new Set<String>{
-        WO_RT_OTHER,
+        WO_RT_VENDOR,
         WO_RT_DEVICES,
         WO_RT_INSTRUMENTS
     };
@@ -350,7 +350,7 @@ public with sharing class ReceivingService {
     public static List<PicklistOption> getRepairCenterOptions() {
         try {
             List<PicklistOption> options = new List<PicklistOption>();
-            for (Schema.Location locationRecord : LocationsSelector.selectRepairCenters()) {
+            for (Schema.Location locationRecord : LocationsService.getRepairCenters()) {
                 PicklistOption option = new PicklistOption();
                 option.label = locationRecord.Name;
                 option.value = String.valueOf(locationRecord.Id);
@@ -1038,7 +1038,7 @@ public with sharing class ReceivingService {
         context.workOrderRecordTypeDeveloperName = workOrder.RecordType == null
             ? null
             : workOrder.RecordType.DeveloperName;
-        context.isVendorWorkOrder = context.workOrderRecordTypeDeveloperName == WO_RT_OTHER;
+        context.isVendorWorkOrder = context.workOrderRecordTypeDeveloperName == WO_RT_VENDOR;
         context.headerTitle = buildWorkOrderHeaderTitle(workOrder);
         context.shipComplete = workOrder.ShipComplete__c == true;
         context.accountId = workOrder.AccountId;
@@ -1068,7 +1068,7 @@ public with sharing class ReceivingService {
         String recordTypeDeveloperName = workOrder.RecordType == null
             ? null
             : workOrder.RecordType.DeveloperName;
-        String label = recordTypeDeveloperName == WO_RT_OTHER
+        String label = recordTypeDeveloperName == WO_RT_VENDOR
             ? HEADER_VENDOR_WORK_ORDER
             : HEADER_WORK_ORDER;
         if (String.isBlank(workOrder.WorkOrderNumber)) {
@@ -1122,7 +1122,7 @@ public with sharing class ReceivingService {
         String woRecordType = workOrder.RecordType == null
             ? null
             : workOrder.RecordType.DeveloperName;
-        Boolean isVendor = woRecordType == WO_RT_OTHER;
+        Boolean isVendor = woRecordType == WO_RT_VENDOR;
         Boolean woRepairWarranty = workOrder.RepairWarranty__c == WARRANTY_YES;
 
         Integer itemNumber = 1;
@@ -1438,7 +1438,7 @@ public with sharing class ReceivingService {
         }
         try {
             WorkOrder workOrder = requireWorkOrderForReceiving(workOrderId);
-            if (workOrder.RecordType == null || workOrder.RecordType.DeveloperName != WO_RT_OTHER) {
+            if (workOrder.RecordType == null || workOrder.RecordType.DeveloperName != WO_RT_VENDOR) {
                 throw new ReceivingServiceException(
                     'Submit is only available for Vendor Work Orders.'
                 );
@@ -1781,7 +1781,17 @@ public with sharing class ReceivingService {
         if (vendorRequiredRulesOverride != null) {
             return vendorRequiredRulesOverride;
         }
-        return VendorRequiredProductRulesSelector.selectActive();
+        return (List<VendorRequiredProductRule__mdt>) new VendorRequiredProductRulesSelector()
+            .selectFields(
+                new List<String>{
+                    'ProductLine__c',
+                    'SubProductLine__c',
+                    'DeviceType__c',
+                    'IsActive__c'
+                }
+            )
+            .whereEquals('IsActive__c', true)
+            .execute();
     }
 
     private static Boolean equalsIgnoreCaseTrimmed(String leftValue, String rightValue) {
@@ -2587,7 +2597,7 @@ public with sharing class ReceivingService {
             if (String.isNotBlank(listed)) {
                 serialCandidates.add(listed);
             }
-            List<Asset> matches = AssetsService.getAssetsBySerialAndProduct(
+            List<Asset> matches = AssetsService.getAssetsBySerialAndProductElevated(
                 serialCandidates,
                 lineItem.Product2Id
             );
@@ -2605,7 +2615,7 @@ public with sharing class ReceivingService {
                 asset.Name = String.isBlank(productCode)
                     ? corrected
                     : productCode.trim() + ' - ' + corrected;
-                AssetsService.updateAssets(new List<Asset>{ asset });
+                AssetsService.updateAssetsElevated(new List<Asset>{ asset });
                 result.assetUpdated = true;
             }
             return result;
@@ -2613,7 +2623,6 @@ public with sharing class ReceivingService {
             throw e;
         } catch (Exception e) {
             Logger.error('ReceivingService.applySerialOverride: Unexpected error.', e);
-            Logger.saveLog();
             throw new ReceivingServiceException(
                 'Unable to save the serial number override: ' + e.getMessage(),
                 e
@@ -2760,7 +2769,6 @@ public with sharing class ReceivingService {
             throw e;
         } catch (Exception e) {
             Logger.error('ReceivingService.applyWorkOrderSerialOverride: Unexpected error.', e);
-            Logger.saveLog();
             throw new ReceivingServiceException(
                 'Unable to save the serial number override: ' + e.getMessage(),
                 e
@@ -2802,7 +2810,10 @@ public with sharing class ReceivingService {
         if (productId == null && lineItem.Asset != null) {
             productId = lineItem.Asset.Product2Id;
         }
-        List<Asset> matches = AssetsService.getAssetsBySerialAndProduct(serialCandidates, productId);
+        List<Asset> matches = AssetsService.getAssetsBySerialAndProductElevated(
+            serialCandidates,
+            productId
+        );
         if (matches.size() > 1) {
             throw new ReceivingServiceException(
                 'More than one Asset matches this serial number and product.'
@@ -2820,7 +2831,7 @@ public with sharing class ReceivingService {
         asset.Name = String.isBlank(productCode)
             ? corrected
             : productCode.trim() + ' - ' + corrected;
-        AssetsService.updateAssets(new List<Asset>{ asset });
+        AssetsService.updateAssetsElevated(new List<Asset>{ asset });
         result.assetUpdated = true;
     }
 
@@ -2912,7 +2923,7 @@ public with sharing class ReceivingService {
         Savepoint savepoint = Database.setSavepoint();
         try {
             WorkOrder workOrder = requireWorkOrderForReceiving(workOrderId);
-            if (workOrder.RecordType != null && workOrder.RecordType.DeveloperName == WO_RT_OTHER) {
+            if (workOrder.RecordType != null && workOrder.RecordType.DeveloperName == WO_RT_VENDOR) {
                 throw new ReceivingServiceException(
                     'Resi-Test is not available for Vendor Work Orders.'
                 );
@@ -3150,7 +3161,7 @@ public with sharing class ReceivingService {
             String recordTypeDeveloperName = workOrder.RecordType == null
                 ? null
                 : workOrder.RecordType.DeveloperName;
-            if (recordTypeDeveloperName == WO_RT_OTHER) {
+            if (recordTypeDeveloperName == WO_RT_VENDOR) {
                 throw new ReceivingServiceException(
                     'Travel Tag print is not available for Vendor Work Orders.'
                 );

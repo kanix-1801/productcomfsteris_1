@@ -422,4 +422,11 @@ private class ContactsSelectorTest {
             'No Contacts should match an Account Id.'
         );
     }
+
+    @IsTest
+    static void testSelectByIdNullOrEmptyReturnsEmpty_sprint93Coverage() {
+        Assert.areEqual(0, ContactsSelector.selectById(null).size());
+        Assert.areEqual(0, ContactsSelector.selectById(new Set<Id>()).size());
+    }
+
 }

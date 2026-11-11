@@ -1,5 +1,6 @@
 /**
  * @description Selector for VendorRequiredProductRule__mdt. Queries use SoqlQueryBuilder.
+ *              Callers build and execute queries on this selector; no static query methods.
  */
 public with sharing class VendorRequiredProductRulesSelector extends SoqlQueryBuilder {
     /**
@@ -7,23 +8,5 @@ public with sharing class VendorRequiredProductRulesSelector extends SoqlQueryBu
      */
     public VendorRequiredProductRulesSelector() {
         this.objectName = 'VendorRequiredProductRule__mdt';
-    }
-
-    /**
-     * @description GW-5492 - Active vendor-required product rules.
-     * @return Active custom metadata rows
-     */
-    public static List<VendorRequiredProductRule__mdt> selectActive() {
-        return (List<VendorRequiredProductRule__mdt>) new VendorRequiredProductRulesSelector()
-            .selectFields(
-                new List<String>{
-                    'ProductLine__c',
-                    'SubProductLine__c',
-                    'DeviceType__c',
-                    'IsActive__c'
-                }
-            )
-            .whereEquals('IsActive__c', true)
-            .execute();
     }
 }

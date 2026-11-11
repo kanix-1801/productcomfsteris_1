@@ -153,4 +153,38 @@ private class ReturnOrderLineItemsSelectorTest {
         Assert.isTrue(matchCount >= 1, 'Matching Return Order lines should count');
         Assert.areEqual(0, none, 'Impossible filter combination should return zero');
     }
+
+    @IsTest
+    static void testSelectByIdNullOrEmptyReturnsEmpty_sprint93Coverage() {
+        Assert.areEqual(0, ReturnOrderLineItemsSelector.selectById(null).size());
+        Assert.areEqual(0, ReturnOrderLineItemsSelector.selectById(new Set<Id>()).size());
+    }
+
+    /**
+     * @description GW-5677 - Additional-services query returns every line on the Return Order.
+     */
+    @IsTest
+    static void testSelectAdditionalServicesByReturnOrderId_ReturnsLinesInNumberOrder() {
+        ReturnOrderLineItem lineItem = [
+            SELECT Id, ReturnOrderId
+            FROM ReturnOrderLineItem
+            LIMIT 1
+        ];
+        lineItem.ItemDescription__c = 'Scalpel';
+        lineItem.AdditionalServiceRepair__c = true;
+        update lineItem;
+
+        Test.startTest();
+        List<ReturnOrderLineItem> none =
+            ReturnOrderLineItemsSelector.selectAdditionalServicesByReturnOrderId(null);
+        List<ReturnOrderLineItem> lines =
+            ReturnOrderLineItemsSelector.selectAdditionalServicesByReturnOrderId(lineItem.ReturnOrderId);
+        Test.stopTest();
+
+        Assert.areEqual(0, none.size(), 'Null Return Order should return no lines');
+        Assert.isFalse(lines.isEmpty(), 'Return Order lines should be returned');
+        Assert.areEqual('Scalpel', lines[0].ItemDescription__c);
+        Assert.areEqual(true, lines[0].AdditionalServiceRepair__c);
+    }
+
 }

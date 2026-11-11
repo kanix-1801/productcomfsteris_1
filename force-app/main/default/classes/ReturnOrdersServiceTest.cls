@@ -8,18 +8,47 @@ private class ReturnOrdersServiceTest {
 
     @TestSetup
     static void setupTestData() {
-        // Build and persist an Account to parent the ReturnOrders
-        adb_Account accountBuilder = new adb_Account();
-        accountBuilder.persist();
+        // GW-6358: Shipment and Work Order Shipment access for the user-mode DML in the service
+        assignPermissionSetIfNeeded('ProcessReturnOrders');
+        assignPermissionSetIfNeeded('ManageWorkOrders');
 
-        // Build and persist 10 ReturnOrders for test coverage
-        List<ReturnOrder> returnOrderList = new List<ReturnOrder>();
-        for (Integer i = 0; i < 10; i++) {
-            ReturnOrder ro = newDraftReturnOrder();
-            ro.AccountId = accountBuilder.id;
-            returnOrderList.add(ro);
+        System.runAs(new User(Id = UserInfo.getUserId())) {
+            // Build and persist an Account to parent the ReturnOrders
+            adb_Account accountBuilder = new adb_Account();
+            accountBuilder.persist();
+
+            // Build and persist 10 ReturnOrders for test coverage
+            List<ReturnOrder> returnOrderList = new List<ReturnOrder>();
+            for (Integer i = 0; i < 10; i++) {
+                ReturnOrder ro = newDraftReturnOrder();
+                ro.AccountId = accountBuilder.id;
+                returnOrderList.add(ro);
+            }
+            insert returnOrderList;
         }
-        insert returnOrderList;
+    }
+
+    /**
+     * @description GW-6358 - Assigns a permission set to the running user when it is not assigned yet.
+     * @param permissionSetName Permission set API name
+     */
+    private static void assignPermissionSetIfNeeded(String permissionSetName) {
+        List<PermissionSet> permissionSets = [SELECT Id FROM PermissionSet WHERE Name = :permissionSetName LIMIT 1];
+        if (permissionSets.isEmpty()) {
+            return;
+        }
+        List<PermissionSetAssignment> existingAssignments = [
+            SELECT Id
+            FROM PermissionSetAssignment
+            WHERE AssigneeId = :UserInfo.getUserId() AND PermissionSetId = :permissionSets[0].Id
+            LIMIT 1
+        ];
+        if (existingAssignments.isEmpty()) {
+            new adb_PermissionSetAssignment()
+                .assigneeId(UserInfo.getUserId())
+                .permissionSetId(permissionSets[0].Id)
+                .persist();
+        }
     }
 
     // ── createReturnOrders ────────────────────────────────────────────────────
@@ -361,11 +390,20 @@ private class ReturnOrdersServiceTest {
         }
 
         ReturnOrder refreshed = [
-            SELECT Id, InboundTrackingNumber__c, ReturnOrderNumber
+            SELECT Id, ReturnOrderNumber
             FROM ReturnOrder
             WHERE Id = :returnOrderRecord.Id
         ];
-        Assert.areEqual('TRACK-INBOUND-001', refreshed.InboundTrackingNumber__c);
+        // GW-6358: the tracking number is stored on a new Shipment of the Return Order
+        Shipment shipment = [
+            SELECT TrackingNumber, TrackingUrl, Status, Carrier__c
+            FROM Shipment
+            WHERE ReturnOrderId = :returnOrderRecord.Id
+        ];
+        Assert.areEqual('TRACK-INBOUND-001', shipment.TrackingNumber);
+        Assert.areEqual('https://www.fedex.com/fedextrack/?trknbr=TRACK-INBOUND-001', shipment.TrackingUrl);
+        Assert.areEqual('Created', shipment.Status);
+        Assert.areEqual('FedEx', shipment.Carrier__c);
         assertInboundCustomerReference(refreshed);
 
         List<ContentDocumentLink> links = [
@@ -466,11 +504,13 @@ private class ReturnOrdersServiceTest {
         }
 
         ReturnOrder refreshed = [
-            SELECT Id, ReturnOrderNumber, InboundTrackingNumber__c
+            SELECT Id, ReturnOrderNumber
             FROM ReturnOrder
             WHERE Id = :returnOrderRecord.Id
         ];
-        Assert.areEqual('TRACK-VENDOR-REF', refreshed.InboundTrackingNumber__c);
+        // GW-6358: the tracking number is stored on a Shipment of the Vendor Return Order
+        Shipment shipment = [SELECT TrackingNumber FROM Shipment WHERE ReturnOrderId = :returnOrderRecord.Id];
+        Assert.areEqual('TRACK-VENDOR-REF', shipment.TrackingNumber);
         assertVendorCustomerReference(refreshed);
     }
 
@@ -900,7 +940,6 @@ private class ReturnOrdersServiceTest {
                 SourceLocationId,
                 DestinationLocationId,
                 ReturnOrderType__c,
-                InboundTrackingNumber__c,
                 RecordType.DeveloperName
             FROM ReturnOrder
             WHERE Id = :vendorRoId
@@ -909,7 +948,9 @@ private class ReturnOrdersServiceTest {
         Assert.areEqual(fixture.repairCenter.Id, vendorRo.SourceLocationId);
         Assert.areEqual('Vendor', vendorRo.ReturnOrderType__c);
         Assert.areEqual('VendorReturn', vendorRo.RecordType.DeveloperName);
-        Assert.areEqual('7949CVS00001', vendorRo.InboundTrackingNumber__c);
+        // GW-6358: tracking is on a Shipment of the Vendor Return Order
+        Shipment vendorShipment = [SELECT Id, TrackingNumber FROM Shipment WHERE ReturnOrderId = :vendorRoId];
+        Assert.areEqual('7949CVS00001', vendorShipment.TrackingNumber);
 
         List<ReturnOrderLineItem> lines = [
             SELECT Id, LineType__c, RecordType.DeveloperName, Product2Id
@@ -931,14 +972,14 @@ private class ReturnOrdersServiceTest {
         Assert.isTrue(foundInbound, 'Expected inbound ROLI');
 
         WorkOrder refreshedWo = [
-            SELECT Status, SubStatus__c, VendorReturnOrder__c, TrackingNumber__c
+            SELECT Status, SubStatus__c, VendorReturnOrder__c, Shipment__c
             FROM WorkOrder
             WHERE Id = :fixture.vendorWorkOrder.Id
         ];
         Assert.areEqual('Ship to Vendor', refreshedWo.Status);
         Assert.isNull(refreshedWo.SubStatus__c);
         Assert.areEqual(vendorRoId, refreshedWo.VendorReturnOrder__c);
-        Assert.areEqual('7949CVS00001', refreshedWo.TrackingNumber__c);
+        Assert.areEqual(vendorShipment.Id, refreshedWo.Shipment__c);
 
         List<ContentDocumentLink> links = [
             SELECT ContentDocument.Title
@@ -1016,18 +1057,25 @@ private class ReturnOrdersServiceTest {
          * THEN
          ********************************************/
         ReturnOrder refreshedRo = [
-            SELECT InboundTrackingNumber__c, ReturnOrderNumber
+            SELECT ReturnOrderNumber
             FROM ReturnOrder
             WHERE Id = :vendorRo.Id
         ];
-        Assert.areEqual('7949FED00002', refreshedRo.InboundTrackingNumber__c);
+        // GW-6358: one Shipment for the shipped set; the Work Order looks up to it
+        Shipment shipment = [
+            SELECT Id, TrackingNumber, WorkOrder__c
+            FROM Shipment
+            WHERE ReturnOrderId = :vendorRo.Id
+        ];
+        Assert.areEqual('7949FED00002', shipment.TrackingNumber);
 
         WorkOrder refreshedWo = [
-            SELECT TrackingNumber__c
+            SELECT Shipment__c, ParentWorkOrderId
             FROM WorkOrder
             WHERE Id = :fixture.vendorWorkOrder.Id
         ];
-        Assert.areEqual('7949FED00002', refreshedWo.TrackingNumber__c);
+        Assert.areEqual(shipment.Id, refreshedWo.Shipment__c);
+        Assert.areEqual(refreshedWo.ParentWorkOrderId, shipment.WorkOrder__c, 'The parent Work Order should be on the shipment');
 
         List<ContentVersion> files = [
             SELECT Title, PathOnClient
@@ -2170,9 +2218,9 @@ private class ReturnOrdersServiceTest {
 
         Test.startTest();
         ReturnOrdersService.ReceivingRedirectResult viaWrapper =
-            ReturnOrdersService.redirectLineItemForReceiving(
+            ReturnOrdersService.redirectLinesForReceiving(
                 fixture.returnOrderId,
-                fixture.lineItemIds[0],
+                new Set<Id>{ fixture.lineItemIds[0] },
                 destinationRepairCenter.Id,
                 'Move to alternate RC'
             );

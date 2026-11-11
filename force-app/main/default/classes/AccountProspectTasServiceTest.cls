@@ -311,8 +311,7 @@ public class AccountProspectTasServiceTest {
             Country = 'United States',
             City = 'Cleveland',
             Org_ID__c = '83',
-            Class_Code__c = 'Healthcare',
-            Sales_Category__c = 'Capital'
+            Class_Code__c = 'Healthcare'
         );
 
         TasAssignmentRequest request = TasAssignmentRequest.fromLead(leadRecord);
@@ -320,11 +319,11 @@ public class AccountProspectTasServiceTest {
         System.assertEquals(null, request.prospectId);
         System.assertEquals(leadRecord.Id, request.leadId);
         System.assertEquals('Healthcare', request.classCode);
-        System.assertEquals('Capital', request.salesCategory);
 
         Map<String, Object> jsonMap = request.toJsonMap();
         System.assertEquals('US', jsonMap.get('country'));
         System.assertEquals('HC', jsonMap.get('classCode'));
+        System.assertEquals(false, jsonMap.containsKey('salesCategory'));
     }
 
     /**

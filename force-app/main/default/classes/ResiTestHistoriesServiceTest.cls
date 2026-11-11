@@ -47,7 +47,7 @@ private class ResiTestHistoriesServiceTest {
         Id historyId = ResiTestHistoriesService.createForReceiving(
             workOrder.Id,
             null,
-            'contaminated'
+            'Contaminated'
         );
         Test.stopTest();
 
@@ -95,5 +95,23 @@ private class ResiTestHistoriesServiceTest {
         }
 
         Assert.isTrue(threw, 'Restricted picklist rejection should throw service exception');
+    }
+
+    @IsTest
+    static void testGetById_returnsRowsAndGuardsBlank() {
+        WorkOrder workOrder = new WorkOrder(Subject = 'GW5492 Resi GetById WO', Status = 'Received');
+        insert workOrder;
+        Id historyId = ResiTestHistoriesService.createForReceiving(workOrder.Id, null, 'Clean');
+
+        Test.startTest();
+        List<ResiTestHistory__c> rows = ResiTestHistoriesService.getById(new Set<Id>{ historyId });
+        List<ResiTestHistory__c> blank = ResiTestHistoriesService.getById(null);
+        List<ResiTestHistory__c> empty = ResiTestHistoriesService.getById(new Set<Id>());
+        Test.stopTest();
+
+        Assert.areEqual(1, rows.size());
+        Assert.areEqual(historyId, rows[0].Id);
+        Assert.areEqual(0, blank.size());
+        Assert.areEqual(0, empty.size());
     }
 }

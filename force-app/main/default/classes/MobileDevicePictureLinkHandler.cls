@@ -113,7 +113,7 @@ public without sharing class MobileDevicePictureLinkHandler {
                 AND IsLatest = true
                 AND (
                     Description = :WoDebriefIMSchildWOController.MOBILE_DEVICE_PICTURE_MARKER
-                    OR Title = :WoDebriefIMSchildWOController.MOBILE_DEVICE_PICTURE_TITLE
+                    OR Title IN :WoDebriefIMSchildWOController.PICTURE_TITLES
                 )
         ];
         for (ContentVersion version : pictureVersions) {

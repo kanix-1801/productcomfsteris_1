@@ -63,20 +63,17 @@ public with sharing class LeadService {
     }
 
     /**
-     * @description Returns true when Postal Code, Country, Org ID, Class Code,
-     *              and Sales Category are all populated (GC-3279). City is
-     *              optional for TAS eligibility.
-     * @param leadRecord Lead record to validate.
-     * @return True when the Lead is eligible for TAS processing; otherwise false.
+     * Returns true when the Lead came from HubSpot and Postal Code, Country,
+     * Org ID, and Class Code are populated. City is optional.
      */
     @TestVisible
     private static Boolean isValidLeadForTas(Lead leadRecord) {
         Boolean isValid = leadRecord != null
+            && leadRecord.HubSpot_Lead__c
             && String.isNotBlank(leadRecord.PostalCode)
             && String.isNotBlank(leadRecord.Country)
             && String.isNotBlank(leadRecord.Org_ID__c)
-            && String.isNotBlank(leadRecord.Class_Code__c)
-            && String.isNotBlank(leadRecord.Sales_Category__c);
+            && String.isNotBlank(leadRecord.Class_Code__c);
         return isValid;
     }
 }

@@ -320,6 +320,59 @@ public with sharing class CustomerPreferencesService {
         }
     }
 
+    /** PreferenceType__c value for Repair Center pre-approval amount (GW-3377). */
+    @TestVisible
+    private static final String PREFERENCE_TYPE_PRE_APPROVAL_LIMIT = 'Pre-Approval Limit';
+
+    /**
+     * @description GW-3377 - Active IMS Pre-Approval Limit amount for Account + product line.
+     * @param accountId Account Id
+     * @param productLine Work Order / WOLI Product Line
+     * @return Parsed PreferenceValue__c, or null when none / unparseable
+     */
+    public static Decimal getPreApprovalLimit(Id accountId, String productLine) {
+        if (accountId == null) {
+            return null;
+        }
+        try {
+            Id imsRecordTypeId = getImsRecordTypeId();
+            if (imsRecordTypeId == null) {
+                return null;
+            }
+            List<CustomerPreference__c> preferences =
+                selector().selectActiveImsByAccountProductLineAndType(
+                    accountId,
+                    imsRecordTypeId,
+                    productLine,
+                    PREFERENCE_TYPE_PRE_APPROVAL_LIMIT,
+                    Date.today()
+                );
+            if (preferences.isEmpty() || String.isBlank(preferences[0].PreferenceValue__c)) {
+                return null;
+            }
+            try {
+                return Decimal.valueOf(preferences[0].PreferenceValue__c.trim());
+            } catch (Exception parseException) {
+                return null;
+            }
+        } catch (Exception e) {
+            Logger.error(
+                new LogMessage(
+                    'CustomerPreferencesService.getPreApprovalLimit failed for Account {0}: {1}',
+                    accountId,
+                    e.getMessage()
+                ),
+                e
+            );
+            throw new CustomerPreferencesServiceException(
+                'Failed to retrieve Pre-Approval Limit preference: ' + e.getMessage(),
+                e
+            );
+        } finally {
+            Logger.saveLog();
+        }
+    }
+
     /**
      * @description Resolves IMSCustomerPreference RecordType Id; null when not available in the org.
      * @return RecordType Id or null

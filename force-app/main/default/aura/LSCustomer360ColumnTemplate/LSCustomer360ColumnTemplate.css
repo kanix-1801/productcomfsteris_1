@@ -1,0 +1,13 @@
+.THIS .ls-columns {
+    display: grid;
+    grid-template-columns: 25% 55% 20%;
+    gap: 1rem;
+    align-items: start;
+    width: 100%;
+}
+
+.THIS .ls-left,
+.THIS .ls-main,
+.THIS .ls-right {
+    min-width: 0;
+}

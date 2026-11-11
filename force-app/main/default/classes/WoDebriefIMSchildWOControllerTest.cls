@@ -1217,4 +1217,93 @@ private class WoDebriefIMSchildWOControllerTest {
 		System.assertEquals(1, pictures.size(), 'Only the Mobile Device Picture is listed');
 		System.assertEquals(line.Id, pictures[0].linkedEntityId);
 	}
+
+	/**
+	 * @description GW-6340 - A microscopic camera picture is saved as Microscope Picture with its details,
+	 *              listed with the other pictures, and counted on the line.
+	 */
+	@IsTest
+	static void saveMobileDevicePictureWithDetails_savesMicroscopePicture() {
+		String token = String.valueOf(Crypto.getRandomInteger()).replace('-', '');
+		WorkOrder child = createChildWorkOrderForCompletion(token);
+		WorkOrderLineItem line = new WorkOrderLineItem(
+			WorkOrderId = child.Id,
+			RecordTypeId = instrumentRecordTypeId(),
+			LineType__c = 'Instrument'
+		);
+		insert line;
+
+		Test.startTest();
+		WoDebriefIMSchildWOController.MobileDevicePicture saved =
+			WoDebriefIMSchildWOController.saveMobileDevicePictureWithDetails(
+				line.Id,
+				null,
+				EncodingUtil.base64Encode(Blob.valueOf('microscope-picture')),
+				'MicroscopePicture.jpg',
+				'{"category":"Care and Handling","beforeAfter":"Before","comment":"Tip wear","title":"Microscope Picture"}'
+			);
+		List<WoDebriefIMSchildWOController.MobileDevicePicture> listed =
+			WoDebriefIMSchildWOController.listMobileDevicePictures(String.valueOf(line.Id));
+		Test.stopTest();
+
+		System.assertEquals(WoDebriefIMSchildWOController.MICROSCOPE_PICTURE_TITLE, saved.title);
+		System.assertEquals('Care and Handling', saved.category);
+		System.assertEquals('Before', saved.beforeAfter);
+		System.assertEquals('Tip wear', saved.comment);
+		System.assertEquals(1, listed.size());
+		System.assertEquals(WoDebriefIMSchildWOController.MICROSCOPE_PICTURE_TITLE, listed[0].title);
+		WorkOrderLineItem refreshed = [SELECT MobileDevicePictureCount__c FROM WorkOrderLineItem WHERE Id = :line.Id];
+		System.assertEquals(1, refreshed.MobileDevicePictureCount__c, 'Microscope Picture counts on the line');
+	}
+
+	/**
+	 * @description GW-6340 - A Microscope Picture uploaded by the mobile app is listed by its title
+	 *              before its details are moved out of the description.
+	 */
+	@IsTest
+	static void listMobileDevicePictures_matchesMicroscopeTitle() {
+		String token = String.valueOf(Crypto.getRandomInteger()).replace('-', '');
+		WorkOrder child = createChildWorkOrderForCompletion(token);
+		WorkOrderLineItem line = new WorkOrderLineItem(
+			WorkOrderId = child.Id,
+			RecordTypeId = instrumentRecordTypeId(),
+			LineType__c = 'Instrument'
+		);
+		insert line;
+		insert new ContentVersion(
+			Title = WoDebriefIMSchildWOController.MICROSCOPE_PICTURE_TITLE,
+			PathOnClient = 'MicroscopePicture.jpg',
+			VersionData = Blob.valueOf('microscope-upload'),
+			FirstPublishLocationId = line.Id
+		);
+
+		Test.startTest();
+		List<WoDebriefIMSchildWOController.MobileDevicePicture> pictures =
+			WoDebriefIMSchildWOController.listMobileDevicePictures(String.valueOf(line.Id));
+		Test.stopTest();
+
+		System.assertEquals(1, pictures.size(), 'The Microscope Picture is listed');
+	}
+
+	/**
+	 * @description GW-6340 - Only Microscope Picture overrides the default picture title.
+	 */
+	@IsTest
+	static void pictureTitle_defaultsToMobileDevicePicture() {
+		WoDebriefIMSchildWOController.PictureDetails details = new WoDebriefIMSchildWOController.PictureDetails();
+		System.assertEquals(
+			WoDebriefIMSchildWOController.MOBILE_DEVICE_PICTURE_TITLE,
+			WoDebriefIMSchildWOController.pictureTitle(null)
+		);
+		details.title = 'Any File';
+		System.assertEquals(
+			WoDebriefIMSchildWOController.MOBILE_DEVICE_PICTURE_TITLE,
+			WoDebriefIMSchildWOController.pictureTitle(details)
+		);
+		details.title = WoDebriefIMSchildWOController.MICROSCOPE_PICTURE_TITLE;
+		System.assertEquals(
+			WoDebriefIMSchildWOController.MICROSCOPE_PICTURE_TITLE,
+			WoDebriefIMSchildWOController.pictureTitle(details)
+		);
+	}
 }

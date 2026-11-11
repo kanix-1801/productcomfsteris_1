@@ -1,0 +1,17 @@
+<template>
+    <template lwc:if={isLoading}>
+        <lightning-spinner alternative-text="Loading account team" size="small"></lightning-spinner>
+    </template>
+
+    <template lwc:elseif={accessError}>
+        <div class="slds-text-color_error slds-p-around_medium" role="alert">
+            {accessError}
+        </div>
+    </template>
+
+    <template lwc:elseif={isFull}>
+        <lightning-card title="Account Team">
+            <c-ls-account-team-member-details record-id={recordId}></c-ls-account-team-member-details>
+        </lightning-card>
+    </template>
+</template>

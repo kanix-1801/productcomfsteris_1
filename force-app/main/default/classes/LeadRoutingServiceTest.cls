@@ -51,6 +51,7 @@ private class LeadRoutingServiceTest {
         insertQueue(sterilizerQueue, 'Lead Team A');
         insertQueue(washerQueue, 'Lead Team B');
         Lead leadRecord = insertLeadWithProduct('Sterilizer', 'US');
+        update new Lead(Id = leadRecord.Id, HubSpot_Lead__c = true);
         System.runAs(runningUser()) {
             Product2 secondProduct = new Product2(Name = 'Washer', IsActive = true, BusinessUnit__c = 'IMS');
             insert secondProduct;
@@ -79,6 +80,31 @@ private class LeadRoutingServiceTest {
         Assert.isTrue(
             message.contains([SELECT Name FROM User WHERE Id = :UserInfo.getUserId()].Name),
             'The toast should name the assigned rep.'
+        );
+    }
+
+    /**
+     * A manual Lead does not call TAS, even when a TAS rep is available.
+     */
+    @IsTest
+    static void manualLeadSkipsTasAndUsesTheCountryQueue() {
+        String queueName = uniqueDeveloperName('Lead_Rt_US');
+        Group countryQueue = insertQueue(queueName, 'Lead US Queue');
+        Lead leadRecord = insertLeadWithProduct('Sterilizer', 'US');
+        LeadRoutingService.testMatrixRows = new List<Lead_Routing_Matrix__mdt>();
+        LeadRoutingService.testTasOwnerId = UserInfo.getUserId();
+        LeadRoutingService.testCountryRows = new List<Lead_Country_Queue__mdt>{
+            new Lead_Country_Queue__mdt(Country__c = 'US', QueueDeveloperName__c = queueName)
+        };
+
+        Test.startTest();
+        LeadRoutingService.submit(leadRecord.Id);
+        Test.stopTest();
+
+        Assert.areEqual(
+            countryQueue.Id,
+            [SELECT OwnerId FROM Lead WHERE Id = :leadRecord.Id].OwnerId,
+            'A Lead that is not from HubSpot should skip TAS and use the country queue.'
         );
     }
 

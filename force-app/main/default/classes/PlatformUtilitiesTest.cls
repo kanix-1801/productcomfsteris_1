@@ -219,4 +219,31 @@ private class PlatformUtilitiesTest {
         Assert.areEqual('', emptyFromNull, 'Null becomes empty string');
         Assert.areEqual('kept', emptyFromValue, 'Non-null value is unchanged');
     }
+
+    @IsTest
+    static void testParseIdList() {
+        Account account = new Account(Name = 'PlatformUtilities ParseIdList');
+        insert account;
+
+        Test.startTest();
+        List<Id> ids = PlatformUtilities.parseIdList(
+            new List<Object>{ String.valueOf(account.Id), 'bad', null }
+        );
+        Test.stopTest();
+
+        Assert.areEqual(1, ids.size());
+        Assert.areEqual(account.Id, ids[0]);
+    }
+
+    @IsTest
+    static void testToBooleanAndParsePositiveDecimal() {
+        Test.startTest();
+        Assert.isTrue(PlatformUtilities.toBoolean(true));
+        Assert.isTrue(PlatformUtilities.toBoolean('Yes'));
+        Assert.isFalse(PlatformUtilities.toBoolean('no'));
+        Assert.areEqual(5, PlatformUtilities.parsePositiveDecimal(5, 1));
+        Assert.areEqual(1, PlatformUtilities.parsePositiveDecimal(0, 1));
+        Assert.areEqual(1, PlatformUtilities.parsePositiveDecimal(null, 1));
+        Test.stopTest();
+    }
 }

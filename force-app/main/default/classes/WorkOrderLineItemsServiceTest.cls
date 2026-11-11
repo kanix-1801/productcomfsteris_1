@@ -843,7 +843,6 @@ private class WorkOrderLineItemsServiceTest {
             insert new WorkOrderLineItem(
                 WorkOrderId = workOrder.Id,
                 RecordTypeId = repairCodeRt.getRecordTypeId(),
-                Product__c = product.Id,
                 PricebookEntryId = pbe.Id,
                 Quantity = 1
             );
@@ -1010,13 +1009,13 @@ private class WorkOrderLineItemsServiceTest {
         Test.stopTest();
 
         WorkOrderLineItem created = [
-            SELECT Product__c, RepairCode__c, LineType__c, Quantity, PricebookEntryId
+            SELECT Product2Id, RepairCode__c, LineType__c, Quantity, PricebookEntryId
             FROM WorkOrderLineItem
             WHERE WorkOrderId = :workOrder.Id
                 AND RecordTypeId = :repairCodeRtId
             LIMIT 1
         ];
-        Assert.areEqual(product.Id, created.Product__c);
+        Assert.areEqual(product.Id, created.Product2Id);
         Assert.areEqual(product.Id, created.RepairCode__c);
         Assert.areEqual('Category Code', created.LineType__c);
         Assert.areEqual(1, created.Quantity);
@@ -2052,7 +2051,7 @@ private class WorkOrderLineItemsServiceTest {
                 Quantity,
                 Status,
                 LineType__c,
-                Product__c,
+                Product2Id,
                 RepairCode__c,
                 ProductCodeWoli__c,
                 RecordTypeId,
@@ -2065,7 +2064,7 @@ private class WorkOrderLineItemsServiceTest {
         Assert.areEqual(2, disinfection.Quantity);
         Assert.areEqual('Approved', disinfection.Status);
         Assert.areEqual('Service Code', disinfection.LineType__c);
-        Assert.areEqual(disinfectionProduct.Id, disinfection.Product__c);
+        Assert.areEqual(disinfectionProduct.Id, disinfection.Product2Id);
         Assert.areEqual(disinfectionProduct.Id, disinfection.RepairCode__c);
         Assert.areEqual('WOLI.DIS.001', disinfection.ProductCodeWoli__c);
         Assert.areEqual(repairCodeRtId, disinfection.RecordTypeId);
@@ -2662,13 +2661,13 @@ private class WorkOrderLineItemsServiceTest {
         Test.stopTest();
 
         WorkOrderLineItem lineItem = [
-            SELECT ParentWorkOrderLineItemId, Quantity, Product__c, LineType__c
+            SELECT ParentWorkOrderLineItemId, Quantity, Product2Id, LineType__c
             FROM WorkOrderLineItem
             WHERE Id = :lineId
         ];
         Assert.isNull(lineItem.ParentWorkOrderLineItemId);
         Assert.areEqual(3, lineItem.Quantity);
-        Assert.areEqual(product.Id, lineItem.Product__c);
+        Assert.areEqual(product.Id, lineItem.Product2Id);
         Assert.areEqual('Service Code', lineItem.LineType__c);
     }
 
@@ -2808,5 +2807,148 @@ private class WorkOrderLineItemsServiceTest {
         Assert.isTrue(byItem.containsKey(product.Id));
         Assert.isTrue(byItem.get(product.Id).isEmpty());
         Assert.isTrue(byItemBlank.isEmpty());
+    }
+
+    @IsTest
+    static void testRecordTypeGetters_returnConfiguredIds() {
+        Test.startTest();
+        Id productServicedRtId = WorkOrderLineItemsService.getProductServicedRecordTypeId();
+        Id repairCodeRtId = WorkOrderLineItemsService.getRepairCodeRecordTypeId();
+        Test.stopTest();
+
+        Assert.areEqual(
+            Schema.SObjectType.WorkOrderLineItem.getRecordTypeInfosByDeveloperName()
+                .get('ProductServiced')
+                ?.getRecordTypeId(),
+            productServicedRtId
+        );
+        Assert.areEqual(
+            Schema.SObjectType.WorkOrderLineItem.getRecordTypeInfosByDeveloperName()
+                .get('RepairCode')
+                ?.getRecordTypeId(),
+            repairCodeRtId
+        );
+    }
+
+    @IsTest
+    static void testCreateReceivingProductServicedLine_earlyReturns() {
+        Product2 product = new Product2(Name = 'Recv Early Product', IsActive = true);
+        insert product;
+
+        WorkOrderLineItemsService.ReceivingProductServicedInput request =
+            new WorkOrderLineItemsService.ReceivingProductServicedInput();
+        request.product2Id = product.Id;
+
+        Test.startTest();
+        Id nullWorkOrder = WorkOrderLineItemsService.createReceivingProductServicedLine(
+            null,
+            null,
+            null,
+            null,
+            request
+        );
+        Id nullProduct = WorkOrderLineItemsService.createReceivingProductServicedLine(
+            UserInfo.getUserId(),
+            null,
+            null,
+            null,
+            null
+        );
+        Test.stopTest();
+
+        Assert.isNull(nullWorkOrder);
+        Assert.isNull(nullProduct);
+    }
+
+    @IsTest
+    static void testCreateReceivingAccessoryLines_earlyReturns() {
+        Test.startTest();
+        WorkOrderLineItemsService.createReceivingAccessoryLines(
+            null,
+            null,
+            null,
+            new List<WorkOrderLineItemsService.ReceivingAccessoryInput>()
+        );
+        WorkOrderLineItemsService.createReceivingAccessoryLines(
+            UserInfo.getUserId(),
+            null,
+            null,
+            null
+        );
+        WorkOrderLineItemsService.createReceivingAccessoryLines(
+            UserInfo.getUserId(),
+            null,
+            null,
+            new List<WorkOrderLineItemsService.ReceivingAccessoryInput>()
+        );
+        Test.stopTest();
+
+        Assert.isTrue(true, 'Early returns should complete without DML');
+    }
+
+    @IsTest
+    static void testGetQualityInspectionProductServiced_passThrough() {
+        WorkOrder workOrder = [SELECT Id FROM WorkOrder LIMIT 1];
+
+        Test.startTest();
+        List<WorkOrderLineItem> rows =
+            WorkOrderLineItemsService.getQualityInspectionProductServiced(workOrder.Id, null);
+        Test.stopTest();
+
+        Assert.isNotNull(rows);
+    }
+
+    @IsTest
+    static void testCreateReceivingDisinfectionCodeLine_requiredArgGuards() {
+        Boolean missingWorkOrder = false;
+        Boolean missingParent = false;
+        Boolean missingProduct = false;
+
+        Test.startTest();
+        try {
+            WorkOrderLineItemsService.createReceivingDisinfectionCodeLine(null, null, 1, null);
+        } catch (WorkOrderLineItemsService.WorkOrderLineItemsServiceException e) {
+            missingWorkOrder = e.getMessage().contains('Work Order is required');
+        }
+        try {
+            WorkOrderLineItemsService.createReceivingDisinfectionCodeLine(
+                UserInfo.getUserId(),
+                null,
+                1,
+                null
+            );
+        } catch (WorkOrderLineItemsService.WorkOrderLineItemsServiceException e) {
+            missingParent = e.getMessage().contains('Product Serviced line is required');
+        }
+        try {
+            WorkOrderLineItemsService.createReceivingDisinfectionCodeLine(
+                UserInfo.getUserId(),
+                UserInfo.getUserId(),
+                1,
+                null
+            );
+        } catch (WorkOrderLineItemsService.WorkOrderLineItemsServiceException e) {
+            missingProduct = e.getMessage().contains('Disinfection product is required');
+        }
+        Test.stopTest();
+
+        Assert.isTrue(missingWorkOrder);
+        Assert.isTrue(missingParent);
+        Assert.isTrue(missingProduct);
+    }
+
+    @IsTest
+    static void testGetComponentTagsForProduct_stubPathWithValidIds() {
+        WorkOrder workOrder = [SELECT Id FROM WorkOrder LIMIT 1];
+        Product2 product = new Product2(Name = 'WOLIS Tag Pass Through', IsActive = true);
+        insert product;
+
+        Test.startTest();
+        List<WorkOrderLineItemsService.ComponentTagOption> options =
+            WorkOrderLineItemsService.getComponentTagsForProduct(workOrder.Id, product.Id);
+        Test.stopTest();
+
+        Assert.isNotNull(options);
+        Assert.isTrue(options.isEmpty(), 'QA ComponentTags stub returns empty options');
     }
 }

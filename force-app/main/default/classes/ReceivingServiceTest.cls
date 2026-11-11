@@ -959,7 +959,7 @@ private class ReceivingServiceTest {
     static void testGetWorkOrderReceivingShellContext_vendorItemsAndSubmit() {
         Account accountRecord = [SELECT Id FROM Account LIMIT 1];
         Id otherRecordTypeId = Schema.SObjectType.WorkOrder.getRecordTypeInfosByDeveloperName()
-            .get('RepairCenterOther')
+            .get('RepairCenterVendor')
             .getRecordTypeId();
         PricebookEntry pbe = insertProductWithPricebookEntry(
             'GW5968 Vendor Probe',
@@ -1019,7 +1019,7 @@ private class ReceivingServiceTest {
             .get('RepairCenterDevices')
             .getRecordTypeId();
         Id otherRecordTypeId = Schema.SObjectType.WorkOrder.getRecordTypeInfosByDeveloperName()
-            .get('RepairCenterOther')
+            .get('RepairCenterVendor')
             .getRecordTypeId();
         PricebookEntry pbe = insertProductWithPricebookEntry(
             'GW5968 Vendor Parent Probe',
@@ -1084,6 +1084,9 @@ private class ReceivingServiceTest {
         Id otherRecordTypeId = Schema.SObjectType.WorkOrder.getRecordTypeInfosByDeveloperName()
             .get('RepairCenterOther')
             .getRecordTypeId();
+        Id vendorRecordTypeId = Schema.SObjectType.WorkOrder.getRecordTypeInfosByDeveloperName()
+            .get('RepairCenterVendor')
+            .getRecordTypeId();
         PricebookEntry pbe = insertProductWithPricebookEntry(
             'GW5968 Vendor Other Parent Probe',
             'VI.10855',
@@ -1105,7 +1108,7 @@ private class ReceivingServiceTest {
         WorkOrder vendorWorkOrder = new WorkOrder(
             Subject = 'GW5968 Vendor Child Other Parent',
             AccountId = accountRecord.Id,
-            RecordTypeId = otherRecordTypeId,
+            RecordTypeId = vendorRecordTypeId,
             Pricebook2Id = Test.getStandardPricebookId(),
             ParentWorkOrderId = parentWorkOrder.Id
         );
@@ -1144,7 +1147,7 @@ private class ReceivingServiceTest {
             LIMIT 1
         ];
         Id otherRecordTypeId = Schema.SObjectType.WorkOrder.getRecordTypeInfosByDeveloperName()
-            .get('RepairCenterOther')
+            .get('RepairCenterVendor')
             .getRecordTypeId();
         PricebookEntry pbe = insertProductWithPricebookEntry(
             'GW5968 Vendor Inbound Probe',
@@ -1209,7 +1212,8 @@ private class ReceivingServiceTest {
         Assert.areEqual('Received', refreshedLines.get(inboundLine.Id).Status__c);
         Assert.areEqual(2, refreshedLines.get(inboundLine.Id).QuantityReceived);
         Assert.areEqual('Created', refreshedLines.get(outboundLine.Id).Status__c);
-        Assert.areEqual(null, refreshedLines.get(outboundLine.Id).QuantityReceived);
+        // Platform stores QuantityReceived as 0 when unset; submit must not change outbound.
+        Assert.areEqual(0, refreshedLines.get(outboundLine.Id).QuantityReceived);
         ReturnOrder refreshedReturnOrder = [
             SELECT Status
             FROM ReturnOrder
@@ -1227,7 +1231,7 @@ private class ReceivingServiceTest {
             LIMIT 1
         ];
         Id otherRecordTypeId = Schema.SObjectType.WorkOrder.getRecordTypeInfosByDeveloperName()
-            .get('RepairCenterOther')
+            .get('RepairCenterVendor')
             .getRecordTypeId();
         PricebookEntry pbe = insertProductWithPricebookEntry(
             'GW5968 Vendor Parent Link Probe',
@@ -1319,7 +1323,7 @@ private class ReceivingServiceTest {
             LIMIT 1
         ];
         Id otherRecordTypeId = Schema.SObjectType.WorkOrder.getRecordTypeInfosByDeveloperName()
-            .get('RepairCenterOther')
+            .get('RepairCenterVendor')
             .getRecordTypeId();
         PricebookEntry pbe = insertProductWithPricebookEntry(
             'GW5968 Vendor Open Inbound Probe',
@@ -1396,7 +1400,8 @@ private class ReceivingServiceTest {
             WHERE Id = :vendorReturnOrder.Id
         ];
         Assert.areEqual('Created', refreshedOther.Status__c);
-        Assert.areEqual(null, refreshedOther.QuantityReceived);
+        // Platform stores QuantityReceived as 0 when unset; unlinked inbound stays unreceived.
+        Assert.areEqual(0, refreshedOther.QuantityReceived);
         Assert.areEqual('Created', refreshedReturnOrder.Status);
     }
 
@@ -1404,7 +1409,7 @@ private class ReceivingServiceTest {
     static void testGetWorkOrderReceivingShellContext_vendorHeaderTitle() {
         Account accountRecord = [SELECT Id FROM Account LIMIT 1];
         Id otherRecordTypeId = Schema.SObjectType.WorkOrder.getRecordTypeInfosByDeveloperName()
-            .get('RepairCenterOther')
+            .get('RepairCenterVendor')
             .getRecordTypeId();
         WorkOrder workOrder = new WorkOrder(
             Subject = 'GW5968 Vendor Header',
@@ -1429,7 +1434,7 @@ private class ReceivingServiceTest {
             'Vendor Work Order ' + workOrder.WorkOrderNumber,
             context.headerTitle
         );
-        Assert.areEqual('RepairCenterOther', context.workOrderRecordTypeDeveloperName);
+        Assert.areEqual('RepairCenterVendor', context.workOrderRecordTypeDeveloperName);
         Assert.areEqual('WorkOrder', byNumber.pathType);
         Assert.areEqual(workOrder.Id, byNumber.workOrderId);
     }
@@ -2045,7 +2050,7 @@ private class ReceivingServiceTest {
                 Quantity,
                 Status,
                 LineType__c,
-                Product__c,
+                Product2Id,
                 RepairCode__c,
                 ProductCodeWoli__c,
                 RecordType.DeveloperName
@@ -2057,7 +2062,7 @@ private class ReceivingServiceTest {
         Assert.areEqual(3, disinfection.Quantity);
         Assert.areEqual('Approved', disinfection.Status);
         Assert.areEqual('Service Code', disinfection.LineType__c);
-        Assert.areEqual(disinfectionProduct.Id, disinfection.Product__c);
+        Assert.areEqual(disinfectionProduct.Id, disinfection.Product2Id);
         Assert.areEqual(disinfectionProduct.Id, disinfection.RepairCode__c);
         Assert.areEqual('DIS.001', disinfection.ProductCodeWoli__c);
         Assert.areEqual('RepairCode', disinfection.RecordType.DeveloperName);
@@ -2108,13 +2113,13 @@ private class ReceivingServiceTest {
         Assert.areEqual('Clean', history.DisinfectionStatus__c);
 
         WorkOrderLineItem disinfection = [
-            SELECT ParentWorkOrderLineItemId, Quantity, Product__c, LineType__c
+            SELECT ParentWorkOrderLineItemId, Quantity, Product2Id, LineType__c
             FROM WorkOrderLineItem
             WHERE Id = :result.disinfectionLineItemId
         ];
         Assert.isNull(disinfection.ParentWorkOrderLineItemId);
         Assert.areEqual(3, disinfection.Quantity);
-        Assert.areEqual(disinfectionProduct.Id, disinfection.Product__c);
+        Assert.areEqual(disinfectionProduct.Id, disinfection.Product2Id);
         Assert.areEqual('Service Code', disinfection.LineType__c);
 
         WorkOrder updatedWorkOrder = [
@@ -2378,7 +2383,7 @@ private class ReceivingServiceTest {
             Subject = 'GW5968 Vendor Rerun',
             AccountId = accountRecord.Id,
             RecordTypeId = Schema.SObjectType.WorkOrder.getRecordTypeInfosByDeveloperName()
-                .get('RepairCenterOther')
+                .get('RepairCenterVendor')
                 .getRecordTypeId(),
             Pricebook2Id = Test.getStandardPricebookId()
         );
@@ -2490,7 +2495,7 @@ private class ReceivingServiceTest {
             Subject = 'GW5968 Vendor Travel Tag',
             AccountId = accountRecord.Id,
             RecordTypeId = Schema.SObjectType.WorkOrder.getRecordTypeInfosByDeveloperName()
-                .get('RepairCenterOther')
+                .get('RepairCenterVendor')
                 .getRecordTypeId(),
             Pricebook2Id = Test.getStandardPricebookId()
         );
@@ -2683,22 +2688,7 @@ private class ReceivingServiceTest {
         lineItem.ProductLine__c = 'Surgical';
         lineItem.Disinfected__c = 'Yes, Item is Disinfected';
         update lineItem;
-        Id standardPricebookId = Test.getStandardPricebookId();
-        List<PricebookEntry> existingEntries = [
-            SELECT Id
-            FROM PricebookEntry
-            WHERE Pricebook2Id = :standardPricebookId
-            AND Product2Id = :lineItem.Product2Id
-            LIMIT 1
-        ];
-        if (existingEntries.isEmpty()) {
-            insert new PricebookEntry(
-                Pricebook2Id = standardPricebookId,
-                Product2Id = lineItem.Product2Id,
-                UnitPrice = 1,
-                IsActive = true
-            );
-        }
+        ensureReceivingPricebooksForProduct(lineItem.Product2Id);
 
         Test.startTest();
         ReceivingService.CreateOrderCreatedWorkOrder created =
@@ -2809,7 +2799,6 @@ private class ReceivingServiceTest {
         Product2 product = new Product2(
             Name = 'GW5968 Disinfection ' + productCode,
             IsActive = true,
-            Status__c = 'Active',
             ProductCode = productCode,
             ProductLine__c = productLine,
             ServiceCodeType__c = 'Disinfection'
@@ -2848,13 +2837,72 @@ private class ReceivingServiceTest {
             Model__c = model
         );
         insert product;
-        PricebookEntry entry = new PricebookEntry(
-            Pricebook2Id = Test.getStandardPricebookId(),
-            Product2Id = product.Id,
-            UnitPrice = 1,
-            IsActive = true
-        );
-        insert entry;
-        return entry;
+        ensureReceivingPricebooksForProduct(product.Id);
+        Id standardPricebookId = Test.getStandardPricebookId();
+        return [
+            SELECT Id, Product2Id, Pricebook2Id
+            FROM PricebookEntry
+            WHERE Product2Id = :product.Id
+            AND Pricebook2Id = :standardPricebookId
+            LIMIT 1
+        ];
+    }
+
+    /**
+     * @description Seeds Standard + IMS Service Pricebook entries for receiving WO create.
+     * @param productId Product that will be priced on a Repair Center Work Order
+     */
+    private static void ensureReceivingPricebooksForProduct(Id productId) {
+        ReceivingFinishService.resetDefaultPricebookCacheForTest();
+        Id standardPricebookId = Test.getStandardPricebookId();
+        update new Pricebook2(Id = standardPricebookId, IsActive = true);
+        Integer standardCount = [
+            SELECT COUNT()
+            FROM PricebookEntry
+            WHERE Pricebook2Id = :standardPricebookId
+            AND Product2Id = :productId
+        ];
+        if (standardCount == 0) {
+            insert new PricebookEntry(
+                Pricebook2Id = standardPricebookId,
+                Product2Id = productId,
+                UnitPrice = 1,
+                IsActive = true
+            );
+        }
+
+        List<Pricebook2> servicePricebooks = [
+            SELECT Id
+            FROM Pricebook2
+            WHERE Name = 'IMS Service Pricebook'
+            AND IsActive = TRUE
+            LIMIT 1
+        ];
+        Id servicePricebookId;
+        if (servicePricebooks.isEmpty()) {
+            Pricebook2 servicePricebook = new Pricebook2(
+                Name = 'IMS Service Pricebook',
+                IsActive = true
+            );
+            insert servicePricebook;
+            servicePricebookId = servicePricebook.Id;
+        } else {
+            servicePricebookId = servicePricebooks[0].Id;
+        }
+
+        Integer serviceCount = [
+            SELECT COUNT()
+            FROM PricebookEntry
+            WHERE Pricebook2Id = :servicePricebookId
+            AND Product2Id = :productId
+        ];
+        if (serviceCount == 0) {
+            insert new PricebookEntry(
+                Pricebook2Id = servicePricebookId,
+                Product2Id = productId,
+                UnitPrice = 1,
+                IsActive = true
+            );
+        }
     }
 }

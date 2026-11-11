@@ -22,14 +22,14 @@ public with sharing class AccountSelector extends SoqlQueryBuilder {
     public AccountSelector() {
         this.objectName = 'Account';
     }
-    
+
     /**
 * @description
 * GC-3088 - Selects Accounts by IDs.
-* 
+*
 * @param accountIdSet Account ID set
 * @return List of Accounts
-* 
+*
 * @example
 * AccountSelector.selectByIds(accountIdSet);
      */
@@ -37,31 +37,34 @@ public with sharing class AccountSelector extends SoqlQueryBuilder {
         if (accountIdSet == null || accountIdSet.isEmpty()) {
             return new List<Account>();
         }
-        
-        return [
-            SELECT Id,
-            Name,
-            AccountNumber,
-            Type,
-            OracleAddressId__c,  //Update: GC-3112
-            ParentId, // GC-2860
-            RecordTypeId, //GC-2849-START
-            CustomerClassCode__c,
-            OrgIDs__c,//part of GC-3107
-            Price_List__c,
-            BillingStreet,
-            BillingCity,
-            ShippingState,
-            BillingState,
-            BillingCountry,
-            BillingPostalCode,//GC-2849-END
-            TAS_Retry__c, //GC-3091
-            TAS_Assignment_Status__c // GC - 3143
-            FROM Account
-            WHERE Id IN :accountIdSet
-        ];
+
+        return (List<Account>) SoqlQueryBuilder.fromObject('Account')
+            .selectFields(
+                new List<String>{
+                    'Id',
+                    'Name',
+                    'AccountNumber',
+                    'Type',
+                    'OracleAddressId__c',
+                    'ParentId',
+                    'RecordTypeId',
+                    'CustomerClassCode__c',
+                    'OrgIDs__c',
+                    'Price_List__c',
+                    'BillingStreet',
+                    'BillingCity',
+                    'ShippingState',
+                    'BillingState',
+                    'BillingCountry',
+                    'BillingPostalCode',
+                    'TAS_Retry__c',
+                    'TAS_Assignment_Status__c'
+                }
+            )
+            .whereField('Id', 'IN', new List<Id>(accountIdSet))
+            .execute();
     }
-	 
+
     /**
      * @description
      * GC-2868 AC3 - Selects direct child Accounts using the standard
@@ -70,16 +73,26 @@ public with sharing class AccountSelector extends SoqlQueryBuilder {
      * @param parentAccountIdSet Parent Account IDs.
      * @return Direct child Accounts.
      */
-    public static List<Account> selectByParentIds( Set<Id> parentAccountIdSet) {
-        if (parentAccountIdSet == null ||parentAccountIdSet.isEmpty()) {
+    public static List<Account> selectByParentIds(Set<Id> parentAccountIdSet) {
+        if (parentAccountIdSet == null || parentAccountIdSet.isEmpty()) {
             return new List<Account>();
         }
 
-        return [SELECT Id,Name,Type,ParentId,OracleAddressId__c,RecordTypeId
-            FROM Account WHERE ParentId IN :parentAccountIdSet WITH SECURITY_ENFORCED];
+        return (List<Account>) SoqlQueryBuilder.fromObject('Account')
+            .selectFields(
+                new List<String>{
+                    'Id',
+                    'Name',
+                    'Type',
+                    'ParentId',
+                    'OracleAddressId__c',
+                    'RecordTypeId'
+                }
+            )
+            .whereField('ParentId', 'IN', new List<Id>(parentAccountIdSet))
+            .execute();
     }
 
-     
     /**
      * @description Selects Customer Accounts with fields required for realtime TAS callout.
      * @param accountIdSet Account Id set.
@@ -91,28 +104,30 @@ public with sharing class AccountSelector extends SoqlQueryBuilder {
             return new List<Account>();
         }
 
-        return [
-            SELECT Id,
-                   Name,
-                   RecordTypeId,
-                   AccountSource,
-                   SourceSystemID__c,
-                   CustomerClassCode__c,
-                   OrgIDs__c,
-                   OracleAddressId__c,
-                   BillingStreet,
-                   BillingCity,
-                   BillingState,
-                   BillingStateCode,
-                   BillingCountry,
-                   BillingCountryCode,
-                   BillingPostalCode
-            FROM Account
-            WHERE Id IN :accountIdSet
-            WITH USER_MODE
-        ];
+        return (List<Account>) SoqlQueryBuilder.fromObject('Account')
+            .selectFields(
+                new List<String>{
+                    'Id',
+                    'Name',
+                    'RecordTypeId',
+                    'AccountSource',
+                    'SourceSystemID__c',
+                    'CustomerClassCode__c',
+                    'OrgIDs__c',
+                    'OracleAddressId__c',
+                    'BillingStreet',
+                    'BillingCity',
+                    'BillingState',
+                    'BillingStateCode',
+                    'BillingCountry',
+                    'BillingCountryCode',
+                    'BillingPostalCode'
+                }
+            )
+            .whereField('Id', 'IN', new List<Id>(accountIdSet))
+            .execute();
     }
-    
+
     /**
      * @description
      * GC-3088 - Loads Account records by OracleAddressId__c for overlay territory resolution.
@@ -120,25 +135,29 @@ public with sharing class AccountSelector extends SoqlQueryBuilder {
      * @param tasAddressIds TAS address ids from OrderLineContact__c.TASAddressId__c
      * @return Map of OracleAddressId__c to Account
      */
-    public static Map<String, Account> selectAccountsByOracleAddressId(Set<String> tasAddressIds) {  //Update: GC-3112
+    public static Map<String, Account> selectAccountsByOracleAddressId(Set<String> tasAddressIds) {
         Map<String, Account> accountByOracleAddressId = new Map<String, Account>();
 
         if (tasAddressIds == null || tasAddressIds.isEmpty()) {
             return accountByOracleAddressId;
         }
 
-        for (Account accountRecord : [
-            SELECT Id,
-                   Name,
-                   AccountNumber,
-                   Type,
-                   ParentId,
-                   OracleAddressId__c
-            FROM Account
-            WHERE OracleAddressId__c IN :tasAddressIds
-              AND OracleAddressId__c != null
-            WITH SECURITY_ENFORCED
-        ]) {
+        List<Account> rows = (List<Account>) SoqlQueryBuilder.fromObject('Account')
+            .selectFields(
+                new List<String>{
+                    'Id',
+                    'Name',
+                    'AccountNumber',
+                    'Type',
+                    'ParentId',
+                    'OracleAddressId__c'
+                }
+            )
+            .whereField('OracleAddressId__c', 'IN', new List<String>(tasAddressIds))
+            .whereField('OracleAddressId__c', '!=', null)
+            .execute();
+
+        for (Account accountRecord : rows) {
             if (String.isBlank(accountRecord.OracleAddressId__c)) {
                 continue;
             }
@@ -164,17 +183,19 @@ public with sharing class AccountSelector extends SoqlQueryBuilder {
             return new List<Account>();
         }
 
-        return [
-            SELECT Id,
-                   Name,
-                   AccountNumber,
-                   Type,
-                   ParentId,
-                   OracleAddressId__c
-            FROM Account
-            WHERE ParentId IN :parentAccountIds
-            WITH SECURITY_ENFORCED
-        ];
+        return (List<Account>) SoqlQueryBuilder.fromObject('Account')
+            .selectFields(
+                new List<String>{
+                    'Id',
+                    'Name',
+                    'AccountNumber',
+                    'Type',
+                    'ParentId',
+                    'OracleAddressId__c'
+                }
+            )
+            .whereField('ParentId', 'IN', new List<Id>(parentAccountIds))
+            .execute();
     }
 
     /**
@@ -189,86 +210,70 @@ public with sharing class AccountSelector extends SoqlQueryBuilder {
             return new List<Account>();
         }
 
-        return [
-            SELECT Id, OracleAddressId__c
-            FROM Account
-            WHERE Id IN :accountIds
-              AND OracleAddressId__c != null
-            WITH SECURITY_ENFORCED
-        ];
+        return (List<Account>) SoqlQueryBuilder.fromObject('Account')
+            .selectFields(new List<String>{ 'Id', 'OracleAddressId__c' })
+            .whereField('Id', 'IN', new List<Id>(accountIds))
+            .whereField('OracleAddressId__c', '!=', null)
+            .execute();
     }
-     /**
+
+    /**
 * @description
 * GC-3088 - Selects Accounts using Account Name/Number and Account Type filters.
 * GC-3180 - Account name/number search excludes Address accounts and requires Oracle Customer ID
 *              (SourceSystemID__c) except when filtering by IDN or GPO account type.
-* 
+*
 * @param accountSearchKey Account Name or Account Number entered by the user.
 * @param accountType Account Type selected by the user.
 * @return List of Accounts
-* 
+*
 * @example
 * AccountSelector.selectBySearchCriteria(accountSearchKey, accountType);
      */
     public static List<Account> selectBySearchCriteria(String accountSearchKey, String accountType) {
-        String searchTerm = String.isBlank(accountSearchKey) ? null : '%' + String.escapeSingleQuotes(accountSearchKey.trim()) + '%';
+        String searchTerm = String.isBlank(accountSearchKey)
+            ? null
+            : '%' + accountSearchKey.trim() + '%';
         Boolean hasSearchTerm = String.isNotBlank(accountSearchKey);
         Boolean hasAccountType = String.isNotBlank(accountType);
-        Boolean requiresOracleCustomerId = hasSearchTerm && !isGpoOrIdnAccountType(accountType);
 
         if (!hasSearchTerm && !hasAccountType) {
-            return [
-                SELECT Id,
-                       Name,
-                       AccountNumber,
-                       Type
-                FROM Account
-                ORDER BY Name
-                LIMIT 5000
-            ];
+            return (List<Account>) SoqlQueryBuilder.fromObject('Account')
+                .selectFields(new List<String>{ 'Id', 'Name', 'AccountNumber', 'Type' })
+                .orderBy('Name')
+                .limitTo(5000)
+                .execute();
         }
 
+        SoqlQueryBuilder builder = SoqlQueryBuilder.fromObject('Account')
+            .selectFields(new List<String>{ 'Id', 'Name', 'AccountNumber', 'Type' });
+
         if (hasSearchTerm && hasAccountType) {
-            return [
-                SELECT Id,
-                       Name,
-                       AccountNumber,
-                       Type
-                FROM Account
-                WHERE (Name LIKE :searchTerm OR AccountNumber LIKE :searchTerm)
-                AND Type = :accountType
-                ORDER BY Name
-                LIMIT 5000
-            ];
+            return (List<Account>) builder
+                .whereField('Name', 'LIKE', searchTerm)
+                .whereField('AccountNumber', 'LIKE', searchTerm)
+                .whereEquals('Type', accountType)
+                .withFilterLogic('((1 OR 2) AND 3)')
+                .orderBy('Name')
+                .limitTo(5000)
+                .execute();
         }
 
         if (hasSearchTerm) {
-            return [
-                SELECT Id,
-                       Name,
-                       AccountNumber,
-                       Type
-                FROM Account
-                WHERE Name LIKE :searchTerm OR AccountNumber LIKE :searchTerm
-                ORDER BY Name
-                LIMIT 5000
-            ];
+            return (List<Account>) builder
+                .whereField('Name', 'LIKE', searchTerm)
+                .whereField('AccountNumber', 'LIKE', searchTerm)
+                .withFilterLogic('(1 OR 2)')
+                .orderBy('Name')
+                .limitTo(5000)
+                .execute();
         }
 
-        return [
-            SELECT Id,
-                   Name,
-                   AccountNumber,
-                   Type
-            FROM Account
-            WHERE Type = :accountType
-            ORDER BY Name
-            LIMIT 5000
-        ];
-    }
-
-    private static Boolean isGpoOrIdnAccountType(String accountType) {
-        return accountType == 'GPO' || accountType == 'IDN';
+        return (List<Account>) builder
+            .whereEquals('Type', accountType)
+            .orderBy('Name')
+            .limitTo(5000)
+            .execute();
     }
 
     /**
@@ -282,18 +287,14 @@ public with sharing class AccountSelector extends SoqlQueryBuilder {
             return null;
         }
 
-        List<Account> accountList = [
-            SELECT Id,
-                OracleAddressId__c,
-                RecordType.DeveloperName
-            FROM Account
-            WHERE Id = :accountId
-            WITH USER_MODE
-            LIMIT 1
-        ];
-
-        return accountList.isEmpty() ? null : accountList[0];
+        return (Account) SoqlQueryBuilder.fromObject('Account')
+            .selectFields(
+                new List<String>{ 'Id', 'OracleAddressId__c', 'RecordType.DeveloperName' }
+            )
+            .whereEquals('Id', accountId)
+            .first();
     }
+
     /**
      * @author Suraj Thapliyal
      * @description GC-2580 - Selects Accounts owned by the given user Ids.
@@ -305,13 +306,12 @@ public with sharing class AccountSelector extends SoqlQueryBuilder {
             return new List<Account>();
         }
 
-        return [
-            SELECT Id, OwnerId
-            FROM Account
-            WHERE OwnerId IN :ownerIds
-            WITH USER_MODE
-        ];
+        return (List<Account>) SoqlQueryBuilder.fromObject('Account')
+            .selectFields(new List<String>{ 'Id', 'OwnerId' })
+            .whereField('OwnerId', 'IN', new List<Id>(ownerIds))
+            .execute();
     }
+
     /**
      * @description GC-2860 - Returns facility accounts whose immediate parent is the given account Id.
      * @param parentAccountId Parent account Id.
@@ -322,16 +322,13 @@ public with sharing class AccountSelector extends SoqlQueryBuilder {
             return new List<Account>();
         }
 
-        return [
-            SELECT Id,
-                   Name,
-                   OracleAddressId__c,
-                   ParentId
-            FROM Account
-            WHERE ParentId = :parentAccountId
-              AND OracleAddressId__c != null
-            WITH USER_MODE
-        ];
+        return (List<Account>) SoqlQueryBuilder.fromObject('Account')
+            .selectFields(
+                new List<String>{ 'Id', 'Name', 'OracleAddressId__c', 'ParentId' }
+            )
+            .whereEquals('ParentId', parentAccountId)
+            .whereField('OracleAddressId__c', '!=', null)
+            .execute();
     }
 
     /**
@@ -344,16 +341,13 @@ public with sharing class AccountSelector extends SoqlQueryBuilder {
             return new List<Account>();
         }
 
-        return [
-            SELECT Id,
-                   Name,
-                   OracleAddressId__c,
-                   ParentId
-            FROM Account
-            WHERE ParentId IN :parentAccountIds
-              AND OracleAddressId__c != null
-            WITH USER_MODE
-        ];
+        return (List<Account>) SoqlQueryBuilder.fromObject('Account')
+            .selectFields(
+                new List<String>{ 'Id', 'Name', 'OracleAddressId__c', 'ParentId' }
+            )
+            .whereField('ParentId', 'IN', new List<Id>(parentAccountIds))
+            .whereField('OracleAddressId__c', '!=', null)
+            .execute();
     }
 
     /**
@@ -368,27 +362,29 @@ public with sharing class AccountSelector extends SoqlQueryBuilder {
             return new List<Account>();
         }
 
-        return [
-            SELECT
-                Id,
-                Name,
-                Type,
-                ParentId,
-                ShiptoAddressStatus__c,
-                BillingStreet,
-                BillingCity,
-                BillingState,
-                BillingStateCode,
-                BillingPostalCode,
-                BillingCountry,
-                BillingCountryCode
-            FROM Account
-            WHERE ParentId = :parentAccountId
-                AND Type = 'Address'
-                AND ShiptoAddressStatus__c IN ('Active', 'Primary')
-            WITH USER_MODE
-            ORDER BY ShiptoAddressStatus__c DESC, Name ASC
-        ];
+        return (List<Account>) SoqlQueryBuilder.fromObject('Account')
+            .selectFields(
+                new List<String>{
+                    'Id',
+                    'Name',
+                    'Type',
+                    'ParentId',
+                    'ShiptoAddressStatus__c',
+                    'BillingStreet',
+                    'BillingCity',
+                    'BillingState',
+                    'BillingStateCode',
+                    'BillingPostalCode',
+                    'BillingCountry',
+                    'BillingCountryCode'
+                }
+            )
+            .whereEquals('ParentId', parentAccountId)
+            .whereEquals('Type', 'Address')
+            .whereField('ShiptoAddressStatus__c', 'IN', new List<String>{ 'Active', 'Primary' })
+            .orderByDesc('ShiptoAddressStatus__c')
+            .orderBy('Name')
+            .execute();
     }
 
     /**
@@ -401,21 +397,24 @@ public with sharing class AccountSelector extends SoqlQueryBuilder {
             return new Map<Id, Account>();
         }
 
-        return new Map<Id, Account>([
-            SELECT
-                Id,
-                AccountNumber,
-                OrgIDs__c,
-                OracleAddressId__c,
-                Type,
-                RecordType.DeveloperName,
-                Price_List__c,
-                Price_List__r.Price_List_ID__c,
-                Parent.OrgIDs__c,
-                Parent.AccountNumber
-            FROM Account
-            WHERE Id IN :accountIds
-        ]);
+        List<Account> rows = (List<Account>) SoqlQueryBuilder.fromObject('Account')
+            .selectFields(
+                new List<String>{
+                    'Id',
+                    'AccountNumber',
+                    'OrgIDs__c',
+                    'OracleAddressId__c',
+                    'Type',
+                    'RecordType.DeveloperName',
+                    'Price_List__c',
+                    'Price_List__r.Price_List_ID__c',
+                    'Parent.OrgIDs__c',
+                    'Parent.AccountNumber'
+                }
+            )
+            .whereField('Id', 'IN', new List<Id>(accountIds))
+            .execute();
+        return new Map<Id, Account>(rows);
     }
 
     /**
@@ -428,27 +427,30 @@ public with sharing class AccountSelector extends SoqlQueryBuilder {
             return new List<Account>();
         }
 
-        return [
-            SELECT
-                Id,
-                AccountNumber,
-                OrgIDs__c,
-                OracleAddressId__c,
-                Type,
-                RecordType.DeveloperName,
-                Price_List__c,
-                Price_List__r.Price_List_ID__c,
-                Parent.OrgIDs__c,
-                Parent.AccountNumber,
-                ShiptoAddressStatus__c
-            FROM Account
-            WHERE ParentId = :parentAccountId
-                AND Type = 'Address'
-                AND AccountNumber != null
-                AND ShiptoAddressStatus__c IN ('Active', 'Primary')
-            ORDER BY ShiptoAddressStatus__c DESC, LastModifiedDate DESC
-            LIMIT 50
-        ];
+        return (List<Account>) SoqlQueryBuilder.fromObject('Account')
+            .selectFields(
+                new List<String>{
+                    'Id',
+                    'AccountNumber',
+                    'OrgIDs__c',
+                    'OracleAddressId__c',
+                    'Type',
+                    'RecordType.DeveloperName',
+                    'Price_List__c',
+                    'Price_List__r.Price_List_ID__c',
+                    'Parent.OrgIDs__c',
+                    'Parent.AccountNumber',
+                    'ShiptoAddressStatus__c'
+                }
+            )
+            .whereEquals('ParentId', parentAccountId)
+            .whereEquals('Type', 'Address')
+            .whereField('AccountNumber', '!=', null)
+            .whereField('ShiptoAddressStatus__c', 'IN', new List<String>{ 'Active', 'Primary' })
+            .orderByDesc('ShiptoAddressStatus__c')
+            .orderByDesc('LastModifiedDate')
+            .limitTo(50)
+            .execute();
     }
 
     /**
@@ -588,4 +590,29 @@ public with sharing class AccountSelector extends SoqlQueryBuilder {
             .whereIn('OracleAddressId__c', addressIds)
             .execute();
     }
+
+    /**
+     * @description GW-1509 - Account fields used by Create Return Order account details.
+     * @param accountId Account Id
+     * @return Matching Account rows (LIMIT 1)
+     */
+    public static List<Account> selectForCreateReturnOrderById(Id accountId) {
+        if (accountId == null) {
+            return new List<Account>();
+        }
+        return (List<Account>) SoqlQueryBuilder.fromObject('Account')
+            .selectFields(
+                new List<String>{
+                    'Id',
+                    'Name',
+                    'SystemID__c',
+                    'OrgIDs__c',
+                    'BillingState'
+                }
+            )
+            .whereEquals('Id', accountId)
+            .limitTo(1)
+            .execute();
+    }
+
 }

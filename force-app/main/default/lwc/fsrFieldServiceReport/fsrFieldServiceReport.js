@@ -11,6 +11,8 @@ const CHARGE_TYPES = [...LABOR_TYPES, ...EXPENSE_TYPES, ...PART_TYPES];
 // Calibration lines hold the tool used (AssetId = calibration tool), see ServiceAppointment_MobileFlow_ReportCalibration.
 const TOOL_TYPES = ['Calibration'];
 const PROFORMA = 'Proforma Invoice';
+// GW-5878: same footer on every page of every document type (Field Service Report and Proforma Invoice).
+const FOOTER_TEXT = 'This is only an estimate and not an invoice. Tax is not included.';
 
 const FSR_QUERY = gql`
     query GetFieldServiceReport($workOrderId: ID) {
@@ -135,12 +137,18 @@ export default class FsrFieldServiceReport extends LightningElement {
     @api recordId;
     @api revision = 'Rev 26.0';
     @api formNumber = 'RSR033';
+    // Not used since GW-5878 (footer is FOOTER_TEXT); kept because the template sets these properties.
     @api fsrFooter = 'This is only an estimate and not an invoice. Tax is not included.';
     @api proformaFooter = '';
 
     workOrder;
     lines = [];
     errorMessage;
+
+    // DEBUG GW-5878: remove before commit
+    connectedCallback() {
+        console.log('[FSR] connected | recordId:', this.recordId, '| revision:', this.revision, '| formNumber:', this.formNumber);
+    }
 
     get queryVariables() {
         if (!this.recordId) return undefined;
@@ -149,7 +157,10 @@ export default class FsrFieldServiceReport extends LightningElement {
 
     @wire(graphql, { query: FSR_QUERY, variables: '$queryVariables' })
     wiredReport({ data, errors }) {
+        // DEBUG GW-5878: remove before commit
+        console.log('[FSR] wire fired | variables:', JSON.stringify(this.queryVariables), '| hasData:', !!data, '| hasErrors:', !!errors);
         if (errors) {
+            console.error('[FSR] GraphQL errors:', JSON.stringify(errors, null, 2));
             this.errorMessage = errors.map((e) => e.message).join('; ');
             return;
         }
@@ -157,6 +168,26 @@ export default class FsrFieldServiceReport extends LightningElement {
         this.errorMessage = undefined;
         this.workOrder = data.uiapi.query.WorkOrder.edges[0]?.node;
         this.lines = (data.uiapi.query.WorkOrderLineItem?.edges ?? []).map((e) => e.node);
+
+        // DEBUG GW-5878: remove before commit
+        const wo = this.workOrder;
+        const rc = wo?.RegionalControl__r;
+        console.log('[FSR] raw GraphQL data:', JSON.parse(JSON.stringify(data)));
+        console.log('[FSR] work order:', {
+            workOrderNumber: val(wo?.WorkOrderNumber),
+            documentType: val(wo?.FSRDocumentType__c),
+            maskPrices: val(wo?.MaskPrices__c),
+            language: val(wo?.ServiceReportLanguage),
+            currency: val(wo?.CurrencyIsoCode),
+            hasRegionalControl: !!rc
+        });
+        console.log('[FSR] regional control:', { hasHeader: !!val(rc?.FSRHeader__c) });
+        console.log('[FSR] lines:', this.lines.length, this.lines.map((l) => ({
+            lineType: val(l.LineType__c),
+            unitPrice: val(l.UnitPrice__c) ?? val(l.UnitPrice),
+            total: val(l.TotalPrice__c) ?? val(l.TotalPrice)
+        })));
+        console.log('[FSR] document:', { isProforma: this.isProforma, title: this.documentTitle, footer: this.footerText });
     }
 
     // ---------- Locale / formatting ----------
@@ -209,8 +240,9 @@ export default class FsrFieldServiceReport extends LightningElement {
         return display(this.workOrder?.FSRDocumentType__c) || 'Field Service Report';
     }
 
+    // GW-5878: fixed text, regardless of FSRDocumentType__c.
     get footerText() {
-        return this.isProforma ? this.proformaFooter : this.fsrFooter;
+        return FOOTER_TEXT;
     }
 
     // Proforma Invoice never masks; a blank checkbox is treated as masked (new WOs start masked).

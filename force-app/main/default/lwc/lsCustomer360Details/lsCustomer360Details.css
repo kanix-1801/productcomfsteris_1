@@ -1,0 +1,39 @@
+:host {
+    display: block;
+    background: #ffffff;
+    border-radius: 0.75rem;
+    overflow: hidden;
+}
+
+.full-pane {
+    background: #ffffff;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    min-height: 100%;
+    --slds-g-color-neutral-base-95: #ffffff;
+    --slds-g-color-neutral-base-100: #ffffff;
+    --lwc-colorBackground: #ffffff;
+    --lwc-colorBackgroundAlt: #ffffff;
+    --lwc-colorBackgroundRowHover: #f3f3f3;
+}
+
+.field-list {
+    margin: 0;
+}
+
+.field {
+    padding: 0.5rem 0;
+    border-top: 1px solid var(--slds-g-color-border-base-1, #e5e5e5);
+}
+
+.field dt {
+    color: var(--slds-g-color-neutral-base-30, #444);
+    font-size: 0.75rem;
+    margin-bottom: 0.125rem;
+}
+
+.field dd {
+    margin: 0;
+    min-height: 1.25rem;
+    overflow-wrap: anywhere;
+}

@@ -201,6 +201,104 @@ public class ModelQtyCoverageTestDataFactory {
     }
 
     /**
+     * @description Grants the running user read/create on PricingProgram__c and PricingProgramLines__c and
+     *              read on the optional fields the Pricing Programs search uses (required, master-detail and
+     *              formula fields are covered by the object access), through a test-only permission set.
+     */
+    public static void grantPricingProgramAccess() {
+        System.runAs(new User(Id = UserInfo.getUserId())) {
+            PermissionSet permissionSetRecord = new PermissionSet(
+                Name = 'PricingProgramTestAccess',
+                Label = 'Pricing Program Test Access'
+            );
+            insert permissionSetRecord;
+            List<ObjectPermissions> objectPermissionList = new List<ObjectPermissions>();
+            for (String objectName : new List<String>{ 'PricingProgram__c', 'PricingProgramLines__c' }) {
+                objectPermissionList.add(new ObjectPermissions(
+                    ParentId = permissionSetRecord.Id,
+                    SobjectType = objectName,
+                    PermissionsRead = true,
+                    PermissionsCreate = true
+                ));
+            }
+            insert objectPermissionList;
+            List<FieldPermissions> fieldPermissionList = new List<FieldPermissions>();
+            for (String field : new List<String>{
+                'PricingProgram__c.DisplayName__c', 'PricingProgram__c.EndDate__c', 'PricingProgram__c.Status__c',
+                'PricingProgramLines__c.CategoryCodeId__c', 'PricingProgramLines__c.CategoryCode__c',
+                'PricingProgramLines__c.CategoryCodeName__c'
+            }) {
+                fieldPermissionList.add(new FieldPermissions(
+                    ParentId = permissionSetRecord.Id,
+                    SobjectType = field.substringBefore('.'),
+                    Field = field,
+                    PermissionsRead = true,
+                    PermissionsEdit = false
+                ));
+            }
+            insert fieldPermissionList;
+            insert new PermissionSetAssignment(
+                AssigneeId = UserInfo.getUserId(),
+                PermissionSetId = permissionSetRecord.Id
+            );
+        }
+    }
+
+    /**
+     * @description A pricing program with one line per CT code. The CT code and name on a line are formulas
+     *              from its Category Code product, so a Product2 is created per code (Name = "<code> Name").
+     * @param programName ProgramName__c (and DisplayName__c)
+     * @param status Status__c, e.g. Active or Draft
+     * @param startDate StartDate__c
+     * @param endDate EndDate__c (null = open-ended)
+     * @param ctCodes ProductCode of each Category Code product, in insert order
+     * @return The program, re-queried with its auto-number Name
+     */
+    public static PricingProgram__c createPricingProgram(
+        String programName, String status, Date startDate, Date endDate, List<String> ctCodes
+    ) {
+        AutomationControl.setAllDisabled(true);
+        // Manufacturer__c depends on ProductLine__c: take the first Product Line that has a valid Manufacturer
+        String productLine;
+        String manufacturer;
+        List<Schema.PicklistEntry> productLineList = PricingProgram__c.ProductLine__c.getDescribe().getPicklistValues();
+        for (Integer i = 0; i < productLineList.size() && manufacturer == null; i++) {
+            if (productLineList[i].isActive()) {
+                productLine = productLineList[i].getValue();
+                manufacturer = firstDependentValue(PricingProgram__c.Manufacturer__c.getDescribe(), i);
+            }
+        }
+        PricingProgram__c programRecord = new PricingProgram__c(
+            ProgramName__c = programName,
+            DisplayName__c = programName,
+            Status__c = status,
+            StartDate__c = startDate,
+            EndDate__c = endDate,
+            ProductLine__c = productLine,
+            SubProductLine__c = firstActiveValue(PricingProgram__c.SubProductLine__c.getDescribe()),
+            Manufacturer__c = manufacturer,
+            DeviceType__c = firstActiveValue(PricingProgram__c.DeviceType__c.getDescribe())
+        );
+        insert programRecord;
+
+        List<Product2> categoryCodeList = new List<Product2>();
+        for (String ctCode : ctCodes) {
+            categoryCodeList.add(new Product2(Name = ctCode + ' Name', ProductCode = ctCode, IsActive = true));
+        }
+        insert categoryCodeList;
+        List<PricingProgramLines__c> lineList = new List<PricingProgramLines__c>();
+        for (Product2 categoryCode : categoryCodeList) {
+            lineList.add(new PricingProgramLines__c(
+                PricingProgram__c = programRecord.Id,
+                CategoryCodeId__c = categoryCode.Id
+            ));
+        }
+        insert lineList;
+        AutomationControl.setAllDisabled(false);
+        return [SELECT Id, Name, ProgramName__c FROM PricingProgram__c WHERE Id = :programRecord.Id];
+    }
+
+    /**
      * @description An active ContractModifier__c.ProductLine__c value (the field is a restricted picklist).
      */
     public static String validProductLine() {
@@ -230,6 +328,41 @@ public class ModelQtyCoverageTestDataFactory {
             insert userRecord;
         }
         return userRecord;
+    }
+
+    // First active value of a dependent picklist that is valid for the controlling value at controllerIndex
+    // (decoded from the entry's "validFor" bitmap: one bit per controlling value, high bit first).
+    private static String firstDependentValue(Schema.DescribeFieldResult fieldDescribe, Integer controllerIndex) {
+        for (Schema.PicklistEntry picklistEntry : fieldDescribe.getPicklistValues()) {
+            if (!picklistEntry.isActive()) {
+                continue;
+            }
+            Map<String, Object> entryMap = (Map<String, Object>) JSON.deserializeUntyped(JSON.serialize(picklistEntry));
+            String validFor = (String) entryMap.get('validFor');
+            if (String.isBlank(validFor)) {
+                continue;
+            }
+            String hex = EncodingUtil.convertToHex(EncodingUtil.base64Decode(validFor));
+            Integer byteIndex = controllerIndex / 8;
+            if (hex.length() < (byteIndex + 1) * 2) {
+                continue;
+            }
+            Integer byteValue = hexToInteger(hex.substring(byteIndex * 2, byteIndex * 2 + 2));
+            Integer mask = 128 >> Math.mod(controllerIndex, 8);
+            if ((byteValue & mask) != 0) {
+                return picklistEntry.getValue();
+            }
+        }
+        return null;
+    }
+
+    private static Integer hexToInteger(String hex) {
+        String digits = '0123456789abcdef';
+        Integer value = 0;
+        for (Integer i = 0; i < hex.length(); i++) {
+            value = value * 16 + digits.indexOf(hex.substring(i, i + 1).toLowerCase());
+        }
+        return value;
     }
 
     private static String firstActiveValue(Schema.DescribeFieldResult fieldDescribe) {

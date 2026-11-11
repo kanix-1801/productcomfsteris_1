@@ -218,7 +218,6 @@ private class ContentDocumentLinksServiceTest {
             WorkOrderLineItem woli = new WorkOrderLineItem(
                 WorkOrderId = workOrder.Id,
                 RecordTypeId = repairCodeRt.getRecordTypeId(),
-                Product__c = product.Id,
                 PricebookEntryId = pbe.Id,
                 Quantity = 1
             );

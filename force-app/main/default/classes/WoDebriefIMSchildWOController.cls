@@ -24,6 +24,13 @@ public without sharing class WoDebriefIMSchildWOController {
 	private static final Integer MOBILE_PICTURE_COMMENT_MAX_LENGTH = 1000;
 	/** @description GW-375 - File title shown on the work order and instrument line. */
 	public static final String MOBILE_DEVICE_PICTURE_TITLE = 'Mobile Device Picture';
+	/** @description GW-6340 - File title of a picture taken with the external microscopic camera. */
+	public static final String MICROSCOPE_PICTURE_TITLE = 'Microscope Picture';
+	/** @description GW-6340 - Titles of debrief pictures. Both are listed and counted toward the required pictures. */
+	public static final Set<String> PICTURE_TITLES = new Set<String>{
+		MOBILE_DEVICE_PICTURE_TITLE,
+		MICROSCOPE_PICTURE_TITLE
+	};
 	/**
 	 * @description GW-375 - Follows the marker in ContentVersion.Description when the mobile app uploads
 	 *              a picture with its details. The file adapter only takes a title and a description,
@@ -612,6 +619,8 @@ public without sharing class WoDebriefIMSchildWOController {
 		public String category;
 		public String beforeAfter;
 		public String comment;
+		/** @description GW-6340 - Microscope Picture for microscopic camera pictures; otherwise Mobile Device Picture. */
+		public String title;
 	}
 
 	/**
@@ -690,7 +699,7 @@ public without sharing class WoDebriefIMSchildWOController {
 			FROM ContentVersion
 			WHERE Id = :versionId
 				AND IsLatest = true
-				AND (Description = :MOBILE_DEVICE_PICTURE_MARKER OR Title = :MOBILE_DEVICE_PICTURE_TITLE)
+				AND (Description = :MOBILE_DEVICE_PICTURE_MARKER OR Title IN :PICTURE_TITLES)
 			LIMIT 1
 		];
 		if (versions.isEmpty() || versions[0].VersionData == null) {
@@ -1298,7 +1307,7 @@ public without sharing class WoDebriefIMSchildWOController {
 		PictureDetails details
 	) {
 		ContentVersion version = new ContentVersion();
-		version.Title = MOBILE_DEVICE_PICTURE_TITLE;
+		version.Title = pictureTitle(details);
 		version.PathOnClient = mobilePictureFileName(fileName);
 		version.VersionData = decodeMobilePicture(base64Data);
 		version.Description = MOBILE_DEVICE_PICTURE_MARKER;
@@ -1452,7 +1461,7 @@ public without sharing class WoDebriefIMSchildWOController {
 			FROM ContentVersion
 			WHERE ContentDocumentId IN :contentDocumentIds
 				AND IsLatest = true
-				AND (Description = :MOBILE_DEVICE_PICTURE_MARKER OR Title = :MOBILE_DEVICE_PICTURE_TITLE)
+				AND (Description = :MOBILE_DEVICE_PICTURE_MARKER OR Title IN :PICTURE_TITLES)
 			ORDER BY CreatedDate ASC
 		];
 	}
@@ -1490,6 +1499,18 @@ public without sharing class WoDebriefIMSchildWOController {
 		} catch (JSONException ex) {
 			throw auraException('The picture details could not be read.');
 		}
+	}
+
+	/**
+	 * @description GW-6340 - File title of a new debrief picture.
+	 * @param details Picture details, or null
+	 * @return Microscope Picture when requested; otherwise Mobile Device Picture
+	 */
+	@TestVisible
+	private static String pictureTitle(PictureDetails details) {
+		return details != null && details.title == MICROSCOPE_PICTURE_TITLE
+			? MICROSCOPE_PICTURE_TITLE
+			: MOBILE_DEVICE_PICTURE_TITLE;
 	}
 
 	/**

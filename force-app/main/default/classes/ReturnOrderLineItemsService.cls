@@ -4,6 +4,49 @@
  *              Performs DML directly — no Unit of Work.
  */
 public with sharing class ReturnOrderLineItemsService {
+    private static final List<String> RECEIVING_FINISH_FIELDS = new List<String>{
+        'Id',
+        'ReturnOrderId',
+        'ReturnOrderLineItemNumber',
+        'Status__c',
+        'AssetId',
+        'Product2Id',
+        'Product2.ProductCode',
+        'Product2.Description',
+        'Product2.DeviceType__c',
+        'ProductLine__c',
+        'LineType__c',
+        'QuantityReturned',
+        'QuantityReceived',
+        'SerialNumber__c',
+        'Model__c',
+        'CustomerPO__c',
+        'CustomerReference__c',
+        'PreviousReturnOrder__c',
+        'Contact__c',
+        'Department__c',
+        'Description',
+        'ReportedProblem__c',
+        'IsLoanerAsset__c',
+        'LoanerRequested__c',
+        'EstimateRequired__c',
+        'EstimateContact__c',
+        'Disinfected__c',
+        'DestinationLocationId',
+        'SourceLocationId',
+        'QuantityExpected',
+        'QuantityUnitOfMeasure',
+        'ReasonForReturn',
+        'RepaymentMethod',
+        'ProcessingPlan',
+        'HospitalReferencedTrayName__c',
+        'RepairWarranty__c',
+        'WarrantyNotes__c',
+        'IsPriorityRepair__c',
+        'ModRequest__c',
+        'ParentROLI__c'
+    };
+
     /**
      * @description Creates new ReturnOrderLineItem records with validation.
      * @param lineItems List of ReturnOrderLineItem records to create.
@@ -113,7 +156,13 @@ public with sharing class ReturnOrderLineItemsService {
      * @return Count of Created lines
      */
     public static Integer countCreatedByReturnOrderId(Id returnOrderId) {
-        return ReturnOrderLineItemsSelector.countCreatedByReturnOrderId(returnOrderId);
+        if (returnOrderId == null) {
+            return 0;
+        }
+        return new ReturnOrderLineItemsSelector()
+            .whereEquals('ReturnOrderId', returnOrderId)
+            .whereEquals('Status__c', 'Created')
+            .count();
     }
 
     /**
@@ -125,7 +174,28 @@ public with sharing class ReturnOrderLineItemsService {
         if (lineItemIds == null || lineItemIds.isEmpty()) {
             return new List<ReturnOrderLineItem>();
         }
-        return ReturnOrderLineItemsSelector.selectForReceivingFinish(lineItemIds);
+        return (List<ReturnOrderLineItem>) new ReturnOrderLineItemsSelector()
+            .selectFields(RECEIVING_FINISH_FIELDS)
+            .whereIn('Id', new List<Id>(lineItemIds))
+            .execute();
+    }
+
+    /**
+     * @description GW-4348 / GW-5996 - Finish-Receiving fields for all lines on a Return Order.
+     * @param returnOrderId Return Order Id
+     * @return Line items ordered by line number
+     */
+    public static List<ReturnOrderLineItem> getLinesForReceivingFinishByReturnOrderId(
+        Id returnOrderId
+    ) {
+        if (returnOrderId == null) {
+            return new List<ReturnOrderLineItem>();
+        }
+        return (List<ReturnOrderLineItem>) new ReturnOrderLineItemsSelector()
+            .selectFields(RECEIVING_FINISH_FIELDS)
+            .whereEquals('ReturnOrderId', returnOrderId)
+            .orderBy('ReturnOrderLineItemNumber')
+            .execute();
     }
 
     /**
@@ -144,8 +214,7 @@ public with sharing class ReturnOrderLineItemsService {
         if (lineItemIds == null || lineItemIds.isEmpty()) {
             return;
         }
-        List<ReturnOrderLineItem> existing =
-            ReturnOrderLineItemsSelector.selectForReceivingFinish(lineItemIds);
+        List<ReturnOrderLineItem> existing = getLinesForReceivingFinish(lineItemIds);
         List<ReturnOrderLineItem> updates = new List<ReturnOrderLineItem>();
         for (ReturnOrderLineItem lineItem : existing) {
             if (lineItem.Status__c != 'Created') {

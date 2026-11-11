@@ -13,7 +13,9 @@
         Dear {!AccountManagerCapSerLineSalesRep},
     </p>
     
-    Equipment on <apex:outputText value="{!TRIM(CustomerName)}"/> PO# {!PONumber} /SOA# {!SOANumber} is scheduled to ship on {!NonPreInstallScheduleDate} with the below trade-in line(s).  Within the next 7 days, please provide the below details and note if same-day pickup of the trade-in is required when the new equipment is being delivered.
+    Equipment on &nbsp;<apex:outputText value="{!TRIM(CustomerName)}"/> PO# {!PONumber} /SOA# {!SOANumber} is scheduled to ship on &nbsp; <apex:outputText style="font-weight:bold; background-color:#e0e0e0;" rendered="{!!(ISBLANK(NonPreInstallScheduleDate))}" value="{0,date,MMM d, yyyy}">
+                <apex:param value="{!NonPreInstallScheduleDate}"/>
+            </apex:outputText> with the below trade-in line(s).  Within the next 7 days, please provide the below details and note if same-day pickup of the trade-in is required when the new equipment is being delivered.
     <br/>
     <strong style="color: #000000; font-weight: bold;">Serial Numbers of equipment to be picked up</strong><br/>
 
@@ -41,7 +43,6 @@
             <tr style="background-color: #4F81BD; color: white; font-weight: bold;">
                 <td style="padding: 8px; border: 1px solid #ccc;">Item Number</td>
                 <td style="padding: 8px; border: 1px solid #ccc;">Line Number</td>
-                <td style="padding: 8px; border: 1px solid #ccc;">Schedule Date</td>
                 <td style="padding: 8px; border: 1px solid #ccc;">Quantity</td>
                 <td style="padding: 8px; border: 1px solid #ccc;">Item Description</td>
                 <td style="padding: 8px; border: 1px solid #ccc;">Ship To Location</td>
@@ -54,11 +55,6 @@
                     </td>
                     <td style="padding: 8px; border: 1px solid #ccc;">
                         <apex:outputText value="{!li.lineNumber}"/>
-                    </td>
-                    <td style="padding: 8px; border: 1px solid #ccc;">
-                        <apex:outputText value="{0,date,MMM dd yyyy}">
-                            <apex:param value="{!li.shipDate}"/>
-                        </apex:outputText>
                     </td>
                     <td style="padding: 8px; border: 1px solid #ccc;">
                         <apex:outputText value="{!li.qty}"/>

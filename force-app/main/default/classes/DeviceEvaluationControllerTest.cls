@@ -808,13 +808,13 @@ private class DeviceEvaluationControllerTest {
             .get('RepairCode')
             .getRecordTypeId();
         List<WorkOrderLineItem> lines = [
-            SELECT Product__c, RepairCode__c, Status
+            SELECT Product2Id, RepairCode__c, Status
             FROM WorkOrderLineItem
             WHERE WorkOrderId = :workOrder.Id
                 AND RecordTypeId = :repairCodeRtId
         ];
         System.assertEquals(1, lines.size());
-        System.assertEquals(selectedIds[0], lines[0].Product__c);
+        System.assertEquals(selectedIds[0], lines[0].Product2Id);
         System.assertEquals(selectedIds[0], lines[0].RepairCode__c);
         System.assertEquals(
             'Approved',
@@ -937,7 +937,7 @@ private class DeviceEvaluationControllerTest {
             FROM WorkOrderLineItem
             WHERE WorkOrderId = :workOrder.Id
                 AND RecordTypeId = :repairCodeRtId
-                AND Product__c = :productId
+                AND Product2Id = :productId
             LIMIT 1
         ];
         Integer linkCount = [
@@ -1082,7 +1082,7 @@ private class DeviceEvaluationControllerTest {
             .getRecordTypeId();
         List<WorkOrderLineItem> lines = [
             SELECT
-                Product__c,
+                Product2Id,
                 RepairCode__c,
                 LineType__c,
                 Quantity,
@@ -1090,7 +1090,6 @@ private class DeviceEvaluationControllerTest {
                 Condition__c,
                 ObservationCodeCondition__c,
                 PricebookEntryId,
-                Product2Id,
                 Model__c
             FROM WorkOrderLineItem
             WHERE WorkOrderId = :workOrder.Id
@@ -1103,11 +1102,10 @@ private class DeviceEvaluationControllerTest {
                 lineItem.Status,
                 'Without Estimate Required, Repair Code WOLI Status should be Approved'
             );
-            System.assertEquals(lineItem.Product__c, lineItem.RepairCode__c);
-            System.assertNotEquals(null, lineItem.Product__c);
+            System.assertEquals(lineItem.Product2Id, lineItem.RepairCode__c);
+            System.assertNotEquals(null, lineItem.Product2Id);
             System.assertNotEquals(null, lineItem.PricebookEntryId);
             System.assertEquals(1, lineItem.Quantity);
-            System.assertEquals(lineItem.Product__c, lineItem.Product2Id);
             System.assertEquals(
                 'CF-HQ190L',
                 lineItem.Model__c,
@@ -1459,13 +1457,13 @@ private class DeviceEvaluationControllerTest {
             .get('RepairCode')
             .getRecordTypeId();
         List<WorkOrderLineItem> lines = [
-            SELECT Product__c
+            SELECT Product2Id
             FROM WorkOrderLineItem
             WHERE WorkOrderId = :workOrder.Id
                 AND RecordTypeId = :repairCodeRtId
         ];
         System.assertEquals(1, lines.size());
-        System.assertEquals(keepId, lines[0].Product__c);
+        System.assertEquals(keepId, lines[0].Product2Id);
     }
 
     @IsTest
@@ -1881,7 +1879,7 @@ private class DeviceEvaluationControllerTest {
             FROM WorkOrderLineItem
             WHERE WorkOrderId = :workOrder.Id
                 AND RecordTypeId = :repairCodeRtId
-                AND Product__c = :productId
+                AND Product2Id = :productId
             LIMIT 1
         ];
 
@@ -3256,7 +3254,7 @@ private class DeviceEvaluationControllerTest {
             FROM WorkOrderLineItem
             WHERE WorkOrderId = :workOrder.Id
                 AND RecordTypeId = :repairCodeRtId
-                AND Product__c = :productId
+                AND Product2Id = :productId
             LIMIT 1
         ];
         System.assertEquals(

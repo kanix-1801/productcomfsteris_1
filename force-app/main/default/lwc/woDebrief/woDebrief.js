@@ -38,6 +38,8 @@ import resolveMobilePictureRecordId from '@salesforce/apex/WoDebriefIMSchildWOCo
 import findLatestProductServicedLineId from '@salesforce/apex/WoDebriefIMSchildWOController.findLatestProductServicedLineId';
 import checkWorkOrderReview from '@salesforce/apex/WoDebriefCrssReviewController.checkWorkOrderReview';
 import WO_REVIEW_DONE from '@salesforce/schema/WorkOrder.WorkOrderReviewDone__c';
+import WO_STATUS from '@salesforce/schema/WorkOrder.Status';
+import SA_STATUS from '@salesforce/schema/ServiceAppointment.Status';
 
 import WOLI_OBJECT       from '@salesforce/schema/WorkOrderLineItem';
 import WOLI_DESCRIPTION  from '@salesforce/schema/WorkOrderLineItem.Description';
@@ -219,6 +221,26 @@ const RETURN_ORDERS_QUERY = gql`
 									}
 								}
 							}
+						}
+					}
+				}
+			}
+		}
+	}
+`;
+
+const SERVICE_APPOINTMENTS_QUERY = gql`
+	query GetWorkOrderServiceAppointments($workOrderId: ID) {
+		uiapi {
+			query {
+				ServiceAppointment(
+					where: { ParentRecordId: { eq: $workOrderId } }
+					first: 50
+				) {
+					edges {
+						node {
+							Id
+							Status { value }
 						}
 					}
 				}
@@ -457,6 +479,9 @@ const DO_NOT_USE_P0 = 'Do Not Use(P0)';
 const LINE_STATUS_CANCELED = 'Canceled';
 const LINE_STATUS_COMPLETED = 'Completed';
 const LINE_STATUS_NEW = 'New';
+const WO_STATUS_NEW = 'New';
+const STATUS_IN_PROGRESS = 'In Progress';
+const SA_STATUSES_BEFORE_IN_PROGRESS = ['None', 'Scheduled', 'Dispatched', 'Accepted', 'En Route'];
 const INSULATION_POWDER_COATING_OPTIONS = [
 	'Black', 'Blue', 'Light Blue', 'Navy Blue', 'Green', 'Yellow', 'Orange',
 	'Light Gray', 'Purple', 'Salmon Orange', 'Lavender', 'Brown', 'Red'
@@ -510,11 +535,18 @@ export default class WoDebrief extends LightningElement {
 	/** @description GW-6017 - Return orders created from this work order. */
 	returnOrdersGraphqlResult;
 	_serverReturnOrders = [];
+	/** @description GW-6017 - Service appointments on the work order itself. */
+	serviceAppointmentsGraphqlResult;
+	_serviceAppointments = [];
 	showCreateReturnOrder = false;
 	selectedReturnOrderId = null;
 	_finishingReview = false;
 	/** @description GW-6017 - Finish Review passed in this session, before the work order reloads. */
 	_reviewPassedThisSession = false;
+	/** @description GW-6017 - Pictures missing dialog on Finish Review Work Order. */
+	showMissingPicturesPrompt = false;
+	missingPictureLines = [];
+	_resolveMissingPicturesPrompt = null;
 	_workOrder      = null;
 	_serverLines    = [];
 	_serverExpenses = [];
@@ -827,6 +859,53 @@ export default class WoDebrief extends LightningElement {
 			this._serverReturnOrders = (result.data.uiapi.query.ReturnOrder?.edges ?? [])
 				.map(edge => edge.node);
 		}
+	}
+
+	/**
+	 * @description GW-6017 - Service appointments moved to In Progress when Product Serviced lines are saved.
+	 */
+	@wire(graphql, { query: SERVICE_APPOINTMENTS_QUERY, variables: '$queryVariables' })
+	wiredServiceAppointments(result) {
+		this.serviceAppointmentsGraphqlResult = result;
+		if (result.errors) {
+			console.error('woDebrief service appointments query failed', result.errors);
+			return;
+		}
+		if (result.data) {
+			this._serviceAppointments = (result.data.uiapi.query.ServiceAppointment?.edges ?? [])
+				.map(edge => edge.node);
+		}
+	}
+
+	/**
+	 * @description GW-6017 - Moves a New work order and its earlier-status appointments to In Progress.
+	 * @return {Promise<string|null>} Error message when an update failed
+	 */
+	async _markWorkInProgress() {
+		const errors = [];
+		if (this.woStatus === WO_STATUS_NEW) {
+			try {
+				await updateRecord({ fields: { Id: this.recordId, [WO_STATUS.fieldApiName]: STATUS_IN_PROGRESS } });
+			} catch (err) {
+				errors.push(`Work order: ${this._errorMessage(err)}`);
+			}
+		}
+		const appointments = (this._serviceAppointments || [])
+			.filter(sa => SA_STATUSES_BEFORE_IN_PROGRESS.includes(sa.Status?.value ?? 'None'));
+		for (const sa of appointments) {
+			try {
+				// eslint-disable-next-line no-await-in-loop
+				await updateRecord({ fields: { Id: sa.Id, [SA_STATUS.fieldApiName]: STATUS_IN_PROGRESS } });
+			} catch (err) {
+				errors.push(`Service appointment: ${this._errorMessage(err)}`);
+			}
+		}
+		if (appointments.length && this.serviceAppointmentsGraphqlResult && !this.isOffline) {
+			try {
+				await refreshGraphQL(this.serviceAppointmentsGraphqlResult);
+			} catch (e) { /* swallow — the next load reads the new status */ }
+		}
+		return errors.length ? errors.join(' ') : null;
 	}
 
 	/**
@@ -3335,8 +3414,8 @@ export default class WoDebrief extends LightningElement {
 	}
 
 	/**
-	 * @description GW-6017 - Finish Review Work Order. Blocks while a line still needs a return order,
-	 *              warns about Product Serviced lines without a picture, then points to the service report.
+	 * @description GW-6017 - Finish Review Work Order. Blocks while a line still needs a return order.
+	 *              When a Product Serviced line has no picture, the technician continues or returns to take pictures.
 	 */
 	async handleFinishWorkOrderReview() {
 		if (this.isOffline) {
@@ -3352,7 +3431,10 @@ export default class WoDebrief extends LightningElement {
 		}
 		this._finishingReview = true;
 		try {
-			const result = await checkWorkOrderReview({ workOrderId: this.recordId });
+			let result = await checkWorkOrderReview({
+				workOrderId: this.recordId,
+				continueWithoutPictures: false
+			});
 			if (!result?.canFinish) {
 				const parts = [
 					'The work order cannot be completed. Create the return orders and quotes first.'
@@ -3367,13 +3449,19 @@ export default class WoDebrief extends LightningElement {
 				});
 				return;
 			}
-			if (result.linesMissingPictures?.length) {
-				await LightningAlert.open({
-					label: 'Pictures missing',
-					message: 'These Product Serviced lines have no picture:\n'
-						+ result.linesMissingPictures.join('\n'),
-					theme: 'warning'
+			if (!result.reviewDone) {
+				const continueReview = await this._openMissingPicturesPrompt(result.linesMissingPictures);
+				if (!continueReview) {
+					return;
+				}
+				result = await checkWorkOrderReview({
+					workOrderId: this.recordId,
+					continueWithoutPictures: true
 				});
+				if (!result?.reviewDone) {
+					this._toast('Review was not finished', 'Check the lines and try again.', 'error');
+					return;
+				}
 			}
 			this._reviewPassedThisSession = true;
 			await LightningAlert.open({
@@ -3387,6 +3475,49 @@ export default class WoDebrief extends LightningElement {
 		} finally {
 			this._finishingReview = false;
 		}
+	}
+
+	/**
+	 * @description GW-6017 - Opens the Pictures missing dialog.
+	 * @param {string[]} lineLabels Product Serviced lines without a picture
+	 * @return {Promise<boolean>} True to finish the review without the pictures
+	 */
+	_openMissingPicturesPrompt(lineLabels) {
+		this.missingPictureLines = (lineLabels || []).map((label, index) => ({ key: String(index), label }));
+		this.showMissingPicturesPrompt = true;
+		return new Promise((resolve) => {
+			this._resolveMissingPicturesPrompt = resolve;
+		});
+	}
+
+	/**
+	 * @description GW-6017 - Closes the Pictures missing dialog with the technician's choice.
+	 * @param {boolean} continueReview True to finish the review without the pictures
+	 */
+	_closeMissingPicturesPrompt(continueReview) {
+		this.showMissingPicturesPrompt = false;
+		this.missingPictureLines = [];
+		const resolve = this._resolveMissingPicturesPrompt;
+		this._resolveMissingPicturesPrompt = null;
+		if (resolve) {
+			resolve(continueReview);
+		}
+	}
+
+	/**
+	 * @description GW-6017 - Finishes the review without the missing pictures.
+	 */
+	handleMissingPicturesContinue() {
+		this._closeMissingPicturesPrompt(true);
+	}
+
+	/**
+	 * @description GW-6017 - Leaves the review open and shows the Product Serviced lines.
+	 */
+	handleMissingPicturesReturn() {
+		this._closeMissingPicturesPrompt(false);
+		this.activeTab = 'ProductServiced';
+		this.selectedReturnOrderId = null;
 	}
 	/**
 	 * @description Handle Tab Search Change.
@@ -4342,6 +4473,7 @@ export default class WoDebrief extends LightningElement {
 		const inspectionStamps = [];
 		// GW-6017 - A line that becomes Do Not Use (P0) means the work order review must be redone.
 		let doNotUseLineSaved = false;
+		let productServicedLineSaved = false;
 
 		// Deletes first, then updates, then creates (sequential to avoid draft-queue races).
 		for (const id of Object.keys(pendingDeletes)) {
@@ -4434,6 +4566,7 @@ export default class WoDebrief extends LightningElement {
 					doNotUseLineSaved = true;
 				}
 				if (schema === 'productServiced') {
+					productServicedLineSaved = true;
 					inspectionStamps.push({
 						assetId: edit.assetId,
 						inspectionOutcome: edit.inspectionOutcome,
@@ -4528,6 +4661,7 @@ export default class WoDebrief extends LightningElement {
 				if (result?.id) {
 					okIds.push(result.id);
 					if (schema === 'productServiced') {
+						productServicedLineSaved = true;
 						if (a.inspectionOutcome === DO_NOT_USE_P0) {
 							doNotUseLineSaved = true;
 						}
@@ -4601,6 +4735,13 @@ export default class WoDebrief extends LightningElement {
 				await updateRecord({ fields: { Id: this.recordId, [WO_REVIEW_DONE.fieldApiName]: false } });
 				this._reviewPassedThisSession = false;
 			} catch (e) { /* swallow — Finish Review checks the lines again before the report */ }
+		}
+
+		if (productServicedLineSaved) {
+			const inProgressError = await this._markWorkInProgress();
+			if (inProgressError) {
+				this._toast('Status not updated', `Could not set In Progress. ${inProgressError}`, 'warning');
+			}
 		}
 
 		let mobilePictureError = null;

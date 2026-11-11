@@ -23,6 +23,7 @@ public without sharing class IncompleteHcQuoteCleanupBatch implements Database.B
     private static final String LOGGER_TAG = 'GC-3618';
 
     private String originalTransactionId;
+    private IncompleteHcQuoteCleanupService.ValidationRuleBypass validationRuleBypass;
     private Integer quotesDeleted = 0;
     private Integer linesDeleted = 0;
     private Integer failureCount = 0;
@@ -98,6 +99,7 @@ public without sharing class IncompleteHcQuoteCleanupBatch implements Database.B
     public Database.QueryLocator start(Database.BatchableContext context) {
         this.originalTransactionId = Logger.getTransactionId();
         try {
+            this.validationRuleBypass = IncompleteHcQuoteCleanupService.beginValidationRuleBypass();
             if (Test.isRunningTest() && throwInStart) {
                 throw new QueryException('Test start failure');
             }
@@ -105,6 +107,8 @@ public without sharing class IncompleteHcQuoteCleanupBatch implements Database.B
         } catch (Exception exceptionValue) {
             startCatchCount++;
             Logger.error('IncompleteHcQuoteCleanupBatch.start', exceptionValue).addTag(LOGGER_TAG);
+            IncompleteHcQuoteCleanupService.endValidationRuleBypass(this.validationRuleBypass);
+            this.validationRuleBypass = null;
             throw exceptionValue;
         } finally {
             Logger.saveLog();
@@ -154,6 +158,8 @@ public without sharing class IncompleteHcQuoteCleanupBatch implements Database.B
             finishCatchCount++;
             Logger.error('IncompleteHcQuoteCleanupBatch.finish', exceptionValue).addTag(LOGGER_TAG);
         } finally {
+            IncompleteHcQuoteCleanupService.endValidationRuleBypass(this.validationRuleBypass);
+            this.validationRuleBypass = null;
             Logger.saveLog();
         }
     }

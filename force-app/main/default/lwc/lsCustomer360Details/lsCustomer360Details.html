@@ -1,0 +1,116 @@
+<template>
+    <template lwc:if={isLoading}>
+        <lightning-spinner alternative-text="Loading Customer 360" size="small"></lightning-spinner>
+    </template>
+
+    <template lwc:elseif={errorMessage}>
+        <div class="slds-text-color_error slds-p-around_medium" role="alert">{errorMessage}</div>
+    </template>
+
+    <template lwc:elseif={isFull}>
+        <section class="full-pane">
+        <lightning-tabset>
+            <lightning-tab label="Details" value="details">
+                <div class="slds-p-horizontal_small slds-p-bottom_medium">
+                    <lightning-record-form
+                        record-id={recordId}
+                        object-api-name="Account"
+                        layout-type="Full"
+                        mode="view"
+                        columns="2">
+                    </lightning-record-form>
+                </div>
+            </lightning-tab>
+            <lightning-tab label="Account Team Member" value="team">
+                <c-ls-account-team-member-details record-id={recordId}></c-ls-account-team-member-details>
+            </lightning-tab>
+            <lightning-tab label="Related" value="related">
+                <div class="slds-p-horizontal_small slds-p-bottom_medium">
+                    <lightning-card title="Contacts" icon-name="standard:contact">
+                        <lightning-datatable
+                            key-field="id"
+                            data={contactRows}
+                            columns={contactColumns}
+                            hide-checkbox-column>
+                        </lightning-datatable>
+                    </lightning-card>
+                    <div class="slds-m-top_medium">
+                        <lightning-card title="Opportunities" icon-name="standard:opportunity">
+                            <lightning-datatable
+                                key-field="id"
+                                data={opportunityRows}
+                                columns={opportunityColumns}
+                                hide-checkbox-column>
+                            </lightning-datatable>
+                        </lightning-card>
+                    </div>
+                    <div class="slds-m-top_medium">
+                        <lightning-card title="Account History" icon-name="standard:account">
+                            <lightning-datatable
+                                key-field="id"
+                                data={historyRows}
+                                columns={historyColumns}
+                                hide-checkbox-column>
+                            </lightning-datatable>
+                        </lightning-card>
+                    </div>
+                </div>
+            </lightning-tab>
+        </lightning-tabset>
+        </section>
+    </template>
+
+    <template lwc:else>
+        <lightning-card title="Customer 360">
+            <lightning-tabset>
+                <lightning-tab label="Details" value="details">
+                    <div class="slds-p-horizontal_small slds-p-bottom_medium">
+                        <div class="slds-grid slds-wrap slds-gutters_medium">
+                            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                <dl class="field-list">
+                                    <div class="field">
+                                        <dt>Customer Name</dt>
+                                        <dd>{accountName}</dd>
+                                    </div>
+                                    <div class="field">
+                                        <dt>Phone</dt>
+                                        <dd>
+                                            <lightning-formatted-phone value={phone}></lightning-formatted-phone>
+                                        </dd>
+                                    </div>
+                                    <div class="field">
+                                        <dt>Industry</dt>
+                                        <dd>{industry}</dd>
+                                    </div>
+                                </dl>
+                            </div>
+                            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                <dl class="field-list">
+                                    <div class="field">
+                                        <dt>Account Source</dt>
+                                        <dd>{accountSource}</dd>
+                                    </div>
+                                    <div class="field">
+                                        <dt>Parent Account</dt>
+                                        <dd>
+                                            <template lwc:if={hasParentAccount}>
+                                                <a href={parentAccountUrl}>{parentAccountName}</a>
+                                            </template>
+                                        </dd>
+                                    </div>
+                                    <div class="field">
+                                        <dt>Type</dt>
+                                        <dd>{accountType}</dd>
+                                    </div>
+                                </dl>
+                            </div>
+                        </div>
+                    </div>
+                </lightning-tab>
+                <lightning-tab label="Account Team" value="accountTeam">
+                    <c-ls-account-team-member-details record-id={recordId}></c-ls-account-team-member-details>
+                </lightning-tab>
+            </lightning-tabset>
+        </lightning-card>
+    </template>
+</template>

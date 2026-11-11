@@ -17,6 +17,7 @@ private class LSOpportunityOwnerServiceTest {
     private static final String MANAGER_LAST_NAME = 'GCL73 Manager';
     private static final String ADMIN_PERMISSION_LAST_NAME = 'GCL73 BSA';
     private static final String NEW_OWNER_LAST_NAME = 'GCL73 New Owner';
+    private static final String ADMIN_LAST_NAME = 'GCL73 Admin';
 
     /**
      * @description
@@ -48,7 +49,8 @@ private class LSOpportunityOwnerServiceTest {
         User managerUser = newUser(MANAGER_LAST_NAME, 'Life Sciences Sales', managerRole.Id, token);
         User businessSystemAdmin = newUser(ADMIN_PERMISSION_LAST_NAME, 'Life Sciences Sales', otherRole.Id, token);
         User newOwner = newUser(NEW_OWNER_LAST_NAME, 'Life Sciences Sales', otherRole.Id, token);
-        insert new List<User>{ ownerUser, peerUser, managerUser, businessSystemAdmin, newOwner };
+        User adminUser = newUser(ADMIN_LAST_NAME, 'System Administrator', null, token);
+        insert new List<User>{ ownerUser, peerUser, managerUser, businessSystemAdmin, newOwner, adminUser };
 
         PermissionSet businessSystemAdminPermissionSet = [
             SELECT Id
@@ -56,10 +58,70 @@ private class LSOpportunityOwnerServiceTest {
             WHERE Name = :LSOpportunityOwnerService.BUSINESS_SYSTEM_ADMIN_PERMISSION_SET
             LIMIT 1
         ];
-        insert new PermissionSetAssignment(
-            AssigneeId = businessSystemAdmin.Id,
-            PermissionSetId = businessSystemAdminPermissionSet.Id
-        );
+        PermissionSet transferPermissionSet = [
+            SELECT Id
+            FROM PermissionSet
+            WHERE Name = 'LSTransferRecord'
+            LIMIT 1
+        ];
+        PermissionSet opportunityAccessPermissionSet = [
+            SELECT Id
+            FROM PermissionSet
+            WHERE Name = 'LSInsideSalesPS'
+            LIMIT 1
+        ];
+        insert new List<PermissionSetAssignment>{
+            new PermissionSetAssignment(
+                AssigneeId = businessSystemAdmin.Id,
+                PermissionSetId = businessSystemAdminPermissionSet.Id
+            ),
+            new PermissionSetAssignment(
+                AssigneeId = ownerUser.Id,
+                PermissionSetId = transferPermissionSet.Id
+            ),
+            new PermissionSetAssignment(
+                AssigneeId = peerUser.Id,
+                PermissionSetId = transferPermissionSet.Id
+            ),
+            new PermissionSetAssignment(
+                AssigneeId = managerUser.Id,
+                PermissionSetId = transferPermissionSet.Id
+            ),
+            new PermissionSetAssignment(
+                AssigneeId = businessSystemAdmin.Id,
+                PermissionSetId = transferPermissionSet.Id
+            ),
+            new PermissionSetAssignment(
+                AssigneeId = ownerUser.Id,
+                PermissionSetId = opportunityAccessPermissionSet.Id
+            ),
+            new PermissionSetAssignment(
+                AssigneeId = peerUser.Id,
+                PermissionSetId = opportunityAccessPermissionSet.Id
+            ),
+            new PermissionSetAssignment(
+                AssigneeId = managerUser.Id,
+                PermissionSetId = opportunityAccessPermissionSet.Id
+            )
+        };
+    }
+
+    /**
+     * @description
+     * GCL-73 - A Life Sciences Sales user can resolve the profile name
+     * without querying the User.Profile relationship.
+     */
+    @IsTest
+    static void lifeSciencesUserCanResolveProfileName() {
+        User lifeSciencesUser = userByLastName(OWNER_LAST_NAME);
+
+        System.runAs(lifeSciencesUser) {
+            User runningUser = LSOpportunityOwnerSelector.selectRunningUser();
+            String profileName = LSOpportunityOwnerSelector.selectProfileName(UserInfo.getProfileId());
+
+            System.assertEquals(lifeSciencesUser.Id, runningUser.Id);
+            System.assertEquals('Life Sciences Sales', profileName);
+        }
     }
 
     /**
@@ -68,9 +130,23 @@ private class LSOpportunityOwnerServiceTest {
      */
     @IsTest
     static void nullInputDoesNotThrow() {
+        Id ownerId = UserInfo.getUserId();
+        Opportunity opportunityRecord = new Opportunity(
+            Id = fakeId(Opportunity.SObjectType, '000000000001'),
+            RecordTypeId = lifeSciencesRecordTypeId(),
+            OwnerId = ownerId,
+            BypassValidations__c = false
+        );
+        Opportunity previousOpportunity = opportunityRecord.clone(true, true, false, false);
+
         LSOpportunityOwnerService.validateOwnerChange(null, null);
         LSOpportunityOwnerService.validateOwnerChange(new List<Opportunity>(), new Map<Id, Opportunity>());
-        System.assert(true, 'Empty owner validation should return without an exception.');
+        LSOpportunityOwnerService.validateOwnerChange(
+            new List<Opportunity>{ opportunityRecord },
+            new Map<Id, Opportunity>{ opportunityRecord.Id => previousOpportunity }
+        );
+
+        System.assertEquals(ownerId, opportunityRecord.OwnerId);
     }
 
     /**
@@ -82,6 +158,7 @@ private class LSOpportunityOwnerServiceTest {
         User ownerUser = userByLastName(OWNER_LAST_NAME);
         User newOwner = userByLastName(NEW_OWNER_LAST_NAME);
         Opportunity opportunityRecord = insertLifeSciencesOpportunity(ownerUser);
+        shareAccountRead(opportunityRecord.AccountId, newOwner.Id);
 
         Test.startTest();
         changeOwner(ownerUser, opportunityRecord.Id, newOwner.Id, false);
@@ -127,6 +204,7 @@ private class LSOpportunityOwnerServiceTest {
         User newOwner = userByLastName(NEW_OWNER_LAST_NAME);
         Opportunity opportunityRecord = insertLifeSciencesOpportunity(userByLastName(OWNER_LAST_NAME));
         shareEdit(opportunityRecord.Id, managerUser.Id);
+        shareAccountRead(opportunityRecord.AccountId, newOwner.Id);
 
         Test.startTest();
         changeOwner(managerUser, opportunityRecord.Id, newOwner.Id, false);
@@ -145,6 +223,7 @@ private class LSOpportunityOwnerServiceTest {
         User newOwner = userByLastName(NEW_OWNER_LAST_NAME);
         Opportunity opportunityRecord = insertLifeSciencesOpportunity(userByLastName(OWNER_LAST_NAME));
         shareEdit(opportunityRecord.Id, businessSystemAdmin.Id);
+        shareAccountRead(opportunityRecord.AccountId, newOwner.Id);
 
         Test.startTest();
         changeOwner(businessSystemAdmin, opportunityRecord.Id, newOwner.Id, false);
@@ -164,9 +243,14 @@ private class LSOpportunityOwnerServiceTest {
         User newOwner = userByLastName(NEW_OWNER_LAST_NAME);
         Opportunity opportunityRecord = insertLifeSciencesOpportunity(ownerUser);
         shareEdit(opportunityRecord.Id, peerUser.Id);
+        shareAccountRead(opportunityRecord.AccountId, newOwner.Id);
+        update new Opportunity(
+            Id = opportunityRecord.Id,
+            BypassValidations__c = true
+        );
 
         Test.startTest();
-        changeOwner(peerUser, opportunityRecord.Id, newOwner.Id, true);
+        changeOwner(peerUser, opportunityRecord.Id, newOwner.Id, false);
         Test.stopTest();
 
         System.assertEquals(newOwner.Id, refreshedOwnerId(opportunityRecord.Id));
@@ -178,8 +262,7 @@ private class LSOpportunityOwnerServiceTest {
      */
     @IsTest
     static void systemAdminIsNotBlocked() {
-        User adminUser = newUser('GCL73 Admin', 'System Administrator', null, uniqueToken());
-        insert adminUser;
+        User adminUser = userByLastName(ADMIN_LAST_NAME);
         User newOwner = userByLastName(NEW_OWNER_LAST_NAME);
         Opportunity opportunityRecord = insertLifeSciencesOpportunity(userByLastName(OWNER_LAST_NAME));
 
@@ -192,66 +275,107 @@ private class LSOpportunityOwnerServiceTest {
 
     /**
      * @description
+     * GCL-73 - The validation-rule automation setting skips the owner check.
+     */
+    @IsTest
+    static void automationSettingSkipsOwnerCheck() {
+        User ownerUser = userByLastName(OWNER_LAST_NAME);
+        User peerUser = userByLastName(PEER_LAST_NAME);
+        User newOwner = userByLastName(NEW_OWNER_LAST_NAME);
+        insert new Automation_Setting_Validation_Rule__c(
+            SetupOwnerId = peerUser.Id,
+            LS_Opp_073_RestrictOwnerChange__c = true
+        );
+
+        Opportunity opportunityRecord;
+        System.runAs(userByLastName(ADMIN_LAST_NAME)) {
+            opportunityRecord = insertLifeSciencesOpportunity(ownerUser);
+            shareEdit(opportunityRecord.Id, peerUser.Id);
+            shareAccountRead(opportunityRecord.AccountId, newOwner.Id);
+        }
+
+        Test.startTest();
+        changeOwner(peerUser, opportunityRecord.Id, newOwner.Id, false);
+        Test.stopTest();
+
+        System.assertEquals(newOwner.Id, refreshedOwnerId(opportunityRecord.Id));
+    }
+
+    /**
+     * @description
      * GCL-73 - An unexpected failure is logged and rethrown.
      */
     @IsTest
     static void unexpectedErrorIsLoggedAndRethrown() {
         LSOpportunityOwnerService.throwTestException = true;
-        Opportunity updatedOpportunity = lifeSciencesOwnerChange();
+        Opportunity updatedOpportunity = lifeSciencesOwnerChange('000000000001');
         Opportunity previousOpportunity = updatedOpportunity.clone(true, true, false, false);
-        previousOpportunity.OwnerId = fakeId(User.SObjectType);
+        previousOpportunity.OwnerId = fakeId(User.SObjectType, '000000000002');
 
-        try {
-            LSOpportunityOwnerService.validateOwnerChange(
-                new List<Opportunity>{ updatedOpportunity },
-                new Map<Id, Opportunity>{ updatedOpportunity.Id => previousOpportunity }
-            );
-            System.assert(false, 'A selector failure should be rethrown.');
-        } catch (QueryException exceptionValue) {
-            System.assertEquals('Forced test exception', exceptionValue.getMessage());
+        System.runAs(userByLastName(OWNER_LAST_NAME)) {
+            try {
+                LSOpportunityOwnerService.validateOwnerChange(
+                    new List<Opportunity>{ updatedOpportunity },
+                    new Map<Id, Opportunity>{ updatedOpportunity.Id => previousOpportunity }
+                );
+                System.assert(false, 'A selector failure should be rethrown.');
+            } catch (QueryException exceptionValue) {
+                System.assertEquals('Forced test exception', exceptionValue.getMessage());
+            }
         }
     }
 
     private static Opportunity insertLifeSciencesOpportunity(User ownerUser) {
-        Opportunity opportunityRecord;
-        System.runAs(ownerUser) {
-            Account accountRecord = new Account(
-                Name = 'GCL73 ' + uniqueToken(),
-                SourceSystemID__c = uniqueToken()
-            );
-            insert accountRecord;
-            Contact contactRecord = new Contact(
-                LastName = 'GCL73 Contact',
-                AccountId = accountRecord.Id
-            );
-            insert contactRecord;
-            opportunityRecord = new Opportunity(
-                Name = 'GCL73 Opportunity',
-                AccountId = accountRecord.Id,
-                RecordTypeId = lifeSciencesRecordTypeId(),
-                StageName = 'Discovery',
-                PositionInFunnel__c = 'Above Funnel',
-                ForecastConfidenceLevel__c = 'Pipeline',
-                Type = 'New Business',
-                Amount = 1000,
-                Probability = 10,
-                PrimaryContact__c = contactRecord.Id,
-                CloseDate = Date.today().addDays(30),
-                BypassValidations__c = false
-            );
-            insert opportunityRecord;
-        }
+        Account accountRecord = new Account(
+            Name = 'GCL73 ' + uniqueToken(),
+            SourceSystemID__c = uniqueToken()
+        );
+        insert accountRecord;
+        Contact contactRecord = new Contact(
+            LastName = 'GCL73 Contact',
+            AccountId = accountRecord.Id
+        );
+        insert contactRecord;
+        Opportunity opportunityRecord = new Opportunity(
+            Name = 'GCL73 Opportunity',
+            AccountId = accountRecord.Id,
+            OwnerId = ownerUser.Id,
+            RecordTypeId = lifeSciencesRecordTypeId(),
+            StageName = 'Discovery',
+            PositionInFunnel__c = 'Above Funnel',
+            ForecastConfidenceLevel__c = 'Pipeline',
+            Type = 'New Business',
+            Amount = 1000,
+            Probability = 10,
+            PrimaryContact__c = contactRecord.Id,
+            CloseDate = Date.today().addDays(30),
+            BypassValidations__c = false
+        );
+        insert opportunityRecord;
         return opportunityRecord;
     }
 
     private static void changeOwner(User actingUser, Id opportunityId, Id newOwnerId, Boolean bypassValidations) {
         System.runAs(actingUser) {
-            update new Opportunity(
+            Opportunity opportunityRecord = new Opportunity(
                 Id = opportunityId,
-                OwnerId = newOwnerId,
-                BypassValidations__c = bypassValidations
+                OwnerId = newOwnerId
             );
+            if (bypassValidations) {
+                opportunityRecord.BypassValidations__c = true;
+            }
+            update opportunityRecord;
         }
+    }
+
+    private static void shareAccountRead(Id accountId, Id userId) {
+        insert new AccountShare(
+            AccountId = accountId,
+            UserOrGroupId = userId,
+            AccountAccessLevel = 'Read',
+            OpportunityAccessLevel = 'Read',
+            CaseAccessLevel = 'None'
+        );
     }
 
     private static void shareEdit(Id opportunityId, Id userId) {
@@ -287,11 +411,11 @@ private class LSOpportunityOwnerServiceTest {
         );
     }
 
-    private static Opportunity lifeSciencesOwnerChange() {
+    private static Opportunity lifeSciencesOwnerChange(String suffix) {
         return new Opportunity(
-            Id = fakeId(Opportunity.SObjectType),
+            Id = fakeId(Opportunity.SObjectType, suffix),
             RecordTypeId = lifeSciencesRecordTypeId(),
-            OwnerId = fakeId(User.SObjectType),
+            OwnerId = fakeId(User.SObjectType, suffix),
             BypassValidations__c = false
         );
     }
@@ -303,8 +427,8 @@ private class LSOpportunityOwnerServiceTest {
             .getRecordTypeId();
     }
 
-    private static Id fakeId(Schema.SObjectType sobjectType) {
-        return Id.valueOf(sobjectType.getDescribe().getKeyPrefix() + '000000000001');
+    private static Id fakeId(Schema.SObjectType sobjectType, String suffix) {
+        return Id.valueOf(sobjectType.getDescribe().getKeyPrefix() + suffix);
     }
 
     private static String uniqueToken() {

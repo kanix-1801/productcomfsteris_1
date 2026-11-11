@@ -108,6 +108,37 @@ private class DynamicSoqlQueryTest {
     }
 
     @IsTest
+    static void executeSystemModeReturnsMatchingRows() {
+        DynamicSoqlQuery.PreparedQuery pq = DynamicSoqlQuery.prepare(
+            'Product2',
+            new List<String>{ 'Id', 'Name' },
+            new List<DynamicSoqlQuery.Filter>{
+                new DynamicSoqlQuery.Filter('IsActive', '=', true)
+            },
+            null,
+            null,
+            10,
+            null
+        );
+
+        Test.startTest();
+        List<SObject> viaExecute = DynamicSoqlQuery.execute(pq, System.AccessLevel.SYSTEM_MODE);
+        List<SObject> viaBuilder = SoqlQueryBuilder.fromObject('Product2')
+            .selectFields(new List<String>{ 'Id', 'Name' })
+            .whereEquals('IsActive', true)
+            .limitTo(10)
+            .executeSystemMode();
+        Integer systemCount = SoqlQueryBuilder.fromObject('Product2')
+            .whereEquals('IsActive', true)
+            .countSystemMode();
+        Test.stopTest();
+
+        Assert.areEqual(3, viaExecute.size(), 'SYSTEM_MODE execute should return active products');
+        Assert.areEqual(3, viaBuilder.size(), 'Builder executeSystemMode should match');
+        Assert.areEqual(3, systemCount, 'countSystemMode should return active product count');
+    }
+
+    @IsTest
     static void injectionAttemptsAreRejected() {
         // Injection via value is harmless: it is bound, not concatenated.
         List<SObject> rows = DynamicSoqlQuery.query(

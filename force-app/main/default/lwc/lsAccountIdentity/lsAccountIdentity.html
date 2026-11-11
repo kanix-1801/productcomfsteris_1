@@ -1,0 +1,54 @@
+<template>
+    <template lwc:if={isLoading}>
+        <lightning-spinner alternative-text="Loading account" size="small"></lightning-spinner>
+    </template>
+
+    <template lwc:elseif={errorMessage}>
+        <div class="slds-text-color_error slds-p-around_medium" role="alert">
+            {errorMessage}
+        </div>
+    </template>
+
+    <template lwc:elseif={hasAccount}>
+        <section class="slds-card identity-card">
+            <div class="identity-banner">
+                <lightning-icon icon-name="standard:account" size="large"></lightning-icon>
+                <div class="identity-title">
+                    <h1 class="slds-truncate" title={accountName}>{accountName}</h1>
+                </div>
+            </div>
+            <div class="slds-card__body slds-card__body_inner">
+                <dl class="field-list">
+                    <div class="field">
+                        <dt>Customer Number</dt>
+                        <dd>{customerNumber}</dd>
+                    </div>
+                    <div class="field">
+                        <dt>GPO Affiliation</dt>
+                        <dd>{gpoAffiliation}</dd>
+                    </div>
+                    <div class="field">
+                        <dt>Website</dt>
+                        <dd>
+                            <template lwc:if={hasWebsite}>
+                                <a href={safeWebsiteUrl} target="_blank" rel="noopener noreferrer">{website}</a>
+                            </template>
+                        </dd>
+                    </div>
+                    <div class="field">
+                        <dt>Parent Account</dt>
+                        <dd>
+                            <template lwc:if={hasParentAccount}>
+                                <a href={parentAccountUrl}>{parentAccountName}</a>
+                            </template>
+                        </dd>
+                    </div>
+                    <div class="field">
+                        <dt>Customer Class</dt>
+                        <dd>{customerClass}</dd>
+                    </div>
+                </dl>
+            </div>
+        </section>
+    </template>
+</template>

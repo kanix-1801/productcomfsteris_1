@@ -6,6 +6,8 @@
     <description>Screen action wrapper for Generate Quote and Refresh Quote quick actions.</description>
     <targets>
         <target>lightning__RecordAction</target>
+        <target>lightningCommunity__Page</target>
+        <target>lightningCommunity__Default</target>
     </targets>
     <targetConfigs>
         <targetConfig targets="lightning__RecordAction">

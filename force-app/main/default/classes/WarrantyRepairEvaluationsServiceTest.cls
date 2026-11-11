@@ -570,7 +570,6 @@ private class WarrantyRepairEvaluationsServiceTest {
             new WorkOrderLineItem(
                 WorkOrderId = priorWorkOrder.Id,
                 RecordTypeId = repairCodeRtId,
-                Product__c = categoryProduct.Id,
                 PricebookEntryId = productToPricebookEntryId.get(categoryProduct.Id),
                 ProductDescription__c = categoryProduct.Description,
                 Quantity = 1,
@@ -579,7 +578,6 @@ private class WarrantyRepairEvaluationsServiceTest {
             new WorkOrderLineItem(
                 WorkOrderId = priorWorkOrder.Id,
                 RecordTypeId = repairCodeRtId,
-                Product__c = serviceProduct.Id,
                 PricebookEntryId = productToPricebookEntryId.get(serviceProduct.Id),
                 ProductDescription__c = serviceProduct.Description,
                 Quantity = 1,
@@ -634,8 +632,10 @@ private class WarrantyRepairEvaluationsServiceTest {
         priorWorkOrderBuilder.persist();
 
         WorkOrder priorWorkOrder = (WorkOrder) priorWorkOrderBuilder.record;
-        priorWorkOrder.PreviousReturnOrder__c = 'RO-PRIOR-IE-001';
-        update priorWorkOrder;
+        update new WorkOrder(
+            Id = priorWorkOrder.Id,
+            PreviousReturnOrder__c = 'RO-PRIOR-IE-001'
+        );
 
         Id wahRecordTypeId = Schema.SObjectType.WOAssignmentHistory__c.getRecordTypeInfosByDeveloperName()
             .get('RepairCenter')
@@ -698,9 +698,11 @@ private class WarrantyRepairEvaluationsServiceTest {
         workOrderBuilder.persist();
 
         WorkOrder workOrder = (WorkOrder) workOrderBuilder.record;
-        workOrder.Description = 'Tray item return';
-        workOrder.QuantityReceived__c = 2;
-        update workOrder;
+        update new WorkOrder(
+            Id = workOrder.Id,
+            Description = 'Tray item return',
+            QuantityReceived__c = 2
+        );
 
         WarrantyRepairEvaluation__c evaluation =
             buildValidEvaluationWithoutAssetPreviousRepairFields(workOrder.Id);

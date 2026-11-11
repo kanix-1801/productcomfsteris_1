@@ -1,6 +1,6 @@
 <template>
-  <lightning-quick-action-panel header="Microscopic Camera Picture Capture">
-    <div class="capture-panel">
+  <lightning-quick-action-panel header={panelHeader}>
+    <div class={capturePanelClass}>
       <template lwc:if={isAnnotationOpen}>
         <section class="panel-section">
           <h3 class="slds-text-heading_small">{annotationModalTitle}</h3>
@@ -9,6 +9,23 @@
           >
             {annotationModalSubtitle}
           </p>
+          <template lwc:if={isEmitMode}>
+            <div class="button-row slds-m-bottom_small">
+              <lightning-button
+                label="Cancel"
+                onclick={handleCancelAnnotation}
+                disabled={isUploading}
+                stretch
+              ></lightning-button>
+              <lightning-button
+                label={annotationSaveButtonLabel}
+                variant="brand"
+                onclick={handleSaveAnnotated}
+                disabled={isAnnotationSaveDisabled}
+                stretch
+              ></lightning-button>
+            </div>
+          </template>
           <div class="annotation-toolbar slds-m-bottom_small">
             <lightning-combobox
               class="toolbar-tool"
@@ -54,7 +71,7 @@
         </section>
       </template>
       <template lwc:else>
-        <template lwc:if={hasRecordId}>
+        <template lwc:if={hasCaptureContext}>
           <template lwc:if={metadataError}>
             <div
               class="slds-notify slds-notify_alert slds-alert_warning slds-m-bottom_small"
@@ -204,7 +221,7 @@
             </section>
           </template>
 
-          <template lwc:if={showLiveCapture}>
+          <template lwc:if={showExistingFiles}>
             <section class="panel-section annotate-existing-section">
               <h3 class="slds-text-heading_small slds-m-bottom_x-small">
                 Annotate existing file
@@ -314,6 +331,13 @@
             variant="brand"
             onclick={handleSaveWithoutMarkup}
             disabled={isUploading}
+            stretch
+          ></lightning-button>
+        </template>
+        <template lwc:elseif={showDoneAction}>
+          <lightning-button
+            label="Done"
+            onclick={handleDone}
             stretch
           ></lightning-button>
         </template>

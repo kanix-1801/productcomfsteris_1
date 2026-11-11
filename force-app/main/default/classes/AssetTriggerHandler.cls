@@ -3,6 +3,9 @@
  *              Orchestrates Domain and Service layer calls.
  *              Uses KevinOHara80 TriggerHandler framework.
  *              No SOQL or DML is allowed in this class.
+ *              GW-2459 blocks Pending Inactivation → Service Inactive unless the
+ *              evaluation update ran in this same transaction.
+ * @see AssetPendingInactivationService
  */
 public with sharing class AssetTriggerHandler extends TriggerHandler {
 
@@ -20,11 +23,17 @@ public with sharing class AssetTriggerHandler extends TriggerHandler {
 
     /**
      * @description Executes before update logic.
+     *              GW-2459: Pending Inactivation can become Service Inactive only when
+     *              AssetPendingInactivationService evaluated the Asset in this transaction.
      */
     public override void beforeUpdate() {
         if (!AutomationControl.isTriggerEnabled('AssetTrigger')) {
             return;
         }
+        AssetPendingInactivationService.preventUnevaluatedServiceInactive(
+            (List<Asset>) Trigger.new,
+            (Map<Id, Asset>) Trigger.oldMap
+        );
         Assets domain = new Assets((List<Asset>) Trigger.new);
         // domain.validate();
     }

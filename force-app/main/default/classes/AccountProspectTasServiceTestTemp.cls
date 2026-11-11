@@ -290,8 +290,7 @@ public class AccountProspectTasServiceTestTemp {
             Country = 'United States',
             City = 'Cleveland',
             Org_ID__c = '83',
-            Class_Code__c = 'Healthcare',
-            Sales_Category__c = 'Capital'
+            Class_Code__c = 'Healthcare'
         );
         TasAssignmentRequest leadRequest = TasAssignmentRequest.fromLead(leadRecord);
         System.assertEquals(leadRecord.Id, leadRequest.leadId);

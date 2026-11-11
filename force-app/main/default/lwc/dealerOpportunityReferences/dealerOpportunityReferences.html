@@ -1,0 +1,59 @@
+<template>
+    <section class="references">
+        <template if:true={errorMessage}>
+            <p class="error" role="alert">{errorMessage}</p>
+        </template>
+        <template if:true={isLoading}>
+            <lightning-spinner alternative-text="Loading dealer references" size="small"></lightning-spinner>
+        </template>
+        <template if:true={isReady}>
+            <div class="grid">
+                <c-dealer-reference-picker
+                    data-field="architect"
+                    label="Architect"
+                    type-value="Architect"
+                    placeholder="Search or create architect…"
+                    selected-id={architectId}
+                    selected-label={architectName}
+                    onselectionchange={handleSelectionChange}>
+                </c-dealer-reference-picker>
+                <c-dealer-reference-picker
+                    data-field="mainContractor"
+                    label="Main Contractor"
+                    type-value="MainContractor"
+                    placeholder="Search or create main contractor…"
+                    selected-id={mainContractorId}
+                    selected-label={mainContractorName}
+                    onselectionchange={handleSelectionChange}>
+                </c-dealer-reference-picker>
+                <c-dealer-reference-picker
+                    data-field="equipmentPlanner"
+                    label="Equipment Planner"
+                    type-value="EquipmentPlanner"
+                    placeholder="Search or create equipment planner…"
+                    selected-id={equipmentPlannerId}
+                    selected-label={equipmentPlannerName}
+                    onselectionchange={handleSelectionChange}>
+                </c-dealer-reference-picker>
+                <c-dealer-reference-picker
+                    data-field="competitors"
+                    label="Competitors"
+                    type-value="Competitor"
+                    allow-multiple="true"
+                    placeholder="Search or create competitor…"
+                    selected-ids={competitorIds}
+                    selected-labels={competitorNames}
+                    onselectionchange={handleSelectionChange}>
+                </c-dealer-reference-picker>
+            </div>
+            <div class="actions">
+                <lightning-button
+                    variant="brand"
+                    label="Save"
+                    onclick={handleSave}
+                    disabled={isSaving}>
+                </lightning-button>
+            </div>
+        </template>
+    </section>
+</template>

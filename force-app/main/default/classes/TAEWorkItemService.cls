@@ -1054,6 +1054,8 @@ public with sharing class TAEWorkItemService {
      * @description Sets Active or Expired and sends one email when no Pending or Error rows remain.
      * GC-3482: a revoke is Expired only after team deletes, the handback marker, and all four
      * owner-reassignment types are Done or Skipped. One Error row keeps the request Processing.
+     * GCL-95 and GCL-103 run only when Created By is on the Life Sciences Sales profile.
+     * Healthcare requests still use TAEWorkItemEmailService and the existing handback.
      * @param exceptionId TemporaryAccessException__c Id.
      * @param operation Grant or Revoke.
      */
@@ -1064,24 +1066,74 @@ public with sharing class TAEWorkItemService {
             if (operation == OP_GRANT) {
                 nextStatus = HEADER_ACTIVE;
             }
-            Database.update(
-                new TemporaryAccessException__c(
-                    Id = exceptionId,
-                    Status__c = nextStatus,
-                    ProcessingOperation__c = null,
-                    WorkItemsCreated__c = false
-                ),
-                AccessLevel.SYSTEM_MODE
+            Set<Id> lifeScienceIds = LSTemporaryAccessExceptionEmailService.filterLifeScienceRequestIds(
+                new Set<Id>{ exceptionId }
             );
+            Boolean isLifeScience = lifeScienceIds.contains(exceptionId);
+            if (isLifeScience && operation != OP_GRANT) {
+                applyLifeScienceHandback(exceptionId, lifeScienceIds);
+            }
+            LSTemporaryAccessExceptionEmailService.suppressInvocableSend = isLifeScience;
+            try {
+                Database.update(
+                    new TemporaryAccessException__c(
+                        Id = exceptionId,
+                        Status__c = nextStatus,
+                        ProcessingOperation__c = null,
+                        WorkItemsCreated__c = false
+                    ),
+                    AccessLevel.SYSTEM_MODE
+                );
+            } finally {
+                LSTemporaryAccessExceptionEmailService.suppressInvocableSend = false;
+            }
             Logger.info(
                 'TAEWorkItemService.finalizeTae: exceptionId=' + exceptionId +
-                ' status=' + nextStatus
+                ' status=' + nextStatus +
+                ' lifeScience=' + isLifeScience
             );
-            if (operation == OP_GRANT) {
+            if (isLifeScience) {
+                sendLifeScienceNotification(exceptionId, operation);
+            } else if (operation == OP_GRANT) {
                 TAEWorkItemEmailService.sendGrant(exceptionId);
             } else {
                 TAEWorkItemEmailService.sendRevoke(exceptionId);
             }
+        }
+    }
+
+    /**
+     * GCL-103. Life Science revoke only. Moves records the Coverage Rep owns on covered
+     * accounts back to the Requester, including completed tasks and past events.
+     * A failure is logged and does not stop the Healthcare-style work items already finished.
+     */
+    private static void applyLifeScienceHandback(Id exceptionId, Set<Id> lifeScienceIds) {
+        try {
+            TemporaryAccessException__c header = TAEWorkItemSelector.selectTae(exceptionId);
+            if (header != null) {
+                LSTemporaryAccessReassignmentService.reassignOnExpiry(
+                    new List<TemporaryAccessException__c>{ header },
+                    lifeScienceIds
+                );
+            }
+        } catch (Exception handbackError) {
+            Logger.error('TAEWorkItemService.finalizeTae: Life Science reassignment failed', handbackError);
+        }
+    }
+
+    /**
+     * GCL-95. Life Science grant sends Temporary Coverage Access Granted. Life Science revoke
+     * sends Temporary Salesforce Access has Expired. Healthcare requests do not use these emails.
+     */
+    private static void sendLifeScienceNotification(Id exceptionId, String operation) {
+        try {
+            if (operation == OP_GRANT) {
+                LSTemporaryAccessExceptionEmailService.sendCoverageGranted(new List<Id>{ exceptionId });
+                return;
+            }
+            LSTemporaryAccessExceptionEmailService.sendExpired(new List<Id>{ exceptionId });
+        } catch (Exception emailError) {
+            Logger.error('TAEWorkItemService.finalizeTae: Life Science email failed', emailError);
         }
     }
 

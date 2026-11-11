@@ -2,9 +2,12 @@
  * @author Uptima Development Team
  * @date 2026-09-03
  * @group Services
- * @description Service-layer wrapper for Location / Rack lookups via LocationsSelector.
+ * @description Service-layer Location / Rack lookups. New queries are built here via
+ *              LocationsSelector; legacy selector static methods remain for QACBM parity.
  */
 public with sharing class LocationsService {
+    private static final String LOCATION_TYPE_REPAIR_CENTER = 'Repair Center';
+
     /**
      * @description Loads a Location by Id.
      * @param locationId Location Id
@@ -45,4 +48,15 @@ public with sharing class LocationsService {
         return LocationsSelector.selectById(locationIds);
     }
 
+    /**
+     * @description GW-5492 - Repair Center locations for Receiving redirect.
+     * @return Location rows ordered by Name
+     */
+    public static List<Schema.Location> getRepairCenters() {
+        return (List<Schema.Location>) new LocationsSelector()
+            .selectFields(new List<String>{ 'Id', 'Name', 'LocationType' })
+            .whereEquals('LocationType', LOCATION_TYPE_REPAIR_CENTER)
+            .orderBy('Name')
+            .execute();
+    }
 }

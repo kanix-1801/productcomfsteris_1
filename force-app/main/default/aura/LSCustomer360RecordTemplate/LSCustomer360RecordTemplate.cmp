@@ -1,0 +1,48 @@
+<!--
+    @description : GCL-100 - Life Sciences Customer account record page template.
+                   Full (Account owner or Account Team member): header, main and sidebar regions as on the standard page.
+                   Base (everyone else): Customer 360 only - identity card, Customer 360 tabs and the sidebar (activities).
+    @author      : PWC Developer
+    @date        : 2026/11/06
+-->
+<aura:component
+    implements="lightning:recordHomeTemplate"
+    access="global"
+    description="LS Customer 360 Record Template">
+
+    <aura:attribute name="header" type="Aura.Component[]" />
+    <aura:attribute name="main" type="Aura.Component[]" />
+    <aura:attribute name="sidebar" type="Aura.Component[]" />
+    <aura:attribute name="accessLevel" type="String" default="" access="private" />
+    <aura:attribute name="accountId" type="String" access="private" />
+
+    <c:lsAccessGate onaccessresolved="{!c.handleAccess}" />
+
+    <aura:if isTrue="{!v.accessLevel == 'Base'}">
+        <div class="ls-c360-grid">
+            <div class="ls-c360-left">
+                <c:lsAccountIdentity recordId="{!v.accountId}" />
+            </div>
+            <div class="ls-c360-center">
+                <c:lsCustomer360Details recordId="{!v.accountId}" />
+            </div>
+            <div class="ls-c360-right">
+                {!v.sidebar}
+            </div>
+        </div>
+    </aura:if>
+
+    <aura:if isTrue="{!v.accessLevel == 'Full'}">
+        <div class="ls-full-header">
+            {!v.header}
+        </div>
+        <div class="ls-full-grid">
+            <div class="ls-full-main">
+                {!v.main}
+            </div>
+            <div class="ls-full-sidebar">
+                {!v.sidebar}
+            </div>
+        </div>
+    </aura:if>
+</aura:component>

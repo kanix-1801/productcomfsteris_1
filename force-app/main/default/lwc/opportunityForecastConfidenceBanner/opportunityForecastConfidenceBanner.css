@@ -49,31 +49,67 @@
 .quote-table {
     width: 100%;
     background: #fff;
+    table-layout: fixed;
 }
 
 .quote-table th,
 .quote-table td {
     vertical-align: middle;
+    text-align: left;
+}
+
+.quote-table col.col-select {
+    width: 10%;
+}
+
+.quote-table col.col-quote-number {
+    width: 20%;
+}
+
+.quote-table col.col-status {
+    width: 10%;
+}
+
+.quote-table col.col-current-confidence {
+    width: 30%;
+}
+
+.quote-table col.col-updated-confidence {
+    width: 30%;
 }
 
 .col-select {
-    width: 3rem;
+    width: 10%;
+    padding-left: 0.5rem;
+    padding-right: 0.25rem;
+    overflow: hidden;
+}
+
+.col-select lightning-input {
+    display: block;
+    max-width: 1.5rem;
 }
 
 .col-quote-number {
-    width: 16%;
+    width: 20%;
 }
 
 .col-status {
-    width: 12%;
+    width: 10%;
 }
 
-.col-current-confidence {
-    width: 28%;
-}
-
+.col-current-confidence,
 .col-updated-confidence {
-    width: 28%;
+    width: 30%;
+    white-space: normal;
+    word-wrap: break-word;
+    padding-right: 0.75rem;
+}
+
+.quote-table th.col-current-confidence,
+.quote-table th.col-updated-confidence {
+    line-height: 1.25;
+    hyphens: auto;
 }
 
 .truncate {

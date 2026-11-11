@@ -1,244 +1,272 @@
 :host {
-    display: block;
-    overflow: visible;
+	display: block;
+	overflow: visible;
 }
 
 .filter-actions {
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 0.75rem;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 0.75rem;
 }
 
 /* Horizontal scroll without clipping combobox/date dropdowns vertically */
 .table-scroll-container {
-    overflow-x: auto;
-    overflow-y: visible;
-    padding-bottom: 12rem;
+	overflow-x: auto;
+	overflow-y: visible;
+	padding-bottom: 12rem;
 }
 
 .table-scroll-container .slds-table {
-    overflow: visible;
+	overflow: visible;
 }
 
 .filter-actions lightning-input {
-    display: inline-block;
+	display: inline-block;
 }
 
 .group-all-btn {
-    align-self: center;
+	align-self: center;
+}
+
+/* Mass actions: Cancel Items / Assignee / Update Assignee */
+.mass-actions-bar {
+	flex-wrap: wrap;
+	row-gap: 0.5rem;
+}
+
+.mass-assignee-picker {
+	flex: 0 1 18rem;
+	min-width: 12rem;
+}
+
+.mass-selected-count {
+	padding-bottom: 0.5rem;
+}
+
+.select-col {
+	width: 2.5rem;
+	padding-right: 0;
 }
 
 /* # column: line actions, chevron, sequence; indent on whole row */
 .seq-col-header {
-    text-align: left;
+	text-align: left;
 }
 
 .seq-header-grid {
-    display: grid;
-    grid-template-columns: 5rem 2.25rem minmax(0, 1fr);
-    align-items: center;
-    column-gap: 0.125rem;
+	display: grid;
+	grid-template-columns: 5rem 2.25rem minmax(0, 1fr);
+	align-items: center;
+	column-gap: 0.125rem;
 }
 
 .seq-header-grid .slds-truncate {
-    text-align: left;
+	text-align: left;
 }
 
 .seq-td {
-    vertical-align: middle;
+	vertical-align: middle;
 }
 
 .type-cell {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    column-gap: 0.35rem;
-    min-width: 0;
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	column-gap: 0.35rem;
+	min-width: 0;
 }
 
 .type-col-icon {
-    flex-shrink: 0;
+	flex-shrink: 0;
 }
 
 .type-icon-link {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0;
-    padding: 0;
-    border: none;
-    border-radius: var(--lwc-borderRadiusMedium, 0.25rem);
-    background: transparent;
-    cursor: pointer;
-    line-height: 1;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	margin: 0;
+	padding: 0;
+	border: none;
+	border-radius: var(--lwc-borderRadiusMedium, 0.25rem);
+	background: transparent;
+	cursor: pointer;
+	line-height: 1;
 }
 
 .type-icon-link:hover,
 .type-icon-link:focus {
-    background: var(--lwc-colorBackgroundRowHover, #f3f3f3);
-    outline: none;
+	background: var(--lwc-colorBackgroundRowHover, #f3f3f3);
+	outline: none;
 }
 
 .type-icon-link:focus-visible {
-    box-shadow: var(--lwc-shadowButtonFocus, 0 0 0 2px #1b96ff);
+	box-shadow: var(--lwc-shadowButtonFocus, 0 0 0 2px #1b96ff);
 }
 
 tr.row-line-completed .type-icon-link {
-    text-decoration: none;
+	text-decoration: none;
 }
 
 /* Strike completed cells except # column, Details (handled below), and Status when combobox is shown */
 tr.row-line-completed > td:not(.seq-td):not(.details-col):not(.status-inline-editable-cell):not(.status-readonly-cell) {
-    text-decoration: line-through;
+	text-decoration: line-through;
 }
 
 tr.row-line-completed > td.seq-td {
-    text-decoration: none;
+	text-decoration: none;
 }
 
 tr.row-line-completed > td.seq-td .seq-text {
-    text-decoration: line-through;
+	text-decoration: line-through;
 }
 
 tr.row-line-completed > td.status-inline-editable-cell,
 tr.row-line-completed > td.status-readonly-cell {
-    text-decoration: none;
+	text-decoration: none;
 }
 
 tr.row-line-completed td.status-readonly-cell .field-readonly-display {
-    text-decoration: line-through;
+	text-decoration: line-through;
 }
 
 tr.row-line-completed > td.details-col {
-    text-decoration: none;
+	text-decoration: none;
 }
 
 tr.row-line-completed td.details-col .details-readonly-title {
-    text-decoration: line-through;
+	text-decoration: line-through;
 }
 
 tr.row-line-completed td.details-col .details-readonly-row lightning-button-icon {
-    text-decoration: none;
+	text-decoration: none;
 }
 
 tr.row-line-completed td.details-col .details-edit-row lightning-input {
-    text-decoration: line-through;
+	text-decoration: line-through;
 }
 
 .seq-row {
-    display: grid;
-    grid-template-columns: auto 2.25rem minmax(0, 1fr);
-    align-items: center;
-    column-gap: 0.125rem;
-    min-width: 0;
+	display: grid;
+	grid-template-columns: auto 2.25rem minmax(0, 1fr);
+	align-items: center;
+	column-gap: 0.125rem;
+	min-width: 0;
 }
 
 .seq-line-actions {
-    display: inline-flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: flex-start;
-    column-gap: 0;
-    width: 5rem;
-    min-width: 5rem;
-    flex-shrink: 0;
+	display: inline-flex;
+	flex-direction: row;
+	align-items: center;
+	justify-content: flex-start;
+	column-gap: 0;
+	width: 5rem;
+	min-width: 5rem;
+	flex-shrink: 0;
 }
 
 .seq-toggle-host {
-    display: flex;
-    justify-content: flex-start;
-    align-items: center;
-    width: 2.25rem;
-    flex-shrink: 0;
+	display: flex;
+	justify-content: flex-start;
+	align-items: center;
+	width: 2.25rem;
+	flex-shrink: 0;
 }
 
 .seq-toggle {
-    box-sizing: border-box;
-    width: 2.25rem;
-    height: 2.25rem;
-    margin: 0;
-    padding: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border: none;
-    border-radius: var(--lwc-borderRadiusMedium, 0.25rem);
-    background: transparent;
-    cursor: pointer;
-    line-height: 1;
+	box-sizing: border-box;
+	width: 2.25rem;
+	height: 2.25rem;
+	margin: 0;
+	padding: 0;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border: none;
+	border-radius: var(--lwc-borderRadiusMedium, 0.25rem);
+	background: transparent;
+	cursor: pointer;
+	line-height: 1;
 }
 
 .seq-toggle:hover,
 .seq-toggle:focus {
-    background: var(--lwc-colorBackgroundRowHover, #f3f3f3);
-    outline: none;
+	background: var(--lwc-colorBackgroundRowHover, #f3f3f3);
+	outline: none;
 }
 
 .seq-toggle_placeholder {
-    pointer-events: none;
+	pointer-events: none;
 }
 
 .seq-text {
-    min-width: 0;
+	min-width: 0;
 }
 
 .slds-table th.seq-col-header,
 .slds-table td.seq-td {
-    padding-right: 0.25rem;
+	padding-right: 0.25rem;
 }
 
 .slds-table th:nth-child(2),
 .slds-table td:nth-child(2) {
-    padding-left: 0.25rem;
+	padding-left: 0.25rem;
 }
 
 .inline-field-cell {
-    min-width: 9rem;
-    vertical-align: middle;
-    overflow: visible;
-    position: relative;
+	min-width: 9rem;
+	vertical-align: middle;
+	overflow: visible;
+	position: relative;
 }
 
 .field-readonly-display {
-    display: block;
-    min-height: 1.5rem;
-    line-height: 1.5rem;
+	display: block;
+	min-height: 1.5rem;
+	line-height: 1.5rem;
 }
 
 .inline-field-cell lightning-combobox,
 .inline-field-cell lightning-input,
 .inline-field-cell lightning-record-picker {
-    --slds-c-input-radius-border: var(--lwc-borderRadiusMedium, 0.25rem);
-    max-width: 16rem;
+	--slds-c-input-radius-border: var(--lwc-borderRadiusMedium, 0.25rem);
+	max-width: 16rem;
 }
 
 .details-edit-cell {
-    min-width: 10rem;
-    vertical-align: middle;
+	min-width: 10rem;
+	vertical-align: middle;
 }
 
 .details-edit-row {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    column-gap: 0.25rem;
-    min-width: 0;
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	column-gap: 0.25rem;
+	min-width: 0;
 }
 
 .details-edit-row lightning-input {
-    flex: 1 1 auto;
-    min-width: 0;
+	flex: 1 1 auto;
+	min-width: 0;
 }
 
 .details-readonly-row {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    column-gap: 0.25rem;
-    min-width: 0;
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	column-gap: 0.25rem;
+	min-width: 0;
 }
 
 .details-readonly-title {
-    flex: 1 1 auto;
-    min-width: 0;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.required-item-marker {
+	flex: 0 0 auto;
+	margin: 0;
+	font-weight: 700;
+	cursor: help;
+	text-decoration: none;
 }

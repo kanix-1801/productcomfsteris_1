@@ -1,6 +1,6 @@
 /**
  * @description Tests for GW-2459 Asset Pending Inactivation evaluation
- *              (selector, service, batch, scheduler, bypass trigger).
+ *              (selector, service, batch, scheduler, Asset trigger guard).
  * @author STERIS
  * @see AssetPendingInactivationService
  * @see AssetPendingInactivationBatch
@@ -14,15 +14,16 @@ private class AssetPendingInactivationBatchTest {
      * @param assetRecord Pending Inactivation Asset
      * @param status Work Order Status
      * @param subject Work Order Subject
-     * @return Work Order ready to insert
+     * @return Work Order builder registered for adb_DomainBuilder.save
      */
-    private static WorkOrder workOrderForAsset(Asset assetRecord, String status, String subject) {
-        return new WorkOrder(
-            Subject = subject,
-            Status = status,
-            AssetId = assetRecord.Id,
-            AccountId = assetRecord.AccountId
-        );
+    private static adb_WorkOrder workOrderForAsset(Asset assetRecord, String status, String subject) {
+        adb_WorkOrder workOrderBuilder = new adb_WorkOrder()
+            .subject(subject)
+            .status(status);
+        WorkOrder workOrderRecord = (WorkOrder) workOrderBuilder.record;
+        workOrderRecord.AssetId = assetRecord.Id;
+        workOrderRecord.AccountId = assetRecord.AccountId;
+        return workOrderBuilder;
     }
 
     /**
@@ -32,24 +33,27 @@ private class AssetPendingInactivationBatchTest {
      */
     private static Asset insertPendingAsset(String assetName) {
         adb_Account accountBuilder = new adb_Account();
-        accountBuilder.persist();
-
-        Asset assetRecord = new Asset(
-            Name = assetName,
-            AccountId = accountBuilder.id,
-            Quantity = 1,
-            Status = 'Serviceable'
-        );
+        adb_Asset assetBuilder = new adb_Asset()
+            .name(assetName)
+            .status('Serviceable')
+            .account(accountBuilder);
         Id esRecordTypeId = Schema.SObjectType.Asset.getRecordTypeInfosByDeveloperName()
             .get('ES_Asset')
             ?.getRecordTypeId();
         if (esRecordTypeId != null) {
-            assetRecord.RecordTypeId = esRecordTypeId;
+            assetBuilder.record.put(Asset.RecordTypeId, esRecordTypeId);
         }
-        insert assetRecord;
-        assetRecord.Status = AssetPendingInactivationService.STATUS_PENDING_INACTIVATION;
-        update assetRecord;
-        return assetRecord;
+        adb_DomainBuilder.save();
+
+        update new Asset(
+            Id = assetBuilder.record.Id,
+            Status = AssetPendingInactivationService.STATUS_PENDING_INACTIVATION
+        );
+        return [
+            SELECT Id, AccountId, Status
+            FROM Asset
+            WHERE Id = :assetBuilder.record.Id
+        ];
     }
 
     /**
@@ -127,13 +131,8 @@ private class AssetPendingInactivationBatchTest {
     @IsTest
     static void testEvaluate_openWorkOrder_remainsPending() {
         Asset assetRecord = insertPendingAsset('GW-2459 Open WO Asset');
-        Asset pendingAsset = [SELECT Id, AccountId FROM Asset WHERE Id = :assetRecord.Id];
-        insert new WorkOrder(
-            Subject = 'GW-2459 Open Work Order',
-            Status = 'New',
-            AssetId = pendingAsset.Id,
-            AccountId = pendingAsset.AccountId
-        );
+        workOrderForAsset(assetRecord, 'New', 'GW-2459 Open Work Order');
+        adb_DomainBuilder.save();
 
         Test.startTest();
         AssetPendingInactivationService.EvaluationResult result =
@@ -161,11 +160,10 @@ private class AssetPendingInactivationBatchTest {
         Asset completedAsset = insertPendingAsset('GW-2459 Completed WO Asset');
         Asset canceledAsset = insertPendingAsset('GW-2459 Canceled WO Asset');
         Asset closedAsset = insertPendingAsset('GW-2459 Closed WO Asset');
-        insert new List<WorkOrder>{
-            workOrderForAsset(completedAsset, 'Completed', 'GW-2459 Completed Work Order'),
-            workOrderForAsset(canceledAsset, 'Canceled', 'GW-2459 Canceled Work Order'),
-            workOrderForAsset(closedAsset, 'Closed', 'GW-2459 Closed Work Order')
-        };
+        workOrderForAsset(completedAsset, 'Completed', 'GW-2459 Completed Work Order');
+        workOrderForAsset(canceledAsset, 'Canceled', 'GW-2459 Canceled Work Order');
+        workOrderForAsset(closedAsset, 'Closed', 'GW-2459 Closed Work Order');
+        adb_DomainBuilder.save();
 
         Test.startTest();
         AssetPendingInactivationService.EvaluationResult result =
@@ -252,6 +250,41 @@ private class AssetPendingInactivationBatchTest {
     }
 
     /**
+     * @description Then — The Asset trigger bypass lets the update through.
+     */
+    @IsTest
+    static void testTrigger_whenBypassed_allowsServiceInactive() {
+        Asset assetRecord = insertPendingAsset('GW-2459 Bypass Off Asset');
+        AutomationControl.disableTrigger('AssetTrigger');
+
+        assetRecord.Status = AssetPendingInactivationService.STATUS_SERVICE_INACTIVE;
+        update assetRecord;
+
+        Assert.areEqual(
+            AssetPendingInactivationService.STATUS_SERVICE_INACTIVE,
+            [SELECT Status FROM Asset WHERE Id = :assetRecord.Id].Status
+        );
+    }
+
+    /**
+     * @description Then — A disabled Asset trigger returns before the guard and domain call
+     *              on insert, update, and delete.
+     */
+    @IsTest
+    static void testAssetTrigger_whenBypassed_skipsHandlerBody() {
+        AutomationControl.disableTrigger('AssetTrigger');
+        Asset assetRecord = insertPendingAsset('GW-2459 Disabled Trigger Asset');
+
+        delete assetRecord;
+
+        Assert.areEqual(0, [SELECT COUNT() FROM Asset WHERE Id = :assetRecord.Id]);
+        Assert.isNotNull(
+            new Assets.AssetsException('Asset domain exception'),
+            'Asset domain exception should construct'
+        );
+    }
+
+    /**
      * @description Then — Batch inactivates a Pending Inactivation Asset with no dependencies.
      */
     @IsTest
@@ -284,7 +317,7 @@ private class AssetPendingInactivationBatchTest {
     }
 
     /**
-     * @description Then — Scheduler execute submits the batch and covers the catch path.
+     * @description Then — Scheduler execute submits the batch.
      */
     @IsTest
     static void testScheduler_execute_submitsBatch() {
@@ -298,39 +331,23 @@ private class AssetPendingInactivationBatchTest {
         Test.startTest();
         new AssetPendingInactivationScheduler().execute(null);
         Test.stopTest();
-
-        AssetPendingInactivationScheduler.forceExceptionForTest = true;
-        Boolean threwException = false;
-        try {
-            new AssetPendingInactivationScheduler().execute(null);
-        } catch (Exception e) {
-            threwException = true;
-        } finally {
-            AssetPendingInactivationScheduler.forceExceptionForTest = false;
-        }
-        Assert.isTrue(threwException, 'Forced scheduler failure should throw');
     }
 
     /**
-     * @description Then — Batch start/execute/finish catch paths are covered.
+     * @description Then — An invalid batch scope is logged and rethrown.
      */
     @IsTest
-    static void testBatch_forcedException_coversCatchPaths() {
-        AssetPendingInactivationBatch.forceExceptionForTest = true;
-        AssetPendingInactivationBatch batchJob = new AssetPendingInactivationBatch();
-        Boolean startThrew = false;
-
+    static void testScheduler_execute_invalidScopeIsRethrown() {
+        AssetPendingInactivationScheduler.batchSizeForTest = 0;
+        Boolean threw = false;
+        Test.startTest();
         try {
-            batchJob.start(null);
-        } catch (Exception e) {
-            startThrew = true;
+            new AssetPendingInactivationScheduler().execute(null);
+        } catch (Exception ex) {
+            threw = true;
         }
-        Assert.isTrue(startThrew, 'Forced start failure should throw');
-
-        batchJob.execute(null, new List<SObject>());
-        batchJob.finish(null);
-        AssetPendingInactivationBatch.forceExceptionForTest = false;
-        Assert.isTrue(true, 'Forced execute/finish failures should not throw');
+        Test.stopTest();
+        Assert.isTrue(threw, 'An invalid batch scope should be logged and rethrown.');
     }
 
     /**
@@ -373,5 +390,14 @@ private class AssetPendingInactivationBatchTest {
         }
 
         Assert.isTrue(threwSecurityException, 'Missing Status update access should throw');
+    }
+
+    /**
+     * @description Then — ContractLineItemSelector is constructed for the pending-inactivation query.
+     */
+    @IsTest
+    static void testContractLineItemSelector_constructs() {
+        ContractLineItemSelector selector = new ContractLineItemSelector();
+        Assert.isNotNull(selector, 'Contract line selector should construct.');
     }
 }

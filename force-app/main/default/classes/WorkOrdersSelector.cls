@@ -267,7 +267,7 @@ public with sharing class WorkOrdersSelector extends SoqlQueryBuilder {
         'Subject, Description, QuantityReceived__c, RepairCategory__c, ReturnOrderId, ReturnOrder__c, ' +
         'ReturnOrderLineItemId, Model__c, TrayName__c, ' +
         'Vendor__c, VendorWorkOrder__c, InstructionsToVendor__c, VendorNotes__c, ' +
-        'VendorReferenceNumber__c, VendorCost__c, ShippedToVendorDate__c, TrackingNumber__c, ' +
+        'VendorReferenceNumber__c, VendorCost__c, ShippedToVendorDate__c, ' +
         'ContactId, RepairCenter__c, Department__c, Product__c, ' +
         'Asset.Id, Asset.Name, Asset.SerialNumber, Asset.Product2Id, ' +
         'Asset.ManufacturerCalculated__c, Asset.ModelCalculated__c, Asset.ProductLineCalculated__c, ' +
@@ -437,13 +437,13 @@ public with sharing class WorkOrdersSelector extends SoqlQueryBuilder {
                 (
                     SELECT
                         Id,
-                        Product__c,
-                        Product__r.ProductCode,
-                        Product__r.Name,
-                        Product__r.ProductType__c
+                        Product2Id,
+                        Product2.ProductCode,
+                        Product2.Name,
+                        Product2.ProductType__c
                     FROM WorkOrderLineItems
-                    WHERE Product__c != null
-                        AND Product__r.ProductType__c IN ('Category Code', 'Service Code')
+                    WHERE Product2Id != null
+                        AND Product2.ProductType__c IN ('Category Code', 'Service Code')
                 )
             FROM WorkOrder
             WHERE AccountId = :accountId
@@ -1033,31 +1033,35 @@ public with sharing class WorkOrdersSelector extends SoqlQueryBuilder {
             }
         }
 
-        List<WorkOrder> workOrders = [
-            SELECT
-                Id,
-                WorkOrderNumber,
-                Status,
-                SubStatus__c,
-                ParentWorkOrderId,
-                ActiveQuote__c,
-                CurrencyIsoCode,
-                Pricebook2Id,
-                CustomerPORequired__c,
-                CustomerPO__c,
-                AccountId,
-                Account.Name,
-                ContactId,
-                Contact.Email,
-                EstimateContact__c,
-                EstimateContact__r.Email,
-                EstimateContact__r.Name
-            FROM WorkOrder
-            WHERE Id = :workOrderId OR WorkOrderNumber = :trimmedInput
-            WITH SYSTEM_MODE
-            ORDER BY CreatedDate DESC
-            LIMIT 1
-        ];
+        List<WorkOrder> workOrders = (List<WorkOrder>) SoqlQueryBuilder.fromObject('WorkOrder')
+            .selectFields(
+                new List<String>{
+                    'Id',
+                    'WorkOrderNumber',
+                    'RecordType.DeveloperName',
+                    'Status',
+                    'SubStatus__c',
+                    'ParentWorkOrderId',
+                    'ActiveQuote__c',
+                    'CurrencyIsoCode',
+                    'Pricebook2Id',
+                    'CustomerPORequired__c',
+                    'CustomerPO__c',
+                    'AccountId',
+                    'Account.Name',
+                    'ContactId',
+                    'Contact.Email',
+                    'EstimateContact__c',
+                    'EstimateContact__r.Email',
+                    'EstimateContact__r.Name'
+                }
+            )
+            .whereEquals('Id', workOrderId)
+            .whereEquals('WorkOrderNumber', trimmedInput)
+            .withFilterLogic('1 OR 2')
+            .orderByDesc('CreatedDate')
+            .limitTo(1)
+            .execute();
         return workOrders.isEmpty() ? null : workOrders[0];
     }
 
@@ -1137,12 +1141,18 @@ public with sharing class WorkOrdersSelector extends SoqlQueryBuilder {
         }
         return (WorkOrder) new WorkOrdersSelector()
             .selectFields(
-                new List<String>{ 'Id', 'InstructionsToVendor__c', 'Vendor__c', 'IsPriorityRepair__c' }
+                new List<String>{
+                    'Id',
+                    'InstructionsToVendor__c',
+                    'Vendor__c',
+                    'IsPriorityRepair__c'
+                }
             )
             .whereEquals('ReturnOrder__c', returnOrderId)
             .whereEquals('Vendor__c', vendorAccountId)
             .whereEquals('ParentWorkOrderId', null)
-            .whereEquals('RecordType.DeveloperName', 'RepairCenterVendor')
+            // CBMQA: RepairCenterVendor (GW-6359) not present; use Other until Sprint 10.
+            .whereEquals('RecordType.DeveloperName', 'RepairCenterOther')
             .orderBy('CreatedDate')
             .first();
     }
@@ -1207,5 +1217,136 @@ public with sharing class WorkOrdersSelector extends SoqlQueryBuilder {
         return new WorkOrdersSelector()
             .whereEquals('ReturnOrder__c', returnOrderId)
             .count();
+    }
+
+    /**
+     * @description GW-3377 - Own and parent Active Quote GrandTotal for the requote gate.
+     * @param workOrderId Work Order Id
+     * @return The Work Order, or an empty list when the Id is null
+     */
+    public static List<WorkOrder> selectActiveQuoteGrandTotalById(Id workOrderId) {
+        if (workOrderId == null) {
+            return new List<WorkOrder>();
+        }
+        return (List<WorkOrder>) new WorkOrdersSelector()
+            .selectFields(new List<String>{
+                'ParentWorkOrderId',
+                'ActiveQuote__r.GrandTotal',
+                'ParentWorkOrder.ActiveQuote__r.GrandTotal'
+            })
+            .whereEquals('Id', workOrderId)
+            .limitTo(1)
+            .execute();
+    }
+
+    /**
+     * @description GW-3458 - Shipped work orders for an asset, newest completion first.
+     *              Used by the Modifier Reason Code and Order Reference dropdowns.
+     * @param assetId Asset whose prior repairs are requested
+     * @return Work orders with an Actual Ship Date, ordered by Completed Timestamp descending
+     */
+    public static List<WorkOrder> selectShippedByAsset(Id assetId) {
+        if (assetId == null) {
+            return new List<WorkOrder>();
+        }
+        return (List<WorkOrder>) new WorkOrdersSelector()
+            .selectFields(new List<String>{
+                'Id',
+                'WorkOrderNumber',
+                'AssetId',
+                'ActualShipDate__c',
+                'CompletedTimestamp__c'
+            })
+            .whereEquals('AssetId', assetId)
+            .whereField('ActualShipDate__c', '!=', null)
+            .orderBy('CompletedTimestamp__c', true, true)
+            .orderByDesc('ActualShipDate__c')
+            .limitTo(200)
+            .execute();
+    }
+
+    /**
+     * @description GW-3458 - Loads a work order chosen as a modifier reason or order reference.
+     * @param workOrderId Work Order Id
+     * @return Matching work order, or an empty list
+     */
+    public static List<WorkOrder> selectForModifierReference(Id workOrderId) {
+        if (workOrderId == null) {
+            return new List<WorkOrder>();
+        }
+        return (List<WorkOrder>) new WorkOrdersSelector()
+            .selectFields(new List<String>{ 'Id', 'AssetId', 'ActualShipDate__c', 'WorkOrderNumber' })
+            .whereEquals('Id', workOrderId)
+            .limitTo(1)
+            .execute();
+    }
+
+    /**
+     * @description GW-1509 - Work Order fields for Create Return Order launch context.
+     * @param workOrderId Work Order Id
+     * @return Matching WorkOrder rows (LIMIT 1)
+     */
+    public static List<WorkOrder> selectForCreateReturnOrderContext(Id workOrderId) {
+        if (workOrderId == null) {
+            return new List<WorkOrder>();
+        }
+        return (List<WorkOrder>) SoqlQueryBuilder.fromObject('WorkOrder')
+            .selectFields(
+                new List<String>{
+                    'AccountId',
+                    'ContactId',
+                    'Contact.Name',
+                    'AssetId',
+                    'WorkOrderNumber',
+                    'RecordType.DeveloperName'
+                }
+            )
+            .whereEquals('Id', workOrderId)
+            .limitTo(1)
+            .execute();
+    }
+
+
+    /**
+     * @description GW-5492 - Work Order fields needed when creating receiving WOLIs.
+     *              Note: SoqlQueryBuilder/DynamicSoqlQuery runs USER_MODE. Callers that previously
+     *              relied on SYSTEM_MODE for same-transaction Pricebook2Id visibility may need review.
+     * @param workOrderId Work Order Id
+     * @return Matching Work Order rows (LIMIT 1)
+     */
+    public static List<WorkOrder> selectByIdForReceivingWoliCreate(Id workOrderId) {
+        if (workOrderId == null) {
+            return new List<WorkOrder>();
+        }
+        return (List<WorkOrder>) SoqlQueryBuilder.fromObject('WorkOrder')
+            .selectFields(
+                new List<String>{
+                    'Pricebook2Id',
+                    'CurrencyIsoCode',
+                    'AssetId',
+                    'SerialNumber__c',
+                    'Model__c',
+                    'EstimateRequired__c'
+                }
+            )
+            .whereEquals('Id', workOrderId)
+            .limitTo(1)
+            .execute();
+    }
+
+    /**
+     * @description GW-1738 / GW-2001 - Work Order AssetId for billing type evaluation.
+     * @param workOrderId Work Order Id
+     * @return Matching Work Order rows (LIMIT 1)
+     */
+    public static List<WorkOrder> selectAssetIdById(Id workOrderId) {
+        if (workOrderId == null) {
+            return new List<WorkOrder>();
+        }
+        return (List<WorkOrder>) SoqlQueryBuilder.fromObject('WorkOrder')
+            .selectFields(new List<String>{ 'Id', 'AssetId' })
+            .whereEquals('Id', workOrderId)
+            .limitTo(1)
+            .execute();
     }
 }

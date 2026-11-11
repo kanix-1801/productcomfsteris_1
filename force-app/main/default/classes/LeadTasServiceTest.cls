@@ -92,14 +92,16 @@ private class LeadTasServiceTest {
         ];
 
         System.runAs(runningUser) {
-            Test.startTest();
+            LeadService.skipInsertTas = true;
             Lead leadRecord = buildEligibleLead('OwnerAssign');
             insert leadRecord;
+            Test.startTest();
             registerTasMock(
                 200,
                 'OK',
                 buildTasResponseJson(leadRecord.Id, tasRep.EmployeeNumber__c)
             );
+            new LeadTasQueueable(new Set<Id>{ leadRecord.Id }).execute(null);
             Test.stopTest();
 
             Lead updatedLead = [SELECT OwnerId FROM Lead WHERE Id = :leadRecord.Id];
@@ -137,6 +139,7 @@ private class LeadTasServiceTest {
             );
             System.assertEquals(0, LeadSelector.selectByIds(null).size());
             System.assertEquals(0, LeadSelector.selectByIds(new Set<Id>()).size());
+            LeadService.skipInsertTas = true;
             new LeadTasQueueable(null).execute(null);
             new LeadTasQueueable(new Set<Id>()).execute(null);
 
@@ -230,7 +233,7 @@ private class LeadTasServiceTest {
             LeadSource = 'Web',
             Org_ID__c = '82',
             Class_Code__c = 'HC',
-            Sales_Category__c = 'SURG SPT'
+            HubSpot_Lead__c = true
         );
     }
 

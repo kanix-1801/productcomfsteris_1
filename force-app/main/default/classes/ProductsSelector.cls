@@ -232,22 +232,23 @@ public with sharing class ProductsSelector extends SoqlQueryBuilder {
             return new List<Product2>();
         }
 
-        return [
-            SELECT
-                Id,
-                Name,
-                ProductCode,
-                Description,
-                ProductType__c,
-                ProductLine__c,
-                Model__c,
-                ServiceCodeType__c,
-                InspectionFeeApplicable__c,
-                InspectionServiceCode__c
-            FROM Product2
-            WHERE Id IN :productIds
-            WITH SYSTEM_MODE
-        ];
+        return (List<Product2>) SoqlQueryBuilder.fromObject('Product2')
+            .selectFields(
+                new List<String>{
+                    'Id',
+                    'Name',
+                    'ProductCode',
+                    'Description',
+                    'ProductType__c',
+                    'ProductLine__c',
+                    'Model__c',
+                    'ServiceCodeType__c',
+                    'InspectionFeeApplicable__c',
+                    'InspectionServiceCode__c'
+                }
+            )
+            .whereField('Id', 'IN', new List<Id>(productIds))
+            .execute();
     }
 
     /**
@@ -277,7 +278,6 @@ public with sharing class ProductsSelector extends SoqlQueryBuilder {
 
     /**
      * @description GW-5102 - Products for quote email reply (inspection fee / disinfection).
-     *              Optional GW-5398 fields are included only when present in the org.
      * @param productIds Product2 Ids
      * @return Matching Product2 records
      */
@@ -286,25 +286,166 @@ public with sharing class ProductsSelector extends SoqlQueryBuilder {
             return new List<Product2>();
         }
 
-        String extraFields = '';
-        Map<String, Schema.SObjectField> fieldMap = Product2.SObjectType.getDescribe().fields.getMap();
-        if (fieldMap.containsKey('servicecodetype__c')) {
-            extraFields += ', ServiceCodeType__c';
+        return (List<Product2>) SoqlQueryBuilder.fromObject('Product2')
+            .selectFields(
+                new List<String>{
+                    'Id',
+                    'Name',
+                    'ProductCode',
+                    'Description',
+                    'ProductType__c',
+                    'Model__c',
+                    'ServiceCodeType__c',
+                    'InspectionFeeApplicable__c',
+                    'InspectionServiceCode__c'
+                }
+            )
+            .whereField('Id', 'IN', new List<Id>(productIds))
+            .execute();
+    }
+
+    private static final List<String> CREATE_RETURN_ORDER_DEFAULT_FIELDS = new List<String>{
+        'Id',
+        'Name',
+        'Description',
+        'ProductLine__c',
+        'ProductCode',
+        'Model__c'
+    };
+
+    private static final List<String> CREATE_RETURN_ORDER_DETAIL_FIELDS = new List<String>{
+        'Id',
+        'Name',
+        'Description',
+        'ProductLine__c',
+        'ProductType__c',
+        'ProductCode',
+        'Model__c',
+        'Manufacturer__c'
+    };
+
+    private static final List<String> CREATE_RETURN_ORDER_PICKLIST_FIELDS = new List<String>{
+        'Id',
+        'Name',
+        'ProductCode',
+        'Model__c',
+        'Description',
+        'DeviceType__c'
+    };
+
+    private static final List<String> CREATE_RETURN_ORDER_ROUTING_FIELDS = new List<String>{
+        'Id',
+        'ProductLine__c',
+        'SubProductLine__c',
+        'Manufacturer__c',
+        'DeviceType__c',
+        'Model__c'
+    };
+
+    /**
+     * @description GW-1509 - Oldest active Product2 matching the default Create Return Order name.
+     * @param productName Exact Product2.Name
+     * @return Matching Product2 rows (LIMIT 1)
+     */
+    public static List<Product2> selectDefaultActiveByName(String productName) {
+        if (String.isBlank(productName)) {
+            return new List<Product2>();
         }
-        if (fieldMap.containsKey('serviceproductcategory__c')) {
-            extraFields += ', ServiceProductCategory__c';
+        return (List<Product2>) SoqlQueryBuilder.fromObject('Product2')
+            .selectFields(CREATE_RETURN_ORDER_DEFAULT_FIELDS)
+            .whereEquals('Name', productName)
+            .whereEquals('IsActive', true)
+            .orderBy('CreatedDate')
+            .limitTo(1)
+            .execute();
+    }
+
+    /**
+     * @description GW-1509 - Active Product2 details for Create Return Order, optionally Service Asset only.
+     * @param productId Product2 Id
+     * @param requireServiceAsset When true, ProductType__c must be Service Asset
+     * @return Matching Product2 rows (LIMIT 1)
+     */
+    public static List<Product2> selectActiveDetailsForCreateReturnOrder(
+        Id productId,
+        Boolean requireServiceAsset
+    ) {
+        if (productId == null) {
+            return new List<Product2>();
         }
-        if (fieldMap.containsKey('inspectionfeeapplicable__c')) {
-            extraFields += ', InspectionFeeApplicable__c';
+        SoqlQueryBuilder builder = SoqlQueryBuilder.fromObject('Product2')
+            .selectFields(CREATE_RETURN_ORDER_DETAIL_FIELDS)
+            .whereEquals('Id', productId)
+            .whereEquals('IsActive', true);
+        if (requireServiceAsset == true) {
+            builder.whereEquals('ProductType__c', 'Service Asset');
         }
-        if (fieldMap.containsKey('inspectionservicecode__c')) {
-            extraFields += ', InspectionServiceCode__c';
+        return (List<Product2>) builder.limitTo(1).execute();
+    }
+
+    /**
+     * @description GW-1509 - Active products for Create Return Order line picklists.
+     * @param productLine Optional ProductLine__c filter
+     * @param requireServiceAsset When true, ProductType__c must be Service Asset
+     * @param searchLikeTerm Optional LIKE term including wildcards
+     * @param queryLimit Max rows
+     * @return Matching Product2 rows ordered by Name
+     */
+    public static List<Product2> selectForCreateReturnOrderLine(
+        String productLine,
+        Boolean requireServiceAsset,
+        String searchLikeTerm,
+        Integer queryLimit
+    ) {
+        SoqlQueryBuilder builder = SoqlQueryBuilder.fromObject('Product2')
+            .selectFields(CREATE_RETURN_ORDER_PICKLIST_FIELDS)
+            .whereEquals('IsActive', true);
+
+        List<String> logicParts = new List<String>{ '1' };
+        Integer filterIndex = 1;
+
+        if (requireServiceAsset == true) {
+            filterIndex++;
+            builder.whereEquals('ProductType__c', 'Service Asset');
+            logicParts.add(String.valueOf(filterIndex));
+        }
+        if (String.isNotBlank(productLine)) {
+            filterIndex++;
+            builder.whereEquals('ProductLine__c', productLine);
+            logicParts.add(String.valueOf(filterIndex));
+        }
+        if (String.isNotBlank(searchLikeTerm)) {
+            Integer nameIdx = filterIndex + 1;
+            Integer codeIdx = filterIndex + 2;
+            Integer modelIdx = filterIndex + 3;
+            builder
+                .whereField('Name', 'LIKE', searchLikeTerm)
+                .whereField('ProductCode', 'LIKE', searchLikeTerm)
+                .whereField('Model__c', 'LIKE', searchLikeTerm);
+            logicParts.add('(' + nameIdx + ' OR ' + codeIdx + ' OR ' + modelIdx + ')');
         }
 
-        return Database.query(
-            'SELECT Id, Name, ProductCode, Description, ProductType__c, Model__c' +
-                extraFields +
-                ' FROM Product2 WHERE Id IN :productIds WITH SYSTEM_MODE'
-        );
+        if (logicParts.size() > 1) {
+            builder.withFilterLogic(String.join(logicParts, ' AND '));
+        }
+
+        Integer limitRows = (queryLimit == null || queryLimit <= 0) ? 200 : queryLimit;
+        return (List<Product2>) builder.orderBy('Name').limitTo(limitRows).execute();
     }
+
+    /**
+     * @description GW-1509 - Product routing attributes for Create Return Order grouping.
+     * @param productIds Product2 Ids
+     * @return Matching Product2 rows
+     */
+    public static List<Product2> selectForCreateReturnOrderRouting(Set<Id> productIds) {
+        if (productIds == null || productIds.isEmpty()) {
+            return new List<Product2>();
+        }
+        return (List<Product2>) SoqlQueryBuilder.fromObject('Product2')
+            .selectFields(CREATE_RETURN_ORDER_ROUTING_FIELDS)
+            .whereField('Id', 'IN', new List<Id>(productIds))
+            .execute();
+    }
+
 }

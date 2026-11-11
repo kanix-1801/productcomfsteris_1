@@ -50,6 +50,20 @@ private class LeadServiceTest {
     }
 
     /**
+     * A complete Lead that was not created from HubSpot is not handed to TAS.
+     */
+    @IsTest
+    static void manualLeadDoesNotQueueTas() {
+        LeadService.skipInsertTas = false;
+        Lead leadRecord = completeLead(1);
+        leadRecord.HubSpot_Lead__c = false;
+
+        LeadService.assignTAStoLead(new List<Lead>{ leadRecord });
+
+        Assert.areEqual(0, Limits.getQueueableJobs());
+    }
+
+    /**
      * @description More than one complete Lead is not handed to TAS.
      */
     @IsTest
@@ -73,7 +87,7 @@ private class LeadServiceTest {
             Country = 'United States',
             Org_ID__c = '100',
             Class_Code__c = 'Healthcare',
-            Sales_Category__c = 'Capital'
+            HubSpot_Lead__c = true
         );
     }
 

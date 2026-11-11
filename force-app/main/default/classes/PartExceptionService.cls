@@ -190,7 +190,7 @@ public with sharing class PartExceptionService {
                     ProductItem__c,
                     NonApprovedPartResponse__c,
                     PartExceptionReason__c,
-                    Product__r.Name,
+                    Product2.Name,
                     ProductItem__r.Product2.Name,
                     WorkOrder.WorkOrderNumber,
                     WorkOrder.AccountId,
@@ -224,7 +224,7 @@ public with sharing class PartExceptionService {
                 + '/lightning/r/WorkOrderLineItem/'
                 + line.Id
                 + '/view';
-            String productName = line.Product__r == null ? null : line.Product__r.Name;
+            String productName = line.Product2 == null ? null : line.Product2.Name;
             if (String.isBlank(productName)
                 && line.ProductItem__r != null
                 && line.ProductItem__r.Product2 != null) {

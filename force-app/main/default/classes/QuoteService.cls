@@ -92,6 +92,10 @@ public with sharing class QuoteService {
                 continue;
             }
 
+            if (shouldSkipOpportunityForecastConfidenceOnQuote(quoteRecord)) {
+                continue;
+            }
+
             Opportunity opportunityRecord = opportunitiesById.get(quoteRecord.OpportunityId);
             if (opportunityRecord == null) {
                 continue;
@@ -101,6 +105,26 @@ public with sharing class QuoteService {
                 opportunityRecord.ForecastConfidenceLevel__c
             );
         }
+    }
+
+    @TestVisible
+    private static Boolean shouldSkipOpportunityForecastConfidenceOnQuote(Quote quoteRecord) {
+        if (quoteRecord == null) {
+            return true;
+        }
+
+        if (quoteRecord.IsForecastIneligible__c == true) {
+            return true;
+        }
+
+        String quoteType = quoteRecord.QuoteType__c;
+        if (String.isBlank(quoteType)) {
+            return false;
+        }
+
+        return GenerateQuoteService.QUOTE_TYPE_TRIAL.equals(quoteType) ||
+            GenerateQuoteService.QUOTE_TYPE_SAMPLE.equals(quoteType) ||
+            GenerateQuoteService.QUOTE_TYPE_GOODWILL.equals(quoteType);
     }
 
     /**
@@ -140,7 +164,7 @@ public with sharing class QuoteService {
             return;
         }
 
-        if (quoteRecord.IsForecastIneligible__c == true) {
+        if (shouldSkipOpportunityForecastConfidenceOnQuote(quoteRecord)) {
             return;
         }
 

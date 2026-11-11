@@ -41,15 +41,20 @@ private class LSTemporaryAccessEmailServiceTest {
             );
 
         System.assertEquals(1, notifications.size());
-        System.assertEquals(context.requesterManager.Id, notifications[0].toUserId);
+        System.assertEquals(context.coverageManager.Id, notifications[0].toUserId);
         System.assertEquals(
             LSTemporaryAccessExceptionEmailService.SUBJECT_APPROVAL_NEEDED,
             notifications[0].subject
         );
-        System.assert(notifications[0].htmlBody.contains('needs your review'));
+        System.assert(notifications[0].htmlBody.contains('requires your approval'));
+        System.assert(notifications[0].htmlBody.contains('Coverage Duration'));
         assertCc(
             notifications[0].ccAddresses,
-            new List<String>{ context.requester.Email, context.coverageRep.Email, context.submitter.Email }
+            new List<String>{
+                context.requester.Email,
+                context.coverageRep.Email,
+                context.submitter.Email
+            }
         );
     }
 
@@ -64,15 +69,15 @@ private class LSTemporaryAccessEmailServiceTest {
             );
 
         System.assertEquals(1, notifications.size());
-        System.assertEquals(context.submitter.Id, notifications[0].toUserId);
+        System.assertEquals(context.coverageManager.Id, notifications[0].toUserId);
         System.assertEquals(LSTemporaryAccessExceptionEmailService.SUBJECT_GRANTED, notifications[0].subject);
         System.assert(notifications[0].htmlBody.contains('has been approved for the following request'));
         assertCc(
             notifications[0].ccAddresses,
             new List<String>{
-                context.coverageManager.Email,
                 context.requester.Email,
-                context.coverageRep.Email
+                context.coverageRep.Email,
+                context.submitter.Email
             }
         );
     }
@@ -88,16 +93,16 @@ private class LSTemporaryAccessEmailServiceTest {
             );
 
         System.assertEquals(1, notifications.size());
-        System.assertEquals(context.submitter.Id, notifications[0].toUserId);
+        System.assertEquals(context.coverageManager.Id, notifications[0].toUserId);
         System.assertEquals(LSTemporaryAccessExceptionEmailService.SUBJECT_REJECTED, notifications[0].subject);
         System.assert(notifications[0].htmlBody.contains('has been rejected for the following request'));
         System.assert(notifications[0].htmlBody.contains('reach out to your manager'));
         assertCc(
             notifications[0].ccAddresses,
             new List<String>{
-                context.coverageManager.Email,
                 context.requester.Email,
-                context.coverageRep.Email
+                context.coverageRep.Email,
+                context.submitter.Email
             }
         );
     }
@@ -113,15 +118,15 @@ private class LSTemporaryAccessEmailServiceTest {
             );
 
         System.assertEquals(1, notifications.size());
-        System.assertEquals(context.submitter.Id, notifications[0].toUserId);
+        System.assertEquals(context.coverageManager.Id, notifications[0].toUserId);
         System.assertEquals(LSTemporaryAccessExceptionEmailService.SUBJECT_EXPIRED, notifications[0].subject);
         System.assert(notifications[0].htmlBody.contains('has expired and access has been removed'));
         assertCc(
             notifications[0].ccAddresses,
             new List<String>{
-                context.coverageManager.Email,
                 context.requester.Email,
-                context.coverageRep.Email
+                context.coverageRep.Email,
+                context.submitter.Email
             }
         );
     }
@@ -137,19 +142,27 @@ private class LSTemporaryAccessEmailServiceTest {
             );
 
         System.assertEquals(1, notifications.size());
-        System.assertEquals(context.submitter.Id, notifications[0].toUserId);
+        System.assertEquals(context.coverageManager.Id, notifications[0].toUserId);
         System.assertEquals(LSTemporaryAccessExceptionEmailService.SUBJECT_EXPIRING, notifications[0].subject);
         System.assert(notifications[0].htmlBody.contains('expiring in 3 days'));
         System.assert(notifications[0].htmlBody.contains('/' + context.request.Id + '"'), 'Request name links to the record');
+        assertCc(
+            notifications[0].ccAddresses,
+            new List<String>{
+                context.requester.Email,
+                context.coverageRep.Email,
+                context.submitter.Email
+            }
+        );
     }
 
     @IsTest
     static void activeDelegatedApproverIsCopiedOnce() {
         RequestContext context = lifeScienceRequest();
         User delegate = insertUser(lifeScienceProfile().Id, 'lsDel', null);
-        context.requesterManager.DelegatedApproverId = delegate.Id;
+        context.coverageManager.DelegatedApproverId = delegate.Id;
         System.runAs(new User(Id = UserInfo.getUserId())) {
-            update context.requesterManager;
+            update context.coverageManager;
         }
 
         List<LSTemporaryAccessExceptionEmailService.ComposedNotification> notifications =
@@ -158,15 +171,20 @@ private class LSTemporaryAccessEmailServiceTest {
                 LSTemporaryAccessExceptionEmailService.TYPE_APPROVAL_NEEDED
             );
 
-        assertCc(
-            notifications[0].ccAddresses,
-            new List<String>{
-                context.requester.Email,
-                context.coverageRep.Email,
-                context.submitter.Email,
-                delegate.Email
-            }
+        System.assertEquals(
+            new Set<Id>{ context.coverageManager.Id },
+            recipientIds(notifications)
         );
+        for (LSTemporaryAccessExceptionEmailService.ComposedNotification notification : notifications) {
+            assertCc(
+                notification.ccAddresses,
+                new List<String>{
+                    context.requester.Email,
+                    context.coverageRep.Email,
+                    context.submitter.Email
+                }
+            );
+        }
     }
 
     @IsTest
@@ -195,17 +213,100 @@ private class LSTemporaryAccessEmailServiceTest {
             );
 
         System.assertEquals(
-            new Set<Id>{ context.requester.Id, context.coverageRep.Id },
+            new Set<Id>{ context.coverageManager.Id },
             recipientIds(granted)
         );
         System.assertEquals(LSTemporaryAccessExceptionEmailService.SUBJECT_COVERAGE_GRANTED, granted[0].subject);
         System.assert(granted[0].htmlBody.contains('has been granted'));
+        assertCc(
+            granted[0].ccAddresses,
+            new List<String>{
+                context.requester.Email,
+                context.coverageRep.Email,
+                context.submitter.Email
+            }
+        );
         System.assertEquals(
-            new Set<Id>{ context.requester.Id, context.coverageRep.Id },
+            new Set<Id>{ context.coverageManager.Id },
             recipientIds(revoked)
         );
         System.assertEquals(LSTemporaryAccessExceptionEmailService.SUBJECT_COVERAGE_REVOKED, revoked[0].subject);
         System.assert(revoked[0].htmlBody.contains('has been revoked'));
+        assertCc(
+            revoked[0].ccAddresses,
+            new List<String>{
+                context.requester.Email,
+                context.coverageRep.Email,
+                context.submitter.Email
+            }
+        );
+    }
+
+    @IsTest
+    static void coverageEmailListsRequesterTerritoryNumbers() {
+        RequestContext context = lifeScienceRequest();
+        System.runAs(new User(Id = UserInfo.getUserId())) {
+            insert new List<OrderLineContact__c>{
+                new OrderLineContact__c(
+                    AssignedSalesRep__c = context.requester.Id,
+                    TerritoryNumber__c = 'L11217'
+                ),
+                new OrderLineContact__c(
+                    AssignedSalesRep__c = context.requester.Id,
+                    TerritoryNumber__c = 'L66301'
+                ),
+                new OrderLineContact__c(
+                    AssignedSalesRep__c = context.coverageRep.Id,
+                    TerritoryNumber__c = 'SHOULD-NOT-SHOW'
+                )
+            };
+        }
+
+        List<LSTemporaryAccessExceptionEmailService.ComposedNotification> granted =
+            LSTemporaryAccessExceptionEmailService.buildNotifications(
+                new List<Id>{ context.request.Id },
+                LSTemporaryAccessExceptionEmailService.TYPE_COVERAGE_GRANTED
+            );
+
+        System.assert(granted[0].htmlBody.contains('L66301'));
+        System.assert(granted[0].htmlBody.contains('L11217'));
+        System.assert(!granted[0].htmlBody.contains('SHOULD-NOT-SHOW'));
+        System.assert(!granted[0].htmlBody.contains('{{LS_TERRITORY_ROWS}}'));
+        System.assert(
+            granted[0].htmlBody.indexOf('L11217') < granted[0].htmlBody.indexOf('L66301'),
+            'Territory numbers should be listed in sort order'
+        );
+    }
+
+    @IsTest
+    static void coverageEmailListsTerritoriesOnTheCoveredAccount() {
+        RequestContext context = lifeScienceRequest();
+        System.runAs(new User(Id = UserInfo.getUserId())) {
+            Account covered = new Account(Name = 'TAE Territory Account');
+            insert covered;
+            insert new TAE_AssignedRecord__c(
+                TemporaryAccessException__c = context.request.Id,
+                Account__c = covered.Id
+            );
+            insert new OrderLineContact__c(
+                TASAddressId__c = covered.Id,
+                TerritoryNumber__c = 'S11102'
+            );
+            insert new OrderLineContact__c(
+                TASAddressId__c = '001000000000099',
+                TerritoryNumber__c = 'NOT-ON-REQUEST'
+            );
+        }
+
+        List<LSTemporaryAccessExceptionEmailService.ComposedNotification> granted =
+            LSTemporaryAccessExceptionEmailService.buildNotifications(
+                new List<Id>{ context.request.Id },
+                LSTemporaryAccessExceptionEmailService.TYPE_COVERAGE_GRANTED
+            );
+
+        System.assert(granted[0].htmlBody.contains('S11102'));
+        System.assert(!granted[0].htmlBody.contains('NOT-ON-REQUEST'));
+        System.assert(!granted[0].htmlBody.contains('{{LS_TERRITORY_ROWS}}'));
     }
 
     @IsTest
@@ -222,6 +323,23 @@ private class LSTemporaryAccessEmailServiceTest {
         );
 
         System.assertEquals(true, LSTemporaryAccessExceptionEmailService.skipSendForTest);
+    }
+
+    @IsTest
+    static void invalidFromAddressIsLoggedAndDoesNotThrow() {
+        RequestContext context = lifeScienceRequest();
+        LSTemporaryAccessExceptionEmailService.fromAddressLoaded = true;
+        LSTemporaryAccessExceptionEmailService.fromAddressId = UserInfo.getUserId();
+        LSTemporaryAccessExceptionEmailService.NotificationInput input =
+            new LSTemporaryAccessExceptionEmailService.NotificationInput();
+        input.temporaryAccessExceptionId = context.request.Id;
+        input.notificationType = LSTemporaryAccessExceptionEmailService.TYPE_APPROVED;
+
+        LSTemporaryAccessExceptionEmailService.sendNotification(
+            new List<LSTemporaryAccessExceptionEmailService.NotificationInput>{ input }
+        );
+
+        System.assertEquals(true, LSTemporaryAccessExceptionEmailService.fromAddressLoaded);
     }
 
     private static RequestContext lifeScienceRequest() {
@@ -253,8 +371,8 @@ private class LSTemporaryAccessEmailServiceTest {
             Requester__c = requesterId,
             CoverageRep__c = coverageRepId,
             ExceptionCategory__c = 'PTO',
-            StartDate__c = Date.today(),
-            EndDate__c = Date.today().addDays(5)
+            StartDate__c = Date.today().addDays(1),
+            EndDate__c = Date.today().addDays(6)
         );
     }
 
@@ -317,19 +435,42 @@ private class LSTemporaryAccessEmailServiceTest {
         );
         insert user;
         if (profileId == lifeScienceProfile().Id) {
-            insert new PermissionSetAssignment(AssigneeId = user.Id, PermissionSetGroupId = lifeSciencePermissionSetGroupId());
+            grantTemporaryAccessAccess(user.Id);
         }
         return user;
     }
 
-    private static Id lifeSciencePsgId;
-
-    private static Id lifeSciencePermissionSetGroupId() {
-        if (lifeSciencePsgId == null) {
-            lifeSciencePsgId = [SELECT Id FROM PermissionSetGroup WHERE DeveloperName = 'LSInsideSalesPSG' LIMIT 1].Id;
-            Test.calculatePermissionSetGroup(lifeSciencePsgId);
+    /** Gives the Life Sciences user create and edit on every writable request field. */
+    private static void grantTemporaryAccessAccess(Id userId) {
+        String name = 'LSTae' + String.valueOf(Math.abs(Crypto.getRandomInteger()));
+        PermissionSet permissionSet = new PermissionSet(Name = name, Label = name);
+        insert permissionSet;
+        insert new ObjectPermissions(
+            ParentId = permissionSet.Id,
+            SobjectType = 'TemporaryAccessException__c',
+            PermissionsRead = true,
+            PermissionsCreate = true,
+            PermissionsEdit = true,
+            PermissionsDelete = true
+        );
+        List<FieldPermissions> fieldPermissions = new List<FieldPermissions>();
+        for (Schema.SObjectField field : Schema.SObjectType.TemporaryAccessException__c.fields.getMap().values()) {
+            Schema.DescribeFieldResult describe = field.getDescribe();
+            if (!describe.isPermissionable() || !describe.isUpdateable()) {
+                continue;
+            }
+            fieldPermissions.add(new FieldPermissions(
+                ParentId = permissionSet.Id,
+                SobjectType = 'TemporaryAccessException__c',
+                Field = 'TemporaryAccessException__c.' + describe.getName(),
+                PermissionsRead = true,
+                PermissionsEdit = true
+            ));
         }
-        return lifeSciencePsgId;
+        if (!fieldPermissions.isEmpty()) {
+            Database.insert(fieldPermissions, false);
+        }
+        insert new PermissionSetAssignment(AssigneeId = userId, PermissionSetId = permissionSet.Id);
     }
 
     private static void assertCc(List<String> actual, List<String> expected) {

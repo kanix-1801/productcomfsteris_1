@@ -258,6 +258,10 @@
     width: 62%;
 }
 
+.child-table--no-pricing .child-col-subgroup {
+    width: 100%;
+}
+
 .child-table .child-col-total {
     width: 38%;
     text-align: right;
@@ -363,6 +367,22 @@
 
 .line-item-table .line-item-col-total {
     width: 37%;
+}
+
+.line-item-table--no-pricing .line-item-col-code {
+    width: 22%;
+}
+
+.line-item-table--no-pricing .line-item-col-product {
+    width: 56%;
+}
+
+.line-item-table--no-pricing .line-item-col-uom {
+    width: 10%;
+}
+
+.line-item-table--no-pricing .line-item-col-qty {
+    width: 12%;
 }
 
 .line-item-table .line-item-col-uom,

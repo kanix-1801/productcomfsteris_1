@@ -77,28 +77,28 @@ public with sharing class ReturnOrdersSelector extends SoqlQueryBuilder {
         if (returnOrderId == null) {
             return new List<ReturnOrder>();
         }
-        return [
-            SELECT
-                Id,
-                ReturnOrderNumber,
-                AccountId,
-                Account.Name,
-                ContactId,
-                Contact.Name,
-                CustomerPO__c,
-                CustomerReference__c,
-                DestinationLocationId,
-                InboundTrackingNumber__c,
-                ShipToAddress__Street__s,
-                ShipToAddress__City__s,
-                ShipToAddress__StateCode__s,
-                ShipToAddress__PostalCode__s,
-                ShipToAddress__CountryCode__s
-            FROM ReturnOrder
-            WHERE Id = :returnOrderId
-            WITH USER_MODE
-            LIMIT 1
-        ];
+        return (List<ReturnOrder>) SoqlQueryBuilder.fromObject('ReturnOrder')
+            .selectFields(
+                new List<String>{
+                    'Id',
+                    'ReturnOrderNumber',
+                    'AccountId',
+                    'Account.Name',
+                    'ContactId',
+                    'Contact.Name',
+                    'CustomerPO__c',
+                    'CustomerReference__c',
+                    'DestinationLocationId',
+                    'ShipToAddress__Street__s',
+                    'ShipToAddress__City__s',
+                    'ShipToAddress__StateCode__s',
+                    'ShipToAddress__PostalCode__s',
+                    'ShipToAddress__CountryCode__s'
+                }
+            )
+            .whereEquals('Id', returnOrderId)
+            .limitTo(1)
+            .execute();
     }
 
     /**

@@ -1,72 +1,69 @@
 /**
- * @description GW-2706 - Aura entry point for District Zone Alignment (district to zone territory assignment).
+ * @author Sagar Anand
+ * @date 2026-11-06
+ * @group Field Service Backoffice
+ * @description GW-2706: LWC entry point for District Zone Alignment. Business logic is in
+ *              DistrictZoneAlignmentService.
  */
 public with sharing class DistrictZoneAlignmentController {
-    @TestVisible
-    private static Boolean throwTestException = false;
+	/**
+	 * @description GW-2706: Download URL of the District Zone Alignment template.
+	 * @return Relative Salesforce Files download URL.
+	 * @throws AuraHandledException When the template is not available.
+	 * @example
+	 * String url = DistrictZoneAlignmentController.getTemplateDownloadUrl();
+	 */
+	@AuraEnabled
+	public static String getTemplateDownloadUrl() {
+		try {
+			Id documentId = DistrictZoneAlignmentService.ensureTemplateDocumentId();
+			return DistrictZoneAlignmentService.DOWNLOAD_URL_PREFIX + documentId;
+		} catch (DistrictZoneAlignmentService.DistrictZoneAlignmentException e) {
+			throw toAuraException(e.getMessage());
+		}
+	}
 
-    /**
-     * @description Ensures the template file exists in Salesforce Files and returns its download URL.
-     * @return Relative Salesforce Files download URL.
-     */
-    @AuraEnabled
-    public static String getTemplateDownloadUrl() {
-        try {
-            if (throwTestException) {
-                throw buildAuraException('Unable to resolve the District Zone Alignment template.');
-            }
-            return DistrictZoneAlignmentService.DOWNLOAD_URL_PREFIX + DistrictZoneAlignmentService.ensureTemplateDocumentId();
-        } catch (AuraHandledException e) {
-            throw e;
-        } catch (Exception e) {
-            throw buildAuraException(e.getMessage());
-        }
-    }
+	/**
+	 * @description GW-2706: Download URL of the running user's latest error file.
+	 * @return Relative Salesforce Files download URL.
+	 * @throws AuraHandledException When the user has no error file yet.
+	 * @example
+	 * String url = DistrictZoneAlignmentController.getErrorFileDownloadUrl();
+	 */
+	@AuraEnabled
+	public static String getErrorFileDownloadUrl() {
+		Id documentId;
+		try {
+			documentId = DistrictZoneAlignmentService.getErrorFileDocumentId();
+		} catch (DistrictZoneAlignmentService.DistrictZoneAlignmentException e) {
+			throw toAuraException(e.getMessage());
+		}
+		if (documentId == null) {
+			throw toAuraException(Label.DZA_NoErrorFile);
+		}
+		return DistrictZoneAlignmentService.DOWNLOAD_URL_PREFIX + documentId;
+	}
 
-    /**
-     * @description Returns the download URL of the running user's latest error file.
-     * @return Relative Salesforce Files download URL.
-     */
-    @AuraEnabled
-    public static String getErrorFileDownloadUrl() {
-        try {
-            if (throwTestException) {
-                throw buildAuraException('Unable to resolve the District Zone Alignment error file.');
-            }
-            Id documentId = DistrictZoneAlignmentService.errorFileDocumentId();
-            if (documentId == null) {
-                throw buildAuraException('No error file yet. Upload a file and click Start Upload first.');
-            }
-            return DistrictZoneAlignmentService.DOWNLOAD_URL_PREFIX + documentId;
-        } catch (AuraHandledException e) {
-            throw e;
-        } catch (Exception e) {
-            throw buildAuraException(e.getMessage());
-        }
-    }
+	/**
+	 * @description GW-2706: Processes the uploaded District Zone Alignment file.
+	 * @param contentDocumentId Salesforce Files document Id from lightning-file-upload.
+	 * @return Counts, row errors and the error file Id.
+	 * @throws AuraHandledException When the file can't be processed.
+	 * @example
+	 * DistrictZoneAlignmentController.processUpload(documentId);
+	 */
+	@AuraEnabled
+	public static DistrictZoneAlignmentService.ProcessResult processUpload(Id contentDocumentId) {
+		try {
+			return DistrictZoneAlignmentService.processUpload(contentDocumentId);
+		} catch (DistrictZoneAlignmentService.DistrictZoneAlignmentException e) {
+			throw toAuraException(e.getMessage());
+		}
+	}
 
-    /**
-     * @description Processes an uploaded CSV/Excel file into district Service Territory creates and updates.
-     * @param contentDocumentId Salesforce Files document Id from lightning-file-upload.
-     * @return Counts, skip messages and the error file Id.
-     */
-    @AuraEnabled
-    public static DistrictZoneAlignmentService.ProcessResult processUpload(Id contentDocumentId) {
-        try {
-            if (throwTestException) {
-                throw buildAuraException('Unable to process the District Zone Alignment file.');
-            }
-            return DistrictZoneAlignmentService.processUpload(contentDocumentId);
-        } catch (AuraHandledException e) {
-            throw e;
-        } catch (Exception e) {
-            throw buildAuraException(e.getMessage());
-        }
-    }
-
-    private static AuraHandledException buildAuraException(String message) {
-        AuraHandledException ex = new AuraHandledException(message);
-        ex.setMessage(message);
-        return ex;
-    }
+	private static AuraHandledException toAuraException(String message) {
+		AuraHandledException auraException = new AuraHandledException(message);
+		auraException.setMessage(message);
+		return auraException;
+	}
 }

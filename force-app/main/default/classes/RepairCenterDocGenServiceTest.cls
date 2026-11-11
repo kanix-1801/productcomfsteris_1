@@ -484,6 +484,53 @@ private class RepairCenterDocGenServiceTest {
         );
     }
 
+	@isTest
+	static void generateVendorPaperwork_ignoresEmptyInput() {
+		RepairCenterDocGenService.generateVendorPaperwork(null);
+		RepairCenterDocGenService.generateVendorPaperwork(new List<WorkOrder>());
+
+		Assert.areEqual(0, [SELECT COUNT() FROM DocumentGenerationProcess]);
+	}
+
+	@isTest
+	static void generateVendorPaperwork_logsInsteadOfThrowingOnFailure() {
+		// Missing template or a fake Work Order Id fails the request; it must be logged, not thrown, so Complete is never blocked.
+		Exception thrown;
+		Test.startTest();
+		try {
+			RepairCenterDocGenService.generateVendorPaperwork(new List<WorkOrder>{ buildVendorWorkOrder('00000123') });
+		} catch (Exception ex) {
+			thrown = ex;
+		}
+		Test.stopTest();
+
+		Assert.isNull(thrown, 'generateVendorPaperwork must not throw');
+	}
+
+	@isTest
+	static void buildVendorPaperworkProcesses_buildsOneRequestPerWorkOrder() {
+		WorkOrder firstWorkOrder = buildVendorWorkOrder('00000123');
+		WorkOrder secondWorkOrder = buildVendorWorkOrder('00000124');
+		Id templateId = (Id) (DocumentTemplate.SObjectType.getDescribe().getKeyPrefix() + '000000000001');
+
+		List<DocumentGenerationProcess> processes = RepairCenterDocGenService.buildVendorPaperworkProcesses(new List<WorkOrder>{ firstWorkOrder, secondWorkOrder }, templateId);
+
+		Assert.areEqual(2, processes.size());
+		Assert.areEqual(firstWorkOrder.Id, processes[0].ReferenceObject);
+		Assert.areEqual(String.valueOf(secondWorkOrder.Id), processes[1].DocGenAdditionalInput);
+		Assert.areEqual(templateId, processes[0].DocumentTemplateId);
+		Assert.areEqual(RepairCenterDocGenService.DGP_TYPE, processes[0].Type);
+		Assert.areEqual(RepairCenterDocGenService.DGP_ADDITIONAL_INPUT_TYPE, processes[0].DocGenAdditionalInputType);
+		Map<String, Object> requestText = (Map<String, Object>) JSON.deserializeUntyped(processes[1].RequestText);
+		Assert.areEqual('Vendor Form WO-00000124', requestText.get('title'));
+		Assert.areEqual(false, requestText.get('keepIntermediate'));
+	}
+
+	private static WorkOrder buildVendorWorkOrder(String workOrderNumber) {
+		// WorkOrderNumber is an auto-number, so it is set through JSON instead of the constructor.
+		return (WorkOrder) JSON.deserialize(JSON.serialize(new Map<String, Object>{ 'Id' => createFakeWorkOrderId(), 'WorkOrderNumber' => workOrderNumber }), WorkOrder.class);
+	}
+
     @isTest
     static void buildDocumentTokenDataFromWorkOrder_buildsDevicesTokens() {
         WorkOrderTestData workOrderTestData = buildDevicesWorkOrderGraph();
@@ -491,10 +538,13 @@ private class RepairCenterDocGenServiceTest {
         Map<String, Object> tokenData =
             RepairCenterDocGenService.buildDocumentTokenDataFromWorkOrder(
                 workOrderTestData.workOrderRecord,
-                workOrderTestData.lineItems
+                workOrderTestData.lineItems,
+                false
             );
 
         Assert.areEqual('Order Acknowledgement', tokenData.get('DocumentTitle'));
+        Assert.areEqual(false, tokenData.get('IF_IsDeliveryDocument'));
+        Assert.areEqual(true, tokenData.get('IF_IsOrderAcknowledgement'));
         Assert.areEqual(true, tokenData.get('IF_IsSterisUS'));
         Assert.areEqual(true, tokenData.get('IF_IsDevicesWorkOrder'));
         Assert.areEqual('ACME HOSPITAL (1234)', tokenData.get('AccountName'));
@@ -533,7 +583,8 @@ private class RepairCenterDocGenServiceTest {
         Map<String, Object> tokenData =
             RepairCenterDocGenService.buildDocumentTokenDataFromWorkOrder(
                 workOrderTestData.workOrderRecord,
-                workOrderTestData.lineItems
+                workOrderTestData.lineItems,
+                false
             );
 
         Assert.areEqual('Order Acknowledgement', tokenData.get('DocumentTitle'));
@@ -552,6 +603,80 @@ private class RepairCenterDocGenServiceTest {
         );
         Assert.areEqual(0, ((List<Object>) tokenData.get('RepairEvaluationRows')).size());
     }
+
+	@isTest
+	static void buildDocumentTokenDataFromWorkOrder_deliveryPricesOnlyShippedItems() {
+		WorkOrderTestData workOrderTestData = buildDevicesWorkOrderGraph();
+		workOrderTestData.workOrderRecord.ActualShipDate__c = Date.newInstance(2026, 11, 5);
+		// First device has $150 of services and has shipped; the second is still in repair.
+		workOrderTestData.lineItems[0].WorkOrder = new WorkOrder(EvaluationNotes__c = 'Evaluation note', Status = 'Ship', ActualShipDate__c = Date.newInstance(2026, 11, 4));
+		workOrderTestData.lineItems[4].WorkOrder = new WorkOrder(EvaluationNotes__c = 'Second device note', Status = 'Repair');
+
+		Map<String, Object> tokenData = RepairCenterDocGenService.buildDocumentTokenDataFromWorkOrder(workOrderTestData.workOrderRecord, workOrderTestData.lineItems, true);
+
+		Assert.areEqual(RepairCenterDocGenService.DOCUMENT_TITLE_SERVICE_DELIVERY_REPORT, tokenData.get('DocumentTitle'));
+		Assert.areEqual(true, tokenData.get('IF_IsDeliveryDocument'));
+		Assert.areEqual(false, tokenData.get('IF_IsOrderAcknowledgement'));
+		Assert.areEqual(Date.newInstance(2026, 11, 5).format(), tokenData.get('ShipDate'));
+		Assert.areEqual(true, tokenData.get('IF_HasShipDate'));
+		Assert.areEqual('$150.00', tokenData.get('GrandTotal'));
+
+		List<Object> items = (List<Object>) tokenData.get('ProductServicedItems');
+		Map<String, Object> shippedItem = (Map<String, Object>) items[0];
+		Assert.areEqual('Ship', shippedItem.get('Status'));
+		Assert.areEqual(true, shippedItem.get('IF_ShowPricing'));
+		Assert.areEqual(Date.newInstance(2026, 11, 4).format(), shippedItem.get('ShipDate'));
+		Assert.areEqual('$150.00', shippedItem.get('ItemTotal'));
+
+		Map<String, Object> inRepairItem = (Map<String, Object>) items[1];
+		Assert.areEqual('Repair', inRepairItem.get('Status'));
+		Assert.areEqual(false, inRepairItem.get('IF_ShowPricing'));
+		Assert.areEqual(false, inRepairItem.get('IF_HasShipDate'));
+		Assert.areEqual('', inRepairItem.get('ItemTotal'));
+	}
+
+	@isTest
+	static void buildDocumentTokenDataFromWorkOrder_deliveryHidesServicePricesUntilShipped() {
+		WorkOrderTestData workOrderTestData = buildDevicesWorkOrderGraph();
+		workOrderTestData.lineItems[0].WorkOrder = new WorkOrder(Status = 'QC');
+
+		Map<String, Object> tokenData = RepairCenterDocGenService.buildDocumentTokenDataFromWorkOrder(workOrderTestData.workOrderRecord, workOrderTestData.lineItems, true);
+
+		Map<String, Object> firstItem = (Map<String, Object>) ((List<Object>) tokenData.get('ProductServicedItems'))[0];
+		for (Object service : (List<Object>) firstItem.get('RecommendedServices')) {
+			Assert.areEqual('', ((Map<String, Object>) service).get('TotalPrice'));
+		}
+		Assert.areEqual('$0.00', tokenData.get('GrandTotal'));
+		Assert.areEqual('', tokenData.get('ShipDate'));
+		Assert.areEqual(false, tokenData.get('IF_HasShipDate'));
+	}
+
+	@isTest
+	static void buildDocumentTokenDataFromWorkOrder_deliveryUsesDeliveryNoteOutsideUs() {
+		WorkOrderTestData workOrderTestData = buildInstrumentsWorkOrderGraph();
+
+		Map<String, Object> tokenData = RepairCenterDocGenService.buildDocumentTokenDataFromWorkOrder(workOrderTestData.workOrderRecord, workOrderTestData.lineItems, true);
+
+		Assert.areEqual(RepairCenterDocGenService.DOCUMENT_TITLE_DELIVERY_NOTE, tokenData.get('DocumentTitle'));
+	}
+
+	@isTest
+	static void prepareDocumentGeneration_deliveryRequiresExistingWorkOrder() {
+		RepairCenterDocGenService.DocumentGenerationRequest quoteRequest = new RepairCenterDocGenService.DocumentGenerationRequest();
+		quoteRequest.quoteId = createFakeQuoteId();
+		quoteRequest.documentType = RepairCenterDocGenService.DOCUMENT_TYPE_DELIVERY;
+		Assert.areEqual('Work Order Id is required for delivery documents.', RepairCenterDocGenService.prepareDocumentGeneration(quoteRequest, new Map<Id, String>()).errorMessage);
+
+		RepairCenterDocGenService.DocumentGenerationRequest workOrderRequest = new RepairCenterDocGenService.DocumentGenerationRequest();
+		workOrderRequest.workOrderId = createFakeWorkOrderId();
+		workOrderRequest.documentType = RepairCenterDocGenService.DOCUMENT_TYPE_DELIVERY;
+		Assert.areEqual('Work Order record was not found for document generation.', RepairCenterDocGenService.prepareDocumentGeneration(workOrderRequest, new Map<Id, String>()).errorMessage);
+	}
+
+	@isTest
+	static void isDeliveryDocumentRequested_isFalseWithoutInProgressRequest() {
+		Assert.isFalse(RepairCenterDocGenService.isDeliveryDocumentRequested(createFakeWorkOrderId()));
+	}
 
     @isTest
     static void buildWorkOrderDocumentFileTitle_usesWorkOrderAndAccountNumber() {

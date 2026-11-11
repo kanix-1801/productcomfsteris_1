@@ -29,8 +29,7 @@ public with sharing class LeadSelector {
                    PostalCode,
                    Country,
                    Org_ID__c,
-                   Class_Code__c,
-                   Sales_Category__c
+                   Class_Code__c
             FROM Lead
             WHERE Id IN :leadIdSet
         ];

@@ -3,7 +3,7 @@
     <apiVersion>68.0</apiVersion>
     <isExposed>true</isExposed>
     <masterLabel>Add Clinical Participant</masterLabel>
-    <description>GC-3542 - Popup on the Process Review create flow for one or more clinical participants.</description>
+    <description>GC-3542 - Opens the Add Clinical Participant popup from the create flow and from the related-list New button.</description>
     <targets>
         <target>lightning__FlowScreen</target>
     </targets>

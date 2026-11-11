@@ -184,6 +184,8 @@ public with sharing class WorkOrderLineItemsService {
 
             // Perform DML
             insert lineItems;
+            // GW-3458 - A new Service Code under an Item and Service modifier inherits that modifier.
+            ModifierCodesService.inheritItemAndServiceModifier(lineItems);
         } catch (WorkOrderLineItems.WorkOrderLineItemsException e) {
             Logger.error(new LogMessage('WorkOrderLineItemsService.createLineItems: Validation failed. {0}', e.getMessage()), e);
             Logger.saveLog();
@@ -598,14 +600,14 @@ public with sharing class WorkOrderLineItemsService {
         Map<Id, WorkOrderLineItem> existingByProductId = new Map<Id, WorkOrderLineItem>();
         List<WorkOrderLineItem> linesToDelete = new List<WorkOrderLineItem>();
         for (WorkOrderLineItem lineItem : existingLines) {
-            if (lineItem.Product__c == null || !selectedIds.contains(lineItem.Product__c)) {
+            if (lineItem.Product2Id == null || !selectedIds.contains(lineItem.Product2Id)) {
                 linesToDelete.add(lineItem);
                 continue;
             }
-            if (existingByProductId.containsKey(lineItem.Product__c)) {
+            if (existingByProductId.containsKey(lineItem.Product2Id)) {
                 linesToDelete.add(lineItem);
             } else {
-                existingByProductId.put(lineItem.Product__c, lineItem);
+                existingByProductId.put(lineItem.Product2Id, lineItem);
             }
         }
         if (!linesToDelete.isEmpty()) {
@@ -689,7 +691,6 @@ public with sharing class WorkOrderLineItemsService {
                     ? assetProduct.Description
                     : assetProduct.Name)
                 : null;
-            newLine.Product__c = selectedProduct.Id;
             newLine.RepairCode__c = selectedProduct.Id;
             newLine.ProductCodeWoli__c = selectedProduct.ProductCode;
             newLine.ProductDescription__c = String.isNotBlank(selectedProduct.Description)
@@ -932,11 +933,8 @@ public with sharing class WorkOrderLineItemsService {
                     lineItem.RecordTypeId == repairCodeRtId
                 ) {
                     existingRepairCodeLines.add(lineItem);
-                    Id repairProductId = lineItem.Product2Id != null
-                        ? lineItem.Product2Id
-                        : lineItem.Product__c;
-                    if (repairProductId != null) {
-                        existingRepairCodeProductIds.add(repairProductId);
+                    if (lineItem.Product2Id != null) {
+                        existingRepairCodeProductIds.add(lineItem.Product2Id);
                     }
                 }
             }
@@ -945,9 +943,7 @@ public with sharing class WorkOrderLineItemsService {
                     'The Product Serviced line to update was not found on this Work Order.'
                 );
             }
-            Id existingProductId = productServicedLine.Product2Id != null
-                ? productServicedLine.Product2Id
-                : productServicedLine.Product__c;
+            Id existingProductId = productServicedLine.Product2Id;
             if (existingProductId != null && existingProductId != productId) {
                 throw new WorkOrderLineItemsServiceException(
                     'The Product Serviced line product does not match the draft item.'
@@ -1103,13 +1099,11 @@ public with sharing class WorkOrderLineItemsService {
                 return;
             }
 
-            List<WorkOrderLineItem> existingProductServicedLines = [
-                SELECT Id
-                FROM WorkOrderLineItem
-                WHERE WorkOrderId = :workOrderId
-                    AND RecordTypeId = :productServicedRtId
-                WITH USER_MODE
-            ];
+            List<WorkOrderLineItem> existingProductServicedLines =
+                WorkOrderLineItemsSelector.selectProductServicedIdsByWorkOrder(
+                    workOrderId,
+                    productServicedRtId
+                );
             for (WorkOrderLineItem lineItem : existingProductServicedLines) {
                 if (lineItem.Id != null && !retainedIds.contains(lineItem.Id)) {
                     deleteInstrumentEvaluationItem(lineItem.Id);
@@ -1158,13 +1152,12 @@ public with sharing class WorkOrderLineItemsService {
             Id repairCodeRtId = getRepairCodeRecordTypeId();
             Set<Id> repairCodeLineIds = new Set<Id>();
             if (repairCodeRtId != null) {
-                for (WorkOrderLineItem repairCodeLine : [
-                    SELECT Id
-                    FROM WorkOrderLineItem
-                    WHERE ParentWorkOrderLineItemId = :productServicedId
-                        AND RecordTypeId = :repairCodeRtId
-                    WITH USER_MODE
-                ]) {
+                for (WorkOrderLineItem repairCodeLine :
+                    WorkOrderLineItemsSelector.selectRepairCodeIdsByParent(
+                        productServicedId,
+                        repairCodeRtId
+                    )
+                ) {
                     repairCodeLineIds.add(repairCodeLine.Id);
                 }
             }
@@ -1207,13 +1200,8 @@ public with sharing class WorkOrderLineItemsService {
         if (productServicedId == null) {
             return;
         }
-        List<WorkOrderLineItem> lines = [
-            SELECT Id, WorkOrder.AssetId
-            FROM WorkOrderLineItem
-            WHERE Id = :productServicedId
-            WITH USER_MODE
-            LIMIT 1
-        ];
+        List<WorkOrderLineItem> lines =
+            WorkOrderLineItemsSelector.selectWithWorkOrderAssetById(productServicedId);
         if (lines.isEmpty()) {
             return;
         }
@@ -1232,12 +1220,8 @@ public with sharing class WorkOrderLineItemsService {
         if (lineItemIds == null || lineItemIds.isEmpty()) {
             return;
         }
-        List<RepairCenterTeamMember__c> signatures = [
-            SELECT Id
-            FROM RepairCenterTeamMember__c
-            WHERE WorkOrderLineItem__c IN :lineItemIds
-            WITH USER_MODE
-        ];
+        List<RepairCenterTeamMember__c> signatures =
+            RepairCenterTeamMembersSelector.selectIdsByWorkOrderLineItemIds(lineItemIds);
         if (!signatures.isEmpty()) {
             delete signatures;
         }
@@ -1472,7 +1456,6 @@ public with sharing class WorkOrderLineItemsService {
             repairCodeLine.ItemDescription__c = String.isNotBlank(instrumentProduct.Description)
                 ? instrumentProduct.Description
                 : instrumentProduct.Name;
-            repairCodeLine.Product__c = selectedProduct.Id;
             repairCodeLine.RepairCode__c = selectedProduct.Id;
             repairCodeLine.ProductCodeWoli__c = selectedProduct.ProductCode;
             repairCodeLine.ProductDescription__c = selectedProduct.Description;
@@ -1854,6 +1837,8 @@ public with sharing class WorkOrderLineItemsService {
                     'ObservationCodeCondition__c',
                     'WorkOrderId',
                     'WorkOrder.EvaluationNotes__c',
+                    'WorkOrder.Status',
+                    'WorkOrder.ActualShipDate__c',
                     'Product2.QuantityUnitOfMeasure'
                 }
             )
@@ -2397,7 +2382,6 @@ public with sharing class WorkOrderLineItemsService {
         line.ItemDescription__c = assetProduct == null
             ? null
             : (String.isNotBlank(assetProduct.Description) ? assetProduct.Description : assetProduct.Name);
-        line.Product__c = disinfectionProduct.Id;
         line.RepairCode__c = disinfectionProduct.Id;
         line.ProductCodeWoli__c = disinfectionProduct.ProductCode;
         line.ProductDescription__c = String.isNotBlank(disinfectionProduct.Description)
@@ -2422,7 +2406,6 @@ public with sharing class WorkOrderLineItemsService {
         line.WorkOrderId = workOrder.Id;
         line.Status = WOLI_STATUS_APPROVED;
         line.LineType__c = COMPONENT_TYPE_SERVICE_CODE;
-        line.Product__c = disinfectionProduct.Id;
         line.RepairCode__c = disinfectionProduct.Id;
         line.ProductCodeWoli__c = disinfectionProduct.ProductCode;
         line.ProductDescription__c = String.isNotBlank(disinfectionProduct.Description)
@@ -2501,19 +2484,8 @@ public with sharing class WorkOrderLineItemsService {
         if (workOrderId == null) {
             return null;
         }
-        List<WorkOrder> workOrders = [
-            SELECT
-                Pricebook2Id,
-                CurrencyIsoCode,
-                AssetId,
-                SerialNumber__c,
-                Model__c,
-                EstimateRequired__c
-            FROM WorkOrder
-            WHERE Id = :workOrderId
-            WITH USER_MODE
-            LIMIT 1
-        ];
+        List<WorkOrder> workOrders =
+            WorkOrdersSelector.selectByIdForReceivingWoliCreate(workOrderId);
         return workOrders.isEmpty() ? null : workOrders[0];
     }
 
@@ -2586,14 +2558,12 @@ public with sharing class WorkOrderLineItemsService {
         if (standardPricebookId == null || standardPricebookId == targetPricebookId) {
             return;
         }
-        List<PricebookEntry> standardEntries = [
-            SELECT Id, IsActive
-            FROM PricebookEntry
-            WHERE Pricebook2Id = :standardPricebookId
-              AND Product2Id = :product2Id
-              AND CurrencyIsoCode = :currencyIsoCode
-            LIMIT 1
-        ];
+        List<PricebookEntry> standardEntries =
+            PricebookEntriesSelector.selectByStandardPricebookProductCurrency(
+                standardPricebookId,
+                product2Id,
+                currencyIsoCode
+            );
         if (standardEntries.isEmpty()) {
             insert new PricebookEntry(
                 Pricebook2Id = standardPricebookId,
@@ -2614,16 +2584,12 @@ public with sharing class WorkOrderLineItemsService {
         Id product2Id,
         String currencyIsoCode
     ) {
-        List<PricebookEntry> entries = [
-            SELECT Id
-            FROM PricebookEntry
-            WHERE Pricebook2Id = :pricebookId
-              AND Product2Id = :product2Id
-              AND IsActive = TRUE
-              AND CurrencyIsoCode = :currencyIsoCode
-            WITH USER_MODE
-            LIMIT 1
-        ];
+        List<PricebookEntry> entries =
+            PricebookEntriesSelector.selectActiveIdByPricebookProductCurrency(
+                pricebookId,
+                product2Id,
+                currencyIsoCode
+            );
         return entries.isEmpty() ? null : entries[0].Id;
     }
 
@@ -2631,13 +2597,7 @@ public with sharing class WorkOrderLineItemsService {
         if (Test.isRunningTest()) {
             return Test.getStandardPricebookId();
         }
-        List<Pricebook2> pricebooks = [
-            SELECT Id
-            FROM Pricebook2
-            WHERE IsStandard = TRUE
-              AND IsActive = TRUE
-            LIMIT 1
-        ];
+        List<Pricebook2> pricebooks = PricebooksSelector.selectActiveStandard();
         return pricebooks.isEmpty() ? null : pricebooks[0].Id;
     }
 
@@ -2921,34 +2881,20 @@ public with sharing class WorkOrderLineItemsService {
                 throw new IllegalArgumentException('Simulated unexpected failure');
             }
 
-            List<WorkOrder> workOrders = [
-                SELECT Id, AssetId
-                FROM WorkOrder
-                WHERE Id = :workOrderId
-                WITH SECURITY_ENFORCED
-                LIMIT 1
-            ];
+            List<WorkOrder> workOrders = WorkOrdersSelector.selectAssetIdById(workOrderId);
             if (workOrders.isEmpty() || workOrders[0].AssetId == null) {
                 return BILLING_TYPE_BILLABLE;
             }
 
             Datetime sinceDatetime = Datetime.now().addDays(-90);
             Id assetId = workOrders[0].AssetId;
-            List<WorkOrderLineItem> priorParts = [
-                SELECT Id
-                FROM WorkOrderLineItem
-                WHERE LineType__c IN ('Parts', 'Part')
-                    AND WorkOrderId != :workOrderId
-                    AND WorkOrder.AssetId = :assetId
-                    AND WorkOrder.CreatedDate >= :sinceDatetime
-                    AND (
-                        Product__c = :product2Id
-                        OR ProductItem__r.Product2Id = :product2Id
-                        OR Product2Id = :product2Id
-                    )
-                WITH SECURITY_ENFORCED
-                LIMIT 1
-            ];
+            List<WorkOrderLineItem> priorParts =
+                WorkOrderLineItemsSelector.selectPriorPartsForBillingType(
+                    workOrderId,
+                    assetId,
+                    product2Id,
+                    sinceDatetime
+                );
             if (!priorParts.isEmpty()) {
                 return BILLING_TYPE_SVC_WARRANTY;
             }

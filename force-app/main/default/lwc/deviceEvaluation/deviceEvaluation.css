@@ -255,6 +255,25 @@
     justify-content: flex-start;
 }
 
+.repair-cost-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.75rem;
+    font-size: 0.8125rem;
+}
+
+.repair-cost-header__label {
+    color: #706e6b;
+    font-weight: 400;
+}
+
+.repair-cost-header__value {
+    color: #181818;
+    font-weight: 700;
+    margin-right: 0.35rem;
+}
+
 .workspace-nav__mark-all-ok {
     padding: 0 0.5rem 0.75rem;
     margin-bottom: 0.5rem;

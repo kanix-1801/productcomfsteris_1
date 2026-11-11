@@ -24,7 +24,7 @@ public with sharing class ReceivingFinishService {
 
     private static final String RT_DEVICES = 'RepairCenterDevices';
     private static final String RT_INSTRUMENTS = 'RepairCenterInstruments';
-    private static final String RT_OTHER = 'RepairCenterOther';
+    private static final String RT_VENDOR = 'RepairCenterVendor';
     private static final String RT_CUSTOMER_RETURN = 'CustomerReturn';
     private static final String WOLI_RT_PRODUCT_SERVICED = 'ProductServiced';
     private static final String WOLI_LINE_TYPE_PRODUCT_SERVICED = 'Product Serviced';
@@ -37,6 +37,14 @@ public with sharing class ReceivingFinishService {
 
     private static Id cachedDefaultPricebookId;
     private static Map<Id, Account> billingAddressByAccountId = new Map<Id, Account>();
+
+    /**
+     * @description Clears cached Repair Center default price book (tests only).
+     */
+    @TestVisible
+    private static void resetDefaultPricebookCacheForTest() {
+        cachedDefaultPricebookId = null;
+    }
 
     /**
      * @description Completes Finish Receiving for one item (redirect or WO create).
@@ -200,7 +208,7 @@ public with sharing class ReceivingFinishService {
         Set<Id> createdLineIds = new Set<Id>();
         for (
             ReturnOrderLineItem lineItem :
-                ReturnOrderLineItemsSelector.selectForReceivingFinishByReturnOrderId(
+                ReturnOrderLineItemsService.getLinesForReceivingFinishByReturnOrderId(
                     request.returnOrderId
                 )
         ) {
@@ -232,7 +240,7 @@ public with sharing class ReceivingFinishService {
         ReturnOrderLineItem lineItem = null;
         if (request.lineItemId != null) {
             List<ReturnOrderLineItem> lines =
-                ReturnOrderLineItemsSelector.selectForReceivingFinish(
+                ReturnOrderLineItemsService.getLinesForReceivingFinish(
                     new Set<Id>{ request.lineItemId }
                 );
             if (lines.isEmpty()) {
@@ -252,7 +260,7 @@ public with sharing class ReceivingFinishService {
                 );
             }
             applyLineCorrections(lineItem, request);
-            lineItem = ReturnOrderLineItemsSelector.selectForReceivingFinish(
+            lineItem = ReturnOrderLineItemsService.getLinesForReceivingFinish(
                 new Set<Id>{ request.lineItemId }
             )[0];
         }
@@ -424,7 +432,7 @@ public with sharing class ReceivingFinishService {
         Set<Id> lineIds = new Set<Id>();
         for (
             ReturnOrderLineItem lineItem :
-                ReturnOrderLineItemsSelector.selectForReceivingFinishByReturnOrderId(returnOrderId)
+                ReturnOrderLineItemsService.getLinesForReceivingFinishByReturnOrderId(returnOrderId)
         ) {
             if (lineItem.Status__c == STATUS_CREATED) {
                 lineIds.add(lineItem.Id);
@@ -463,7 +471,7 @@ public with sharing class ReceivingFinishService {
         applyInstrumentParentMappings(
             workOrder,
             returnOrder,
-            ReturnOrderLineItemsSelector.selectForReceivingFinishByReturnOrderId(returnOrder.Id)
+            ReturnOrderLineItemsService.getLinesForReceivingFinishByReturnOrderId(returnOrder.Id)
         );
         applySharedHeaderMappings(workOrder, returnOrder, request);
         applyActionOverlays(workOrder, request, false);
@@ -548,7 +556,7 @@ public with sharing class ReceivingFinishService {
             }
         }
 
-        Id otherRtId = requireWorkOrderRecordType(RT_OTHER);
+        Id vendorRtId = requireWorkOrderRecordType(RT_VENDOR);
         String subStatus = hasCustomerCare(request)
             ? WO_SUB_STATUS_CUSTOMER_CARE
             : WO_SUB_STATUS_SHIP_TO_VENDOR;
@@ -556,7 +564,7 @@ public with sharing class ReceivingFinishService {
             returnOrder,
             lineItem,
             receiverId,
-            otherRtId,
+            vendorRtId,
             subStatus,
             'Outside Vendor Receive',
             RO_TYPE_OTHER_SERIALIZED,
@@ -731,6 +739,9 @@ public with sharing class ReceivingFinishService {
         Id machineShopRackId = resolveMachineShopRackId();
         parentWorkOrder.RepairCategory__c = MACHINE_SHOP;
         parentWorkOrder.Rack__c = machineShopRackId;
+        // Parent must carry line Customer PO before Case mapping. Updating the parent Case
+        // syncs parent Customer PO onto children, which would clear a child-only PO.
+        applyLineReferenceMappings(parentWorkOrder, lineItem);
         applySharedHeaderMappings(parentWorkOrder, returnOrder, request);
         WorkOrdersService.createReceivingWorkOrders(new List<WorkOrder>{ parentWorkOrder });
         restoreInternalBillToAfterCreate(new List<WorkOrder>{ parentWorkOrder }, request);
@@ -1093,7 +1104,7 @@ public with sharing class ReceivingFinishService {
             return currentLine;
         }
         List<ReturnOrderLineItem> lines =
-            ReturnOrderLineItemsSelector.selectForReceivingFinishByReturnOrderId(returnOrder.Id);
+            ReturnOrderLineItemsService.getLinesForReceivingFinishByReturnOrderId(returnOrder.Id);
         if (lines.isEmpty()) {
             return currentLine;
         }
@@ -1521,12 +1532,9 @@ public with sharing class ReceivingFinishService {
         if (returnOrderId == null) {
             return false;
         }
-        for (ContentDocumentLink fileLink : [
-            SELECT ContentDocument.LatestPublishedVersion.Description
-            FROM ContentDocumentLink
-            WHERE LinkedEntityId = :returnOrderId
-            WITH USER_MODE
-        ]) {
+        for (ContentDocumentLink fileLink :
+            ContentDocumentLinksSelector.selectWithVersionDescriptionByLinkedEntityId(returnOrderId)
+        ) {
             if (
                 fileLink.ContentDocument != null &&
                 fileLink.ContentDocument.LatestPublishedVersion != null &&
@@ -1555,12 +1563,9 @@ public with sharing class ReceivingFinishService {
             skipIds.addAll(alreadyLinkedDocumentIds);
         }
         List<Id> documentIds = new List<Id>();
-        for (ContentDocumentLink sourceLink : [
-            SELECT ContentDocumentId
-            FROM ContentDocumentLink
-            WHERE LinkedEntityId = :returnOrderId
-            WITH USER_MODE
-        ]) {
+        for (ContentDocumentLink sourceLink :
+            ContentDocumentLinksSelector.selectByLinkedEntityIdForReceiving(returnOrderId)
+        ) {
             if (
                 sourceLink.ContentDocumentId != null
                 && !skipIds.contains(sourceLink.ContentDocumentId)
@@ -1674,7 +1679,7 @@ public with sharing class ReceivingFinishService {
         }
 
         List<ReturnOrderLineItem> lineItems =
-            ReturnOrderLineItemsSelector.selectForReceivingFinishByReturnOrderId(returnOrderId);
+            ReturnOrderLineItemsService.getLinesForReceivingFinishByReturnOrderId(returnOrderId);
         if (lineItems.isEmpty()) {
             throw new ReceivingService.ReceivingServiceException(
                 'Return Order has no line items to create Work Orders for.'

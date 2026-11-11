@@ -11,11 +11,23 @@
 }
 
 /* "Page x of y" in the top-right page margin of every PDF page (CSS paged media margin box) */
+/* GW-5878: fixed footer at the very bottom of every PDF page (including the last), same mechanism.
+   The text must match FOOTER_TEXT in fsrFieldServiceReport.js. */
 @page {
     @top-right {
         content: 'Page ' counter(page) ' of ' counter(pages);
         font-family: Arial, Helvetica, sans-serif;
         font-size: 9px;
+    }
+    @bottom-center {
+        content: 'This is only an estimate and not an invoice. Tax is not included.';
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 9px;
+        font-style: italic;
+        font-weight: bold;
+        border-top: 1px solid #000;
+        vertical-align: top;
+        padding-top: 4px;
     }
 }
 
@@ -234,4 +246,6 @@ tr {
     padding-top: 4px;
     font-style: italic;
     font-weight: bold;
+    white-space: pre-line;
+    page-break-inside: avoid;
 }

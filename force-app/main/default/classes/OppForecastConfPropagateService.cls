@@ -6,6 +6,8 @@
  */
 public with sharing class OppForecastConfPropagateService {
     private static final String CLASS_NAME = 'OppForecastConfPropagateService';
+    private static final String OPPORTUNITY_FORECAST_CONFIDENCE_WON = 'Won';
+    private static final String OPPORTUNITY_FORECAST_CONFIDENCE_LOST = 'Lost';
 
     public class QuoteRow {
         @AuraEnabled
@@ -67,6 +69,12 @@ public with sharing class OppForecastConfPropagateService {
                 continue;
             }
 
+            if (shouldSuppressForecastConfidencePropagateBanner(opportunityRecord, oldOpportunityRecord)) {
+                opportunityRecord.ShowForecastConfidencePropagateBanner__c = false;
+                opportunityRecord.PendingQuoteForecastConfidence__c = null;
+                continue;
+            }
+
             if (
                 opportunityRecord.ForecastConfidenceLevel__c ==
                 oldOpportunityRecord.ForecastConfidenceLevel__c
@@ -79,6 +87,8 @@ public with sharing class OppForecastConfPropagateService {
             );
 
             if (String.isBlank(pendingQuoteForecastConfidence)) {
+                opportunityRecord.ShowForecastConfidencePropagateBanner__c = false;
+                opportunityRecord.PendingQuoteForecastConfidence__c = null;
                 continue;
             }
 
@@ -93,8 +103,21 @@ public with sharing class OppForecastConfPropagateService {
             return;
         }
 
+        Map<Id, String> forecastConfidenceByOpportunityId = new Map<Id, String>();
+        for (Opportunity opportunityRecord : newOpportunities) {
+            if (changedOpportunityIds.contains(opportunityRecord.Id)) {
+                forecastConfidenceByOpportunityId.put(
+                    opportunityRecord.Id,
+                    opportunityRecord.ForecastConfidenceLevel__c
+                );
+            }
+        }
+
         Map<Id, Integer> quoteCountsByOpportunityId =
-            QuoteSelector.countPropagatableForecastConfidenceQuotesByOpportunityIds(changedOpportunityIds);
+            QuoteSelector.countPropagatableForecastConfidenceQuotesByOpportunityIds(
+                changedOpportunityIds,
+                forecastConfidenceByOpportunityId
+            );
 
         for (Opportunity opportunityRecord : newOpportunities) {
             if (!pendingConfidenceByOpportunityId.containsKey(opportunityRecord.Id)) {
@@ -173,7 +196,8 @@ public with sharing class OppForecastConfPropagateService {
             SELECT Id,
                 ForecastConfidenceLevel__c,
                 ShowForecastConfidencePropagateBanner__c,
-                PendingQuoteForecastConfidence__c
+                PendingQuoteForecastConfidence__c,
+                IsClosed
             FROM Opportunity
             WHERE Id = :opportunityId
             WITH USER_MODE
@@ -185,6 +209,15 @@ public with sharing class OppForecastConfPropagateService {
         }
 
         Opportunity opportunityRecord = opportunityRecords[0];
+        if (
+            opportunityRecord.IsClosed == true ||
+            shouldSuppressOpportunityForecastConfidenceForQuotePropagation(
+                opportunityRecord.ForecastConfidenceLevel__c
+            )
+        ) {
+            return context;
+        }
+
         if (opportunityRecord.ShowForecastConfidencePropagateBanner__c != true) {
             return context;
         }
@@ -207,7 +240,6 @@ public with sharing class OppForecastConfPropagateService {
         }
 
         if (context.quotes.isEmpty()) {
-            clearBannerFields(opportunityId);
             return context;
         }
 
@@ -300,5 +332,101 @@ public with sharing class OppForecastConfPropagateService {
         }
 
         return quoteRecord.QuoteNumber__c;
+    }
+
+    @TestVisible
+    private static Boolean shouldSuppressForecastConfidencePropagateBanner(
+        Opportunity opportunityRecord,
+        Opportunity oldOpportunityRecord
+    ) {
+        if (opportunityRecord == null || oldOpportunityRecord == null) {
+            return false;
+        }
+
+        if (
+            shouldSuppressOpportunityForecastConfidenceForQuotePropagation(
+                opportunityRecord.ForecastConfidenceLevel__c
+            )
+        ) {
+            return true;
+        }
+
+        if (
+            isClosedOpportunityStage(resolveStageName(opportunityRecord)) ||
+            isOpportunityClosing(opportunityRecord, oldOpportunityRecord)
+        ) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static Boolean isOpportunityClosing(
+        Opportunity opportunityRecord,
+        Opportunity oldOpportunityRecord
+    ) {
+        String newStageName = resolveStageName(opportunityRecord);
+        String oldStageName = resolveStageName(oldOpportunityRecord);
+
+        if (String.isBlank(newStageName) || newStageName == oldStageName) {
+            return false;
+        }
+
+        return isClosedOpportunityStage(newStageName);
+    }
+
+    private static Boolean isClosedOpportunityStage(String stageName) {
+        if (String.isBlank(stageName)) {
+            return false;
+        }
+
+        String normalizedStageName = stageName.trim();
+        return 'Closed Won'.equalsIgnoreCase(normalizedStageName) ||
+            'Closed Lost'.equalsIgnoreCase(normalizedStageName);
+    }
+
+    private static String resolveStageName(Opportunity opportunityRecord) {
+        if (opportunityRecord == null) {
+            return null;
+        }
+
+        try {
+            return opportunityRecord.StageName;
+        } catch (System.SObjectException exceptionValue) {
+            return null;
+        }
+    }
+
+    @TestVisible
+    private static Boolean isOpportunityForecastConfidenceWon(String opportunityForecastConfidenceLevel) {
+        return matchesOpportunityForecastConfidenceLevel(
+            opportunityForecastConfidenceLevel,
+            OPPORTUNITY_FORECAST_CONFIDENCE_WON
+        );
+    }
+
+    @TestVisible
+    private static Boolean isOpportunityForecastConfidenceLost(String opportunityForecastConfidenceLevel) {
+        return matchesOpportunityForecastConfidenceLevel(
+            opportunityForecastConfidenceLevel,
+            OPPORTUNITY_FORECAST_CONFIDENCE_LOST
+        );
+    }
+
+    @TestVisible
+    private static Boolean shouldSuppressOpportunityForecastConfidenceForQuotePropagation(
+        String opportunityForecastConfidenceLevel
+    ) {
+        return isOpportunityForecastConfidenceWon(opportunityForecastConfidenceLevel) ||
+            isOpportunityForecastConfidenceLost(opportunityForecastConfidenceLevel);
+    }
+
+    private static Boolean matchesOpportunityForecastConfidenceLevel(
+        String opportunityForecastConfidenceLevel,
+        String expectedLevel
+    ) {
+        return String.isNotBlank(opportunityForecastConfidenceLevel) &&
+            String.isNotBlank(expectedLevel) &&
+            expectedLevel.equalsIgnoreCase(opportunityForecastConfidenceLevel.trim());
     }
 }

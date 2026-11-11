@@ -1,7 +1,7 @@
 /**
  * @description Selector class for the ContentDocumentLink SObject.
  *              Centralizes all SOQL queries for ContentDocumentLinks.
- *              Enforces security via WITH SECURITY_ENFORCED.
+ *              Queries use SoqlQueryBuilder / DynamicSoqlQuery.
  */
 public with sharing class ContentDocumentLinksSelector extends SoqlQueryBuilder {
     /**
@@ -11,10 +11,15 @@ public with sharing class ContentDocumentLinksSelector extends SoqlQueryBuilder 
         this.objectName = 'ContentDocumentLink';
     }
 
-
-    private static final String BASE_FIELDS =
-        'Id, ContentDocumentId, LinkedEntityId, ShareType, Visibility, ' +
-        'IsDeleted, SystemModstamp';
+    private static final List<String> BASE_FIELDS = new List<String>{
+        'Id',
+        'ContentDocumentId',
+        'LinkedEntityId',
+        'ShareType',
+        'Visibility',
+        'IsDeleted',
+        'SystemModstamp'
+    };
 
     /**
      * @description Retrieves ContentDocumentLink records by their Ids.
@@ -25,12 +30,10 @@ public with sharing class ContentDocumentLinksSelector extends SoqlQueryBuilder 
         if (ids == null || ids.isEmpty()) {
             return new List<ContentDocumentLink>();
         }
-        return Database.query(
-            'SELECT ' + BASE_FIELDS +
-            ' FROM ContentDocumentLink' +
-            ' WHERE Id IN :ids' +
-            ' WITH SECURITY_ENFORCED'
-        );
+        return (List<ContentDocumentLink>) SoqlQueryBuilder.fromObject('ContentDocumentLink')
+            .selectFields(BASE_FIELDS)
+            .whereField('Id', 'IN', new List<Id>(ids))
+            .execute();
     }
 
     /**
@@ -42,12 +45,10 @@ public with sharing class ContentDocumentLinksSelector extends SoqlQueryBuilder 
         if (linkedEntityIds == null || linkedEntityIds.isEmpty()) {
             return new List<ContentDocumentLink>();
         }
-        return Database.query(
-            'SELECT ' + BASE_FIELDS +
-            ' FROM ContentDocumentLink' +
-            ' WHERE LinkedEntityId IN :linkedEntityIds' +
-            ' WITH SECURITY_ENFORCED'
-        );
+        return (List<ContentDocumentLink>) SoqlQueryBuilder.fromObject('ContentDocumentLink')
+            .selectFields(BASE_FIELDS)
+            .whereField('LinkedEntityId', 'IN', new List<Id>(linkedEntityIds))
+            .execute();
     }
 
     /**
@@ -59,14 +60,11 @@ public with sharing class ContentDocumentLinksSelector extends SoqlQueryBuilder 
         if (contentDocumentIds == null || contentDocumentIds.isEmpty()) {
             return new List<ContentDocumentLink>();
         }
-        return Database.query(
-            'SELECT ' + BASE_FIELDS +
-            ' FROM ContentDocumentLink' +
-            ' WHERE ContentDocumentId IN :contentDocumentIds' +
-            ' WITH SECURITY_ENFORCED'
-        );
+        return (List<ContentDocumentLink>) SoqlQueryBuilder.fromObject('ContentDocumentLink')
+            .selectFields(BASE_FIELDS)
+            .whereField('ContentDocumentId', 'IN', new List<Id>(contentDocumentIds))
+            .execute();
     }
-
 
     /****************************************************************************************
      * ADDITIVES FOR DEVICE EVALUATION (GW-3913 / GW-3096)
@@ -87,13 +85,12 @@ public with sharing class ContentDocumentLinksSelector extends SoqlQueryBuilder 
         if (linkedEntityIds == null || linkedEntityIds.isEmpty() || rowLimit == null || rowLimit <= 0) {
             return new List<ContentDocumentLink>();
         }
-        return [
-            SELECT ContentDocumentId, LinkedEntityId
-            FROM ContentDocumentLink
-            WHERE LinkedEntityId IN :linkedEntityIds
-            ORDER BY SystemModstamp DESC
-            LIMIT :rowLimit
-        ];
+        return (List<ContentDocumentLink>) SoqlQueryBuilder.fromObject('ContentDocumentLink')
+            .selectFields(new List<String>{ 'ContentDocumentId', 'LinkedEntityId' })
+            .whereField('LinkedEntityId', 'IN', new List<Id>(linkedEntityIds))
+            .orderByDesc('SystemModstamp')
+            .limitTo(rowLimit)
+            .execute();
     }
 
     /**
@@ -115,12 +112,11 @@ public with sharing class ContentDocumentLinksSelector extends SoqlQueryBuilder 
         ) {
             return new List<ContentDocumentLink>();
         }
-        return [
-            SELECT ContentDocumentId, LinkedEntityId
-            FROM ContentDocumentLink
-            WHERE ContentDocumentId IN :docIds
-                AND LinkedEntityId IN :linkedEntityIds
-        ];
+        return (List<ContentDocumentLink>) SoqlQueryBuilder.fromObject('ContentDocumentLink')
+            .selectFields(new List<String>{ 'ContentDocumentId', 'LinkedEntityId' })
+            .whereField('ContentDocumentId', 'IN', new List<Id>(docIds))
+            .whereField('LinkedEntityId', 'IN', new List<Id>(linkedEntityIds))
+            .execute();
     }
 
     /**
@@ -132,11 +128,9 @@ public with sharing class ContentDocumentLinksSelector extends SoqlQueryBuilder 
         if (linkedEntityIds == null || linkedEntityIds.isEmpty()) {
             return 0;
         }
-        return [
-            SELECT COUNT()
-            FROM ContentDocumentLink
-            WHERE LinkedEntityId IN :linkedEntityIds
-        ];
+        return SoqlQueryBuilder.fromObject('ContentDocumentLink')
+            .whereField('LinkedEntityId', 'IN', new List<Id>(linkedEntityIds))
+            .count();
     }
 
     /**
@@ -151,11 +145,10 @@ public with sharing class ContentDocumentLinksSelector extends SoqlQueryBuilder 
         if (contentDocumentId == null) {
             return new List<ContentDocumentLink>();
         }
-        return [
-            SELECT LinkedEntityId
-            FROM ContentDocumentLink
-            WHERE ContentDocumentId = :contentDocumentId
-        ];
+        return (List<ContentDocumentLink>) SoqlQueryBuilder.fromObject('ContentDocumentLink')
+            .selectFields(new List<String>{ 'LinkedEntityId' })
+            .whereEquals('ContentDocumentId', contentDocumentId)
+            .execute();
     }
 
     /**
@@ -169,6 +162,25 @@ public with sharing class ContentDocumentLinksSelector extends SoqlQueryBuilder 
         }
         return (List<ContentDocumentLink>) SoqlQueryBuilder.fromObject('ContentDocumentLink')
             .selectFields(new List<String>{ 'ContentDocumentId', 'LinkedEntityId' })
+            .whereEquals('LinkedEntityId', linkedEntityId)
+            .execute();
+    }
+
+    /**
+     * @description GW-5492 - Links for a parent with latest version description (Mod Form detect).
+     * @param linkedEntityId Linked entity Id
+     * @return ContentDocumentLink rows with version description
+     */
+    public static List<ContentDocumentLink> selectWithVersionDescriptionByLinkedEntityId(
+        Id linkedEntityId
+    ) {
+        if (linkedEntityId == null) {
+            return new List<ContentDocumentLink>();
+        }
+        return (List<ContentDocumentLink>) SoqlQueryBuilder.fromObject('ContentDocumentLink')
+            .selectFields(
+                new List<String>{ 'ContentDocument.LatestPublishedVersion.Description' }
+            )
             .whereEquals('LinkedEntityId', linkedEntityId)
             .execute();
     }

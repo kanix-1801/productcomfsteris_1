@@ -3,7 +3,7 @@
  *
  *              Responsibilities:
  *              1. Assign one queue when every Product matches the same matrix row.
- *              2. Call TAS when the Products do not agree, and assign one active rep.
+ *              2. Call TAS for a HubSpot Lead when the Products do not agree, and assign one active rep.
  *              3. Use the country queue when TAS does not return one rep.
  *              4. Use the ultimate queue when the country has no queue.
  * @author      Vinay
@@ -60,7 +60,8 @@ public with sharing class LeadRoutingService {
      */
     public static String submit(Id leadId) {
         Lead leadRecord = [
-            SELECT Id, Country, State, PostalCode, City, Org_ID__c, Class_Code__c, Sales_Category__c, OwnerId
+            SELECT Id, Country, State, PostalCode, City, Org_ID__c, Class_Code__c, OwnerId,
+                HubSpot_Lead__c
             FROM Lead
             WHERE Id = :leadId
         ];
@@ -75,11 +76,13 @@ public with sharing class LeadRoutingService {
             return assignQueue(leadRecord.Id, matrixQueue, System.Label.LeadSubmitAssignedQueueMessage);
         }
 
-        Id tasOwnerId = resolveTasOwner(leadRecord);
-        if (tasOwnerId != null) {
-            update new Lead(Id = leadRecord.Id, OwnerId = tasOwnerId);
-            User ownerUser = [SELECT Name FROM User WHERE Id = :tasOwnerId];
-            return String.format(System.Label.LeadSubmitAssignedRepMessage, new List<String>{ ownerUser.Name });
+        if (leadRecord.HubSpot_Lead__c) {
+            Id tasOwnerId = resolveTasOwner(leadRecord);
+            if (tasOwnerId != null) {
+                update new Lead(Id = leadRecord.Id, OwnerId = tasOwnerId);
+                User ownerUser = [SELECT Name FROM User WHERE Id = :tasOwnerId];
+                return String.format(System.Label.LeadSubmitAssignedRepMessage, new List<String>{ ownerUser.Name });
+            }
         }
 
         String countryCode = normalizeCountry(leadRecord.Country);

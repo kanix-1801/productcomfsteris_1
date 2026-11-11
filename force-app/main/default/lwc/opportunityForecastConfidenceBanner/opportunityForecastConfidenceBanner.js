@@ -220,7 +220,7 @@ export default class OpportunityForecastConfidenceBanner extends LightningElemen
             this.dispatchEvent(
                 new ShowToastEvent({
                     title: 'Success',
-                    message: 'Forecast confidence was propagated to the selected quotes.',
+                    message: 'Forecast confidence was updated on the selected quotes.',
                     variant: 'success'
                 })
             );

@@ -1,0 +1,240 @@
+<template>
+    <div class="modifier-codes">
+        <template lwc:if={isLoading}>
+            <div class="slds-is-relative slds-p-around_large">
+                <lightning-spinner alternative-text="Loading modifier codes" size="small"></lightning-spinner>
+            </div>
+        </template>
+        <template lwc:elseif={errorMessage}>
+            <div class="slds-text-color_error" role="alert">{errorMessage}</div>
+        </template>
+        <template lwc:else>
+            <template lwc:if={isDevice}>
+                <section class="modifier-card">
+                    <h3 class="modifier-card__title">Item</h3>
+                    <template lwc:if={hasItems}>
+                        <div class="table-scroll">
+                            <table class="modifier-table">
+                                <thead>
+                                    <tr>
+                                        <th>Serial Number</th>
+                                        <th>Product</th>
+                                        <th>Model</th>
+                                        <th>Manufacturer</th>
+                                        <th>Modifier</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={itemRows} for:item="row">
+                                        <tr key={row.id}>
+                                            <td>{row.serialNumber}</td>
+                                            <td>{row.productName}</td>
+                                            <td>{row.model}</td>
+                                            <td>{row.manufacturer}</td>
+                                            <td>
+                                                <c-modifier-codes-cell
+                                                    row={row}
+                                                    onadd={handleAdd}
+                                                    onedit={handleEdit}
+                                                    onremove={handleRemove}
+                                                ></c-modifier-codes-cell>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </template>
+                    <template lwc:else>
+                        <p class="slds-text-body_regular">No product serviced item is on this work order.</p>
+                    </template>
+                </section>
+
+                <section class="modifier-card">
+                    <h3 class="modifier-card__title">Services</h3>
+                    <template lwc:if={hasServices}>
+                        <div class="table-scroll">
+                            <table class="modifier-table">
+                                <thead>
+                                    <tr>
+                                        <th>Category</th>
+                                        <th>Item Number</th>
+                                        <th>Description</th>
+                                        <th>Category Code Discount</th>
+                                        <th>Modifier</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={serviceRows} for:item="row">
+                                        <tr key={row.id}>
+                                            <td>{row.category}</td>
+                                            <td>{row.itemNumber}</td>
+                                            <td>{row.description}</td>
+                                            <td>{row.categoryCodeDiscount}</td>
+                                            <td>
+                                                <c-modifier-codes-cell
+                                                    row={row}
+                                                    onadd={handleAdd}
+                                                    onedit={handleEdit}
+                                                    onremove={handleRemove}
+                                                ></c-modifier-codes-cell>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </template>
+                    <template lwc:else>
+                        <p class="slds-text-body_regular">No service lines are on this work order.</p>
+                    </template>
+                </section>
+            </template>
+
+            <template lwc:else>
+                <template lwc:if={hasGroups}>
+                    <template for:each={groups} for:item="group">
+                        <section key={group.id} class="modifier-card">
+                            <div class="group-header">
+                                <h3 class="modifier-card__title">{group.title}</h3>
+                                <div class="group-header__action">
+                                    <template lwc:if={group.hasModifier}>
+                                        <span class="modifier-name">{group.modifierName}</span>
+                                        <button
+                                            type="button"
+                                            class="icon-button"
+                                            data-line-id={group.id}
+                                            onclick={handleRemove}
+                                            title="Remove modifier"
+                                            aria-label="Remove item modifier"
+                                        >
+                                            <lightning-icon
+                                                icon-name="utility:delete"
+                                                size="x-small"
+                                                alternative-text=""
+                                            ></lightning-icon>
+                                        </button>
+                                    </template>
+                                    <template lwc:else>
+                                        <button
+                                            type="button"
+                                            class="item-modifier-button"
+                                            data-line-id={group.id}
+                                            data-asset-id={group.assetId}
+                                            data-kind="item"
+                                            onclick={handleAdd}
+                                        >
+                                            Add Item Modifier
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+                            <template lwc:if={group.hasServices}>
+                                <div class="table-scroll">
+                                    <table class="modifier-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Item Number</th>
+                                                <th>Description</th>
+                                                <th>Category Code Discount</th>
+                                                <th>Modifier</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <template for:each={group.services} for:item="row">
+                                                <tr key={row.id}>
+                                                    <td>{row.itemNumber}</td>
+                                                    <td>{row.description}</td>
+                                                    <td>{row.categoryCodeDiscount}</td>
+                                                    <td>
+                                                        <c-modifier-codes-cell
+                                                            row={row}
+                                                            onadd={handleAdd}
+                                                            onedit={handleEdit}
+                                                            onremove={handleRemove}
+                                                        ></c-modifier-codes-cell>
+                                                    </td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </template>
+                            <template lwc:else>
+                                <p class="slds-text-body_regular">No service lines for this item.</p>
+                            </template>
+                        </section>
+                    </template>
+                </template>
+                <template lwc:else>
+                    <p class="slds-text-body_regular">No product serviced items are on this work order.</p>
+                </template>
+            </template>
+        </template>
+
+        <template lwc:if={isModalOpen}>
+            <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open" aria-modal="true" aria-labelledby="modifier-modal-heading">
+                <div class="slds-modal__container">
+                    <header class="slds-modal__header">
+                        <h2 id="modifier-modal-heading" class="slds-modal__title slds-hyphenate">{modalTitle}</h2>
+                        <p class="slds-m-top_x-small">{modalIntro}</p>
+                    </header>
+                    <div class="slds-modal__content slds-p-around_medium">
+                        <template lwc:if={optionsLoading}>
+                            <div class="slds-is-relative slds-p-around_large">
+                                <lightning-spinner alternative-text="Loading options" size="small"></lightning-spinner>
+                            </div>
+                        </template>
+                        <template lwc:else>
+                            <lightning-combobox
+                                label="Pricing Modifier"
+                                placeholder="Select a pricing modifier"
+                                value={pricingModifierId}
+                                options={modifierOptions}
+                                onchange={handlePricingModifierChange}
+                                required
+                                class="slds-m-bottom_small"
+                            ></lightning-combobox>
+                            <lightning-combobox
+                                label="Modifier Reason Code"
+                                placeholder="Select a reason code"
+                                value={reasonCodeId}
+                                options={reasonCodeOptions}
+                                onchange={handleReasonChange}
+                                class="slds-m-bottom_small"
+                            ></lightning-combobox>
+                            <template lwc:if={showOrderReference}>
+                                <lightning-combobox
+                                    label="Order Reference"
+                                    placeholder="Select a shipped work order"
+                                    value={orderReferenceId}
+                                    options={workOrderOptions}
+                                    onchange={handleOrderReferenceChange}
+                                ></lightning-combobox>
+                            </template>
+                            <template lwc:if={modifierOptions.length}>
+                                <span class="slds-assistive-text">Pricing modifiers loaded</span>
+                            </template>
+                            <template lwc:else>
+                                <p class="slds-text-color_weak slds-m-top_small">
+                                    No active pricing modifiers are available for this level.
+                                </p>
+                            </template>
+                        </template>
+                    </div>
+                    <footer class="slds-modal__footer">
+                        <lightning-button label="Cancel" onclick={handleCancel} disabled={isActing}></lightning-button>
+                        <lightning-button
+                            label="Save"
+                            variant="brand"
+                            onclick={handleSave}
+                            disabled={isSaveDisabled}
+                            class="slds-m-left_x-small"
+                        ></lightning-button>
+                    </footer>
+                </div>
+            </section>
+            <div class="slds-backdrop slds-backdrop_open"></div>
+        </template>
+    </div>
+</template>

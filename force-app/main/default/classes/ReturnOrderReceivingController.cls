@@ -1421,6 +1421,8 @@ public with sharing class ReturnOrderReceivingController {
             RO_TYPE_INSTRUMENTS
         );
         workOrder.Contaminated__c = isContaminated;
+        // GW-5677: instrument receive (no asset) stores the list on the parent Work Order.
+        applyAdditionalServicesRequested(workOrder, returnOrder.Id);
 
         List<WorkOrder> insertableWorkOrders = Security.stripInaccessible(
             AccessType.CREATABLE,
@@ -2477,6 +2479,8 @@ public with sharing class ReturnOrderReceivingController {
             applyWorkOrderSubStatus(childWorkOrder, WO_SUB_STATUS_TRIAGE);
         }
         // --- END RELEVANT TO GW-3337 ---
+        // GW-5677: asset receive stores the list on the child Work Order.
+        applyAdditionalServicesRequested(childWorkOrder, returnOrder.Id);
         return childWorkOrder;
     }
 
@@ -2544,6 +2548,8 @@ public with sharing class ReturnOrderReceivingController {
             childWorkOrder.Description = lineInput.reportedProblem.trim();
         }
         applyDefaultPricebookToWorkOrder(childWorkOrder);
+        // GW-5677: ad hoc asset children get the same Return Order additional-services list.
+        applyAdditionalServicesRequested(childWorkOrder, returnOrder.Id);
 
         return childWorkOrder;
     }
@@ -4830,5 +4836,124 @@ public with sharing class ReturnOrderReceivingController {
                 : notificationTypes[0].Id;
             return customerCareNotificationTypeId;
         }
+    }
+
+    private static final Integer ADDITIONAL_SERVICES_MAX_LENGTH = 32000;
+
+    /**
+     * @description GW-5677 - Copies the numbered additional-services list onto a Work Order
+     *              when the running user can create the field.
+     * @param workOrder Work Order being inserted
+     * @param returnOrderId Return Order that owns the line items
+     */
+    private static void applyAdditionalServicesRequested(WorkOrder workOrder, Id returnOrderId) {
+        if (
+            workOrder == null ||
+            returnOrderId == null ||
+            !Schema.SObjectType.WorkOrder.fields.AdditionalServicesRequested__c.isCreateable()
+        ) {
+            return;
+        }
+        workOrder.AdditionalServicesRequested__c = buildAdditionalServicesRequested(
+            ReturnOrderLineItemsSelector.selectAdditionalServicesByReturnOrderId(returnOrderId)
+        );
+    }
+
+    /**
+     * @description GW-5677 - Builds one numbered line per Return Order line that requested
+     *              an additional service. Lines with no requested service are omitted.
+     * @param lineItems Return Order lines ordered by line number
+     * @return Concatenated list, or null when nothing was requested
+     */
+    @TestVisible
+    private static String buildAdditionalServicesRequested(List<ReturnOrderLineItem> lineItems) {
+        if (lineItems == null || lineItems.isEmpty()) {
+            return null;
+        }
+
+        List<String> lines = new List<String>();
+        Integer sequence = 1;
+        for (ReturnOrderLineItem lineItem : lineItems) {
+            if (lineItem == null) {
+                continue;
+            }
+            List<String> segments = buildAdditionalServiceSegments(lineItem);
+            if (segments.isEmpty()) {
+                continue;
+            }
+            lines.add(
+                sequence + '. ' + buildAdditionalServiceHeading(lineItem) + ': ' + String.join(segments, ' | ')
+            );
+            sequence++;
+        }
+        if (lines.isEmpty()) {
+            return null;
+        }
+        String requested = String.join(lines, '\n');
+        return requested.length() > ADDITIONAL_SERVICES_MAX_LENGTH
+            ? requested.substring(0, ADDITIONAL_SERVICES_MAX_LENGTH)
+            : requested;
+    }
+
+    /**
+     * @description GW-5677 - Line number and item description that precede the service list.
+     * @param lineItem Return Order line
+     * @return Heading text without the trailing colon
+     */
+    private static String buildAdditionalServiceHeading(ReturnOrderLineItem lineItem) {
+        List<String> parts = new List<String>();
+        if (String.isNotBlank(lineItem.ReturnOrderLineItemNumber)) {
+            parts.add(lineItem.ReturnOrderLineItemNumber.trim());
+        }
+        if (String.isNotBlank(lineItem.ItemDescription__c)) {
+            parts.add(lineItem.ItemDescription__c.trim());
+        }
+        return String.join(parts, ' ');
+    }
+
+    /**
+     * @description GW-5677 - Service phrases for one Return Order line, in story order.
+     * @param lineItem Return Order line
+     * @return Phrases to join with a pipe
+     */
+    private static List<String> buildAdditionalServiceSegments(ReturnOrderLineItem lineItem) {
+        List<String> segments = new List<String>();
+        if (lineItem.AdditionalServiceRepair__c == true) {
+            segments.add('Repair');
+        }
+        String colorDipping = formatAdditionalServiceValue(lineItem.ColorDipping__c);
+        if (colorDipping != null) {
+            String colorSegment = 'Color Dipping: ' + colorDipping;
+            String numberOfRings = formatAdditionalServiceValue(lineItem.NumberOfRings__c);
+            if (numberOfRings != null) {
+                colorSegment += ', Number of Rings: ' + numberOfRings;
+            }
+            segments.add(colorSegment);
+        }
+        String insulation = formatAdditionalServiceValue(lineItem.InsulationPowderCoating__c);
+        if (insulation != null) {
+            segments.add('Insulation Powder Coating: ' + insulation);
+        }
+        String laserMarking = formatAdditionalServiceValue(lineItem.LaserMarking__c);
+        if (laserMarking != null) {
+            segments.add('Laser Marking: ' + laserMarking);
+        }
+        String stirrups = formatAdditionalServiceValue(lineItem.LegPositionersStirrup__c);
+        if (stirrups != null) {
+            segments.add('Stirrups: ' + stirrups);
+        }
+        return segments;
+    }
+
+    /**
+     * @description GW-5677 - Trims a service value and turns multiselect semicolons into commas.
+     * @param value Field value
+     * @return Display text, or null when the value is blank
+     */
+    private static String formatAdditionalServiceValue(String value) {
+        if (String.isBlank(value)) {
+            return null;
+        }
+        return value.trim().replace(';', ', ');
     }
 }

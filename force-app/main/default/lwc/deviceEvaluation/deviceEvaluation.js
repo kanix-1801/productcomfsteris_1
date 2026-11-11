@@ -13,6 +13,7 @@ import returnToEvaluation from '@salesforce/apex/DeviceEvaluationController.retu
 import addRepairSignature from '@salesforce/apex/DeviceEvaluationController.addRepairSignature';
 import signAllRepairCodes from '@salesforce/apex/DeviceEvaluationController.signAllRepairCodes';
 import removeRepairSignature from '@salesforce/apex/DeviceEvaluationController.removeRepairSignature';
+import finalizeDeviceEvaluationAfterPricing from '@salesforce/apex/DeviceEvaluationController.finalizeDeviceEvaluationAfterPricing';
 
 const MODE_SCAN = 'scan';
 const MODE_EVALUATION = 'evaluation';
@@ -27,6 +28,7 @@ const TAB_ASSET = 'asset';
 const TAB_PREFERENCES = 'preferences';
 const TAB_NOTES = 'notes';
 const TAB_WRE = 'warranty-repair-evaluation';
+const TAB_MODIFIER_CODES = 'modifier-codes';
 const TAB_CATEGORY = 'category';
 const TAB_WORK_PERFORMED = 'work-performed';
 const SUBSTATUS_SHIP_TO_VENDOR = 'Ship to Vendor';
@@ -96,6 +98,7 @@ export default class DeviceEvaluation extends LightningElement {
 
     @track evaluation;
     @track selectedProductIdSet = new Set();
+    lastPersistedProductIds = [];
     /** Staged/linked photos awaiting Complete attach to Repair Code WOLIs. */
     @track stagedPhotos = [];
     @track cameraOptions = [];
@@ -170,6 +173,30 @@ export default class DeviceEvaluation extends LightningElement {
 
     get warrantyRepairEvaluations() {
         return this.evaluation?.warrantyRepairEvaluations || [];
+    }
+
+    get isRepairStatus() {
+        return this.evaluation?.status === STATUS_REPAIR;
+    }
+
+    get showRepairCostHeader() {
+        return this.isEvaluationMode && this.isRepairStatus;
+    }
+
+    get currentRepairCostDisplay() {
+        return this.formatRepairCost(this.evaluation?.originalNetTotalPrice);
+    }
+
+    get updatedRepairCostDisplay() {
+        return this.formatRepairCost(this.evaluation?.newNetTotalPrice);
+    }
+
+    formatRepairCost(value) {
+        const amount = value == null || value === '' ? 0 : Number(value);
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD'
+        }).format(Number.isNaN(amount) ? 0 : amount);
     }
 
     get isCompleteDisabled() {
@@ -561,6 +588,7 @@ export default class DeviceEvaluation extends LightningElement {
         if (this.showWorkPerformedTab) {
             fixed.push({ label: 'Work Performed', value: TAB_WORK_PERFORMED });
         }
+        fixed.push({ label: 'Modifier Codes', value: TAB_MODIFIER_CODES });
         if (this.showServiceBomTabs) {
             fixed.push({ label: 'Pricing Codes', value: TAB_CATEGORY });
         }
@@ -632,6 +660,10 @@ export default class DeviceEvaluation extends LightningElement {
         return this.activeTab === TAB_CATEGORY;
     }
 
+    get isModifierCodesTab() {
+        return this.activeTab === TAB_MODIFIER_CODES;
+    }
+
     get isWorkPerformedTab() {
         return this.activeTab === TAB_WORK_PERFORMED;
     }
@@ -644,7 +676,8 @@ export default class DeviceEvaluation extends LightningElement {
             !this.isNotesTab &&
             !this.isWreTab &&
             !this.isCategoryTab &&
-            !this.isWorkPerformedTab
+            !this.isWorkPerformedTab &&
+            !this.isModifierCodesTab
         );
     }
 
@@ -934,6 +967,52 @@ export default class DeviceEvaluation extends LightningElement {
         return workspace;
     }
 
+    get needsRepairPricing() {
+        return (
+            this.isRepairStatus &&
+            (this.evaluation?.estimateRequired === 'Estimate Required' ||
+                this.evaluation?.customerPORequired === true)
+        );
+    }
+
+    async persistThenPrice({ applyCompletion }) {
+        const restoreProductIds = [...(this.lastPersistedProductIds || [])];
+        const originalNetTotal = this.evaluation?.originalNetTotalPrice;
+        await this.persistEvaluationDraft();
+        if (applyCompletion === true || this.needsRepairPricing) {
+            try {
+                const priced = await finalizeDeviceEvaluationAfterPricing({
+                    workOrderId: this.evaluation.workOrderId,
+                    originalNetTotal,
+                    applyCompletion: applyCompletion === true,
+                    restoreProductIds,
+                    subStatus: this.evaluation.subStatus
+                });
+                this.applyWorkspace(priced, true);
+                if (priced?.requoteWarning) {
+                    this.dispatchEvent(
+                        new ShowToastEvent({
+                            title: 'Repair cost increased',
+                            message: priced.requoteWarning,
+                            variant: 'warning',
+                            mode: 'sticky'
+                        })
+                    );
+                }
+            } catch (error) {
+                this.lastPersistedProductIds = [...restoreProductIds];
+                this.selectedProductIdSet = new Set(restoreProductIds);
+                if (this.evaluation) {
+                    this.evaluation = {
+                        ...this.evaluation,
+                        selectedProductIds: [...restoreProductIds]
+                    };
+                }
+                throw error;
+            }
+        }
+    }
+
     async handleQuickSave() {
         if (this.isActionBusy || !this.evaluation?.workOrderId) {
             return;
@@ -941,7 +1020,7 @@ export default class DeviceEvaluation extends LightningElement {
         this.isSaving = true;
         this.workspaceError = '';
         try {
-            await this.persistEvaluationDraft();
+            await this.persistThenPrice({ applyCompletion: false });
             this.dispatchEvent(
                 new ShowToastEvent({
                     title: 'Saved',
@@ -966,7 +1045,7 @@ export default class DeviceEvaluation extends LightningElement {
         this.isSaving = true;
         this.workspaceError = '';
         try {
-            await this.persistEvaluationDraft();
+            await this.persistThenPrice({ applyCompletion: false });
             const workOrderNumber = this.evaluation.workOrderNumber;
             this.handleClosePhotoModal();
             this.resetToScan();
@@ -1084,7 +1163,7 @@ export default class DeviceEvaluation extends LightningElement {
         this.isCompleting = true;
         this.workspaceError = '';
         try {
-            await completeEvaluation(this.buildEvaluationPayload());
+            await this.persistThenPrice({ applyCompletion: true });
             // Drop unlinked photos for cards that were not selected at Complete.
             await this.discardUnlinkedStagedPhotos({
                 onlyUnselectedProducts: true
@@ -1191,6 +1270,7 @@ export default class DeviceEvaluation extends LightningElement {
         this.updateBrowserTitle(workspace?.workOrderNumber);
         this.ensureActiveTabIsVisible();
         if (resetSelection) {
+            this.lastPersistedProductIds = [...(workspace.selectedProductIds || [])];
             this.selectedProductIdSet = new Set(workspace.selectedProductIds || []);
             // Already-linked WOLI photos (re-open after prior Complete / Quick Save).
             this.stagedPhotos = (workspace.attachedFiles || []).map((file) => ({

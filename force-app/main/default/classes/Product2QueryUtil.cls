@@ -12,26 +12,12 @@ public with sharing class Product2QueryUtil {
     /** @description Name of the default placeholder product for instrument return lines. */
     public static final String DEFAULT_PRODUCT_NAME = 'Default Product';
 
-    private static final String PICKLIST_FIELDS =
-        'Id, Name, ProductCode, Model__c, Description';
-    private static final String DETAIL_FIELDS =
-        'Id, Name, Description, ProductLine__c, ProductType__c, ProductCode, Model__c';
-    private static final String CORRECTION_PICKLIST_FIELDS = 'Id, Name, ProductCode';
-    private static final Integer DEFAULT_QUERY_LIMIT = 200;
-
     /**
      * @description Loads the active Default Product used when instrument lines omit a product selection.
      * @return Default Product2 row, or null when not configured.
      */
     public static Product2 queryDefaultProduct() {
-        List<Product2> products = [
-            SELECT Id, Name, Description, ProductLine__c, ProductCode, Model__c
-            FROM Product2
-            WHERE Name = :DEFAULT_PRODUCT_NAME AND IsActive = TRUE
-            WITH USER_MODE
-            ORDER BY CreatedDate ASC
-            LIMIT 1
-        ];
+        List<Product2> products = ProductsSelector.selectDefaultActiveByName(DEFAULT_PRODUCT_NAME);
         return products.isEmpty() ? null : products[0];
     }
 
@@ -45,24 +31,13 @@ public with sharing class Product2QueryUtil {
         if (productId == null) {
             return null;
         }
-
         Boolean requireServiceAsset = requireServiceAssetType == null
             ? true
             : requireServiceAssetType;
-
-        String query =
-            'SELECT ' +
-            DETAIL_FIELDS +
-            ' FROM Product2 WHERE Id = :productId AND IsActive = TRUE';
-        Map<String, Object> binds = new Map<String, Object>{ 'productId' => productId };
-
-        if (requireServiceAsset) {
-            query += ' AND ProductType__c = :serviceAssetType';
-            binds.put('serviceAssetType', PRODUCT_TYPE_SERVICE_ASSET);
-        }
-
-        query += ' LIMIT 1';
-        List<Product2> products = Database.queryWithBinds(query, binds, AccessLevel.USER_MODE);
+        List<Product2> products = ProductsSelector.selectActiveDetailsForCreateReturnOrder(
+            productId,
+            requireServiceAsset
+        );
         return products.isEmpty() ? null : products[0];
     }
 
@@ -90,12 +65,11 @@ public with sharing class Product2QueryUtil {
         String normalizedProductLine = filterByProductLine ? productLine.trim() : null;
         String searchLikeTerm = buildSearchLikeTerm(searchTerm);
 
-        return queryActiveProducts(
-            PICKLIST_FIELDS,
+        return ProductsSelector.selectForCreateReturnOrderLine(
             normalizedProductLine,
-            filterByProductLine,
             requireServiceAsset,
-            searchLikeTerm
+            searchLikeTerm,
+            200
         );
     }
 
@@ -117,12 +91,11 @@ public with sharing class Product2QueryUtil {
             ? true
             : requireServiceAssetType;
 
-        return queryActiveProducts(
-            CORRECTION_PICKLIST_FIELDS,
+        return ProductsSelector.selectForCreateReturnOrderLine(
             productLine.trim(),
-            true,
             requireServiceAsset,
-            null
+            null,
+            200
         );
     }
 
@@ -135,45 +108,8 @@ public with sharing class Product2QueryUtil {
         if (productId == null) {
             return null;
         }
-
-        List<Product2> products = [
-            SELECT Id, Name, ProductCode
-            FROM Product2
-            WHERE Id = :productId
-            WITH USER_MODE
-            LIMIT 1
-        ];
+        List<Product2> products = ProductsSelector.selectById(new Set<Id>{ productId });
         return products.isEmpty() ? null : products[0];
-    }
-
-    private static List<Product2> queryActiveProducts(
-        String selectFields,
-        String normalizedProductLine,
-        Boolean filterByProductLine,
-        Boolean requireServiceAsset,
-        String searchLikeTerm
-    ) {
-        String query = 'SELECT ' + selectFields + ' FROM Product2 WHERE IsActive = TRUE';
-        Map<String, Object> binds = new Map<String, Object>();
-
-        if (requireServiceAsset) {
-            query += ' AND ProductType__c = :serviceAssetType';
-            binds.put('serviceAssetType', PRODUCT_TYPE_SERVICE_ASSET);
-        }
-        if (filterByProductLine) {
-            query += ' AND ProductLine__c = :normalizedProductLine';
-            binds.put('normalizedProductLine', normalizedProductLine);
-        }
-        if (searchLikeTerm != null) {
-            query +=
-                ' AND (Name LIKE :searchLikeTerm' +
-                ' OR ProductCode LIKE :searchLikeTerm' +
-                ' OR Model__c LIKE :searchLikeTerm)';
-            binds.put('searchLikeTerm', searchLikeTerm);
-        }
-
-        query += ' ORDER BY Name ASC LIMIT ' + DEFAULT_QUERY_LIMIT;
-        return Database.queryWithBinds(query, binds, AccessLevel.USER_MODE);
     }
 
     private static String buildSearchLikeTerm(String searchTerm) {

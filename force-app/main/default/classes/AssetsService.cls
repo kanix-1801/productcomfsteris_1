@@ -1,9 +1,17 @@
 /**
  * @description Service class for Asset business operations.
  *              Entry point for all Asset-related transactions.
- *              Performs DML directly — no Unit of Work.
+ *              Performs DML directly without a Unit of Work.
  */
 public with sharing class AssetsService {
+
+    private static final List<String> ELEVATED_SERIAL_PRODUCT_FIELDS = new List<String>{
+        'Id',
+        'Name',
+        'SerialNumber',
+        'Product2Id',
+        'Product2.ProductCode'
+    };
 
     /**
      * @description Creates new Asset records with validation.
@@ -16,45 +24,12 @@ public with sharing class AssetsService {
         }
         Logger.setScenario('Asset Management');
         try {
-            Assets domain = new Assets(assets);
-            // domain.applyDefaults();
-            // domain.validate();
+            // Domain validate/defaults are not active yet; keep construction for future use.
+            new Assets(assets);
             insert assets;
-        } catch (Assets.AssetsException e) {
-            Logger.error(new LogMessage('AssetsService.createAssets: Validation failed. {0}', e.getMessage()), e);
-            Logger.saveLog();
-            throw new AssetsServiceException(e.getMessage(), e);
         } catch (Exception e) {
             Logger.error('AssetsService.createAssets: Unexpected error.', e);
-            Logger.saveLog();
             throw new AssetsServiceException('An unexpected error occurred while creating Asset records.', e);
-        } finally {
-            Logger.saveLog();
-        }
-    }
-
-    /**
-     * @description Updates existing Asset records with validation.
-     * @param assets List of Asset records to update.
-     * @throws AssetsServiceException when the operation fails.
-     */
-    public static void updateAssets(List<Asset> assets) {
-        if (assets == null || assets.isEmpty()) {
-            return;
-        }
-        Logger.setScenario('Asset Management');
-        try {
-            Assets domain = new Assets(assets);
-            // domain.validate();
-            update assets;
-        } catch (Assets.AssetsException e) {
-            Logger.error(new LogMessage('AssetsService.updateAssets: Validation failed. {0}', e.getMessage()), e);
-            Logger.saveLog();
-            throw new AssetsServiceException(e.getMessage(), e);
-        } catch (Exception e) {
-            Logger.error('AssetsService.updateAssets: Unexpected error.', e);
-            Logger.saveLog();
-            throw new AssetsServiceException('An unexpected error occurred while updating Asset records.', e);
         } finally {
             Logger.saveLog();
         }
@@ -78,7 +53,6 @@ public with sharing class AssetsService {
             delete assetList;
         } catch (Exception e) {
             Logger.error('AssetsService.deleteAssets: Unexpected error.', e);
-            Logger.saveLog();
             throw new AssetsServiceException('An unexpected error occurred while deleting Asset records.', e);
         } finally {
             Logger.saveLog();
@@ -86,31 +60,67 @@ public with sharing class AssetsService {
     }
 
     /**
-     * @description Assets whose serial number and product match a receiving override.
+     * @description GW-6877 - Serial + product Asset lookup that ignores Asset sharing.
+     *              Used by Receiving serial override when the receiver does not own the Asset.
      * @param serialNumbers Listed serial values, including the original casing
-     * @param productId Product on the Return Order line
+     * @param productId Product on the Return Order or Work Order line
      * @return Matching Asset records
      * @throws AssetsServiceException when the query fails
      */
-    public static List<Asset> getAssetsBySerialAndProduct(Set<String> serialNumbers, Id productId) {
+    public static List<Asset> getAssetsBySerialAndProductElevated(
+        Set<String> serialNumbers,
+        Id productId
+    ) {
         if (serialNumbers == null || serialNumbers.isEmpty() || productId == null) {
             return new List<Asset>();
         }
         try {
-            List<Asset> matches = new List<Asset>();
-            for (Asset asset : AssetsSelector.selectBySerialNumber(serialNumbers)) {
-                if (asset.Product2Id == productId) {
-                    matches.add(asset);
-                }
-            }
-            return matches;
+            // Match ReceivingService: compose the query on the Selector builder at Service level.
+            return (List<Asset>) new AssetsSelector()
+                .selectFields(ELEVATED_SERIAL_PRODUCT_FIELDS)
+                .whereField('SerialNumber', 'IN', new List<String>(serialNumbers))
+                .whereEquals('Product2Id', productId)
+                .executeSystemMode();
         } catch (Exception e) {
-            Logger.error('AssetsService.getAssetsBySerialAndProduct: Unexpected error.', e);
-            Logger.saveLog();
+            Logger.error(
+                'AssetsService.getAssetsBySerialAndProductElevated: Unexpected error.',
+                e
+            );
             throw new AssetsServiceException(
                 'An unexpected error occurred while retrieving Asset records.',
                 e
             );
+        } finally {
+            Logger.saveLog();
+        }
+    }
+
+    /**
+     * @description GW-6877 - Updates Asset records ignoring Asset sharing.
+     *              Used by Receiving serial override when the receiver does not own the Asset.
+     * @param assets List of Asset records to update
+     * @throws AssetsServiceException when the operation fails
+     */
+    public static void updateAssetsElevated(List<Asset> assets) {
+        if (assets == null || assets.isEmpty()) {
+            return;
+        }
+        Logger.setScenario('Asset Management');
+        try {
+            // Domain validate is not active yet; keep construction for future use.
+            new Assets(assets);
+            // Match ReceivingFinishService: without sharing + SYSTEM_MODE.
+            // SYSTEM_MODE alone from a with-sharing class still failed for RC technicians
+            // (INSUFFICIENT_ACCESS_OR_READONLY on Private Asset).
+            new AssetSystemAccess().updateAssets(assets);
+        } catch (Exception e) {
+            Logger.error('AssetsService.updateAssetsElevated: Unexpected error.', e);
+            throw new AssetsServiceException(
+                'An unexpected error occurred while updating Asset records.',
+                e
+            );
+        } finally {
+            Logger.saveLog();
         }
     }
 
@@ -128,8 +138,18 @@ public with sharing class AssetsService {
             return AssetsSelector.selectById(assetIds);
         } catch (Exception e) {
             Logger.error('AssetsService.getAssetsById: Unexpected error.', e);
-            Logger.saveLog();
             throw new AssetsServiceException('An unexpected error occurred while retrieving Asset records.', e);
+        } finally {
+            Logger.saveLog();
+        }
+    }
+
+    /**
+     * @description Elevates Asset DML for Receiving serial override (sharing + CRUD).
+     */
+    private without sharing class AssetSystemAccess {
+        private void updateAssets(List<Asset> assets) {
+            Database.update(assets, System.AccessLevel.SYSTEM_MODE);
         }
     }
 

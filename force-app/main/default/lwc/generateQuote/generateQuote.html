@@ -110,7 +110,9 @@
                         <template if:false={isDealerPortal}>
                             <col class="quote-table-col" />
                         </template>
-                        <col class="quote-table-col" />
+                        <template if:true={showTotalColumn}>
+                            <col class="quote-table-col" />
+                        </template>
                         <col class="quote-table-col" />
                         <col class="quote-table-col" />
                         <template if:false={isDealerPortal}>
@@ -131,7 +133,9 @@
                             <template if:false={isDealerPortal}>
                                 <th class="col-forecast-confidence">Quote Forecast Confidence</th>
                             </template>
-                            <th class="col-total">Total w/o Freight</th>
+                            <template if:true={showTotalColumn}>
+                                <th class="col-total">Total w/o Freight</th>
+                            </template>
                             <th class="col-currency">Currency</th>
                             <th class="col-modified">Last Modified Date</th>
                             <template if:false={isDealerPortal}>
@@ -218,11 +222,13 @@
                                     </td>
                                     </template>
 
-                                    <td>
-                                        <div class="truncate" title={quote.totalWithoutFreight}>
-                                            {quote.totalWithoutFreight}
-                                        </div>
-                                    </td>
+                                    <template if:true={showTotalColumn}>
+                                        <td>
+                                            <div class="truncate" title={quote.totalWithoutFreight}>
+                                                {quote.totalWithoutFreight}
+                                            </div>
+                                        </td>
+                                    </template>
 
                                     <td>
                                         <div class="truncate" title={quote.currencyCode}>
@@ -287,10 +293,12 @@
                                                         {quote.description}
                                                     </p>
                                                 </template>
-                                                <table class="slds-table slds-table_bordered slds-table_cell-buffer child-table">
+                                                <table class={quote.childTableClass}>
                                                     <colgroup>
                                                         <col class="child-col-subgroup" />
-                                                        <col class="child-col-total" />
+                                                        <template if:true={quote.showPricing}>
+                                                            <col class="child-col-total" />
+                                                        </template>
                                                     </colgroup>
                                                     <thead>
                                                         <tr>
@@ -337,7 +345,7 @@
                                                                 <tr key={subgroup.linesKey} class="line-item-row">
                                                                     <td colspan={quote.lineDetailColspan} class="line-item-cell">
                                                                         <div class="line-item-table-wrapper">
-                                                                        <table class="slds-table slds-table_bordered slds-table_cell-buffer line-item-table">
+                                                                        <table class={quote.lineItemTableClass}>
                                                                             <colgroup>
                                                                                 <col class="line-item-col-code" />
                                                                                 <col class="line-item-col-product" />
@@ -436,7 +444,7 @@
 
                         <template if:false={hasQuotes}>
                             <tr>
-                                <td colspan="7" class="slds-text-align_center slds-p-around_medium">
+                                <td colspan={headerColumnCount} class="slds-text-align_center slds-p-around_medium">
                                     No quotes available
                                 </td>
                             </tr>

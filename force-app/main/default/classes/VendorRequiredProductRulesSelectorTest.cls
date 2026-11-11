@@ -4,9 +4,20 @@
 @IsTest
 private class VendorRequiredProductRulesSelectorTest {
     @IsTest
-    static void testSelectActive_returnsOnlyActiveRules() {
+    static void testActiveRulesQuery_builtByCaller_returnsOnlyActiveRules() {
         Test.startTest();
-        List<VendorRequiredProductRule__mdt> rules = VendorRequiredProductRulesSelector.selectActive();
+        List<VendorRequiredProductRule__mdt> rules =
+            (List<VendorRequiredProductRule__mdt>) new VendorRequiredProductRulesSelector()
+                .selectFields(
+                    new List<String>{
+                        'ProductLine__c',
+                        'SubProductLine__c',
+                        'DeviceType__c',
+                        'IsActive__c'
+                    }
+                )
+                .whereEquals('IsActive__c', true)
+                .execute();
         Test.stopTest();
 
         Assert.isNotNull(rules, 'Active rule query should return a list');

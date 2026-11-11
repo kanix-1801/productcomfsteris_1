@@ -1,0 +1,11 @@
+<design:component label="LS Customer 360 Record Template">
+    <flexipage:template>
+        <flexipage:region name="header" label="Header" defaultWidth="Large" />
+        <flexipage:region name="main" label="Main Region" defaultWidth="Large" />
+        <flexipage:region name="sidebar" label="Sidebar" defaultWidth="Small" />
+    </flexipage:template>
+    <design:supportedFormFactors>
+        <design:supportedFormFactor type="Large" />
+        <design:supportedFormFactor type="Small" />
+    </design:supportedFormFactors>
+</design:component>

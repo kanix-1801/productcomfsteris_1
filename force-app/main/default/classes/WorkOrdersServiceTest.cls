@@ -1942,7 +1942,7 @@ private class WorkOrdersServiceTest {
                     ItemCode__c,
                     ItemDescription__c,
                     PricebookEntryId,
-                    Product__c,
+                    Product2Id,
                     ProductCodeWoli__c,
                     ProductDescription__c,
                     TopLevelWorkOrder__c,
@@ -1966,7 +1966,11 @@ private class WorkOrdersServiceTest {
                 Assert.areEqual('ITEM-5748', childLine.ItemCode__c);
                 Assert.areEqual('Item Description 5748', childLine.ItemDescription__c);
                 Assert.areEqual(parentLine.PricebookEntryId, childLine.PricebookEntryId);
-                Assert.areEqual(parentLine.Product__c, childLine.Product__c);
+                Assert.isNotNull(
+                    childLine.Product2Id,
+                    'Child Service Code should resolve Product2Id from PricebookEntryId'
+                );
+                Assert.areEqual(parentLine.Item__c, childLine.Product2Id);
                 Assert.areEqual('DIV-SC-5748-A', childLine.ProductCodeWoli__c);
                 Assert.areEqual('Product Description 5748', childLine.ProductDescription__c);
                 Assert.areEqual(parent.Id, childLine.TopLevelWorkOrder__c);
@@ -3628,7 +3632,7 @@ private class WorkOrdersServiceTest {
                     WorkOrderId,
                     PricebookEntryId,
                     Model__c,
-                    Product__c,
+                    Product2Id,
                     Item__c,
                     ProductLine__c
                 FROM WorkOrderLineItem
@@ -3650,7 +3654,10 @@ private class WorkOrdersServiceTest {
                 productServiced.TopLevelWorkOrder__c,
                 'Top Level should be WO.Parent Work Order only (null when no parent)'
             );
-            Assert.isNull(productServiced.Product__c, 'Product Serviced should not set Product__c');
+            Assert.isNotNull(
+                productServiced.Product2Id,
+                'Product Serviced should resolve Product2Id from PricebookEntryId'
+            );
             Assert.isNull(productServiced.Item__c, 'Product Serviced should not set Item__c');
             Assert.isNotNull(productServiced.PricebookEntryId);
             Assert.areEqual(1, items.size());
@@ -4283,6 +4290,55 @@ private class WorkOrdersServiceTest {
     }
 
     /**
+     * @description GW-5677 - Divide copies Additional Services Requested onto each child.
+     */
+    @IsTest
+    static void testCompleteDivideInstruments_CopiesAdditionalServicesRequested() {
+        User testUser = new User(Id = UserInfo.getUserId());
+        System.runAs(testUser) {
+            adb_OperatingHours operatingHours = new adb_OperatingHours().timeZone('America/New_York');
+            adb_Location repairCenter = new adb_Location().operatingHours(operatingHours);
+            adb_WorkOrder builder = new adb_WorkOrder()
+                .setRecordType('RepairCenterInstruments')
+                .repairCenter(repairCenter);
+            builder.persist();
+            WorkOrder created = (WorkOrder) builder.record;
+            created.EstimateRequired__c = 'Estimate Required';
+            created.CustomerPORequired__c = false;
+            created.RepairWarranty__c = 'No';
+            created.ContinuousImprovementOpportunity__c = false;
+            created.AdditionalServicesRequested__c = '1. ROLI-1 Forceps: Repair';
+            update created;
+            WorkOrdersService.initializeDivideInstruments(created.Id);
+
+            WorkOrdersService.DivideInstrumentsBin bin = new WorkOrdersService.DivideInstrumentsBin();
+            bin.repairCategory = 'Stainless';
+            bin.quantity = 1;
+            bin.turnTime = 3;
+
+            Test.startTest();
+            WorkOrdersService.completeDivideInstruments(
+                created.Id,
+                1,
+                new List<WorkOrdersService.DivideInstrumentsBin>{ bin }
+            );
+            Test.stopTest();
+
+            WorkOrder child = [
+                SELECT AdditionalServicesRequested__c
+                FROM WorkOrder
+                WHERE ParentWorkOrderId = :created.Id
+                LIMIT 1
+            ];
+            Assert.areEqual(
+                '1. ROLI-1 Forceps: Repair',
+                child.AdditionalServicesRequested__c,
+                'Divide should copy Additional Services Requested from the parent'
+            );
+        }
+    }
+
+    /**
      * @description GW-2891 - Parent Instruments Work Order for Divide Instruments tests.
      */
     private static WorkOrder createDivideInstrumentsParentWorkOrder() {
@@ -4347,7 +4403,6 @@ private class WorkOrdersServiceTest {
             ItemCode__c = 'ITEM-5748',
             ItemDescription__c = 'Item Description 5748',
             PricebookEntryId = pbe.Id,
-            Product__c = serviceProduct.Id,
             ProductCodeWoli__c = productCode,
             ProductDescription__c = 'Product Description 5748',
             TopLevelWorkOrder__c = parent.Id,
@@ -6442,8 +6497,7 @@ private class WorkOrdersServiceTest {
             RecordTypeId = otherRtId,
             Pricebook2Id = Test.getStandardPricebookId(),
             Vendor__c = vendor.Id,
-            InstructionsToVendor__c = 'Handle with care',
-            TrackingNumber__c = '123456789'
+            InstructionsToVendor__c = 'Handle with care'
         );
         insert vendorWo;
 
@@ -6455,7 +6509,7 @@ private class WorkOrdersServiceTest {
         Assert.isNotNull(details);
         Assert.areEqual(vendor.Id, details.vendorAccountId);
         Assert.areEqual('Handle with care', details.instructionsToVendor);
-        Assert.areEqual('123456789', details.trackingNumber);
+        Assert.isNull(details.trackingNumber, 'No Vendor Return Order shipment yet (GW-6358)');
         Assert.isNull(WorkOrdersService.getVendorWorkOrderHeaderDetails(null));
     }
 
@@ -6615,8 +6669,7 @@ private class WorkOrdersServiceTest {
                 STERISPurchaseOrdertoVendor__c,
                 VendorNotes__c,
                 VendorReferenceNumber__c,
-                VendorCost__c,
-                TrackingNumber__c
+                VendorCost__c
             FROM WorkOrder
             WHERE Id = :vendorWo.Id
         ];
@@ -6625,7 +6678,6 @@ private class WorkOrdersServiceTest {
         Assert.areEqual('Updated notes', syncedVendorWo.VendorNotes__c);
         Assert.areEqual('REF-NEW', syncedVendorWo.VendorReferenceNumber__c);
         Assert.areEqual(99.5, syncedVendorWo.VendorCost__c);
-        Assert.areEqual('TRACK-1', syncedVendorWo.TrackingNumber__c);
 
         WorkOrderLineItem syncedVendorPs = [
             SELECT Vendor__c, InstructionsToVendor__c
@@ -8011,8 +8063,12 @@ private class WorkOrdersServiceTest {
         Assert.isTrue(techBlank);
     }
 
+    /**
+     * @description GW-6358 - Vendor header tracking number comes from the first Shipment of the
+     *              Vendor Return Order, and the parent Work Order lookup is returned per Work Order.
+     */
     @IsTest
-    static void testUpdateWorkOrdersWithVendorFedExTracking_copiesTracking() {
+    static void testVendorShipmentTracking_readsFirstShipmentAndParent() {
         Account customer = new Account(
             Name = 'WOS FedEx Track Cust',
             SystemID__c = 'LEG-WOS-FXC',
@@ -8045,32 +8101,42 @@ private class WorkOrdersServiceTest {
         Id otherRtId = Schema.SObjectType.WorkOrder.getRecordTypeInfosByDeveloperName()
             .get('RepairCenterVendor')
             ?.getRecordTypeId();
+        WorkOrder parentWo = new WorkOrder(
+            Subject = 'WOS FX Track Parent WO',
+            Status = 'Received',
+            AccountId = customer.Id,
+            Pricebook2Id = Test.getStandardPricebookId()
+        );
+        insert parentWo;
         WorkOrder vendorWo = new WorkOrder(
             Subject = 'WOS FX Track WO',
             Status = 'Ship to Vendor',
             AccountId = customer.Id,
             RecordTypeId = otherRtId,
             Pricebook2Id = Test.getStandardPricebookId(),
-            Vendor__c = vendor.Id
+            Vendor__c = vendor.Id,
+            ParentWorkOrderId = parentWo.Id
         );
         vendorWo.put('VendorReturnOrder__c', vendorRo.Id);
         insert vendorWo;
 
-        WorkOrdersService.updateWorkOrdersWithVendorFedExTracking(null);
-        WorkOrdersService.updateWorkOrdersWithVendorFedExTracking(new Map<Id, String>());
+        // The first shipment of the Vendor Return Order holds the tracking number shown in the evaluation
+        Shipment firstShipment = ShipmentsService.buildFedExShipment(vendorRo.Id, parentWo.Id, 'TRACK-WOS-001', 'Vendor');
+        insert firstShipment;
+        Shipment laterShipment = ShipmentsService.buildFedExShipment(vendorRo.Id, parentWo.Id, 'TRACK-WOS-002', 'Vendor');
+        insert laterShipment;
 
         Test.startTest();
-        WorkOrdersService.updateWorkOrdersWithVendorFedExTracking(
-            new Map<Id, String>{ vendorRo.Id => 'TRACK-WOS-001' }
-        );
+        WorkOrdersService.VendorHeaderDetails details =
+            WorkOrdersService.getVendorWorkOrderHeaderDetails(vendorWo.Id);
+        Map<Id, Id> parentByWorkOrderId =
+            WorkOrdersService.getParentWorkOrderIdByWorkOrderId(new Set<Id>{ vendorWo.Id });
         Test.stopTest();
 
-        WorkOrder refreshed = [
-            SELECT TrackingNumber__c
-            FROM WorkOrder
-            WHERE Id = :vendorWo.Id
-        ];
-        Assert.areEqual('TRACK-WOS-001', refreshed.TrackingNumber__c);
+        Assert.areEqual('TRACK-WOS-001', details.trackingNumber, 'The first shipment tracking number should be used');
+        Assert.areEqual(parentWo.Id, parentByWorkOrderId.get(vendorWo.Id), 'The parent Work Order should be returned');
+        Assert.isTrue(WorkOrdersService.getParentWorkOrderIdByWorkOrderId(null).isEmpty(), 'Null input');
+        Assert.isTrue(WorkOrdersService.getParentWorkOrderIdByWorkOrderId(new Set<Id>()).isEmpty(), 'Empty input');
     }
 
     /**
@@ -8696,7 +8762,6 @@ private class WorkOrdersServiceTest {
                 ParentWorkOrderLineItemId = productLines[0].Id,
                 RecordTypeId = repairCodeRtId,
                 PricebookEntryId = pricebookEntryIdByProductId.get(repairProduct.Id),
-                Product__c = repairProduct.Id,
                 Quantity = productLines[0].Quantity,
                 ProductCodeWoli__c = repairProduct.ProductCode
             );

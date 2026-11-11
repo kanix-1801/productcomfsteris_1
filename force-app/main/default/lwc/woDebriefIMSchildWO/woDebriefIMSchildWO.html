@@ -81,6 +81,14 @@
 						onchange={handleMobilePictureSelected} />
 					Mobile Device Picture
 				</label>
+				<button
+					type="button"
+					class="mobile-picture-button microscope-picture-button"
+					data-scope="tray"
+					data-id={recordId}
+					onclick={handleOpenMicroscopeCamera}>
+					Microscope Picture
+				</button>
 				<span class="picture-count">{trayPictureCountLabel}</span>
 			</div>
 		</div>
@@ -439,6 +447,14 @@
 															onchange={handleMobilePictureSelected} />
 														Mobile Device Picture
 													</label>
+													<button
+														type="button"
+														class="mobile-picture-button microscope-picture-button"
+														data-scope="line"
+														data-id={line.Id}
+														onclick={handleOpenMicroscopeCamera}>
+														Microscope Picture
+													</button>
 													<span class="picture-count">{line.mobilePictureCountLabel}</span>
 												</div>
 												<template lwc:if={line.hasMobilePictures}>
@@ -936,6 +952,13 @@
 														onchange={handleMobilePictureSelected} />
 													Mobile Device Picture
 												</label>
+												<button
+													type="button"
+													class="mobile-picture-button microscope-picture-button"
+													data-scope="add"
+													onclick={handleOpenMicroscopeCamera}>
+													Microscope Picture
+												</button>
 												<span class="picture-count">{addFormMobilePictureCountLabel}</span>
 											</div>
 											<template lwc:if={hasAddFormMobilePictures}>
@@ -1260,7 +1283,7 @@
 		<section role="dialog" tabindex="-1" aria-modal="true" aria-labelledby="picture-review-heading" class="slds-modal slds-fade-in-open picture-review-modal">
 			<div class="slds-modal__container">
 				<header class="slds-modal__header">
-					<h2 id="picture-review-heading" class="slds-modal__title">Mobile Device Picture</h2>
+					<h2 id="picture-review-heading" class="slds-modal__title">{reviewPictureTitle}</h2>
 				</header>
 				<div class="slds-modal__content slds-p-around_medium picture-review-content">
 					<template lwc:if={reviewPictureLoading}>
@@ -1283,6 +1306,23 @@
 			</div>
 		</section>
 		<div class="slds-backdrop slds-backdrop_open picture-review-backdrop"></div>
+	</template>
+
+	<template lwc:if={showMicroscopeCamera}>
+		<section role="dialog" tabindex="-1" aria-modal="true" aria-label="Microscope Picture" class="slds-modal slds-fade-in-open microscope-camera-modal">
+			<div class="slds-modal__container">
+				<c-woli-microscope-capture-mobile
+					class="microscope-camera"
+					lwc:ref="microscopeCamera"
+					save-mode="emit"
+					onphotocaptured={handleMicroscopePhotoCaptured}
+					onmarkupsaved={handleMicroscopeMarkupSaved}
+					onmarkupcancelled={handleMicroscopeMarkupCancelled}
+					onclose={handleCloseMicroscopeCamera}>
+				</c-woli-microscope-capture-mobile>
+			</div>
+		</section>
+		<div class="slds-backdrop slds-backdrop_open microscope-camera-backdrop"></div>
 	</template>
 
 	<template lwc:if={showPictureDetails}>
@@ -1327,6 +1367,9 @@
 				</div>
 				<footer class="slds-modal__footer">
 					<lightning-button label="Cancel" onclick={handlePictureDetailsCancel}></lightning-button>
+					<template lwc:if={showPictureMarkup}>
+						<lightning-button label="Mark up" icon-name="utility:edit" onclick={handlePictureMarkup}></lightning-button>
+					</template>
 					<lightning-button label="Save Picture" variant="brand" onclick={handlePictureDetailsConfirm}></lightning-button>
 				</footer>
 			</div>

@@ -350,4 +350,235 @@ private class AccountSelectorTest {
 
         Assert.areEqual(1, results.size());
     }
+
+    // ---- Remaining SoqlQueryBuilder paths ---------------------------------------------------
+
+    @IsTest
+    static void selectBySearchCriteria_noFilters_returnsOrderedAccounts() {
+        Test.startTest();
+        List<Account> results = AccountSelector.selectBySearchCriteria(null, null);
+        Test.stopTest();
+        Assert.isFalse(results.isEmpty());
+    }
+
+    @IsTest
+    static void selectBySearchCriteria_searchOnly_returnsNameOrNumberMatches() {
+        Test.startTest();
+        List<Account> results = AccountSelector.selectBySearchCriteria('Acme', null);
+        Test.stopTest();
+        Assert.isFalse(results.isEmpty());
+    }
+
+    @IsTest
+    static void selectBySearchCriteria_searchAndCustomerType_returnsMatches() {
+        Test.startTest();
+        List<Account> results = AccountSelector.selectBySearchCriteria('Acme', 'Customer');
+        Test.stopTest();
+        Assert.isFalse(results.isEmpty());
+        for (Account row : results) {
+            Assert.areEqual('Customer', row.Type);
+        }
+    }
+
+    @IsTest
+    static void selectShipToAddressAccountsByParentId_null_returnsEmpty() {
+        Assert.areEqual(0, AccountSelector.selectShipToAddressAccountsByParentId(null).size());
+    }
+
+    @IsTest
+    static void selectShipToAddressAccountsByParentId_primaryAddress_returnsRow() {
+        Id parentAccountId = parentId();
+        adb_Account shipToBuilder = new adb_Account()
+            .name('Ship To Primary Address')
+            .accountNumber('SHIP-1')
+            .sourceSystemId('SHIP-SRC-1');
+        shipToBuilder.set(Account.ParentId, parentAccountId);
+        shipToBuilder.set(Account.Type, 'Address');
+        shipToBuilder.set(Account.ShiptoAddressStatus__c, 'Primary');
+        Account shipTo = (Account) shipToBuilder.persist();
+
+        Test.startTest();
+        List<Account> results = AccountSelector.selectShipToAddressAccountsByParentId(parentAccountId);
+        Test.stopTest();
+
+        Boolean found = false;
+        for (Account row : results) {
+            if (row.Id == shipTo.Id) {
+                found = true;
+                break;
+            }
+        }
+        Assert.isTrue(found);
+    }
+
+    @IsTest
+    static void selectForOraclePricingByIds_nullOrEmpty_returnsEmptyMap() {
+        Assert.isTrue(AccountSelector.selectForOraclePricingByIds(null).isEmpty());
+        Assert.isTrue(AccountSelector.selectForOraclePricingByIds(new Set<Id>()).isEmpty());
+    }
+
+    @IsTest
+    static void selectForOraclePricingByIds_validIds_returnsMap() {
+        Account acc = [SELECT Id FROM Account WHERE AccountNumber = '1001' LIMIT 1];
+        Test.startTest();
+        Map<Id, Account> results = AccountSelector.selectForOraclePricingByIds(new Set<Id>{ acc.Id });
+        Test.stopTest();
+        Assert.areEqual(1, results.size());
+        Assert.isTrue(results.containsKey(acc.Id));
+    }
+
+    @IsTest
+    static void selectOracleAddressAccountsForPricing_null_returnsEmpty() {
+        Assert.areEqual(0, AccountSelector.selectOracleAddressAccountsForPricing(null).size());
+    }
+
+    @IsTest
+    static void selectOracleAddressAccountsForPricing_primaryAddress_returnsRow() {
+        Id parentAccountId = parentId();
+        adb_Account shipToBuilder = new adb_Account()
+            .name('Oracle Pricing Ship To')
+            .accountNumber('ORACLE-SHIP-1')
+            .sourceSystemId('ORACLE-SHIP-SRC-1');
+        shipToBuilder.set(Account.ParentId, parentAccountId);
+        shipToBuilder.set(Account.Type, 'Address');
+        shipToBuilder.set(Account.ShiptoAddressStatus__c, 'Primary');
+        Account shipTo = (Account) shipToBuilder.persist();
+
+        Test.startTest();
+        List<Account> results = AccountSelector.selectOracleAddressAccountsForPricing(parentAccountId);
+        Test.stopTest();
+
+        Boolean found = false;
+        for (Account row : results) {
+            if (row.Id == shipTo.Id) {
+                found = true;
+                break;
+            }
+        }
+        Assert.isTrue(found);
+    }
+
+    @IsTest
+    static void selectInternalAccountsForReceiving_returnsTypeI() {
+        adb_Account internalBuilder = new adb_Account()
+            .name('Receiving Internal Cover')
+            .accountNumber('RECV-INT-COV')
+            .sourceSystemId('RECV-INT-COV-SRC');
+        internalBuilder.set(Account.Type, 'I');
+        Account internalAccount = (Account) internalBuilder.persist();
+
+        Test.startTest();
+        List<Account> results = AccountSelector.selectInternalAccountsForReceiving();
+        Test.stopTest();
+
+        Boolean found = false;
+        for (Account row : results) {
+            if (row.Id == internalAccount.Id) {
+                found = true;
+                break;
+            }
+        }
+        Assert.isTrue(found);
+    }
+
+    @IsTest
+    static void selectVendorAccountsForReceiving_returnsVendor() {
+        adb_Account vendorBuilder = new adb_Account()
+            .name('Receiving Vendor Cover')
+            .accountNumber('RECV-VEN-COV')
+            .sourceSystemId('RECV-VEN-COV-SRC');
+        vendorBuilder.set(Account.Type, 'Vendor');
+        Account vendorAccount = (Account) vendorBuilder.persist();
+
+        Test.startTest();
+        List<Account> results = AccountSelector.selectVendorAccountsForReceiving();
+        Test.stopTest();
+
+        Boolean found = false;
+        for (Account row : results) {
+            if (row.Id == vendorAccount.Id) {
+                found = true;
+                break;
+            }
+        }
+        Assert.isTrue(found);
+    }
+
+    @IsTest
+    static void selectBillingAddressByIds_nullOrEmpty_returnsEmpty() {
+        Assert.areEqual(0, AccountSelector.selectBillingAddressByIds(null).size());
+        Assert.areEqual(0, AccountSelector.selectBillingAddressByIds(new Set<Id>()).size());
+    }
+
+    @IsTest
+    static void selectBillingAddressByIds_validIds_returnsRow() {
+        Account acc = [SELECT Id FROM Account WHERE AccountNumber = '1001' LIMIT 1];
+        Test.startTest();
+        List<Account> results = AccountSelector.selectBillingAddressByIds(new Set<Id>{ acc.Id });
+        Test.stopTest();
+        Assert.areEqual(1, results.size());
+    }
+
+    @IsTest
+    static void selectAccountNumberByIdForReceiving_nullAndValid() {
+        Account acc = [SELECT Id, AccountNumber FROM Account WHERE AccountNumber = '1001' LIMIT 1];
+        Assert.areEqual(0, AccountSelector.selectAccountNumberByIdForReceiving(null).size());
+        Test.startTest();
+        List<Account> results = AccountSelector.selectAccountNumberByIdForReceiving(acc.Id);
+        Test.stopTest();
+        Assert.areEqual(1, results.size());
+        Assert.areEqual('1001', results[0].AccountNumber);
+    }
+
+    @IsTest
+    static void selectPrimaryBillToByAccountNumber_blankAndPrimary() {
+        Assert.areEqual(0, AccountSelector.selectPrimaryBillToByAccountNumber(null).size());
+        Assert.areEqual(0, AccountSelector.selectPrimaryBillToByAccountNumber('').size());
+
+        adb_Account billToBuilder = new adb_Account()
+            .name('Primary Bill To Cover')
+            .accountNumber('1001')
+            .sourceSystemId('BILL-COV-SRC');
+        billToBuilder.set(Account.Type, 'Address');
+        billToBuilder.set(Account.BilltoAddressStatus__c, 'Primary');
+        Account billTo = (Account) billToBuilder.persist();
+
+        Test.startTest();
+        List<Account> results = AccountSelector.selectPrimaryBillToByAccountNumber('1001');
+        Test.stopTest();
+        Assert.areEqual(1, results.size());
+        Assert.areEqual(billTo.Id, results[0].Id);
+    }
+
+    @IsTest
+    static void selectAddressAccountsByOracleAddressIds_nullOrEmpty_returnsEmpty() {
+        Assert.areEqual(0, AccountSelector.selectAddressAccountsByOracleAddressIds(null).size());
+        Assert.areEqual(
+            0,
+            AccountSelector.selectAddressAccountsByOracleAddressIds(new Set<String>()).size()
+        );
+    }
+
+    @IsTest
+    static void selectAddressAccountsByOracleAddressIds_validIds_returnsAddress() {
+        Account addressAcc = [
+            SELECT Id, OracleAddressId__c
+            FROM Account
+            WHERE AccountNumber = '1003'
+            LIMIT 1
+        ];
+        Test.startTest();
+        List<Account> results = AccountSelector.selectAddressAccountsByOracleAddressIds(
+            new Set<String>{ addressAcc.OracleAddressId__c }
+        );
+        Test.stopTest();
+        Assert.isFalse(results.isEmpty());
+    }
+
+    @IsTest
+    static void testSelectByIdsNullOrEmptyReturnsEmpty_sprint93Coverage() {
+        Assert.areEqual(0, AccountSelector.selectByIds(null).size());
+        Assert.areEqual(0, AccountSelector.selectByIds(new Set<Id>()).size());
+    }
+
 }

@@ -3,7 +3,8 @@
  * @date 2026/10/14
  *
  * @description Test coverage for OppEppConversionQuoteService (GC-3457 UC3 EPP conversion quote closure).
- *              Also exercises OppEppConversionQuoteBannerController and OppEppConversionQuoteSelectionAction.
+ *              Also exercises OppEppConversionQuoteBannerController, OppEppConversionQuoteSelectionAction,
+ *              and OppEppConversionQuoteClosureAction.
  */
 @IsTest
 private class OppEppConvQuoteBannerTest {
@@ -66,6 +67,43 @@ private class OppEppConvQuoteBannerTest {
         ];
 
         System.assertEquals(true, updatedOpportunity.PendingEppConversionQuoteClosure__c);
+    }
+
+    @IsTest
+    static void flowClosureActionIgnoresNullAndBlankInputs() {
+        Test.startTest();
+        OppEppConversionQuoteClosureAction.stageBanner(null);
+        OppEppConversionQuoteClosureAction.FlowInput blankInput =
+            new OppEppConversionQuoteClosureAction.FlowInput();
+        OppEppConversionQuoteClosureAction.stageBanner(
+            new List<OppEppConversionQuoteClosureAction.FlowInput>{ null, blankInput }
+        );
+        Test.stopTest();
+    }
+
+    @IsTest
+    static void flowClosureActionStagesBannerWhenOpenQuotesExist() {
+        Opportunity opportunityRecord = getTestOpportunity();
+        insertQuote(opportunityRecord, 'EPP Flow Closure Quote', 'Open');
+
+        OppEppConversionQuoteClosureAction.FlowInput flowInput =
+            new OppEppConversionQuoteClosureAction.FlowInput();
+        flowInput.opportunityId = opportunityRecord.Id;
+
+        Test.startTest();
+        OppEppConversionQuoteClosureAction.stageBanner(
+            new List<OppEppConversionQuoteClosureAction.FlowInput>{ flowInput }
+        );
+        Test.stopTest();
+
+        System.assertEquals(
+            true,
+            [
+                SELECT PendingEppConversionQuoteClosure__c
+                FROM Opportunity
+                WHERE Id = :opportunityRecord.Id
+            ].PendingEppConversionQuoteClosure__c
+        );
     }
 
     @IsTest
@@ -163,6 +201,89 @@ private class OppEppConvQuoteBannerTest {
         }
         Test.stopTest();
 
+        System.assertEquals(true, exceptionThrown);
+    }
+
+    @IsTest
+    static void testGetBannerContextWrapsUnexpectedErrors() {
+        OppEppConversionQuoteBannerController.forceExceptionForTest = true;
+        Boolean exceptionThrown = false;
+
+        Test.startTest();
+        try {
+            OppEppConversionQuoteBannerController.getBannerContext(null);
+        } catch (AuraHandledException exceptionValue) {
+            exceptionThrown = true;
+        }
+        Test.stopTest();
+
+        OppEppConversionQuoteBannerController.forceExceptionForTest = false;
+        System.assertEquals(true, exceptionThrown);
+    }
+
+    @IsTest
+    static void testCloseAllOpenQuotesWrapsForcedUnexpectedErrors() {
+        OppEppConversionQuoteBannerController.forceExceptionForTest = true;
+        Boolean exceptionThrown = false;
+
+        Test.startTest();
+        try {
+            OppEppConversionQuoteBannerController.closeAllOpenQuotes(null);
+        } catch (AuraHandledException exceptionValue) {
+            exceptionThrown = true;
+        }
+        Test.stopTest();
+
+        OppEppConversionQuoteBannerController.forceExceptionForTest = false;
+        System.assertEquals(true, exceptionThrown);
+    }
+
+    @IsTest
+    static void testCloseAllOpenQuotesRethrowsAuraHandledException() {
+        Boolean exceptionThrown = false;
+
+        Test.startTest();
+        try {
+            OppEppConversionQuoteBannerController.closeAllOpenQuotes(null);
+        } catch (AuraHandledException exceptionValue) {
+            exceptionThrown = true;
+        }
+        Test.stopTest();
+
+        System.assertEquals(true, exceptionThrown);
+    }
+
+    @IsTest
+    static void testReconcileStaleBannerWrapsUnexpectedErrors() {
+        OppEppConversionQuoteBannerController.forceExceptionForTest = true;
+        Boolean exceptionThrown = false;
+
+        Test.startTest();
+        try {
+            OppEppConversionQuoteBannerController.reconcileStaleBanner(null);
+        } catch (AuraHandledException exceptionValue) {
+            exceptionThrown = true;
+        }
+        Test.stopTest();
+
+        OppEppConversionQuoteBannerController.forceExceptionForTest = false;
+        System.assertEquals(true, exceptionThrown);
+    }
+
+    @IsTest
+    static void testDismissBannerWrapsUnexpectedErrors() {
+        OppEppConversionQuoteBannerController.forceExceptionForTest = true;
+        Boolean exceptionThrown = false;
+
+        Test.startTest();
+        try {
+            OppEppConversionQuoteBannerController.dismissBanner(null);
+        } catch (AuraHandledException exceptionValue) {
+            exceptionThrown = true;
+        }
+        Test.stopTest();
+
+        OppEppConversionQuoteBannerController.forceExceptionForTest = false;
         System.assertEquals(true, exceptionThrown);
     }
 
@@ -306,32 +427,33 @@ private class OppEppConvQuoteBannerTest {
             new Quote()
         };
 
-        Test.startTest();
-        System.assertEquals(0, OppEppConversionQuoteSelectionAction.reviewQuotes(null).size());
-        List<OppEppConversionQuoteSelectionAction.Response> listed =
+        List<OppEppConversionQuoteSelectionAction.Response> listed;
+        System.runAs(getQuoteAutomationRunAsUser()) {
+            Test.startTest();
+            System.assertEquals(0, OppEppConversionQuoteSelectionAction.reviewQuotes(null).size());
+            listed =
+                OppEppConversionQuoteSelectionAction.reviewQuotes(
+                    new List<OppEppConversionQuoteSelectionAction.Request>{ null, listRequest }
+                );
             OppEppConversionQuoteSelectionAction.reviewQuotes(
-                new List<OppEppConversionQuoteSelectionAction.Request>{ null, listRequest }
+                new List<OppEppConversionQuoteSelectionAction.Request>{ closeRequest }
             );
-        OppEppConversionQuoteSelectionAction.reviewQuotes(
-            new List<OppEppConversionQuoteSelectionAction.Request>{ closeRequest }
-        );
-        OppEppConversionQuoteService.closeSelectedQuotes(null, null);
-        OppEppConversionQuoteService.closeSelectedQuotes(opportunityRecord.Id, new Set<Id>());
-        OppEppConversionQuoteService.closeSelectedQuotes(
-            opportunityRecord.Id,
-            new Set<Id>{ otherQuote.Id }
-        );
-        OppEppConversionQuoteService.dismissBanner(opportunityRecord.Id);
-        OppEppConversionQuoteService.dismissBanner(null);
-        OppEppConversionQuoteService.stageBannerAfterConversion(null);
-        OppEppConversionQuoteService.syncBannerStateForOpportunityIds(null);
-        OppEppConversionQuoteService.syncBannerStateForOpportunityIds(
-            new Set<Id>{ opportunityRecord.Id }
-        );
-        OppEppConversionQuoteService.reconcileStaleBanner(null);
-        OppEppConversionQuoteService.reconcileStaleBanner(opportunityRecord.Id);
-        OppEppConversionQuoteService.getBannerContext(null);
-        Test.stopTest();
+            OppEppConversionQuoteService.closeSelectedQuotes(null, null);
+            OppEppConversionQuoteService.closeSelectedQuotes(opportunityRecord.Id, new Set<Id>());
+            OppEppConversionQuoteService.dismissBanner(opportunityRecord.Id);
+            OppEppConversionQuoteService.dismissBanner(null);
+            OppEppConversionQuoteService.stageBannerAfterConversion(null);
+            OppEppConversionQuoteService.syncBannerStateForOpportunityIds(null);
+            OppEppConversionQuoteService.syncBannerStateForOpportunityIds(
+                new Set<Id>{ opportunityRecord.Id }
+            );
+            OppEppConversionQuoteService.reconcileStaleBanner(null);
+            OppEppConversionQuoteService.reconcileStaleBanner(opportunityRecord.Id);
+            OppEppConversionQuoteService.getBannerContext(null);
+            Test.stopTest();
+        }
+
+        ScOpportunityQuoteEventGateway.forceHardcodedResponse = false;
 
         System.assertEquals(2, listed[1].openQuotes.size());
         System.assertEquals(

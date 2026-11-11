@@ -560,7 +560,9 @@ private class InstrumentEvaluationControllerTest {
     @IsTest
     static void testInitializeAndSave_WhenDefaultClient_UsesService() {
         InstrumentEvaluationController.clientOverride = null;
+        WorkOrder parentWorkOrder = createInstrumentEvaluationParentWorkOrder();
         WorkOrder created = createInstrumentEvaluationParentWorkOrder();
+        update new WorkOrder(Id = created.Id, ParentWorkOrderId = parentWorkOrder.Id);
 
         Test.startTest();
         InstrumentEvaluationController.Workspace started =
@@ -590,11 +592,12 @@ private class InstrumentEvaluationControllerTest {
             InstrumentEvaluationController.getEvaluationItems(created.Id);
         List<InstrumentEvaluationController.RepairSignatureRow> signatures =
             InstrumentEvaluationController.getRepairSignatures(created.Id);
-        List<Id> draftIds = InstrumentEvaluationController.saveDraftItems(
-            created.Id,
-            new List<InstrumentEvaluationController.DraftItemInput>(),
-            false
-        );
+        InstrumentEvaluationController.DraftSaveResult draftIds =
+            InstrumentEvaluationController.saveDraftItems(
+                created.Id,
+                new List<InstrumentEvaluationController.DraftItemInput>(),
+                false
+            );
         Test.stopTest();
 
         Assert.areEqual(created.Id, started.workOrderId);
@@ -1074,11 +1077,12 @@ private class InstrumentEvaluationControllerTest {
         Test.startTest();
         InstrumentEvaluationController.Workspace workspace =
             InstrumentEvaluationController.initializeEvaluation(created.Id);
-        List<Id> savedDraftIds = InstrumentEvaluationController.saveDraftItems(
-            created.Id,
-            new List<InstrumentEvaluationController.DraftItemInput>{ draft, null },
-            false
-        );
+        InstrumentEvaluationController.DraftSaveResult savedDraft =
+            InstrumentEvaluationController.saveDraftItems(
+                created.Id,
+                new List<InstrumentEvaluationController.DraftItemInput>{ draft, null },
+                false
+            );
         WorkOrdersService.VendorAddressResult address =
             InstrumentEvaluationController.getVendorAddress(vendorAccount.Id);
         List<InstrumentEvaluationController.RepairSignatureRow> signatures =
@@ -1142,7 +1146,7 @@ private class InstrumentEvaluationControllerTest {
             subStatusValues.contains('Angulation'),
             'Device-only Sub Status values must be excluded for Instruments'
         );
-        Assert.areEqual(1, savedDraftIds.size());
+        Assert.areEqual(1, savedDraft.productServicedIds.size());
         Assert.isNotNull(address);
         Assert.areEqual('', blankAddress.formattedAddress);
         Assert.isNotNull(signatures);

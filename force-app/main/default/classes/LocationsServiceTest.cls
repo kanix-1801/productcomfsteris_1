@@ -139,4 +139,26 @@ private class LocationsServiceTest {
         }
     }
 
+    @IsTest
+    static void testGetRepairCenters_returnsRepairCenters() {
+        Schema.Location repairCenter = new Schema.Location(
+            Name = 'GW5492 Repair Center Service',
+            LocationType = 'Repair Center'
+        );
+        insert repairCenter;
+
+        Test.startTest();
+        List<Schema.Location> centers = LocationsService.getRepairCenters();
+        Test.stopTest();
+
+        Boolean found = false;
+        for (Schema.Location row : centers) {
+            if (row.Id == repairCenter.Id) {
+                found = true;
+                break;
+            }
+        }
+        Assert.isTrue(found);
+    }
+
 }

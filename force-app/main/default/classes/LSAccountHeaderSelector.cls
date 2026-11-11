@@ -28,7 +28,7 @@ public with sharing class LSAccountHeaderSelector {
         }
 
         return [
-            SELECT Id, OwnerId
+            SELECT Id, OwnerId, RecordType.DeveloperName
             FROM Account
             WHERE Id = :accountId
             LIMIT 1

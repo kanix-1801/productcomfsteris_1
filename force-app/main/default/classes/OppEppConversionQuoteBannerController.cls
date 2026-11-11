@@ -5,9 +5,16 @@
  * @description GC-3457 UC3 - Apex controller for the EPP conversion quote closure banner LWC.
  */
 public with sharing class OppEppConversionQuoteBannerController {
+    @TestVisible
+    private static Boolean forceExceptionForTest = false;
+
     @AuraEnabled(cacheable=true)
     public static OppEppConversionQuoteService.BannerContext getBannerContext(Id opportunityId) {
         try {
+            if (Test.isRunningTest() && forceExceptionForTest == true) {
+                throw new QueryException('Forced test exception for getBannerContext.');
+            }
+
             return OppEppConversionQuoteService.getBannerContext(opportunityId);
         } catch (Exception exceptionValue) {
             ErrorLogger.logException(
@@ -22,6 +29,10 @@ public with sharing class OppEppConversionQuoteBannerController {
     @AuraEnabled
     public static void closeAllOpenQuotes(Id opportunityId) {
         try {
+            if (Test.isRunningTest() && forceExceptionForTest == true) {
+                throw new QueryException('Forced test exception for closeAllOpenQuotes.');
+            }
+
             OppEppConversionQuoteService.closeAllOpenQuotes(opportunityId);
         } catch (AuraHandledException exceptionValue) {
             throw exceptionValue;
@@ -38,6 +49,10 @@ public with sharing class OppEppConversionQuoteBannerController {
     @AuraEnabled
     public static void reconcileStaleBanner(Id opportunityId) {
         try {
+            if (Test.isRunningTest() && forceExceptionForTest == true) {
+                throw new QueryException('Forced test exception for reconcileStaleBanner.');
+            }
+
             OppEppConversionQuoteService.reconcileStaleBanner(opportunityId);
         } catch (Exception exceptionValue) {
             ErrorLogger.logException(
@@ -52,6 +67,10 @@ public with sharing class OppEppConversionQuoteBannerController {
     @AuraEnabled
     public static void dismissBanner(Id opportunityId) {
         try {
+            if (Test.isRunningTest() && forceExceptionForTest == true) {
+                throw new QueryException('Forced test exception for dismissBanner.');
+            }
+
             OppEppConversionQuoteService.dismissBanner(opportunityId);
         } catch (AuraHandledException exceptionValue) {
             throw exceptionValue;

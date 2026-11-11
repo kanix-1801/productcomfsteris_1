@@ -208,6 +208,35 @@
 	z-index: 9102;
 }
 
+/* Below the picture details modal, which opens on top of the camera after each capture. */
+.microscope-camera-modal {
+	z-index: 9052;
+}
+
+.microscope-camera-backdrop {
+	z-index: 9051;
+}
+
+.microscope-camera-modal .slds-modal__container {
+	width: 100%;
+	max-width: 40rem;
+}
+
+/* The camera can be taller than the screen; it scrolls inside the modal instead of being cut off. */
+.microscope-camera {
+	display: block;
+	max-height: 100%;
+	overflow-y: auto;
+	-webkit-overflow-scrolling: touch;
+	background: #fff;
+	border-radius: 0.25rem;
+}
+
+.microscope-picture-button {
+	font-family: inherit;
+	cursor: pointer;
+}
+
 .picture-review-backdrop {
 	z-index: 9101;
 }

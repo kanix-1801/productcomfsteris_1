@@ -131,4 +131,11 @@ private class ReturnOrdersSelectorTest {
             Assert.areEqual(1, fedExRows.size());
         }
     }
+
+    @IsTest
+    static void testSelectByIdNullOrEmptyReturnsEmpty_sprint93Coverage() {
+        Assert.areEqual(0, ReturnOrdersSelector.selectById(null).size());
+        Assert.areEqual(0, ReturnOrdersSelector.selectById(new Set<Id>()).size());
+    }
+
 }

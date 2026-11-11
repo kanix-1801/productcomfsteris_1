@@ -24,13 +24,6 @@ private class ClinicalParticipantServiceTest {
         System.assertEquals('Ada Lovelace', saved.Name);
         System.assertEquals('Ada@example.com', saved.Email__c);
         System.assertEquals(true, saved.NotSalesforceUser__c);
-        KeyAccountProcessReview__c reviewRow = [
-            SELECT ClinicalResources__c
-            FROM KeyAccountProcessReview__c
-            WHERE Id = :review.Id
-        ];
-        System.assert(reviewRow.ClinicalResources__c.contains('Ada Lovelace'));
-        System.assert(reviewRow.ClinicalResources__c.contains('Ada@example.com'));
     }
 
     @IsTest

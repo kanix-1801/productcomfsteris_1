@@ -172,7 +172,7 @@ public with sharing class PricingFrameworkService {
             }
             Map<String, Object> values = (Map<String, Object>) row;
             PricingFrameworkOracleInvocable.PricingLine line = new PricingFrameworkOracleInvocable.PricingLine();
-            line.lineId = PlatformUtilities.firstNonBlank(
+            line.lineId = firstNonBlank(
                 toStringValue(values.get('lineId')),
                 toStringValue(values.get('id'))
             );
@@ -328,7 +328,7 @@ public with sharing class PricingFrameworkService {
             return lines;
         }
         if (isQuote) {
-            for (QuoteLineItem lineItem : QuoteLineItemSelector.selectForPricingFrameworkByQuoteIds(
+            for (QuoteLineItem lineItem : QuoteLineItemService.getForPricingFrameworkByQuoteIds(
                 headerIds
             )) {
                 String productCode = productCodeFrom(lineItem);
@@ -580,7 +580,7 @@ public with sharing class PricingFrameworkService {
 
         Account operatingUnitAccount = billToAccount != null ? billToAccount : shipToAccount;
         request.accountType = 'Account';
-        request.operatingUnit = PlatformUtilities.firstNonBlank(
+        request.operatingUnit = firstNonBlank(
             orgIdValue(operatingUnitAccount),
             orgIdValue(shipToAccount)
         );
@@ -913,7 +913,7 @@ public with sharing class PricingFrameworkService {
         Map<Id, SObject> recordsByLineId = new Map<Id, SObject>();
         if (isQuote) {
             for (QuoteLineItem lineItem :
-                QuoteLineItemSelector.selectForPricingFrameworkHeadlessByIds(lineIds).values()
+                QuoteLineItemService.getForPricingFrameworkHeadlessByIds(lineIds).values()
             ) {
                 recordsByLineId.put(lineItem.Id, lineItem);
             }
@@ -1016,6 +1016,13 @@ public with sharing class PricingFrameworkService {
 
     private static String itemNodeName(String objectType) {
         return objectType == 'Quote' ? 'QuoteLineItem' : 'WorkOrderItem';
+    }
+
+    private static String firstNonBlank(String first, String second) {
+        if (String.isNotBlank(first)) {
+            return first;
+        }
+        return second;
     }
 
     private static String toStringValue(Object value) {

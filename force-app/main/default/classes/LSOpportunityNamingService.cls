@@ -14,7 +14,7 @@ public with sharing class LSOpportunityNamingService {
 
     private static final String CLASS_NAME = 'LSOpportunityNamingService';
     private static final String NUMBER_PREFIX = 'LS-';
-    private static final Integer NUMBER_PAD = 6;
+    private static final Integer NUMBER_PAD = 5;
     private static final String SEGMENT_SEPARATOR = ' - ';
     private static final String VALUE_SEPARATOR = ', ';
     private static final Integer NAME_MAX_LENGTH = 120;

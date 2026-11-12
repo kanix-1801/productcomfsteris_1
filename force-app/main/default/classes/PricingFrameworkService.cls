@@ -124,6 +124,13 @@ public with sharing class PricingFrameworkService {
                     );
                 } else {
                     applyOraclePrices(oracleLines, calloutResult.parsedResponse);
+                    String lineError = oracleLineErrorMessage(
+                        oracleLines,
+                        calloutResult.parsedResponse
+                    );
+                    if (String.isNotBlank(lineError)) {
+                        result.errorMessage = lineError;
+                    }
                     persistOraclePrices(oracleLines, isQuote);
                 }
             }
@@ -656,16 +663,11 @@ public with sharing class PricingFrameworkService {
         if (response == null) {
             return 'Oracle pricing callout failed.';
         }
-        List<String> parts = new List<String>();
-        if (String.isNotBlank(response.errorCode)) {
-            parts.add(response.errorCode);
+        String description = pricingErrorDescription(response.errorCode);
+        if (String.isNotBlank(description)) {
+            return description;
         }
-        if (String.isNotBlank(response.messageKey)) {
-            parts.add(response.messageKey);
-        }
-        String headerError = parts.isEmpty()
-            ? 'Oracle pricing callout failed.'
-            : String.join(parts, ' ');
+        String headerError = rawOracleError(response.errorCode, response.messageKey);
         if (request == null || String.isBlank(request.shipToCustomerNumber)) {
             return headerError;
         }
@@ -677,6 +679,137 @@ public with sharing class PricingFrameworkService {
                 + '). Set the Work Order Ship-to Address Account to an Oracle customer.';
         }
         return headerError + ' (ship-to ' + request.shipToCustomerNumber + ')';
+    }
+
+    /**
+     * @description GW-4585 - STE_PRICING_ERROR_DESC text for an Oracle pricing error code.
+     *              Unknown codes return null so the caller can keep the raw Oracle message.
+     */
+    @TestVisible
+    private static String pricingErrorDescription(String errorCode) {
+        switch on normalizePricingErrorCode(errorCode) {
+            when '101' {
+                return System.Label.STE_PRICING_ERROR_DESC_101;
+            }
+            when '102' {
+                return System.Label.STE_PRICING_ERROR_DESC_102;
+            }
+            when '103' {
+                return System.Label.STE_PRICING_ERROR_DESC_103;
+            }
+            when '104' {
+                return System.Label.STE_PRICING_ERROR_DESC_104;
+            }
+            when '105' {
+                return System.Label.STE_PRICING_ERROR_DESC_105;
+            }
+            when '106' {
+                return System.Label.STE_PRICING_ERROR_DESC_106;
+            }
+            when '107' {
+                return System.Label.STE_PRICING_ERROR_DESC_107;
+            }
+            when '108' {
+                return System.Label.STE_PRICING_ERROR_DESC_108;
+            }
+            when '109' {
+                return System.Label.STE_PRICING_ERROR_DESC_109;
+            }
+            when '111' {
+                return System.Label.STE_PRICING_ERROR_DESC_111;
+            }
+            when '112' {
+                return System.Label.STE_PRICING_ERROR_DESC_112;
+            }
+            when '700' {
+                return System.Label.STE_PRICING_ERROR_DESC_700;
+            }
+            when '705' {
+                return System.Label.STE_PRICING_ERROR_DESC_705;
+            }
+            when else {
+                return null;
+            }
+        }
+    }
+
+    private static String normalizePricingErrorCode(String errorCode) {
+        if (String.isBlank(errorCode)) {
+            return null;
+        }
+        String code = errorCode.trim();
+        if (code.length() > 3 && code.startsWithIgnoreCase('ORA')) {
+            code = code.substring(3).trim();
+        }
+        return code;
+    }
+
+    private static String rawOracleError(String errorCode, String messageKey) {
+        List<String> parts = new List<String>();
+        if (String.isNotBlank(errorCode)) {
+            parts.add(errorCode.trim());
+        }
+        if (String.isNotBlank(messageKey)) {
+            parts.add(messageKey.trim());
+        }
+        return parts.isEmpty()
+            ? 'Oracle pricing callout failed.'
+            : String.join(parts, ' ');
+    }
+
+    private static String oracleLineErrorMessage(
+        List<PricingFrameworkOracleInvocable.PricingLine> lines,
+        OraclePricingResponse response
+    ) {
+        if (lines == null || response == null || response.priceInfo == null) {
+            return null;
+        }
+
+        Map<String, OraclePricingResponse.PriceInfo> priceByCode =
+            new Map<String, OraclePricingResponse.PriceInfo>();
+        for (OraclePricingResponse.PriceInfo info : response.priceInfo) {
+            if (info != null && String.isNotBlank(info.productPartNumber)) {
+                priceByCode.put(info.productPartNumber, info);
+            }
+        }
+
+        Map<String, List<String>> partsByMessage = new Map<String, List<String>>();
+        List<String> messageOrder = new List<String>();
+        for (PricingFrameworkOracleInvocable.PricingLine line : lines) {
+            OraclePricingResponse.PriceInfo info = priceByCode.get(line.productCode);
+            if (
+                info == null
+                || OraclePricingResponse.isPricingSuccess(info.messageKey, info.errorCode)
+            ) {
+                continue;
+            }
+            String message = pricingErrorDescription(info.errorCode);
+            if (String.isBlank(message)) {
+                message = rawOracleError(info.errorCode, info.messageKey);
+            }
+            if (!partsByMessage.containsKey(message)) {
+                partsByMessage.put(message, new List<String>());
+                messageOrder.add(message);
+            }
+            if (
+                String.isNotBlank(line.productCode)
+                && !partsByMessage.get(message).contains(line.productCode)
+            ) {
+                partsByMessage.get(message).add(line.productCode);
+            }
+        }
+        if (messageOrder.isEmpty()) {
+            return null;
+        }
+
+        List<String> messages = new List<String>();
+        for (String message : messageOrder) {
+            List<String> parts = partsByMessage.get(message);
+            messages.add(
+                parts.isEmpty() ? message : message + ' ' + String.join(parts, ', ')
+            );
+        }
+        return String.join(messages, ' ');
     }
 
     private static void applyOraclePrices(List<PricingFrameworkOracleInvocable.PricingLine> lines, OraclePricingResponse response) {

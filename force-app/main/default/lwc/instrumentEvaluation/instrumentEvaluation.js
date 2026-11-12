@@ -76,6 +76,7 @@ const TAB_NOTES = 'evaluationNotes';
 const TAB_ITEM_SUMMARY = 'itemSummary';
 const TAB_MODIFIER_CODES = 'modifierCodes';
 const TAB_WORK_PERFORMED = 'workPerformed';
+const TAB_PRODUCT_REQUESTS = 'productRequests';
 const WIZARD_CATEGORY = 'category';
 const WIZARD_PRODUCT = 'product';
 const MODAL_ADD = 'add';
@@ -428,6 +429,10 @@ export default class InstrumentEvaluation extends LightningElement {
 
     get isModifierCodesTab() {
         return this.selectedTab === TAB_MODIFIER_CODES;
+    }
+
+    get isProductRequestsTab() {
+        return this.selectedTab === TAB_PRODUCT_REQUESTS;
     }
 
     get isWorkPerformedTab() {
@@ -1055,8 +1060,9 @@ export default class InstrumentEvaluation extends LightningElement {
         }
         items.push({ label: 'Item Summary', value: TAB_ITEM_SUMMARY });
         items.push({ label: 'Modifier Codes', value: TAB_MODIFIER_CODES });
-        // Work Performed after Modifier Codes; only when Status = Repair.
+        // Product Requests and Work Performed only when Status = Repair.
         if (this.showWorkPerformedTab) {
+            items.push({ label: 'Product Requests', value: TAB_PRODUCT_REQUESTS });
             items.push({ label: 'Work Performed', value: TAB_WORK_PERFORMED });
         }
         return items;
@@ -2525,7 +2531,11 @@ export default class InstrumentEvaluation extends LightningElement {
         if (this.selectedTab === TAB_ADD_ITEMS && workspace?.hasAsset === true) {
             this.selectedTab = TAB_WO_DETAILS;
         }
-        if (this.selectedTab === TAB_WORK_PERFORMED && workspace?.status !== STATUS_REPAIR) {
+        if (
+            (this.selectedTab === TAB_WORK_PERFORMED ||
+                this.selectedTab === TAB_PRODUCT_REQUESTS) &&
+            workspace?.status !== STATUS_REPAIR
+        ) {
             this.selectedTab = TAB_ITEM_SUMMARY;
         }
     }

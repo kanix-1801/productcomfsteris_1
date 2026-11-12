@@ -1,25 +1,25 @@
 /**
- * @author PWC Developer
- * @date 2026/11/02
- *
- * @group Dealer Portal
- *
- * @description
- * Dealer Portal R1 - Assigns the STERIS Dealer Manager as owner and shares the opportunity
- * back to the dealer who created it and to that dealer organisation's partner roles.
- * Without sharing is required because the portal user cannot read Account Team or reassign ownership.
- * SOQL and DML use SYSTEM_MODE so that system context stays explicit. It matches this class:
- * sharing is already bypassed, and object and field permissions stay ignored.
- */
+* @author PWC Developer
+* @date 2026/11/02
+*
+* @group Dealer Portal
+*
+* @description
+* Dealer Portal R1 - Assigns the STERIS Dealer Manager as owner and shares the opportunity
+* back to the dealer who created it and to that dealer organisation's partner roles.
+* Without sharing is required because the portal user cannot read Account Team or reassign ownership.
+* SOQL and DML use SYSTEM_MODE so that system context stays explicit. It matches this class:
+* sharing is already bypassed, and object and field permissions stay ignored.
+*/
 public without sharing class DealerOpportunityShareService {
-
+    
     /**
-     * @description
-     * Dealer Portal R1 - Reads the dealer account name for the stamped display field.
-     *
-     * @param accountId Dealer Partner Account.
-     * @return Account name, or null when the account does not exist.
-     */
+* @description
+* Dealer Portal R1 - Reads the dealer account name for the stamped display field.
+*
+* @param accountId Dealer Partner Account.
+* @return Account name, or null when the account does not exist.
+*/
     public static String selectAccountName(Id accountId) {
         if (accountId == null) {
             return null;
@@ -33,20 +33,20 @@ public without sharing class DealerOpportunityShareService {
         ];
         return accounts.isEmpty() ? null : accounts[0].Name;
     }
-
+    
     /**
-     * @description
-     * Dealer Portal R1 - Moves ownership to the primary Dealer Manager and restores Edit access
-     * for the submitting dealer user and the dealer organisation.
-     *
-     * @param opportunityId Opportunity that was just created.
-     * @param submitterId User who created the opportunity.
-     */
+* @description
+* Dealer Portal R1 - Moves ownership to the primary Dealer Manager and restores Edit access
+* for the submitting dealer user and the dealer organisation.
+*
+* @param opportunityId Opportunity that was just created.
+* @param submitterId User who created the opportunity.
+*/
     public static void assignOwnerAndShare(Id opportunityId, Id submitterId) {
         if (opportunityId == null) {
             return;
         }
-
+        
         Opportunity opportunityRecord = [
             SELECT Id, AccountId, OwnerId
             FROM Opportunity
@@ -54,7 +54,7 @@ public without sharing class DealerOpportunityShareService {
             WITH SYSTEM_MODE
             LIMIT 1
         ];
-
+        
         Id managerId = resolveManagerId(opportunityRecord.AccountId);
         if (managerId != null && managerId != opportunityRecord.OwnerId) {
             Database.update(
@@ -66,7 +66,7 @@ public without sharing class DealerOpportunityShareService {
             );
             opportunityRecord.OwnerId = managerId;
         }
-
+        
         List<OpportunityShare> shares = new List<OpportunityShare>();
         if (submitterId != null && submitterId != opportunityRecord.OwnerId) {
             shares.add(buildShare(opportunityRecord.Id, submitterId));
@@ -76,12 +76,12 @@ public without sharing class DealerOpportunityShareService {
             Database.insert(shares, false, AccessLevel.SYSTEM_MODE);
         }
     }
-
+    
     private static Id resolveManagerId(Id accountId) {
         if (accountId == null) {
             return null;
         }
-
+        
         List<AccountTeamMember> teamMembers = [
             SELECT UserId, TeamMemberRole, User.UserType
             FROM AccountTeamMember
@@ -91,7 +91,7 @@ public without sharing class DealerOpportunityShareService {
             WITH SYSTEM_MODE
             ORDER BY CreatedDate DESC
         ];
-
+        
         Id fallbackId;
         for (AccountTeamMember teamMember : teamMembers) {
             String roleName = teamMember.TeamMemberRole == null
@@ -106,13 +106,13 @@ public without sharing class DealerOpportunityShareService {
         }
         return fallbackId;
     }
-
+    
     private static List<OpportunityShare> buildPartnerShares(Id opportunityId, Id accountId, Id ownerId) {
         List<OpportunityShare> shares = new List<OpportunityShare>();
         if (accountId == null) {
             return shares;
         }
-
+        
         Set<Id> roleIds = new Map<Id, UserRole>([
             SELECT Id
             FROM UserRole
@@ -122,7 +122,7 @@ public without sharing class DealerOpportunityShareService {
         if (roleIds.isEmpty()) {
             return shares;
         }
-
+        
         for (Group roleGroup : [
             SELECT Id
             FROM Group
@@ -136,7 +136,7 @@ public without sharing class DealerOpportunityShareService {
         }
         return shares;
     }
-
+    
     private static OpportunityShare buildShare(Id opportunityId, Id userOrGroupId) {
         OpportunityShare shareRecord = new OpportunityShare();
         shareRecord.OpportunityId = opportunityId;

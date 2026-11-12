@@ -83,3 +83,29 @@
     --slds-c-button-brand-color-border: #c05621;
     --slds-c-button-brand-color-border-hover: #9a3412;
 }
+
+.erp-card {
+    margin: 0.75rem;
+    background: var(--slds-g-color-neutral-base-100, #ffffff);
+    border: 1px solid var(--slds-g-color-border-base-1, #c9c9c9);
+    border-radius: 0.25rem;
+}
+
+.erp-header {
+    margin: 0;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--slds-g-color-border-base-1, #e5e5e5);
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.erp-body {
+    padding: 1rem;
+}
+
+.erp-footer {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--slds-g-color-border-base-1, #e5e5e5);
+}

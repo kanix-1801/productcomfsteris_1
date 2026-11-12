@@ -59,7 +59,7 @@ private class LostBusinessProductControllerTest {
             'The stored SKU should be returned.'
         );
         Assert.areEqual(
-            TestDataFactory.LB_PRODUCT_B_CODE,
+            TestDataFactory.LB_PRODUCT_B_CODE,	
             rowByName.get(TestDataFactory.LB_PRODUCT_B_NAME).productSku,
             'Product code should fill a blank SKU.'
         );

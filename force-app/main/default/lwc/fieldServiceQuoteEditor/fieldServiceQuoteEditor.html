@@ -1,0 +1,577 @@
+<template>
+    <div class="editor">
+        <div class="slds-modal__header">
+            <h2 class="slds-text-heading_medium">Quote</h2>
+        </div>
+
+        <div class="editor-body slds-p-around_small">
+            <template lwc:if={isLoading}>
+                <lightning-spinner alternative-text="Loading quote" size="medium"></lightning-spinner>
+            </template>
+            <template lwc:if={errorMessage}>
+                <div class="slds-notify slds-notify_alert slds-alert_error" role="alert">{errorMessage}</div>
+            </template>
+
+            <template lwc:if={view}>
+                <!-- Header strip -->
+                <div class="header-strip slds-box slds-box_x-small slds-m-bottom_small">
+                    <div class="slds-grid slds-wrap slds-gutters_x-small">
+                        <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-6 field">
+                            <span class="field-label">Quote #</span>
+                            <span class="field-value">{h.quoteNumber}</span>
+                        </div>
+                        <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-6 field">
+                            <lightning-combobox
+                                label="Status"
+                                data-field="status"
+                                value={header.status}
+                                options={statusOptions}
+                                onchange={handleHeaderChange}
+                                variant="label-stacked"
+                            ></lightning-combobox>
+                        </div>
+                        <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-6 field">
+                            <span class="field-label">Work Order</span>
+                            <span class="field-value">{h.workOrderNumber}</span>
+                        </div>
+                        <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-6 field">
+                            <span class="field-label">Account</span>
+                            <span class="field-value slds-truncate" title={h.accountName}>{h.accountName}</span>
+                        </div>
+                        <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-6 field">
+                            <span class="field-label">Asset</span>
+                            <span class="field-value slds-truncate" title={h.assetName}>{h.assetName}</span>
+                        </div>
+                        <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-6 field">
+                            <lightning-record-picker
+                                label="Contact"
+                                object-api-name="Contact"
+                                data-field="contactId"
+                                value={header.contactId}
+                                filter={contactFilter}
+                                onchange={handleHeaderChange}
+                            ></lightning-record-picker>
+                        </div>
+                        <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-6 field">
+                            <lightning-record-picker
+                                label="Ship-To"
+                                object-api-name="Account"
+                                data-field="shipToId"
+                                value={header.shipToId}
+                                onchange={handleHeaderChange}
+                            ></lightning-record-picker>
+                        </div>
+                        <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-6 field">
+                            <lightning-record-picker
+                                label="Owner"
+                                object-api-name="User"
+                                data-field="ownerId"
+                                value={header.ownerId}
+                                filter={userFilter}
+                                onchange={handleHeaderChange}
+                                required
+                            ></lightning-record-picker>
+                        </div>
+                        <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-6 field">
+                            <span class="field-label">Rate List · Currency</span>
+                            <span class="field-value">{rateListLabel}</span>
+                        </div>
+                        <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-6 field">
+                            <span class="field-label">Pricing</span>
+                            <span class={pricingBadgeClass}>{pricingLabel}</span>
+                        </div>
+                        <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-6 field">
+                            <span class="field-label">Quote Total</span>
+                            <span class="field-value">{quoteTotalLabel}</span>
+                        </div>
+                    </div>
+                    <template lwc:if={h.pricingMessage}>
+                        <p class="slds-text-color_weak slds-m-top_xx-small">{h.pricingMessage}</p>
+                    </template>
+                </div>
+
+                <!-- Calculate Pricing (GW-5890 flow) -->
+                <template lwc:if={showPricingFlow}>
+                    <div class="slds-box slds-box_x-small slds-m-bottom_small">
+                        <div class="slds-grid slds-grid_align-spread slds-m-bottom_x-small">
+                            <span class="slds-text-heading_small">Calculate Pricing</span>
+                            <lightning-button-icon
+                                icon-name="utility:close"
+                                alternative-text="Close"
+                                variant="bare"
+                                onclick={handleClosePricingFlow}
+                            ></lightning-button-icon>
+                        </div>
+                        <lightning-flow
+                            flow-api-name={pricingFlowName}
+                            flow-input-variables={pricingFlowInputs}
+                            onstatuschange={handlePricingFlowStatus}
+                        ></lightning-flow>
+                    </div>
+                </template>
+
+                <lightning-tabset active-tab-value={activeTab}>
+                    <!-- Time: Labor + Travel -->
+                    <lightning-tab label={timeTabLabel} value="time" onactive={handleTabActive}>
+                        <template lwc:if={hasTimeLines}>
+                            <template for:each={timeLines} for:item="line">
+                                <div key={line.key} class={line.cardClass}>
+                                    <div class="slds-grid slds-grid_vertical-align-center">
+                                        <div class="slds-col slds-grow">
+                                            <p class="line-title">{line.title}</p>
+                                            <p class="slds-text-body_small slds-text-color_weak">{line.subtitle}</p>
+                                            <template lwc:if={line.isNew}>
+                                                <span class="slds-badge slds-badge_lightest badge-new">New</span>
+                                            </template>
+                                            <template lwc:if={line.isModified}>
+                                                <span class="slds-badge slds-badge_lightest badge-modified">Modified</span>
+                                            </template>
+                                        </div>
+                                        <lightning-button-icon
+                                            icon-name="utility:edit"
+                                            alternative-text="Edit line"
+                                            data-key={line.key}
+                                            onclick={handleEditLine}
+                                            class="slds-m-left_x-small"
+                                        ></lightning-button-icon>
+                                        <lightning-button-icon
+                                            icon-name="utility:delete"
+                                            alternative-text="Delete line"
+                                            data-key={line.key}
+                                            onclick={handleDeleteLine}
+                                            class="slds-m-left_x-small"
+                                        ></lightning-button-icon>
+                                    </div>
+
+                                    <template lwc:if={line.isEditing}>
+                                        <div class="slds-grid slds-wrap slds-gutters_x-small slds-m-top_small edit-form">
+                                            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                                <span class="field-label">Line Type</span>
+                                                <lightning-button-group>
+                                                    <lightning-button
+                                                        label="Labor"
+                                                        variant={line.laborVariant}
+                                                        data-key={line.key}
+                                                        data-value="Labor"
+                                                        onclick={handleLineTypeChange}
+                                                        disabled={line.isSaved}
+                                                    ></lightning-button>
+                                                    <lightning-button
+                                                        label="Travel"
+                                                        variant={line.travelVariant}
+                                                        data-key={line.key}
+                                                        data-value="Travel"
+                                                        onclick={handleLineTypeChange}
+                                                        disabled={line.isSaved}
+                                                    ></lightning-button>
+                                                </lightning-button-group>
+                                            </div>
+                                            <template lwc:if={line.isTravel}>
+                                                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                                    <lightning-combobox
+                                                        label="Travel Type"
+                                                        data-key={line.key}
+                                                        data-field="travelType"
+                                                        value={line.travelType}
+                                                        options={travelTypeOptions}
+                                                        field-level-help={travelTypeHelp}
+                                                        onchange={handleLineFieldChange}
+                                                        required
+                                                    ></lightning-combobox>
+                                                </div>
+                                            </template>
+                                            <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4">
+                                                <lightning-combobox
+                                                    label="Rate"
+                                                    data-key={line.key}
+                                                    data-field="rate"
+                                                    value={line.rate}
+                                                    options={line.rateOptions}
+                                                    placeholder={line.ratePlaceholder}
+                                                    disabled={line.rateDisabled}
+                                                    onchange={handleLineFieldChange}
+                                                ></lightning-combobox>
+                                            </div>
+                                            <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4">
+                                                <lightning-input
+                                                    type="number"
+                                                    step="0.01"
+                                                    label={line.quantityLabel}
+                                                    data-key={line.key}
+                                                    data-field="quantity"
+                                                    value={line.quantity}
+                                                    disabled={line.quantityDisabled}
+                                                    onchange={handleLineFieldChange}
+                                                    required
+                                                ></lightning-input>
+                                            </div>
+                                            <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4">
+                                                <lightning-input
+                                                    type="number"
+                                                    formatter="currency"
+                                                    step="0.01"
+                                                    label="List Price"
+                                                    value={line.listPrice}
+                                                    disabled
+                                                ></lightning-input>
+                                            </div>
+                                            <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4">
+                                                <lightning-input
+                                                    type="number"
+                                                    formatter="currency"
+                                                    step="0.01"
+                                                    label="Unit Price"
+                                                    data-key={line.key}
+                                                    data-field="unitPrice"
+                                                    value={line.unitPrice}
+                                                    disabled={line.unitPriceDisabled}
+                                                    onchange={handleLineFieldChange}
+                                                ></lightning-input>
+                                            </div>
+                                            <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4">
+                                                <lightning-input
+                                                    type="number"
+                                                    step="0.01"
+                                                    label="Discount (%)"
+                                                    data-key={line.key}
+                                                    data-field="discount"
+                                                    value={line.discount}
+                                                    onchange={handleLineFieldChange}
+                                                ></lightning-input>
+                                            </div>
+                                            <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4">
+                                                <lightning-input
+                                                    type="number"
+                                                    formatter="currency"
+                                                    step="0.01"
+                                                    label="Total Price"
+                                                    value={line.computedTotal}
+                                                    disabled
+                                                ></lightning-input>
+                                            </div>
+                                            <template lwc:if={canOverridePrice}>
+                                                <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4 slds-p-top_large">
+                                                    <lightning-input
+                                                        type="checkbox"
+                                                        label="Manual Price"
+                                                        data-key={line.key}
+                                                        data-field="isManualPrice"
+                                                        checked={line.isManualPrice}
+                                                        onchange={handleLineFieldChange}
+                                                    ></lightning-input>
+                                                </div>
+                                            </template>
+                                            <div class="slds-col slds-size_1-of-1">
+                                                <lightning-textarea
+                                                    label="Description"
+                                                    data-key={line.key}
+                                                    data-field="description"
+                                                    value={line.description}
+                                                    onchange={handleLineFieldChange}
+                                                ></lightning-textarea>
+                                            </div>
+                                            <div class="slds-col slds-size_1-of-1 slds-text-align_right">
+                                                <lightning-button label="Done" onclick={handleDoneEditing}></lightning-button>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+                        </template>
+                        <template lwc:else>
+                            <p class="slds-text-color_weak slds-p-vertical_small">No time lines yet.</p>
+                        </template>
+                        <lightning-button
+                            class="add-button"
+                            variant="base"
+                            label="+ Add Time Line"
+                            onclick={handleAddTimeLine}
+                        ></lightning-button>
+                    </lightning-tab>
+
+                    <!-- Parts -->
+                    <lightning-tab label={partsTabLabel} value="parts" onactive={handleTabActive}>
+                        <template lwc:if={hasPartLines}>
+                            <template for:each={partLines} for:item="line">
+                                <div key={line.key} class={line.cardClass}>
+                                    <div class="slds-grid slds-grid_vertical-align-center">
+                                        <div class="slds-col slds-grow">
+                                            <p class="line-title">{line.title}</p>
+                                            <p class="slds-text-body_small slds-text-color_weak">{line.subtitle}</p>
+                                            <template lwc:if={line.isNew}>
+                                                <span class="slds-badge slds-badge_lightest badge-new">New</span>
+                                            </template>
+                                            <template lwc:if={line.isModified}>
+                                                <span class="slds-badge slds-badge_lightest badge-modified">Modified</span>
+                                            </template>
+                                        </div>
+                                        <lightning-button-icon
+                                            icon-name="utility:edit"
+                                            alternative-text="Edit line"
+                                            data-key={line.key}
+                                            onclick={handleEditLine}
+                                            class="slds-m-left_x-small"
+                                        ></lightning-button-icon>
+                                        <lightning-button-icon
+                                            icon-name="utility:delete"
+                                            alternative-text="Delete line"
+                                            data-key={line.key}
+                                            onclick={handleDeleteLine}
+                                            class="slds-m-left_x-small"
+                                        ></lightning-button-icon>
+                                    </div>
+
+                                    <template lwc:if={line.isEditing}>
+                                        <div class="slds-grid slds-wrap slds-gutters_x-small slds-m-top_small edit-form">
+                                            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                                <template lwc:if={line.isSaved}>
+                                                    <span class="field-label">Product</span>
+                                                    <span class="field-value">{line.productName}</span>
+                                                </template>
+                                                <template lwc:else>
+                                                    <lightning-record-picker
+                                                        label="Product"
+                                                        object-api-name="Product2"
+                                                        data-key={line.key}
+                                                        value={line.product2Id}
+                                                        filter={productFilter}
+                                                        onchange={handleProductChange}
+                                                        required
+                                                    ></lightning-record-picker>
+                                                </template>
+                                            </div>
+                                            <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4">
+                                                <lightning-input label="Product Code" value={line.productCode} disabled></lightning-input>
+                                            </div>
+                                            <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4">
+                                                <lightning-input
+                                                    type="number"
+                                                    step="0.01"
+                                                    label="Quantity"
+                                                    data-key={line.key}
+                                                    data-field="quantity"
+                                                    value={line.quantity}
+                                                    onchange={handleLineFieldChange}
+                                                    required
+                                                ></lightning-input>
+                                            </div>
+                                            <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4">
+                                                <lightning-input
+                                                    type="number"
+                                                    formatter="currency"
+                                                    step="0.01"
+                                                    label="List Price"
+                                                    value={line.listPrice}
+                                                    disabled
+                                                ></lightning-input>
+                                            </div>
+                                            <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4">
+                                                <lightning-input
+                                                    type="number"
+                                                    formatter="currency"
+                                                    step="0.01"
+                                                    label="Unit Price"
+                                                    data-key={line.key}
+                                                    data-field="unitPrice"
+                                                    value={line.unitPrice}
+                                                    disabled={line.unitPriceDisabled}
+                                                    onchange={handleLineFieldChange}
+                                                ></lightning-input>
+                                            </div>
+                                            <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4">
+                                                <lightning-input
+                                                    type="number"
+                                                    step="0.01"
+                                                    label="Discount (%)"
+                                                    data-key={line.key}
+                                                    data-field="discount"
+                                                    value={line.discount}
+                                                    onchange={handleLineFieldChange}
+                                                ></lightning-input>
+                                            </div>
+                                            <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4">
+                                                <lightning-input
+                                                    type="number"
+                                                    formatter="currency"
+                                                    step="0.01"
+                                                    label="Total Price"
+                                                    value={line.computedTotal}
+                                                    disabled
+                                                ></lightning-input>
+                                            </div>
+                                            <template lwc:if={canOverridePrice}>
+                                                <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4 slds-p-top_large">
+                                                    <lightning-input
+                                                        type="checkbox"
+                                                        label="Manual Price"
+                                                        data-key={line.key}
+                                                        data-field="isManualPrice"
+                                                        checked={line.isManualPrice}
+                                                        onchange={handleLineFieldChange}
+                                                    ></lightning-input>
+                                                </div>
+                                            </template>
+                                            <div class="slds-col slds-size_1-of-1">
+                                                <lightning-textarea
+                                                    label="Description"
+                                                    data-key={line.key}
+                                                    data-field="description"
+                                                    value={line.description}
+                                                    onchange={handleLineFieldChange}
+                                                ></lightning-textarea>
+                                            </div>
+                                            <div class="slds-col slds-size_1-of-1 slds-text-align_right">
+                                                <lightning-button label="Done" onclick={handleDoneEditing}></lightning-button>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+                        </template>
+                        <template lwc:else>
+                            <p class="slds-text-color_weak slds-p-vertical_small">No parts yet.</p>
+                        </template>
+                        <lightning-button
+                            class="add-button"
+                            variant="base"
+                            label="+ Add Part"
+                            onclick={handleAddPart}
+                        ></lightning-button>
+                    </lightning-tab>
+
+                    <!-- Expenses -->
+                    <lightning-tab label={expensesTabLabel} value="expenses" onactive={handleTabActive}>
+                        <template lwc:if={hasExpenseLines}>
+                            <template for:each={expenseLines} for:item="line">
+                                <div key={line.key} class={line.cardClass}>
+                                    <div class="slds-grid slds-grid_vertical-align-center">
+                                        <div class="slds-col slds-grow">
+                                            <p class="line-title">{line.title}</p>
+                                            <p class="slds-text-body_small slds-text-color_weak">{line.subtitle}</p>
+                                            <template lwc:if={line.isNew}>
+                                                <span class="slds-badge slds-badge_lightest badge-new">New</span>
+                                            </template>
+                                            <template lwc:if={line.isModified}>
+                                                <span class="slds-badge slds-badge_lightest badge-modified">Modified</span>
+                                            </template>
+                                        </div>
+                                        <lightning-button-icon
+                                            icon-name="utility:edit"
+                                            alternative-text="Edit line"
+                                            data-key={line.key}
+                                            onclick={handleEditLine}
+                                            class="slds-m-left_x-small"
+                                        ></lightning-button-icon>
+                                        <lightning-button-icon
+                                            icon-name="utility:delete"
+                                            alternative-text="Delete line"
+                                            data-key={line.key}
+                                            onclick={handleDeleteLine}
+                                            class="slds-m-left_x-small"
+                                        ></lightning-button-icon>
+                                    </div>
+
+                                    <template lwc:if={line.isEditing}>
+                                        <div class="slds-grid slds-wrap slds-gutters_x-small slds-m-top_small edit-form">
+                                            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                                <span class="field-label">Product</span>
+                                                <span class="field-value">{line.productName}</span>
+                                            </div>
+                                            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                                <lightning-combobox
+                                                    label="Expense Type"
+                                                    data-key={line.key}
+                                                    data-field="expenseType"
+                                                    value={line.expenseType}
+                                                    options={expenseTypeOptions}
+                                                    onchange={handleLineFieldChange}
+                                                    required
+                                                ></lightning-combobox>
+                                            </div>
+                                            <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4">
+                                                <lightning-input
+                                                    type="number"
+                                                    step="0.01"
+                                                    label="Quantity"
+                                                    data-key={line.key}
+                                                    data-field="quantity"
+                                                    value={line.quantity}
+                                                    onchange={handleLineFieldChange}
+                                                    required
+                                                ></lightning-input>
+                                            </div>
+                                            <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4">
+                                                <lightning-input
+                                                    type="number"
+                                                    formatter="currency"
+                                                    step="0.01"
+                                                    label="Unit Price"
+                                                    data-key={line.key}
+                                                    data-field="unitPrice"
+                                                    value={line.unitPrice}
+                                                    onchange={handleLineFieldChange}
+                                                ></lightning-input>
+                                            </div>
+                                            <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4">
+                                                <lightning-input
+                                                    type="number"
+                                                    formatter="currency"
+                                                    step="0.01"
+                                                    label="Total Price"
+                                                    value={line.computedTotal}
+                                                    disabled
+                                                ></lightning-input>
+                                            </div>
+                                            <div class="slds-col slds-size_1-of-1">
+                                                <lightning-textarea
+                                                    label="Description"
+                                                    data-key={line.key}
+                                                    data-field="description"
+                                                    value={line.description}
+                                                    onchange={handleLineFieldChange}
+                                                ></lightning-textarea>
+                                            </div>
+                                            <div class="slds-col slds-size_1-of-1 slds-text-align_right">
+                                                <lightning-button label="Done" onclick={handleDoneEditing}></lightning-button>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+                        </template>
+                        <template lwc:else>
+                            <p class="slds-text-color_weak slds-p-vertical_small">No expenses yet.</p>
+                        </template>
+                        <lightning-button
+                            class="add-button"
+                            variant="base"
+                            label="+ Add Expense"
+                            onclick={handleAddExpense}
+                        ></lightning-button>
+                    </lightning-tab>
+                </lightning-tabset>
+            </template>
+        </div>
+
+        <div class="slds-modal__footer footer">
+            <lightning-button label="Cancel" onclick={handleCancel} class="footer-left"></lightning-button>
+            <span class="slds-text-color_weak footer-count">{unsavedChangesLabel}</span>
+            <lightning-button
+                label="Calculate Pricing"
+                title={calculateTitle}
+                onclick={handleCalculatePricing}
+                disabled={calculateDisabled}
+                class="slds-m-right_x-small"
+            ></lightning-button>
+            <lightning-button
+                variant="brand"
+                label="Save All"
+                onclick={handleSaveAll}
+                disabled={saveDisabled}
+            ></lightning-button>
+        </div>
+        <template lwc:if={isSaving}>
+            <lightning-spinner alternative-text="Saving" size="medium"></lightning-spinner>
+        </template>
+    </div>
+</template>

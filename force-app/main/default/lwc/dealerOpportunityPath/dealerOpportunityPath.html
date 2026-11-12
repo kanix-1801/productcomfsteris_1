@@ -1,0 +1,88 @@
+<template>
+    <div class="slds-path">
+        <template if:true={errorMessage}>
+            <p class="slds-text-color_error slds-p-horizontal_small slds-p-bottom_x-small" role="alert">{errorMessage}</p>
+        </template>
+        <template if:true={isLoading}>
+            <lightning-spinner alternative-text="Loading path" size="small"></lightning-spinner>
+        </template>
+        <template if:true={hasPath}>
+            <div class="slds-grid slds-path__track">
+                <div class="slds-grid slds-path__scroller-container">
+                    <div class="slds-path__scroller" role="application">
+                        <div class="slds-path__scroller_inner">
+                            <ul class="slds-path__nav" role="listbox" aria-orientation="horizontal" aria-label="Opportunity stage">
+                                <template for:each={pathStages} for:item="stage">
+                                    <li key={stage.value} class={stage.className} role="presentation">
+                                        <button
+                                            type="button"
+                                            class="slds-path__link"
+                                            role="option"
+                                            aria-selected={stage.selected}
+                                            tabindex={stage.tabIndex}
+                                            data-value={stage.value}
+                                            onclick={handleSelect}>
+                                            <span class="slds-path__stage">
+                                                <lightning-icon
+                                                    icon-name="utility:check"
+                                                    size="x-small"
+                                                    class="slds-icon slds-icon_x-small"
+                                                    alternative-text={stage.assistive}>
+                                                </lightning-icon>
+                                                <span class="slds-assistive-text">{stage.assistive}</span>
+                                            </span>
+                                            <span class="slds-path__title">{stage.label}</span>
+                                        </button>
+                                    </li>
+                                </template>
+                                <li class={closedClass} role="presentation">
+                                    <button
+                                        type="button"
+                                        class="slds-path__link"
+                                        role="option"
+                                        aria-selected={closedSelected}
+                                        tabindex={closedTabIndex}
+                                        data-value="Closed"
+                                        onclick={handleSelect}>
+                                        <span class="slds-path__stage">
+                                            <lightning-icon
+                                                icon-name="utility:check"
+                                                size="x-small"
+                                                class="slds-icon slds-icon_x-small"
+                                                alternative-text={closedAssistive}>
+                                            </lightning-icon>
+                                            <span class="slds-assistive-text">{closedAssistive}</span>
+                                        </span>
+                                        <span class="slds-path__title">{closedLabel}</span>
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="slds-grid slds-path__action">
+                    <lightning-button
+                        variant="brand"
+                        icon-name="utility:check"
+                        label={actionLabel}
+                        disabled={actionDisabled}
+                        onclick={handleAction}>
+                    </lightning-button>
+                </div>
+            </div>
+            <template if:true={showClosedPicker}>
+                <div class="slds-path__content">
+                    <div class="closed-stage">
+                        <lightning-combobox
+                            label="Select Closed Stage"
+                            placeholder="Select a closed stage"
+                            options={closedOptions}
+                            value={closedChoice}
+                            onchange={handleClosedChange}>
+                        </lightning-combobox>
+                    </div>
+                </div>
+            </template>
+        </template>
+    </div>
+</template>

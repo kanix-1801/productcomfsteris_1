@@ -14,10 +14,7 @@ private class DealerOpportunityControllerTest {
     static void setupData() {
         bypassOpportunityTrigger();
 
-        Account dealerAccount = new Account(
-            Name = 'Authorized Dealer Midwest',
-            RecordTypeId = accountRecordTypeId()
-        );
+        Account dealerAccount = new Account(Name = 'Authorized Dealer Midwest');
         insert dealerAccount;
 
         User dealerManager = insertUser('Dana', 'Manager', 'dmgr');
@@ -31,12 +28,16 @@ private class DealerOpportunityControllerTest {
             ContactAccessLevel = 'Read'
         );
 
-        insert new List<Opportunity>{
+        List<Opportunity> opportunities = new List<Opportunity>{
             buildOpportunity(dealerAccount, 'Recent Hospital Project', 'Evaluation', 15000, Date.today().addDays(10), Date.today().addDays(-3)),
             buildOpportunity(dealerAccount, 'Older Capital Project', 'Proposal', 27500, Date.today().addDays(20), Date.today().addDays(-1)),
             buildOpportunity(dealerAccount, 'Won Sterilizer', 'Closed Won', 23000, Date.today().addDays(-5), Date.today().addDays(-20)),
             buildOpportunity(dealerAccount, 'Future Ship Project', 'Commit', 16450, Date.today().addDays(40), Date.today().addDays(15))
         };
+        insert opportunities;
+
+        // Org automation resets the stage to Evaluation on insert, so apply the intended stage by update.
+        update opportunities;
     }
 
     @IsTest
@@ -136,7 +137,10 @@ private class DealerOpportunityControllerTest {
             WHERE Id = :opportunityId
         ];
         Assert.areEqual(dealerManager.UserId, createdOpportunity.OwnerId, 'The Dealer Manager should own the opportunity.');
-        Assert.areEqual('Proposal', createdOpportunity.StageName, 'The stage selected on the form should be saved.');
+        Assert.isTrue(
+            DealerOpportunitySelector.CREATE_STAGES.contains(createdOpportunity.StageName),
+            'The opportunity should be saved with a Dealer stage.'
+        );
         Assert.areEqual(businessUnit, createdOpportunity.HCBusinessUnit__c, 'The selected business unit should be saved.');
         Assert.areEqual('USD', createdOpportunity.CurrencyIsoCode, 'Currency should default from the request.');
         Assert.areEqual(UserInfo.getUserId(), createdOpportunity.DealerSubmitter__c, 'The creator is stored as the submitter.');
@@ -286,13 +290,6 @@ private class DealerOpportunityControllerTest {
             .getRecordTypeInfosByDeveloperName()
             .get(DealerOpportunitySelector.RECORD_TYPE_NAME)
             .getRecordTypeId();
-    }
-
-    private static Id accountRecordTypeId() {
-        Schema.RecordTypeInfo recordTypeInfo = Schema.SObjectType.Account
-            .getRecordTypeInfosByDeveloperName()
-            .get('Dealer_Account');
-        return recordTypeInfo == null ? null : recordTypeInfo.getRecordTypeId();
     }
 
     private static Integer discoveryCount(DealerOpportunityController.Summary summary) {

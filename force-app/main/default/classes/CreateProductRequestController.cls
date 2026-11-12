@@ -112,6 +112,23 @@ public with sharing class CreateProductRequestController {
         }
     }
 
+    /**
+     * @description Loads Oracle eligibility and the prior integration result.
+     * @param productRequestId Product Request created by this screen.
+     * @return Whether the confirm screen can offer Submit Create.
+     * @throws AuraHandledException when the Product Request cannot be read.
+     * @example
+     * CreateProductRequestController.getOracleSubmitPreview(productRequestId);
+     */
+    @AuraEnabled
+    public static CreateProductRequestService.OracleSubmitPreview getOracleSubmitPreview(Id productRequestId) {
+        try {
+            return CreateProductRequestService.getOracleSubmitPreview(productRequestId);
+        } catch (Exception e) {
+            throw auraException(e);
+        }
+    }
+
     private static AuraHandledException auraException(Exception e) {
         String message = e instanceof CreateProductRequestException
             ? e.getMessage()

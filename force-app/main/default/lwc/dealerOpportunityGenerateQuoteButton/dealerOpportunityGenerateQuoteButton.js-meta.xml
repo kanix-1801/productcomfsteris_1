@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>66.0</apiVersion>
+    <description>Dealer Portal (LWR) — brand button that opens Generate Quote in dealer mode, matching Generate Quote quick action behavior.</description>
+    <isExposed>true</isExposed>
+    <masterLabel>Dealer Opportunity Generate Quote Button</masterLabel>
+    <targets>
+        <target>lightningCommunity__Page</target>
+        <target>lightningCommunity__Default</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightningCommunity__Default">
+            <property
+                name="recordId"
+                type="String"
+                label="Record Id"
+                description="Opportunity Id from the portal record page."
+                default="{!recordId}" />
+            <property
+                name="buttonLabel"
+                type="String"
+                label="Button Label"
+                description="Label for the primary action button."
+                default="Generate Quote" />
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

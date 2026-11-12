@@ -43,10 +43,6 @@ export default class DealerOpportunityCreate extends LightningElement {
         this.dispatchEvent(new CustomEvent('close'));
     }
 
-    closeFromBackdrop() {
-        this.close();
-    }
-
     stopClose(event) {
         event.stopPropagation();
     }

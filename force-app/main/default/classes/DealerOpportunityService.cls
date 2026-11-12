@@ -1,24 +1,24 @@
 /**
- * @author PWC Developer
- * @date 2026/11/02
- *
- * @group Dealer Portal
- *
- * @description
- * Dealer Portal R1 - Builds the home page, My Opportunities workspace, and dealer opportunity
- * creation. Record access stays in user mode. Owner assignment is delegated to the share service.
- */
+* @author PWC Developer
+* @date 2026/11/02
+*
+* @group Dealer Portal
+*
+* @description
+* Dealer Portal R1 - Builds the home page, My Opportunities workspace, and dealer opportunity
+* creation. Record access stays in user mode. Owner assignment is delegated to the share service.
+*/
 public with sharing class DealerOpportunityService {
-
+    
     private static final String DEFAULT_CURRENCY = 'USD';
     private static final String DEFAULT_CONFIDENCE = 'Pipeline';
-
+    
     /**
-     * @description
-     * Dealer Portal R1 - Home page metrics, charts, recent opportunities, and past-due opportunities.
-     *
-     * @return Home payload for the portal landing page.
-     */
+* @description
+* Dealer Portal R1 - Home page metrics, charts, recent opportunities, and past-due opportunities.
+*
+* @return Home payload for the portal landing page.
+*/
     public static DealerOpportunityController.HomeResponse getHome() {
         DealerOpportunityController.HomeResponse response = new DealerOpportunityController.HomeResponse();
         response.summary = buildSummary(DealerOpportunitySelector.selectStageSummaries());
@@ -31,14 +31,14 @@ public with sharing class DealerOpportunityService {
         response.businessUnitChart = buildBusinessUnitChart(DealerOpportunitySelector.selectOpenPipeline());
         return response;
     }
-
+    
     /**
-     * @description
-     * Dealer Portal R1 - Workspace summary and one filtered page of opportunities.
-     *
-     * @param filterJson Filter JSON from the My Opportunities page.
-     * @return Summary tiles, stage tabs, and the current page.
-     */
+* @description
+* Dealer Portal R1 - Workspace summary and one filtered page of opportunities.
+*
+* @param filterJson Filter JSON from the My Opportunities page.
+* @return Summary tiles, stage tabs, and the current page.
+*/
     public static DealerOpportunityController.WorkspaceResponse getWorkspace(String filterJson) {
         DealerOpportunitySelector.OpportunityFilter filter = parseFilter(filterJson);
         DealerOpportunityController.WorkspaceResponse response = new DealerOpportunityController.WorkspaceResponse();
@@ -51,13 +51,13 @@ public with sharing class DealerOpportunityService {
             : Math.min(filter.pageSize, DealerOpportunitySelector.MAX_PAGE_SIZE);
         return response;
     }
-
+    
     /**
-     * @description
-     * Dealer Portal R1 - Defaults shown on the create form.
-     *
-     * @return Currency default and whether an internal user must choose the dealer account.
-     */
+* @description
+* Dealer Portal R1 - Defaults shown on the create form.
+*
+* @return Currency default and whether an internal user must choose the dealer account.
+*/
     public static DealerOpportunityController.CreateContext getCreateContext() {
         DealerOpportunityController.CreateContext context = new DealerOpportunityController.CreateContext();
         context.defaultCurrency = DEFAULT_CURRENCY;
@@ -65,14 +65,8 @@ public with sharing class DealerOpportunityService {
         context.businessUnits = businessUnitOptions();
         context.stages = new List<String>(DealerOpportunitySelector.CREATE_STAGES);
         context.recordTypeId = dealerRecordTypeId();
-
-        User currentUser = [
-            SELECT UserType, Contact.AccountId
-            FROM User
-            WHERE Id = :UserInfo.getUserId()
-            WITH USER_MODE
-            LIMIT 1
-        ];
+        
+        User currentUser = currentPortalUser();
         context.partnerUser = currentUser.UserType == 'PowerPartner';
         if (context.partnerUser && currentUser.Contact != null) {
             context.dealerAccountId = currentUser.Contact.AccountId;
@@ -82,25 +76,28 @@ public with sharing class DealerOpportunityService {
         }
         return context;
     }
-
+    
     /**
-     * @description
-     * Dealer Portal R1 - Creates a Dealer opportunity in Evaluation and USD, then assigns the
-     * STERIS Dealer Manager as owner.
-     *
-     * @param requestJson Create form JSON.
-     * @return New opportunity Id.
-     */
+* @description
+* Dealer Portal R1 - Creates a Dealer opportunity in Evaluation and USD, then assigns the
+* STERIS Dealer Manager as owner.
+*
+* @param requestJson Create form JSON.
+* @return New opportunity Id.
+*/
     public static Id createOpportunity(String requestJson) {
-        CreateRequest request = parseCreateRequest(requestJson);
+        if (String.isBlank(requestJson)) {
+            throw new DealerOpportunityException('Enter the opportunity details.');
+        }
+        CreateRequest request = (CreateRequest) JSON.deserialize(requestJson, CreateRequest.class);
         validateCreateRequest(request);
-
+        
         Id dealerAccountId = resolveDealerAccountId(request.accountId);
         String dealerAccountName = DealerOpportunityShareService.selectAccountName(dealerAccountId);
         if (String.isBlank(dealerAccountName)) {
             throw new DealerOpportunityException('Select a valid dealer account.');
         }
-
+        
         Opportunity opportunityRecord = new Opportunity();
         opportunityRecord.RecordTypeId = dealerRecordTypeId();
         opportunityRecord.Name = request.name.trim();
@@ -114,30 +111,32 @@ public with sharing class DealerOpportunityService {
         opportunityRecord.StageName = request.stageName;
         opportunityRecord.ForecastConfidenceLevel__c = DEFAULT_CONFIDENCE;
         opportunityRecord.CloseDate = Date.valueOf(request.closeDate);
+        opportunityRecord.Expected_Order_Date__c = opportunityRecord.CloseDate;
         opportunityRecord.Expected_Ship_Date__c = Date.valueOf(request.expectedShipDate);
         opportunityRecord.InstallationDate__c = Date.valueOf(request.installationDate);
+        opportunityRecord.ExpectedInstallationDate__c = opportunityRecord.InstallationDate__c;
         opportunityRecord.DealerSubmitter__c = UserInfo.getUserId();
         opportunityRecord.CurrencyIsoCode = String.isBlank(request.currencyCode)
             ? DEFAULT_CURRENCY
             : request.currencyCode;
-
+        
         insert opportunityRecord;
-
+        
         DealerOpportunityShareService.assignOwnerAndShare(opportunityRecord.Id, UserInfo.getUserId());
         return opportunityRecord.Id;
     }
-
+    
     /**
-     * @description
-     * Dealer Portal R1 - Completes a Dealer opportunity created from the standard layout form.
-     *
-     * @param opportunityId Opportunity created by the signed-in user.
-     */
+* @description
+* Dealer Portal R1 - Completes a Dealer opportunity created from the standard layout form.
+*
+* @param opportunityId Opportunity created by the signed-in user.
+*/
     public static void finalizeCreatedOpportunity(Id opportunityId) {
         if (opportunityId == null) {
             throw new DealerOpportunityException('The opportunity was not created.');
         }
-
+        
         List<Opportunity> opportunities = [
             SELECT Id, AccountId, DealerAccountName__c, DealerSubmitter__c, ForecastConfidenceLevel__c
             FROM Opportunity
@@ -147,7 +146,7 @@ public with sharing class DealerOpportunityService {
         if (opportunities.isEmpty()) {
             throw new DealerOpportunityException('The opportunity was not created.');
         }
-
+        
         Opportunity opportunityRecord = opportunities[0];
         Boolean changed = false;
         if (opportunityRecord.DealerSubmitter__c == null) {
@@ -169,7 +168,7 @@ public with sharing class DealerOpportunityService {
         }
         DealerOpportunityShareService.assignOwnerAndShare(opportunityRecord.Id, UserInfo.getUserId());
     }
-
+    
     private static DealerOpportunityController.Summary buildSummary(List<AggregateResult> stageResults) {
         Map<String, AggregateResult> resultByStage = new Map<String, AggregateResult>();
         Integer totalCount = 0;
@@ -178,7 +177,7 @@ public with sharing class DealerOpportunityService {
             resultByStage.put(stageName, stageResult);
             totalCount += integerValue(stageResult.get('recordCount'));
         }
-
+        
         DealerOpportunityController.Summary summary = new DealerOpportunityController.Summary();
         summary.openCount = 0;
         summary.openPipelineValue = 0;
@@ -186,13 +185,17 @@ public with sharing class DealerOpportunityService {
         summary.closedWonValue = 0;
         summary.totalCount = totalCount;
         summary.stages = new List<DealerOpportunityController.StageMetric>();
-
+        
         for (String stageName : DealerOpportunitySelector.WORKSPACE_STAGES) {
             AggregateResult stageResult = resultByStage.get(stageName);
             Integer stageCount = stageResult == null ? 0 : integerValue(stageResult.get('recordCount'));
             Decimal stageAmount = stageResult == null ? 0 : decimalValue(stageResult.get('amountTotal'));
-            summary.stages.add(stageMetric(stageName, stageCount, stageAmount));
-
+            DealerOpportunityController.StageMetric metric = new DealerOpportunityController.StageMetric();
+            metric.stageName = stageName;
+            metric.recordCount = stageCount;
+            metric.amount = stageAmount;
+            summary.stages.add(metric);
+            
             if (DealerOpportunitySelector.OPEN_STAGES.contains(stageName)) {
                 summary.openCount += stageCount;
                 summary.openPipelineValue += stageAmount;
@@ -204,7 +207,7 @@ public with sharing class DealerOpportunityService {
         }
         return summary;
     }
-
+    
     private static List<DealerOpportunityController.StageMetric> buildStageChart(
         DealerOpportunityController.Summary summary
     ) {
@@ -216,22 +219,22 @@ public with sharing class DealerOpportunityService {
         }
         return chart;
     }
-
+    
     private static List<DealerOpportunityController.ChartPoint> buildQuarterChart(List<AggregateResult> results) {
         List<DealerOpportunityController.ChartPoint> points = new List<DealerOpportunityController.ChartPoint>();
         for (AggregateResult result : results) {
             Integer fiscalYear = integerValue(result.get('fiscalYear'));
             Integer fiscalQuarter = integerValue(result.get('fiscalQuarter'));
-            DealerOpportunityController.ChartPoint point = new DealerOpportunityController.ChartPoint();
-            point.label = 'FY' + fiscalYear + ' Q' + fiscalQuarter;
-            point.sortKey = (fiscalYear * 10) + fiscalQuarter;
-            point.value = decimalValue(result.get('amountTotal'));
-            points.add(point);
+            points.add(chartPoint(
+                'FY' + fiscalYear + ' Q' + fiscalQuarter,
+                decimalValue(result.get('amountTotal')),
+                (fiscalYear * 10) + fiscalQuarter
+            ));
         }
         points.sort(new ChartPointComparator());
         return points;
     }
-
+    
     private static List<DealerOpportunityController.ChartPoint> buildBusinessUnitChart(List<Opportunity> opportunities) {
         Map<String, Decimal> amountByUnit = new Map<String, Decimal>();
         for (Opportunity opportunityRecord : opportunities) {
@@ -239,21 +242,18 @@ public with sharing class DealerOpportunityService {
             String businessUnits = opportunityRecord.HCBusinessUnit__c;
             List<String> unitNames = String.isBlank(businessUnits)
                 ? new List<String>{ 'Unspecified' }
-                : businessUnits.split(';');
+            : businessUnits.split(';');
             for (String unitName : unitNames) {
                 String label = String.isBlank(unitName) ? 'Unspecified' : unitName.trim();
                 Decimal currentAmount = amountByUnit.containsKey(label) ? amountByUnit.get(label) : 0;
                 amountByUnit.put(label, currentAmount + amount);
             }
         }
-
+        
         List<DealerOpportunityController.ChartPoint> points = new List<DealerOpportunityController.ChartPoint>();
         for (String label : amountByUnit.keySet()) {
-            DealerOpportunityController.ChartPoint point = new DealerOpportunityController.ChartPoint();
-            point.label = label;
-            point.value = amountByUnit.get(label);
-            point.sortKey = point.value == null ? 0 : point.value.intValue();
-            points.add(point);
+            Decimal amount = amountByUnit.get(label);
+            points.add(chartPoint(label, amount, amount == null ? 0 : amount.intValue()));
         }
         points.sort(new ChartPointComparator());
         List<DealerOpportunityController.ChartPoint> topPoints = new List<DealerOpportunityController.ChartPoint>();
@@ -262,7 +262,7 @@ public with sharing class DealerOpportunityService {
         }
         return topPoints;
     }
-
+    
     private static List<DealerOpportunityController.OpportunityRow> toRows(List<Opportunity> opportunities) {
         List<DealerOpportunityController.OpportunityRow> rows = new List<DealerOpportunityController.OpportunityRow>();
         for (Opportunity opportunityRecord : opportunities) {
@@ -284,7 +284,7 @@ public with sharing class DealerOpportunityService {
         }
         return rows;
     }
-
+    
     private static DealerOpportunitySelector.OpportunityFilter parseFilter(String filterJson) {
         DealerOpportunitySelector.OpportunityFilter filter = new DealerOpportunitySelector.OpportunityFilter();
         if (String.isBlank(filterJson)) {
@@ -292,7 +292,7 @@ public with sharing class DealerOpportunityService {
             filter.pageSize = DealerOpportunitySelector.DEFAULT_PAGE_SIZE;
             return filter;
         }
-
+        
         FilterRequest request = (FilterRequest) JSON.deserialize(filterJson, FilterRequest.class);
         filter.search = request.search;
         filter.stageName = request.stageName;
@@ -310,14 +310,7 @@ public with sharing class DealerOpportunityService {
         filter.pageSize = request.pageSize;
         return filter;
     }
-
-    private static CreateRequest parseCreateRequest(String requestJson) {
-        if (String.isBlank(requestJson)) {
-            throw new DealerOpportunityException('Enter the opportunity details.');
-        }
-        return (CreateRequest) JSON.deserialize(requestJson, CreateRequest.class);
-    }
-
+    
     private static void validateCreateRequest(CreateRequest request) {
         requireText(request.name, 'Opportunity Name');
         requireText(request.endCustomerName, 'End Customer Name');
@@ -337,15 +330,9 @@ public with sharing class DealerOpportunityService {
         parseRequiredDate(request.expectedShipDate, 'Expected Ship Date');
         parseRequiredDate(request.installationDate, 'Expected Installation Date');
     }
-
+    
     private static Id resolveDealerAccountId(String requestedAccountId) {
-        User currentUser = [
-            SELECT UserType, Contact.AccountId
-            FROM User
-            WHERE Id = :UserInfo.getUserId()
-            WITH USER_MODE
-            LIMIT 1
-        ];
+        User currentUser = currentPortalUser();
         if (currentUser.UserType == 'PowerPartner') {
             if (currentUser.Contact == null || currentUser.Contact.AccountId == null) {
                 throw new DealerOpportunityException('Your user is not linked to a dealer account.');
@@ -361,7 +348,7 @@ public with sharing class DealerOpportunityService {
             throw new DealerOpportunityException('Select a valid dealer account.');
         }
     }
-
+    
     private static Id dealerRecordTypeId() {
         Schema.RecordTypeInfo recordTypeInfo = Schema.SObjectType.Opportunity
             .getRecordTypeInfosByDeveloperName()
@@ -371,19 +358,19 @@ public with sharing class DealerOpportunityService {
         }
         return recordTypeInfo.getRecordTypeId();
     }
-
+    
     private static String normalizeBusinessUnits(String rawValue) {
         if (String.isBlank(rawValue)) {
             return null;
         }
-
+        
         Set<String> allowedValues = new Set<String>();
         for (Schema.PicklistEntry entry : Opportunity.HCBusinessUnit__c.getDescribe().getPicklistValues()) {
             if (entry.isActive()) {
                 allowedValues.add(entry.getValue());
             }
         }
-
+        
         List<String> selectedValues = new List<String>();
         for (String unitName : rawValue.split(';')) {
             String value = unitName == null ? null : unitName.trim();
@@ -399,7 +386,7 @@ public with sharing class DealerOpportunityService {
         }
         return selectedValues.isEmpty() ? null : String.join(selectedValues, ';');
     }
-
+    
     private static List<DealerOpportunityController.CurrencyOption> businessUnitOptions() {
         List<DealerOpportunityController.CurrencyOption> options =
             new List<DealerOpportunityController.CurrencyOption>();
@@ -407,14 +394,11 @@ public with sharing class DealerOpportunityService {
             if (!entry.isActive()) {
                 continue;
             }
-            DealerOpportunityController.CurrencyOption option = new DealerOpportunityController.CurrencyOption();
-            option.label = entry.getLabel();
-            option.value = entry.getValue();
-            options.add(option);
+            options.add(toOption(entry.getLabel(), entry.getValue()));
         }
         return options;
     }
-
+    
     private static List<DealerOpportunityController.CurrencyOption> activeCurrencies() {
         List<DealerOpportunityController.CurrencyOption> options =
             new List<DealerOpportunityController.CurrencyOption>();
@@ -425,41 +409,48 @@ public with sharing class DealerOpportunityService {
                 WHERE IsActive = true
                 ORDER BY IsoCode
             ]) {
-                DealerOpportunityController.CurrencyOption option = new DealerOpportunityController.CurrencyOption();
-                option.value = currencyType.IsoCode;
-                option.label = currencyType.IsoCode;
-                options.add(option);
+                options.add(toOption(currencyType.IsoCode, currencyType.IsoCode));
             }
         } catch (Exception exceptionValue) {
             options.clear();
         }
         if (options.isEmpty()) {
-            DealerOpportunityController.CurrencyOption usd = new DealerOpportunityController.CurrencyOption();
-            usd.value = DEFAULT_CURRENCY;
-            usd.label = DEFAULT_CURRENCY;
-            options.add(usd);
+            options.add(toOption(DEFAULT_CURRENCY, DEFAULT_CURRENCY));
         }
         return options;
     }
-
-    private static DealerOpportunityController.StageMetric stageMetric(
-        String stageName,
-        Integer stageCount,
-        Decimal stageAmount
-    ) {
-        DealerOpportunityController.StageMetric metric = new DealerOpportunityController.StageMetric();
-        metric.stageName = stageName;
-        metric.recordCount = stageCount;
-        metric.amount = stageAmount;
-        return metric;
+    
+    private static User currentPortalUser() {
+        return [
+            SELECT UserType, Contact.AccountId
+            FROM User
+            WHERE Id = :UserInfo.getUserId()
+            WITH USER_MODE
+            LIMIT 1
+        ];
     }
-
+    
+    private static DealerOpportunityController.ChartPoint chartPoint(String label, Decimal value, Integer sortKey) {
+        DealerOpportunityController.ChartPoint point = new DealerOpportunityController.ChartPoint();
+        point.label = label;
+        point.value = value;
+        point.sortKey = sortKey;
+        return point;
+    }
+    
+    private static DealerOpportunityController.CurrencyOption toOption(String label, String value) {
+        DealerOpportunityController.CurrencyOption option = new DealerOpportunityController.CurrencyOption();
+        option.label = label;
+        option.value = value;
+        return option;
+    }
+    
     private static void requireText(String value, String label) {
         if (String.isBlank(value)) {
             throw new DealerOpportunityException(label + ' is required.');
         }
     }
-
+    
     private static Date parseRequiredDate(String value, String label) {
         try {
             return Date.valueOf(value);
@@ -467,11 +458,11 @@ public with sharing class DealerOpportunityService {
             throw new DealerOpportunityException(label + ' must be a valid date.');
         }
     }
-
+    
     private static Date parseOptionalDate(String value) {
         return String.isBlank(value) ? null : Date.valueOf(value);
     }
-
+    
     private static Integer integerValue(Object value) {
         if (value == null) {
             return 0;
@@ -487,11 +478,11 @@ public with sharing class DealerOpportunityService {
         }
         return Integer.valueOf(String.valueOf(value));
     }
-
+    
     private static Decimal decimalValue(Object value) {
         return value == null ? 0 : (Decimal) value;
     }
-
+    
     private class FilterRequest {
         public String search;
         public String stageName;
@@ -508,7 +499,7 @@ public with sharing class DealerOpportunityService {
         public Integer pageNumber;
         public Integer pageSize;
     }
-
+    
     private class CreateRequest {
         public String name;
         public String stageName;
@@ -523,7 +514,7 @@ public with sharing class DealerOpportunityService {
         public String installationDate;
         public String accountId;
     }
-
+    
     public class ChartPointComparator implements Comparator<DealerOpportunityController.ChartPoint> {
         public Integer compare(
             DealerOpportunityController.ChartPoint leftPoint,

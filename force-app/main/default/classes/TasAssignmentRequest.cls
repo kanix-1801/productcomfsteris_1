@@ -123,6 +123,11 @@ public class TasAssignmentRequest {
             //GC-3279 END
             'sourceSystem' => sourceSystem//,
         };
+        if (String.isBlank(leadId)) {
+            payload.put('products', new List<Object>());
+        } else {
+            payload.put('products', leadProducts());
+        }
             if (String.isNotBlank(country)) {
            
             if(country.equalsIgnoreCase('United States')){
@@ -135,5 +140,20 @@ public class TasAssignmentRequest {
             }
         }
         return payload;
+    }
+
+    private List<Map<String, String>> leadProducts() {
+        List<Map<String, String>> products = new List<Map<String, String>>();
+        for (LeadProduct__c row : [
+            SELECT ProductFamily__c, ProductClassCode__c
+            FROM LeadProduct__c
+            WHERE Lead__c = :leadId
+        ]) {
+            products.add(new Map<String, String>{
+                'productFamilyCode' => row.ProductFamily__c,
+                'productClassCode' => row.ProductClassCode__c
+            });
+        }
+        return products;
     }
 }

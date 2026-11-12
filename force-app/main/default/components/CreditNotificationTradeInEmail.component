@@ -1,0 +1,4 @@
+<apex:component controller="ShipDNEmailController" access="global">
+         <Apex:attribute name="caseId1" description="" assignTo="{!caseId}" type="String" />  
+
+</apex:component>

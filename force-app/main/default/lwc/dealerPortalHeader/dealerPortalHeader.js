@@ -1,5 +1,9 @@
 import { LightningElement, wire } from 'lwc';
 import { NavigationMixin, CurrentPageReference } from 'lightning/navigation';
+import { getRecord } from 'lightning/uiRecordApi';
+import USER_ID from '@salesforce/user/Id';
+import NAME_FIELD from '@salesforce/schema/User.Name';
+import PHOTO_FIELD from '@salesforce/schema/User.SmallPhotoUrl';
 import basePath from '@salesforce/community/basePath';
 import BRAND_LOGO from '@salesforce/resourceUrl/DealerPortalWordmark';
 
@@ -12,6 +16,17 @@ const PAGES = [
 export default class DealerPortalHeader extends NavigationMixin(LightningElement) {
     logoUrl = `${BRAND_LOGO}?v=3`;
     activeKey = 'home';
+    userName = '';
+    userPhoto;
+
+    @wire(getRecord, { recordId: USER_ID, fields: [NAME_FIELD, PHOTO_FIELD] })
+    wiredUser({ data }) {
+        if (!data) {
+            return;
+        }
+        this.userName = data.fields.Name.value || '';
+        this.userPhoto = data.fields.SmallPhotoUrl.value;
+    }
 
     @wire(CurrentPageReference)
     setPage(pageReference) {
@@ -32,6 +47,14 @@ export default class DealerPortalHeader extends NavigationMixin(LightningElement
         }));
     }
 
+    get userInitial() {
+        return (this.userName || 'U').charAt(0).toUpperCase();
+    }
+
+    get hasPhoto() {
+        return Boolean(this.userPhoto);
+    }
+
     openPage(event) {
         const path = event.currentTarget.dataset.path || '/';
         this[NavigationMixin.Navigate]({
@@ -40,5 +63,9 @@ export default class DealerPortalHeader extends NavigationMixin(LightningElement
                 url: `${basePath}${path}`
             }
         });
+    }
+
+    logout() {
+        window.location.href = `${basePath}/secur/logout.jsp`;
     }
 }

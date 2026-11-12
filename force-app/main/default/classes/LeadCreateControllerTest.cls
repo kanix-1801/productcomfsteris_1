@@ -7,24 +7,10 @@
 private class LeadCreateControllerTest {
 
     /**
-     * @description Confirms the Lead and Product are saved and routing assigns the country queue.
+     * @description Confirms the Lead and Product are saved and a manual Lead stays with the user.
      */
     @IsTest
     static void createsLeadAndProductsThenRoutes() {
-        Group countryQueue = new Group(
-            Name = 'Lead Create Wizard Test',
-            Type = 'Queue',
-            DeveloperName = 'Lead_Create_Wizard_Test'
-        );
-        insert countryQueue;
-        insert new QueueSobject(QueueId = countryQueue.Id, SobjectType = 'Lead');
-        LeadRoutingService.testCountryRows = new List<Lead_Country_Queue__mdt>{
-            new Lead_Country_Queue__mdt(
-                Country__c = 'US',
-                QueueDeveloperName__c = 'Lead_Create_Wizard_Test'
-            )
-        };
-
         Id leadId;
         System.runAs(new User(Id = UserInfo.getUserId())) {
             Product2 productRecord = new Product2(
@@ -58,28 +44,14 @@ private class LeadCreateControllerTest {
         }
 
         Assert.areEqual(1, [SELECT COUNT() FROM LeadProduct__c WHERE Lead__c = :leadId]);
-        Assert.areEqual(countryQueue.Id, [SELECT OwnerId FROM Lead WHERE Id = :leadId].OwnerId);
+        Assert.areEqual(UserInfo.getUserId(), [SELECT OwnerId FROM Lead WHERE Id = :leadId].OwnerId);
     }
 
     /**
-     * @description Confirms a Lead saves with no Products and still starts routing.
+     * @description Confirms a Lead saves with no Products and stays with the user.
      */
     @IsTest
     static void createsLeadWithoutProductsThenRoutes() {
-        Group countryQueue = new Group(
-            Name = 'Lead Create No Product Test',
-            Type = 'Queue',
-            DeveloperName = 'Lead_Create_No_Product_Test'
-        );
-        insert countryQueue;
-        insert new QueueSobject(QueueId = countryQueue.Id, SobjectType = 'Lead');
-        LeadRoutingService.testCountryRows = new List<Lead_Country_Queue__mdt>{
-            new Lead_Country_Queue__mdt(
-                Country__c = 'US',
-                QueueDeveloperName__c = 'Lead_Create_No_Product_Test'
-            )
-        };
-
         Id leadId;
         System.runAs(new User(Id = UserInfo.getUserId())) {
             Lead leadRecord = new Lead(
@@ -97,7 +69,7 @@ private class LeadCreateControllerTest {
         }
 
         Assert.areEqual(0, [SELECT COUNT() FROM LeadProduct__c WHERE Lead__c = :leadId]);
-        Assert.areEqual(countryQueue.Id, [SELECT OwnerId FROM Lead WHERE Id = :leadId].OwnerId);
+        Assert.areEqual(UserInfo.getUserId(), [SELECT OwnerId FROM Lead WHERE Id = :leadId].OwnerId);
     }
 
     /**

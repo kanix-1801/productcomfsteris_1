@@ -3,9 +3,11 @@
     <apiVersion>66.0</apiVersion>
     <isExposed>true</isExposed>
     <masterLabel>EPP Opportunity Products</masterLabel>
-    <description>GC-3431 Displays and adds separately filtered EPP capital equipment or consumable Opportunity Products.</description>
+    <description>GC-3431 Displays and adds separately filtered EPP capital equipment or consumable Opportunity Products. GC-3047 adds a Dealer mode that does not change Capital or Consumable.</description>
     <targets>
         <target>lightning__RecordPage</target>
+        <target>lightningCommunity__Page</target>
+        <target>lightningCommunity__Default</target>
     </targets>
     <targetConfigs>
         <targetConfig targets="lightning__RecordPage">
@@ -16,9 +18,19 @@
                 name="productMode"
                 type="String"
                 label="Product Mode"
-                description="Choose Capital or Consumable."
-                datasource="Capital,Consumable"
+                description="Choose Capital, Consumable, or Dealer. Existing EPP pages stay on Capital or Consumable."
+                datasource="Capital,Consumable,Dealer"
                 default="Capital"/>
+        </targetConfig>
+        <targetConfig targets="lightningCommunity__Default">
+            <property name="recordId" type="String" label="Record Id" description="Set automatically on the opportunity detail page."/>
+            <property
+                name="productMode"
+                type="String"
+                label="Product Mode"
+                description="Use Dealer on the dealer portal. Capital and Consumable stay on the EPP record pages."
+                datasource="Capital,Consumable,Dealer"
+                default="Dealer"/>
         </targetConfig>
     </targetConfigs>
 </LightningComponentBundle>

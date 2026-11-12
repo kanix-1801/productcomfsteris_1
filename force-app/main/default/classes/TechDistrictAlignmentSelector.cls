@@ -21,22 +21,19 @@ public inherited sharing class TechDistrictAlignmentSelector {
     }
 
     /**
-     * @description Active Service Resources matched by External ID (HRIS ID) or related User.
+     * @description Active Service Resources whose External ID (technician HRIS ID) matches.
      * @param externalIds Technician HRIS IDs from the upload file.
-     * @param userIds Users whose Employee Number matches a technician HRIS ID.
      * @return Matching active Service Resources.
      */
-    public static List<ServiceResource> selectActiveResources(Set<String> externalIds, Set<Id> userIds) {
-        if ((externalIds == null || externalIds.isEmpty()) && (userIds == null || userIds.isEmpty())) {
+    public static List<ServiceResource> selectActiveResourcesByExternalIds(Set<String> externalIds) {
+        if (externalIds == null || externalIds.isEmpty()) {
             return new List<ServiceResource>();
         }
-        Set<String> ids = externalIds == null ? new Set<String>() : externalIds;
-        Set<Id> users = userIds == null ? new Set<Id>() : userIds;
         return [
             SELECT Id, Name, ExternalID__c, RelatedRecordId
             FROM ServiceResource
             WHERE IsActive = TRUE
-                AND (ExternalID__c IN :ids OR RelatedRecordId IN :users)
+                AND ExternalID__c IN :externalIds
         ];
     }
 

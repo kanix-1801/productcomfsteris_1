@@ -24,6 +24,10 @@
  * openMarkup(dataUrl) to mark up a picture with the same tools; the result comes back in
  * "markupsaved", or "markupcancelled" when the user cancels. "Done" fires "close".
  *
+ * GW-6340 — Zoom: pinch the live view with two fingers to zoom (up to MAX_ZOOM) and drag with one
+ * finger to move around. Capture saves only the zoomed area. This is digital zoom (a crop of the
+ * camera frame), so it works with any camera.
+ *
  * Getters are kept to a single return statement so the offline static analyzer
  * (Komaci) can prime the component.
  *
@@ -56,6 +60,20 @@ const MAX_PREVIEW_WIDTH = 640;
 /** Largest width (px) of a photo handed to the host in emit mode; the host shrinks it further if needed. */
 const MAX_EMIT_CAPTURE_WIDTH = 1600;
 const SAVE_MODE_EMIT = "emit";
+/*
+ * Emit mode asks the camera for its best picture, up to this width. Without it many cameras run at
+ * a low default (often 640x480). The height is left to the camera so a 4:3 microscope isn't cropped.
+ */
+const EMIT_MAX_VIDEO_WIDTH = 1920;
+const EMIT_IDEAL_VIDEO_HEIGHT = 1440;
+/** Largest width (px) a marked-up picture is handed to the host at in emit mode. */
+const EMIT_MAX_ANNOTATION_WIDTH = 1600;
+const MAX_ZOOM = 4;
+/** Zoom below this snaps back to 1x, so a pinch that ends almost closed fully resets. */
+const ZOOM_SNAP_TO_ONE = 1.05;
+const ZOOM_BUTTON_STEP = 0.5;
+/** Width / height of the live view until the camera reports its real size. */
+const DEFAULT_VIDEO_ASPECT = 4 / 3;
 /** Largest width (px) a marked-up image is saved at. */
 const MAX_ANNOTATION_WIDTH = 960;
 /** The markup editor may use at most this share of the screen height (matches the CSS max-height). */
@@ -153,6 +171,21 @@ export default class WoliMicroscopeCaptureMobile extends LightningElement {
   fileListError = null;
   annotatableFileOptions = [];
   selectedContentDocumentId = null;
+
+  /** Live view size ratio, so the view matches the camera frame and the zoomed area can be cropped exactly. */
+  videoAspect = DEFAULT_VIDEO_ASPECT;
+  /** Emit mode only: shows the size the camera actually delivers, to check the microscope on site. */
+  cameraResolutionLabel = "";
+  isZoomed = false;
+  zoomLabel = "1x";
+  /*
+   * Zoom state is kept out of the template so a pinch doesn't re-render on every finger move.
+   * _zoomX / _zoomY: top-left of the visible area as a fraction (0..1) of the camera frame.
+   */
+  _zoom = 1;
+  _zoomX = 0;
+  _zoomY = 0;
+  _gesture = null;
 
   annotationImageDataUrl;
   annotationSourceLabel = "Capture";
@@ -368,10 +401,30 @@ export default class WoliMicroscopeCaptureMobile extends LightningElement {
         : this.showPreview
           ? "Review the photo, add markup if needed, then save."
           : this.isCameraActive
-            ? "Camera ready. Tap Capture to take a photo."
+            ? "Camera ready. Pinch to zoom, then tap Capture."
             : this.isInitializing
               ? "Starting camera…"
               : "Waiting for a camera.";
+  }
+
+  get zoomViewportClass() {
+    return this.isZoomed ? "zoom-viewport zoom-viewport_zoomed" : "zoom-viewport";
+  }
+
+  get showCameraResolution() {
+    return this.isEmitMode && this.isCameraActive && !!this.cameraResolutionLabel;
+  }
+
+  get isZoomOutDisabled() {
+    return !this.isZoomed;
+  }
+
+  get isZoomInDisabled() {
+    return this.zoomLabel === `${MAX_ZOOM}x`;
+  }
+
+  get zoomViewportStyle() {
+    return `--video-aspect: ${this.videoAspect}`;
   }
 
   get numericStrokeWidth() {
@@ -431,6 +484,7 @@ export default class WoliMicroscopeCaptureMobile extends LightningElement {
   /** Switching between external cameras restarts the preview on the chosen camera. */
   async handleCameraChange(event) {
     this.selectedDeviceId = event.detail.value;
+    this.resetZoom();
     await this.startCamera();
   }
 
@@ -455,6 +509,12 @@ export default class WoliMicroscopeCaptureMobile extends LightningElement {
       this.stream = await this.openVideoStream(this.selectedDeviceId);
       video.srcObject = this.stream;
       await video.play();
+      if (this.isEmitMode) {
+        await this.raiseVideoResolution();
+      }
+      this.updateVideoSize();
+      // The <video> is re-created after markup or review; keep the zoom the user had
+      this.applyZoomTransform();
       this.isCameraActive = true;
     } catch (error) {
       this.cameraError = "The camera could not be started.";
@@ -468,19 +528,78 @@ export default class WoliMicroscopeCaptureMobile extends LightningElement {
   }
 
   async openVideoStream(deviceId) {
-    const exactConstraints = {
-      video: { deviceId: { exact: deviceId } },
-      audio: false
-    };
-    try {
-      return await navigator.mediaDevices.getUserMedia(exactConstraints);
-    } catch {
-      // Some devices reject an exact deviceId; fall back to it as a preference
-      return navigator.mediaDevices.getUserMedia({
-        video: { deviceId: { ideal: deviceId } },
-        audio: false
+    const attempts = [];
+    if (this.isEmitMode) {
+      attempts.push({
+        deviceId: { exact: deviceId },
+        width: { ideal: EMIT_MAX_VIDEO_WIDTH },
+        height: { ideal: EMIT_IDEAL_VIDEO_HEIGHT }
       });
     }
+    attempts.push({ deviceId: { exact: deviceId } });
+    // Some devices reject an exact deviceId; fall back to it as a preference
+    attempts.push({ deviceId: { ideal: deviceId } });
+
+    let lastError;
+    for (const video of attempts) {
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        return await navigator.mediaDevices.getUserMedia({
+          video,
+          audio: false
+        });
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError;
+  }
+
+  /**
+   * Emit mode: once the camera runs, switches it to the largest size it reports (capped at
+   * EMIT_MAX_VIDEO_WIDTH). Cameras that can't report or change their size keep the size they started at.
+   */
+  async raiseVideoResolution() {
+    const track = this.stream && this.stream.getVideoTracks()[0];
+    if (
+      !track ||
+      typeof track.getCapabilities !== "function" ||
+      typeof track.applyConstraints !== "function"
+    ) {
+      return;
+    }
+    try {
+      const capabilities = track.getCapabilities() || {};
+      const target = computeTargetResolution(
+        capabilities.width && capabilities.width.max,
+        capabilities.height && capabilities.height.max,
+        EMIT_MAX_VIDEO_WIDTH
+      );
+      if (target) {
+        await track.applyConstraints({
+          width: { ideal: target.width },
+          height: { ideal: target.height }
+        });
+      }
+    } catch (error) {
+      this.log("info", "Camera resolution could not be raised", error, [
+        LOG_TAG_WOLI
+      ]);
+    }
+  }
+
+  /** The camera size can change after it starts (raiseVideoResolution), so the live view follows it. */
+  handleVideoResize() {
+    this.updateVideoSize();
+  }
+
+  updateVideoSize() {
+    const video = this.refs && this.refs.videoElement;
+    if (!video || !video.videoWidth || !video.videoHeight) {
+      return;
+    }
+    this.videoAspect = video.videoWidth / video.videoHeight;
+    this.cameraResolutionLabel = `Camera: ${video.videoWidth} × ${video.videoHeight}`;
   }
 
   stopCamera() {
@@ -495,6 +614,7 @@ export default class WoliMicroscopeCaptureMobile extends LightningElement {
     this.isCameraActive = false;
   }
 
+  /** Grabs the visible (zoomed) area of the current camera frame as a PNG data URL. */
   grabFrameFromVideo(maxWidth = MAX_PREVIEW_WIDTH) {
     const video = this.refs.videoElement;
     const canvas = this.refs.canvasElement;
@@ -502,12 +622,198 @@ export default class WoliMicroscopeCaptureMobile extends LightningElement {
       return null;
     }
 
-    const scale = Math.min(1, maxWidth / video.videoWidth);
-    canvas.width = Math.round(video.videoWidth * scale);
-    canvas.height = Math.round(video.videoHeight * scale);
+    const crop = computeZoomCrop(
+      video.videoWidth,
+      video.videoHeight,
+      this._zoom,
+      this._zoomX,
+      this._zoomY
+    );
+    const scale = Math.min(1, maxWidth / crop.width);
+    canvas.width = Math.max(1, Math.round(crop.width * scale));
+    canvas.height = Math.max(1, Math.round(crop.height * scale));
     const context = canvas.getContext("2d");
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    context.drawImage(
+      video,
+      crop.x,
+      crop.y,
+      crop.width,
+      crop.height,
+      0,
+      0,
+      canvas.width,
+      canvas.height
+    );
     return canvas.toDataURL(PNG_MIME_TYPE);
+  }
+
+  /* -------------------------------- zoom ------------------------------- */
+
+  /**
+   * Two fingers start a pinch; one finger starts a drag when zoomed in. Positions are kept as
+   * fractions of the live view so they don't depend on the screen size.
+   */
+  handleZoomTouchStart(event) {
+    if (event.touches && event.touches.length >= 2) {
+      // Without this iOS can claim the two-finger gesture before touchmove reaches the component
+      event.preventDefault();
+    }
+    this.startZoomGesture(event.touches);
+  }
+
+  /** iOS (WebKit) only: stops the app's own pinch handling so the pinch zooms the camera. */
+  handleZoomGesture(event) {
+    event.preventDefault();
+  }
+
+  handleZoomIn() {
+    this.zoomAroundCenter(this._zoom + ZOOM_BUTTON_STEP);
+  }
+
+  handleZoomOut() {
+    this.zoomAroundCenter(this._zoom - ZOOM_BUTTON_STEP);
+  }
+
+  /** Zoom buttons keep the middle of the current view in the middle. */
+  zoomAroundCenter(targetZoom) {
+    const zoom = clampNumber(targetZoom, 1, MAX_ZOOM);
+    const centerX = this._zoomX + 0.5 / this._zoom;
+    const centerY = this._zoomY + 0.5 / this._zoom;
+    this.setZoom(zoom, centerX - 0.5 / zoom, centerY - 0.5 / zoom);
+  }
+
+  handleZoomTouchMove(event) {
+    const gesture = this._gesture;
+    if (!gesture) {
+      return;
+    }
+    // Stop the popup from scrolling or the page from zooming while the camera is pinched or dragged
+    event.preventDefault();
+    const touches = event.touches;
+    if (gesture.type === "pinch" && touches.length >= 2) {
+      const distance = touchDistance(touches[0], touches[1]);
+      const midpoint = this.toViewportFraction(
+        touchMidpoint(touches[0], touches[1]),
+        gesture.rect
+      );
+      const zoom = clampNumber(
+        (gesture.startZoom * distance) / gesture.startDistance,
+        1,
+        MAX_ZOOM
+      );
+      // Keep the spot under the fingers in place while zooming
+      this.setZoom(
+        zoom,
+        gesture.anchorX - midpoint.x / zoom,
+        gesture.anchorY - midpoint.y / zoom
+      );
+    } else if (gesture.type === "pan" && touches.length === 1) {
+      const point = this.toViewportFraction(
+        { x: touches[0].clientX, y: touches[0].clientY },
+        gesture.rect
+      );
+      this.setZoom(
+        this._zoom,
+        gesture.startZoomX - (point.x - gesture.startX) / this._zoom,
+        gesture.startZoomY - (point.y - gesture.startY) / this._zoom
+      );
+    }
+  }
+
+  /** Lifting one finger of a pinch carries on as a drag with the other finger. */
+  handleZoomTouchEnd(event) {
+    if (this._zoom < ZOOM_SNAP_TO_ONE) {
+      this.resetZoom();
+    }
+    this.startZoomGesture(event.touches);
+  }
+
+  handleResetZoom() {
+    this.resetZoom();
+  }
+
+  startZoomGesture(touches) {
+    const viewport = this.refs.zoomViewport;
+    if (!viewport || !touches || touches.length === 0) {
+      this._gesture = null;
+      return;
+    }
+    const rect = viewport.getBoundingClientRect();
+    if (!rect.width || !rect.height) {
+      this._gesture = null;
+      return;
+    }
+    if (touches.length >= 2) {
+      const midpoint = this.toViewportFraction(
+        touchMidpoint(touches[0], touches[1]),
+        rect
+      );
+      this._gesture = {
+        type: "pinch",
+        rect,
+        startZoom: this._zoom,
+        startDistance: Math.max(1, touchDistance(touches[0], touches[1])),
+        anchorX: this._zoomX + midpoint.x / this._zoom,
+        anchorY: this._zoomY + midpoint.y / this._zoom
+      };
+    } else if (this._zoom > 1) {
+      const point = this.toViewportFraction(
+        { x: touches[0].clientX, y: touches[0].clientY },
+        rect
+      );
+      this._gesture = {
+        type: "pan",
+        rect,
+        startX: point.x,
+        startY: point.y,
+        startZoomX: this._zoomX,
+        startZoomY: this._zoomY
+      };
+    } else {
+      // One finger at 1x is left to the browser, so the popup can still be scrolled
+      this._gesture = null;
+    }
+  }
+
+  toViewportFraction(point, rect) {
+    return {
+      x: (point.x - rect.left) / rect.width,
+      y: (point.y - rect.top) / rect.height
+    };
+  }
+
+  /** Sets the zoom and the top-left of the visible area, kept inside the camera frame. */
+  setZoom(zoom, zoomX, zoomY) {
+    const visible = 1 / zoom;
+    this._zoom = zoom;
+    this._zoomX = clampNumber(zoomX, 0, 1 - visible);
+    this._zoomY = clampNumber(zoomY, 0, 1 - visible);
+    this.applyZoomTransform();
+    const label = `${Math.round(zoom * 10) / 10}x`;
+    if (label !== this.zoomLabel) {
+      this.zoomLabel = label;
+    }
+    const zoomed = zoom > 1;
+    if (zoomed !== this.isZoomed) {
+      this.isZoomed = zoomed;
+    }
+  }
+
+  resetZoom() {
+    this._gesture = null;
+    this.setZoom(1, 0, 0);
+  }
+
+  /** Moves and scales the <video> directly; the template is not re-rendered on each finger move. */
+  applyZoomTransform() {
+    const video = this.refs && this.refs.videoElement;
+    if (!video) {
+      return;
+    }
+    video.style.transform =
+      this._zoom > 1
+        ? `scale(${this._zoom}) translate(${-this._zoomX * 100}%, ${-this._zoomY * 100}%)`
+        : "";
   }
 
   /* ------------------------------ capture ------------------------------ */
@@ -1049,7 +1355,8 @@ export default class WoliMicroscopeCaptureMobile extends LightningElement {
                 (this.isEmitMode
                   ? EMIT_ANNOTATION_MAX_HEIGHT_RATIO
                   : ANNOTATION_MAX_HEIGHT_RATIO)
-            )
+            ),
+            this.isEmitMode ? EMIT_MAX_ANNOTATION_WIDTH : MAX_ANNOTATION_WIDTH
           );
           this.annotationExportMultiplier = layout.exportMultiplier;
           this.fabricCanvas.setWidth(layout.displayWidth);
@@ -1313,23 +1620,25 @@ export function chooseCamera(videoInputs) {
 
 /**
  * Sizes the markup canvas so the whole image fits on screen, and works out the export multiplier
- * that saves it back at full resolution (capped at MAX_ANNOTATION_WIDTH).
+ * that saves it back at full resolution (capped at maxWidth).
  * @param {number} imageWidth Natural image width (px)
  * @param {number} imageHeight Natural image height (px)
  * @param {number} areaWidth Available width on screen (px); 0 or less means unknown
  * @param {number} areaHeight Available height on screen (px); 0 or less means unknown
+ * @param {number} maxWidth Largest saved width (px); defaults to MAX_ANNOTATION_WIDTH
  * @returns {{displayScale: number, displayWidth: number, displayHeight: number, exportMultiplier: number}}
  */
 export function computeAnnotationLayout(
   imageWidth,
   imageHeight,
   areaWidth,
-  areaHeight
+  areaHeight,
+  maxWidth = MAX_ANNOTATION_WIDTH
 ) {
-  const naturalWidth = imageWidth || MAX_ANNOTATION_WIDTH;
-  const naturalHeight = imageHeight || MAX_ANNOTATION_WIDTH;
-  // Never save larger than the original, nor wider than MAX_ANNOTATION_WIDTH
-  const exportScale = Math.min(1, MAX_ANNOTATION_WIDTH / naturalWidth);
+  const naturalWidth = imageWidth || maxWidth;
+  const naturalHeight = imageHeight || maxWidth;
+  // Never save larger than the original, nor wider than maxWidth
+  const exportScale = Math.min(1, maxWidth / naturalWidth);
   const widthFit = areaWidth > 0 ? areaWidth / naturalWidth : exportScale;
   const heightFit = areaHeight > 0 ? areaHeight / naturalHeight : exportScale;
   const displayScale = Math.min(exportScale, widthFit, heightFit);
@@ -1338,6 +1647,63 @@ export function computeAnnotationLayout(
     displayWidth: Math.max(1, Math.round(naturalWidth * displayScale)),
     displayHeight: Math.max(1, Math.round(naturalHeight * displayScale)),
     exportMultiplier: exportScale / displayScale
+  };
+}
+
+/**
+ * Area of the camera frame shown when zoomed in.
+ * @param {number} frameWidth Camera frame width (px)
+ * @param {number} frameHeight Camera frame height (px)
+ * @param {number} zoom 1 shows the whole frame
+ * @param {number} zoomX Left edge of the visible area as a fraction of the frame width
+ * @param {number} zoomY Top edge of the visible area as a fraction of the frame height
+ * @returns {{x: number, y: number, width: number, height: number}} Source rectangle in frame pixels
+ */
+export function computeZoomCrop(frameWidth, frameHeight, zoom, zoomX, zoomY) {
+  const safeZoom = Math.max(1, zoom || 1);
+  const width = frameWidth / safeZoom;
+  const height = frameHeight / safeZoom;
+  return {
+    x: clampNumber((zoomX || 0) * frameWidth, 0, frameWidth - width),
+    y: clampNumber((zoomY || 0) * frameHeight, 0, frameHeight - height),
+    width,
+    height
+  };
+}
+
+/**
+ * Largest camera size to ask for, keeping the camera's own shape.
+ * @param {number} maxWidth Largest width the camera reports (px)
+ * @param {number} maxHeight Largest height the camera reports (px)
+ * @param {number} widthCap Never ask for more than this width (px)
+ * @returns {{width: number, height: number}|null} Null when the camera doesn't report its size
+ */
+export function computeTargetResolution(maxWidth, maxHeight, widthCap) {
+  if (!(maxWidth > 0) || !(maxHeight > 0)) {
+    return null;
+  }
+  const scale = Math.min(1, widthCap / maxWidth);
+  return {
+    width: Math.round(maxWidth * scale),
+    height: Math.round(maxHeight * scale)
+  };
+}
+
+export function clampNumber(value, min, max) {
+  return Math.min(Math.max(value, min), Math.max(min, max));
+}
+
+function touchDistance(first, second) {
+  return Math.hypot(
+    second.clientX - first.clientX,
+    second.clientY - first.clientY
+  );
+}
+
+function touchMidpoint(first, second) {
+  return {
+    x: (first.clientX + second.clientX) / 2,
+    y: (first.clientY + second.clientY) / 2
   };
 }
 

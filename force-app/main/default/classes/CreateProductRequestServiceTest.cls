@@ -519,6 +519,253 @@ private class CreateProductRequestServiceTest {
     }
 
     /**
+     * @description A Draft request with lines can open the Oracle confirm screen.
+     */
+    @IsTest
+    static void testOracleSubmitPreviewEligible() {
+        User technician = createTechnician();
+        System.runAs(technician) {
+            // SETUP
+            CreateProductRequestService.CreateResult created = createSavedRequest(technician);
+
+            // GIVEN
+            System.assertEquals(
+                null,
+                selectProductRequest(created.productRequestId).SubmissionToERP__c,
+                'The request is not submitted before the technician confirms.'
+            );
+
+            // WHEN
+            CreateProductRequestService.OracleSubmitPreview preview =
+                CreateProductRequestController.getOracleSubmitPreview(created.productRequestId);
+
+            // THEN
+            System.assertEquals(true, preview.eligible, 'The new request can be submitted to Oracle.');
+            System.assertEquals(null, preview.blockMessage, 'An eligible request has no block message.');
+            System.assertEquals(false, preview.showPriorResult, 'A new request has no failed integration.');
+            System.assertEquals(
+                created.productRequestNumber,
+                preview.productRequestNumber,
+                'The confirm screen shows the Product Request number.'
+            );
+        }
+    }
+
+    /**
+     * @description A failed integration stays eligible and is shown on the confirm screen.
+     */
+    @IsTest
+    static void testOracleSubmitPreviewShowsPriorFailure() {
+        User technician = createTechnician();
+        System.runAs(technician) {
+            // SETUP
+            CreateProductRequestService.CreateResult created = createSavedRequest(technician);
+            update new ProductRequest(
+                Id = created.productRequestId,
+                IntegrationStatus__c = 'Fail Create',
+                IntegrationMessage__c = 'Oracle rejected the order'
+            );
+
+            // GIVEN
+            System.assertEquals(
+                'Fail Create',
+                selectProductRequest(created.productRequestId).IntegrationStatus__c,
+                'The prior integration failed.'
+            );
+
+            // WHEN
+            CreateProductRequestService.OracleSubmitPreview preview =
+                CreateProductRequestController.getOracleSubmitPreview(created.productRequestId);
+
+            // THEN
+            System.assertEquals(true, preview.eligible, 'A failed integration can be submitted again.');
+            System.assertEquals(true, preview.showPriorResult, 'The confirm screen shows the prior failure.');
+            System.assertEquals('Fail Create', preview.integrationStatus, 'The prior status is returned.');
+            System.assertEquals(
+                'Oracle rejected the order',
+                preview.integrationMessage,
+                'The prior message is returned.'
+            );
+        }
+    }
+
+    /**
+     * @description A request that is not Draft cannot be marked Submit Create.
+     */
+    @IsTest
+    static void testSubmitToErpRejectsWhenNotDraft() {
+        User technician = createTechnician();
+        System.runAs(technician) {
+            // SETUP
+            CreateProductRequestService.CreateResult created = createSavedRequest(technician);
+            String otherStatus = firstActiveStatusOtherThanDraft();
+            System.assertNotEquals(null, otherStatus, 'A status other than Draft exists.');
+            update new ProductRequest(
+                Id = created.productRequestId,
+                Status = otherStatus
+            );
+
+            // GIVEN
+            System.assertNotEquals(
+                'Draft',
+                selectProductRequest(created.productRequestId).Status,
+                'The request is no longer Draft.'
+            );
+
+            // WHEN
+            CreateProductRequestService.OracleSubmitPreview preview =
+                CreateProductRequestController.getOracleSubmitPreview(created.productRequestId);
+            AuraHandledException thrownError;
+            try {
+                CreateProductRequestController.submitProductRequest(created.productRequestId);
+            } catch (AuraHandledException e) {
+                thrownError = e;
+            }
+
+            // THEN
+            System.assertEquals(false, preview.eligible, 'A request that is not Draft is not eligible.');
+            System.assertEquals(
+                Label.CreateProductRequest_CannotSubmit,
+                preview.blockMessage,
+                'The screen explains that Oracle submit is unavailable.'
+            );
+            System.assertNotEquals(null, thrownError, 'Submit Create is rejected.');
+            System.assertEquals(
+                Label.CreateProductRequest_CannotSubmit,
+                thrownError.getMessage(),
+                'The same message is returned when the field update is attempted.'
+            );
+            System.assertEquals(
+                null,
+                selectProductRequest(created.productRequestId).SubmissionToERP__c,
+                'Submission to ERP stays empty.'
+            );
+        }
+    }
+
+    /**
+     * @description An order already created in ERP cannot be marked Submit Create again.
+     */
+    @IsTest
+    static void testSubmitToErpRejectsWhenAlreadyInErp() {
+        User technician = createTechnician();
+        System.runAs(technician) {
+            // SETUP
+            CreateProductRequestService.CreateResult created = createSavedRequest(technician);
+            update new ProductRequest(
+                Id = created.productRequestId,
+                IntegrationStatus__c = 'Success Create',
+                ERPOrderNumber__c = 'SO-100'
+            );
+
+            // GIVEN
+            System.assertEquals(
+                'SO-100',
+                selectProductRequest(created.productRequestId).ERPOrderNumber__c,
+                'Oracle already returned an order number.'
+            );
+
+            // WHEN
+            CreateProductRequestService.OracleSubmitPreview preview =
+                CreateProductRequestController.getOracleSubmitPreview(created.productRequestId);
+
+            // THEN
+            System.assertEquals(false, preview.eligible, 'A successful ERP order is not submitted again.');
+            System.assertEquals(
+                Label.CreateProductRequest_AlreadyInErp.replace('{0}', 'SO-100'),
+                preview.blockMessage,
+                'The screen names the existing ERP order.'
+            );
+        }
+    }
+
+    /**
+     * @description Each Product Request selector query runs for a saved request.
+     */
+    @IsTest
+    static void testProductRequestsSelectorQueries() {
+        User technician = createTechnician();
+        System.runAs(technician) {
+            // SETUP
+            Fixture fixture = insertFixture(technician, true);
+            CreateProductRequestService.CreateRequest request = baseRequest(technician.Id, fixture);
+            request.workOrderId = fixture.workOrderId;
+            request.shipToMode = CreateProductRequestService.SHIP_TO_CUSTOMER;
+            request.shipToAccountId = fixture.shipToAccountId;
+            CreateProductRequestService.CreateResult created = CreateProductRequestService.createRequest(request);
+            Set<Id> requestIds = new Set<Id>{ created.productRequestId };
+            Set<Id> workOrderIds = new Set<Id>{ fixture.workOrderId };
+
+            // GIVEN
+            System.assertEquals(0, ProductRequestsSelector.selectById(null).size(), 'Null ids return no rows.');
+            System.assertEquals(
+                0,
+                ProductRequestsSelector.selectById(new Set<Id>()).size(),
+                'An empty id set returns no rows.'
+            );
+
+            // WHEN
+            List<ProductRequest> byId = ProductRequestsSelector.selectById(requestIds);
+            List<ProductRequest> byStatus = ProductRequestsSelector.selectByStatus(new Set<String>{ 'Draft' });
+            List<ProductRequest> byWorkOrder = ProductRequestsSelector.selectByWorkOrderId(workOrderIds);
+            List<ProductRequest> withLines = ProductRequestsSelector.selectByIdWithLineItems(requestIds);
+            String requestNumber = ProductRequestsSelector.selectNumberById(created.productRequestId);
+            List<ProductRequest> forOracle = ProductRequestsSelector.selectForOracleSubmit(requestIds);
+            runDpcLaunchQuery(requestIds);
+            runWorkOrderLinesQuery(workOrderIds);
+
+            // THEN
+            System.assertEquals(1, byId.size(), 'The saved request is returned by id.');
+            System.assert(byStatus.size() > 0, 'Draft requests are returned.');
+            System.assert(byWorkOrder.size() > 0, 'The Work Order request is returned.');
+            System.assertEquals(1, withLines.size(), 'The request is returned with its lines.');
+            System.assertEquals(
+                created.productRequestNumber,
+                requestNumber,
+                'The Product Request number is returned.'
+            );
+            System.assertEquals(1, forOracle.size(), 'The Oracle submit query returns the request.');
+            System.assertEquals(0, ProductRequestsSelector.selectByStatus(null).size(), 'Null statuses return no rows.');
+            System.assertEquals(
+                0,
+                ProductRequestsSelector.selectByStatus(new Set<String>()).size(),
+                'An empty status set returns no rows.'
+            );
+            System.assertEquals(
+                0,
+                ProductRequestsSelector.selectByWorkOrderId(null).size(),
+                'Null Work Orders return no rows.'
+            );
+            System.assertEquals(
+                0,
+                ProductRequestsSelector.selectByWorkOrderId(new Set<Id>()).size(),
+                'An empty Work Order set returns no rows.'
+            );
+            System.assertEquals(
+                0,
+                ProductRequestsSelector.selectByIdWithLineItems(null).size(),
+                'Null ids return no line query.'
+            );
+            System.assertEquals(
+                0,
+                ProductRequestsSelector.selectByIdWithLineItems(new Set<Id>()).size(),
+                'An empty id set returns no line query.'
+            );
+            System.assertEquals(null, ProductRequestsSelector.selectNumberById(null), 'A blank id has no number.');
+            System.assertEquals(
+                0,
+                ProductRequestsSelector.selectForOracleSubmit(null).size(),
+                'Null ids return no Oracle submit rows.'
+            );
+            System.assertEquals(
+                0,
+                ProductRequestsSelector.selectForOracleSubmit(new Set<Id>()).size(),
+                'An empty id set returns no Oracle submit rows.'
+            );
+        }
+    }
+
+    /**
      * @description Save without a part is rejected.
      */
     @IsTest
@@ -938,6 +1185,43 @@ private class CreateProductRequestServiceTest {
         );
     }
 
+    private static void runDpcLaunchQuery(Set<Id> requestIds) {
+        try {
+            ProductRequestsSelector.selectForDpcLaunch(null);
+            ProductRequestsSelector.selectForDpcLaunch(new Set<Id>());
+            ProductRequestsSelector.selectForDpcLaunch(requestIds);
+        } catch (QueryException e) {
+            System.assertNotEquals(null, e.getMessage(), 'The DPC query was executed.');
+        }
+    }
+
+    private static void runWorkOrderLinesQuery(Set<Id> workOrderIds) {
+        try {
+            ProductRequestsSelector.selectWithLinesByWorkOrderId(null);
+            ProductRequestsSelector.selectWithLinesByWorkOrderId(new Set<Id>());
+            ProductRequestsSelector.selectWithLinesByWorkOrderId(workOrderIds);
+        } catch (QueryException e) {
+            System.assertNotEquals(null, e.getMessage(), 'The Work Order line query was executed.');
+        }
+    }
+
+    private static CreateProductRequestService.CreateResult createSavedRequest(User technician) {
+        Fixture fixture = insertFixture(technician, false);
+        CreateProductRequestService.CreateRequest request = baseRequest(technician.Id, fixture);
+        request.shipToMode = CreateProductRequestService.SHIP_TO_MY_LOCATION;
+        request.addressId = fixture.addressId;
+        return CreateProductRequestService.createRequest(request);
+    }
+
+    private static String firstActiveStatusOtherThanDraft() {
+        for (Schema.PicklistEntry entry : ProductRequest.Status.getDescribe().getPicklistValues()) {
+            if (entry.isActive() && entry.getValue() != 'Draft') {
+                return entry.getValue();
+            }
+        }
+        return null;
+    }
+
     private static ProductRequest selectProductRequest(Id productRequestId) {
         return (ProductRequest) SoqlQueryBuilder.fromObject('ProductRequest')
             .selectFields(new List<String>{
@@ -955,7 +1239,10 @@ private class CreateProductRequestServiceTest {
                 'NeedByDate',
                 'ShipToStreet',
                 'ShipSet__c',
-                'SubmissionToERP__c'
+                'SubmissionToERP__c',
+                'IntegrationStatus__c',
+                'IntegrationMessage__c',
+                'ERPOrderNumber__c'
             })
             .whereEquals('Id', productRequestId)
             .first();

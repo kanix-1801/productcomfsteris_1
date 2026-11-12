@@ -1318,16 +1318,6 @@ export default class WoDebrief extends LightningElement {
 	}
 	get woAccountName(){ return this._workOrder?.Account?.Name?.value ?? ''; }
 	/**
-	 * @description Wo Asset Name.
-	 */
-	get woAssetName() {
-		const asset  = this._workOrder?.Asset;
-		const serial = asset?.SerialNumber?.value ?? '';
-		const name   = asset?.Name?.value ?? '';
-		return serial || name;
-	}
-
-	/**
 	 * @description Wo Type.
 	 */
 	get woType()       { return this._workOrder?.WorkOrderType__c?.value ?? ''; }

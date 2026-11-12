@@ -25,6 +25,11 @@ public with sharing class ProductRequestsService {
     private static final String TAX_HANDLING = 'S';
     private static final String SOURCE_TYPE = 'Internal';
     private static final String DEFAULT_UOM = 'EA';
+    /** Address.BillTo__c API value for Primary. */
+    private static final String BILL_TO_PRIMARY = 'P';
+    /** ProductRequest.IntegrationStatus__c values for Create Sales Order. */
+    private static final String INTEGRATION_SUCCESS = 'Success Create';
+    private static final String INTEGRATION_FAIL = 'Fail Create';
 
 
     /**
@@ -229,7 +234,8 @@ public with sharing class ProductRequestsService {
             }
 
             String soldToOrgId = resolveOracleAccountIdFromServiceResource(pr);
-            String addressId = resolveOracleAddressIdFromServiceResourceDescription(pr);
+            String shipToAddrId = resolveShipToAddressId(pr);
+            String invAddrId = resolveInvoiceAddressId(pr);
 
             if (String.isBlank(soldToOrgId)) {
                 return failAndStampOracleSubmit(
@@ -238,23 +244,26 @@ public with sharing class ProductRequestsService {
                     'Missing ServiceResource.OracleAccountId__c (required for P_SOLD_TO_ORG_ID / P_SHIP_TO_CUST_ID). Set ProductRequest.ServiceResource__c.'
                 );
             }
-            if (String.isBlank(addressId)) {
+            if (String.isBlank(shipToAddrId)) {
+                return failAndStampOracleSubmit(pr, result, shipToAddressFailureMessage(pr));
+            }
+            if (String.isBlank(invAddrId)) {
                 return failAndStampOracleSubmit(
                     pr,
                     result,
-                    'Missing ServiceResource.Description (required for P_SHIP_TO_ADDR_ID / P_INV_ADDR_ID / line P_BILL_TO_ADDR / P_SHIP_TO_ADDR). Set ProductRequest.ServiceResource__c.'
+                    'Missing primary Bill To address on the Service Resource location (Address.BillTo__c = Primary and Address.AddressID__c) for P_INV_ADDR_ID.'
                 );
             }
 
             Map<String, Object> body = buildOracleSalesOrderHeader(
                 pr,
                 soldToOrgId,
-                addressId,
-                addressId
+                shipToAddrId,
+                invAddrId
             );
             body.put(
                 'P_ORDER_LINE_ITEMS',
-                buildOracleSalesOrderLines(pr, lines, addressId, addressId)
+                buildOracleSalesOrderLines(pr, lines, shipToAddrId, invAddrId)
             );
             String restBody = JSON.serialize(body);
             result.requestJson = restBody;
@@ -293,10 +302,10 @@ public with sharing class ProductRequestsService {
             return applyOracleCalloutResponse(pr.Id, result, restBody, responseMap);
         } catch (Exception e) {
             result.success = false;
-            result.integrationStatus = 'Fail';
+            result.integrationStatus = INTEGRATION_FAIL;
             result.integrationMessage = e.getMessage();
             try {
-                stampOracleSubmission(req.productRequestId, 'Submitted', 'Fail', e.getMessage(), null);
+                stampOracleSubmission(req.productRequestId, INTEGRATION_FAIL, e.getMessage(), null);
             } catch (Exception ignore) {
                 // keep original error
             }
@@ -355,14 +364,14 @@ public with sharing class ProductRequestsService {
 
         if (businessSuccess) {
             result.success = true;
-            result.integrationStatus = 'Success';
+            result.integrationStatus = INTEGRATION_SUCCESS;
             // Prefer a clear SF message; Oracle often returns "Success" in p_errbuf on create.
             result.integrationMessage = 'Oracle sales order created.';
             result.erpOrderNumber = erpOrderNumber;
-            stampOracleSubmission(productRequestId, 'Submitted', 'Success', result.integrationMessage, erpOrderNumber);
+            stampOracleSubmission(productRequestId, INTEGRATION_SUCCESS, result.integrationMessage, erpOrderNumber);
         } else {
             result.success = false;
-            result.integrationStatus = 'Fail';
+            result.integrationStatus = INTEGRATION_FAIL;
             if (String.isBlank(message)) {
                 if (!soSuccess) {
                     message = 'Oracle/BOOMI call failed.';
@@ -375,7 +384,7 @@ public with sharing class ProductRequestsService {
                 }
             }
             result.integrationMessage = message;
-            stampOracleSubmission(productRequestId, 'Submitted', 'Fail', result.integrationMessage, null);
+            stampOracleSubmission(productRequestId, INTEGRATION_FAIL, result.integrationMessage, null);
         }
         return result;
     }
@@ -446,29 +455,27 @@ public with sharing class ProductRequestsService {
         String message
     ) {
         result.success = false;
-        result.integrationStatus = 'Fail';
+        result.integrationStatus = INTEGRATION_FAIL;
         result.integrationMessage = message;
-        stampOracleSubmission(pr.Id, 'Submitted', 'Fail', message, null);
+        stampOracleSubmission(pr.Id, INTEGRATION_FAIL, message, null);
         return result;
     }
 
     /**
-     * @description GW-514: Updates Product Request Submission / Integration Status / Message / ERP Order Number.
+     * @description GW-514: Updates Integration Status / Message / ERP Order Number.
+     *              Does not change SubmissionToERP__c. Boomi sets that to Submitted.
      * @param productRequestId Product Request Id.
-     * @param submissionToErp SubmissionToERP__c value (typically Submitted).
      * @param integrationStatus Success or Fail.
      * @param integrationMessage User-facing message.
      * @param erpOrderNumber Oracle order number when successful; null otherwise.
      */
     private static void stampOracleSubmission(
         Id productRequestId,
-        String submissionToErp,
         String integrationStatus,
         String integrationMessage,
         String erpOrderNumber
     ) {
         ProductRequest updatePr = new ProductRequest(Id = productRequestId);
-        updatePr.SubmissionToERP__c = submissionToErp;
         updatePr.IntegrationStatus__c = integrationStatus;
         updatePr.IntegrationMessage__c = integrationMessage;
         if (erpOrderNumber != null) {
@@ -507,7 +514,12 @@ public with sharing class ProductRequestsService {
                 AccountId,
                 ServiceResource__c,
                 ServiceResource__r.OracleAccountId__c,
-                ServiceResource__r.Description
+                ServiceResource__r.Description,
+                ServiceResource__r.LocationId,
+                ShipToAddressAccount__c,
+                ShipToAddressAccount__r.AddressID__c,
+                ShipToTechnicianAddress__c,
+                ShipToTechnicianAddress__r.AddressID__c
             FROM ProductRequest
             WHERE Id = :productRequestId
             LIMIT 1
@@ -553,15 +565,65 @@ public with sharing class ProductRequestsService {
     }
 
     /**
-     * @description GW-514: Resolves P_SHIP_TO_ADDR_ID / P_INV_ADDR_ID from ServiceResource.Description
-     *              via ProductRequest.ServiceResource__c (same SR resolution fallbacks).
-     *              Does not use Account.
+     * @description GW-514: P_SHIP_TO_ADDR_ID from Ship-to Address Account.AddressID__c when that
+     *              lookup is set; otherwise Ship-To Technician Address.AddressID__c.
      * @param pr Product Request header.
-     * @return Description or null.
+     * @return Address ID or null.
      */
-    private static String resolveOracleAddressIdFromServiceResourceDescription(ProductRequest pr) {
+    private static String resolveShipToAddressId(ProductRequest pr) {
+        if (pr.ShipToAddressAccount__c != null) {
+            String accountAddressId = pr.ShipToAddressAccount__r == null
+                ? null
+                : pr.ShipToAddressAccount__r.AddressID__c;
+            return String.isBlank(accountAddressId) ? null : accountAddressId.trim();
+        }
+        if (pr.ShipToTechnicianAddress__c != null) {
+            String technicianAddressId = pr.ShipToTechnicianAddress__r == null
+                ? null
+                : pr.ShipToTechnicianAddress__r.AddressID__c;
+            return String.isBlank(technicianAddressId) ? null : technicianAddressId.trim();
+        }
+        return null;
+    }
+
+    /**
+     * @description GW-514: Explains why P_SHIP_TO_ADDR_ID could not be resolved.
+     * @param pr Product Request header.
+     * @return Failure message stamped on the Product Request.
+     */
+    private static String shipToAddressFailureMessage(ProductRequest pr) {
+        if (pr.ShipToAddressAccount__c != null) {
+            return 'Ship-to Address Account is set but Account.AddressID__c is blank (required for P_SHIP_TO_ADDR_ID).';
+        }
+        if (pr.ShipToTechnicianAddress__c != null) {
+            return 'Ship-To Technician Address is set but Address.AddressID__c is blank (required for P_SHIP_TO_ADDR_ID).';
+        }
+        return 'Set Ship-to Address Account or Ship-To Technician Address (required for P_SHIP_TO_ADDR_ID).';
+    }
+
+    /**
+     * @description GW-514: P_INV_ADDR_ID from the first Address on the Service Resource Location
+     *              whose Bill To is Primary.
+     * @param pr Product Request header.
+     * @return Address.AddressID__c or null.
+     */
+    private static String resolveInvoiceAddressId(ProductRequest pr) {
         ServiceResource sr = resolveServiceResourceForOracle(pr);
-        return sr == null || String.isBlank(sr.Description) ? null : sr.Description.trim();
+        if (sr == null || sr.LocationId == null) {
+            return null;
+        }
+        List<Schema.Address> primaryBillTo = [
+            SELECT AddressID__c
+            FROM Address
+            WHERE ParentId = :sr.LocationId
+                AND BillTo__c = :BILL_TO_PRIMARY
+            ORDER BY CreatedDate ASC, Id ASC
+            LIMIT 1
+        ];
+        if (primaryBillTo.isEmpty() || String.isBlank(primaryBillTo[0].AddressID__c)) {
+            return null;
+        }
+        return primaryBillTo[0].AddressID__c.trim();
     }
 
     /**
@@ -577,7 +639,7 @@ public with sharing class ProductRequestsService {
                 return pr.ServiceResource__r;
             }
             List<ServiceResource> srs = [
-                SELECT Id, OracleAccountId__c, Description
+                SELECT Id, OracleAccountId__c, Description, LocationId
                 FROM ServiceResource
                 WHERE Id = :pr.ServiceResource__c
                 LIMIT 1
@@ -589,7 +651,7 @@ public with sharing class ProductRequestsService {
 
         if (pr.DestinationLocationId != null) {
             List<ServiceResource> byLocation = [
-                SELECT Id, OracleAccountId__c, Description
+                SELECT Id, OracleAccountId__c, Description, LocationId
                 FROM ServiceResource
                 WHERE LocationId = :pr.DestinationLocationId
                     AND IsActive = TRUE
@@ -601,7 +663,7 @@ public with sharing class ProductRequestsService {
         }
 
         List<ServiceResource> byUser = [
-            SELECT Id, OracleAccountId__c, Description
+            SELECT Id, OracleAccountId__c, Description, LocationId
             FROM ServiceResource
             WHERE RelatedRecordId = :UserInfo.getUserId()
                 AND IsActive = TRUE
@@ -614,8 +676,8 @@ public with sharing class ProductRequestsService {
      * @description GW-514: Builds Create Sales Order header map (P_* fields) from Product Request.
      * @param pr Product Request header.
      * @param soldToOrgId ServiceResource.OracleAccountId__c for P_SOLD_TO_ORG_ID / P_SHIP_TO_CUST_ID.
-     * @param shipToAddrId ServiceResource.Description for P_SHIP_TO_ADDR_ID.
-     * @param invAddrId ServiceResource.Description for P_INV_ADDR_ID.
+     * @param shipToAddrId Account.AddressID__c or Address.AddressID__c for P_SHIP_TO_ADDR_ID.
+     * @param invAddrId Primary Bill To Address.AddressID__c for P_INV_ADDR_ID.
      * @return Header field map for RESTBODY.
      */
     private static Map<String, Object> buildOracleSalesOrderHeader(
@@ -669,8 +731,8 @@ public with sharing class ProductRequestsService {
      * @description GW-514: Builds Create Sales Order line item maps (P_* fields) from PR lines.
      * @param pr Product Request header.
      * @param lines Product Request Line Items.
-     * @param shipToAddrId ServiceResource.Description for line P_SHIP_TO_ADDR.
-     * @param invAddrId ServiceResource.Description for line P_BILL_TO_ADDR.
+     * @param shipToAddrId Ship-to address id for line P_SHIP_TO_ADDR.
+     * @param invAddrId Primary Bill To address id for line P_BILL_TO_ADDR.
      * @return List of line maps for P_ORDER_LINE_ITEMS.
      */
     private static List<Object> buildOracleSalesOrderLines(

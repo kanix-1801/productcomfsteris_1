@@ -431,7 +431,7 @@ public inherited sharing class OpportunityService {
      * Opportunities are updated to Proposal stage, then writes
      * Opportunity_Team_Member_Count__c with the number of Opportunity Team
      * members on each eligible Opportunity.
-     * GC-2641,GC-3523
+     * GC-2641,GC-3568
      *
      * @param newOpportunities List of Opportunities from Trigger.new.
      * @param oldOpportunityMap Map of old Opportunity values from Trigger.oldMap.

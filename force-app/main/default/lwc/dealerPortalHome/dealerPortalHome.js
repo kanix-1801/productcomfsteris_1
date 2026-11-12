@@ -146,13 +146,17 @@ export default class DealerPortalHome extends NavigationMixin(LightningElement) 
     }
 
     get businessUnitBars() {
-        return toBars(this.home?.businessUnitChart, (item) => item.value, (item) => ({
-            label: item.label,
-            valueLabel: compactCurrency(item.value)
-        })).map((bar, index) => ({
-            ...bar,
-            style: `${bar.style};background:${UNIT_COLORS[index % UNIT_COLORS.length]}`
-        }));
+        const source = (this.home?.businessUnitChart || []).filter((item) => Number(item.value) > 0);
+        const maxValue = source.reduce((max, item) => Math.max(max, Number(item.value) || 0), 0);
+        return source.map((item, index) => {
+            const value = Number(item.value) || 0;
+            const width = maxValue === 0 ? 0 : Math.max(8, Math.round((value / maxValue) * 100));
+            return {
+                label: item.label,
+                valueLabel: compactCurrency(value),
+                style: `width:${width}%;background:${UNIT_COLORS[index % UNIT_COLORS.length]}`
+            };
+        });
     }
 
     openCreateFlow() {
@@ -161,10 +165,6 @@ export default class DealerPortalHome extends NavigationMixin(LightningElement) 
 
     closeCreateFlow() {
         this.isFlowOpen = false;
-    }
-
-    closeFlowFromBackdrop() {
-        this.closeCreateFlow();
     }
 
     stopFlowClose(event) {
@@ -192,16 +192,8 @@ export default class DealerPortalHome extends NavigationMixin(LightningElement) 
         });
     }
 
-    viewOpportunities() {
-        this.openOpportunityPage(false);
-    }
-
-    viewAllPastDue() {
-        this.openOpportunityPage(true);
-    }
-
-    openOpportunityPage(pastDue) {
-        const query = pastDue ? '?pastDue=true' : '';
+    openOpportunityPage(event) {
+        const query = event.currentTarget.dataset.pastDue === 'true' ? '?pastDue=true' : '';
         this[NavigationMixin.Navigate]({
             type: 'standard__webPage',
             attributes: {
@@ -245,20 +237,6 @@ function niceAxisMax(value) {
         nice = 5;
     }
     return nice * exponent;
-}
-
-function toBars(items, valueOf, mapItem) {
-    const source = items || [];
-    const maxValue = source.reduce((max, item) => Math.max(max, Number(valueOf(item)) || 0), 0);
-    return source
-        .filter((item) => Number(valueOf(item)) > 0)
-        .map((item) => {
-            const width = maxValue === 0 ? 0 : Math.max(8, Math.round((Number(valueOf(item)) / maxValue) * 100));
-            return {
-                ...mapItem(item),
-                style: `width:${width}%`
-            };
-        });
 }
 
 function compactCurrency(amount) {

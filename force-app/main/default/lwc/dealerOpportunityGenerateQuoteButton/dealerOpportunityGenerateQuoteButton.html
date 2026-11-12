@@ -1,0 +1,27 @@
+<template>
+    <div class="dealer-generate-quote-action">
+        <template if:true={showLaunchButton}>
+            <lightning-button
+                variant="brand"
+                label={buttonLabel}
+                title={buttonLabel}
+                onclick={handleOpenGenerateQuote}>
+            </lightning-button>
+        </template>
+
+        <template if:true={showMissingRecordMessage}>
+            <p class="slds-text-color_weak slds-text-body_small">Open an opportunity record to generate a quote.</p>
+        </template>
+
+        <template if:true={showQuotePanel}>
+            <div class="quote-action-shell">
+                <c-generate-quote
+                    record-id={effectiveRecordId}
+                    launch-mode="generate"
+                    is-dealer-portal
+                    onclosequickaction={handleCloseQuickAction}>
+                </c-generate-quote>
+            </div>
+        </template>
+    </div>
+</template>

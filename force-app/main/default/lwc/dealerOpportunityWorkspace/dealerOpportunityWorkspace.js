@@ -126,7 +126,11 @@ export default class DealerOpportunityWorkspace extends NavigationMixin(Lightnin
         this.loadWorkspace();
     }
 
-    handleSearch(event) { this.updateFilter('search', event.target.value); }
+    handleSearch(event) {
+        this.search = event.target.value;
+        this.pageNumber = 1;
+        this.loadWorkspace();
+    }
 
     handleSort(event) {
         const fieldName = event.detail.field;
@@ -136,12 +140,6 @@ export default class DealerOpportunityWorkspace extends NavigationMixin(Lightnin
             this.sortField = fieldName;
             this.sortDirection = 'ASC';
         }
-        this.pageNumber = 1;
-        this.loadWorkspace();
-    }
-
-    updateFilter(fieldName, value) {
-        this[fieldName] = value;
         this.pageNumber = 1;
         this.loadWorkspace();
     }
@@ -166,10 +164,6 @@ export default class DealerOpportunityWorkspace extends NavigationMixin(Lightnin
 
     closeDealerFlow() {
         this.isDealerFlowOpen = false;
-    }
-
-    closeDealerFlowFromBackdrop() {
-        this.closeDealerFlow();
     }
 
     stopDealerFlowClose(event) {

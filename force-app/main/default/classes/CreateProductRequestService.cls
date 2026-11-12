@@ -13,6 +13,9 @@ public with sharing class CreateProductRequestService {
     private static final String TECHNICIAN_TYPE_TRUCK = 'Truck';
     private static final String PRODUCT_TYPE_PART = 'Part';
     private static final String SUBMISSION_SUBMIT_CREATE = 'Submit Create';
+    private static final String SUBMISSION_SUBMITTED = 'Submitted';
+    private static final String INTEGRATION_SUCCESS_CREATE = 'Success Create';
+    private static final String INTEGRATION_FAIL_PREFIX = 'Fail';
     private static final Integer PART_SEARCH_LIMIT = 25;
     private static final String LOG_SCENARIO = 'Product Request Management';
 
@@ -193,9 +196,10 @@ public with sharing class CreateProductRequestService {
      * CreateProductRequestService.submitToErp(productRequestId);
      */
     public static void submitToErp(Id productRequestId) {
-        if (productRequestId == null
-            || ProductRequestsSelector.selectById(new Set<Id>{ productRequestId }).isEmpty()) {
-            throw new CreateProductRequestException(Label.CreateProductRequest_NotFound);
+        ProductRequest currentRow = requireForOracleSubmit(productRequestId);
+        String blockMessage = oracleSubmitBlockMessage(currentRow);
+        if (blockMessage != null) {
+            throw new CreateProductRequestException(blockMessage);
         }
         ProductRequest updateRow = new ProductRequest(
             Id = productRequestId,
@@ -213,6 +217,59 @@ public with sharing class CreateProductRequestService {
         } finally {
             Logger.saveLog();
         }
+    }
+
+    /**
+     * @description Eligibility and prior integration text for the Oracle confirm screen.
+     * @param productRequestId Product Request created by this screen.
+     * @return Whether Submit Create is allowed, and the prior integration result.
+     * @throws CreateProductRequestException when the Product Request cannot be read.
+     * @example
+     * CreateProductRequestService.getOracleSubmitPreview(productRequestId);
+     */
+    public static OracleSubmitPreview getOracleSubmitPreview(Id productRequestId) {
+        ProductRequest currentRow = requireForOracleSubmit(productRequestId);
+        OracleSubmitPreview preview = new OracleSubmitPreview();
+        preview.productRequestNumber = currentRow.ProductRequestNumber;
+        preview.integrationStatus = currentRow.IntegrationStatus__c;
+        preview.integrationMessage = currentRow.IntegrationMessage__c;
+        preview.showPriorResult = String.isNotBlank(currentRow.IntegrationStatus__c)
+            && currentRow.IntegrationStatus__c.startsWith(INTEGRATION_FAIL_PREFIX);
+        preview.blockMessage = oracleSubmitBlockMessage(currentRow);
+        preview.eligible = preview.blockMessage == null;
+        return preview;
+    }
+
+    private static ProductRequest requireForOracleSubmit(Id productRequestId) {
+        if (productRequestId == null) {
+            throw new CreateProductRequestException(Label.CreateProductRequest_NotFound);
+        }
+        List<ProductRequest> rows = ProductRequestsSelector.selectForOracleSubmit(
+            new Set<Id>{ productRequestId }
+        );
+        if (rows.isEmpty()) {
+            throw new CreateProductRequestException(Label.CreateProductRequest_NotFound);
+        }
+        return rows[0];
+    }
+
+    private static String oracleSubmitBlockMessage(ProductRequest productRequest) {
+        if (productRequest.Status != STATUS_DRAFT) {
+            return Label.CreateProductRequest_CannotSubmit;
+        }
+        if (productRequest.SubmissionToERP__c == SUBMISSION_SUBMITTED
+            && String.isBlank(productRequest.IntegrationStatus__c)) {
+            return Label.CreateProductRequest_SubmitInFlight;
+        }
+        if (productRequest.IntegrationStatus__c == INTEGRATION_SUCCESS_CREATE
+            && String.isNotBlank(productRequest.ERPOrderNumber__c)) {
+            return Label.CreateProductRequest_AlreadyInErp.replace('{0}', productRequest.ERPOrderNumber__c);
+        }
+        if (productRequest.ProductRequestLineItems == null
+            || productRequest.ProductRequestLineItems.isEmpty()) {
+            return Label.CreateProductRequest_NoLinesForErp;
+        }
+        return null;
     }
 
     private static WorkOrder loadWorkOrder(Id workOrderId, ContextResult context) {
@@ -832,5 +889,23 @@ public with sharing class CreateProductRequestService {
         @AuraEnabled public Id productRequestId;
         /** @description Product Request number. */
         @AuraEnabled public String productRequestNumber;
+    }
+
+    /**
+     * @description Oracle confirm-screen values for a Product Request.
+     */
+    public class OracleSubmitPreview {
+        /** @description True when Submission to ERP can be set to Submit Create. */
+        @AuraEnabled public Boolean eligible;
+        /** @description Why the request cannot be submitted. Blank when eligible is true. */
+        @AuraEnabled public String blockMessage;
+        /** @description Product Request number shown on the confirm screen. */
+        @AuraEnabled public String productRequestNumber;
+        /** @description Integration Status from the last Oracle attempt. */
+        @AuraEnabled public String integrationStatus;
+        /** @description Integration Message from the last Oracle attempt. */
+        @AuraEnabled public String integrationMessage;
+        /** @description True when a failed integration result should be shown. */
+        @AuraEnabled public Boolean showPriorResult;
     }
 }

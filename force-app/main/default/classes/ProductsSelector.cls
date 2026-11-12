@@ -448,4 +448,54 @@ public with sharing class ProductsSelector extends SoqlQueryBuilder {
             .execute();
     }
 
+    /**
+     * @description GW-5981 - Product fields for a Repair Center parts request.
+     * @param productIds Product2 Ids
+     * @return Matching products
+     */
+    public static List<Product2> selectForRepairPartsRequest(Set<Id> productIds) {
+        if (productIds == null || productIds.isEmpty()) {
+            return new List<Product2>();
+        }
+        return (List<Product2>) SoqlQueryBuilder.fromObject('Product2')
+            .selectFields(
+                new List<String>{
+                    'Id',
+                    'Name',
+                    'ProductCode',
+                    'Description',
+                    'IsActive',
+                    'QuantityUnitOfMeasure'
+                }
+            )
+            .whereField('Id', 'IN', new List<Id>(productIds))
+            .execute();
+    }
+
+    /**
+     * @description GW-5981 - Products with an exact Product Code, active records first.
+     * @param productCode Scanned or typed item number
+     * @return Matching products
+     */
+    public static List<Product2> selectByExactProductCode(String productCode) {
+        if (String.isBlank(productCode)) {
+            return new List<Product2>();
+        }
+        return (List<Product2>) SoqlQueryBuilder.fromObject('Product2')
+            .selectFields(
+                new List<String>{
+                    'Id',
+                    'Name',
+                    'ProductCode',
+                    'Description',
+                    'IsActive',
+                    'QuantityUnitOfMeasure'
+                }
+            )
+            .whereEquals('ProductCode', productCode)
+            .orderByDesc('IsActive')
+            .limitTo(20)
+            .execute();
+    }
+
 }

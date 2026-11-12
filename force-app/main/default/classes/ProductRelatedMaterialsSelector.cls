@@ -103,6 +103,7 @@ public with sharing class ProductRelatedMaterialsSelector {
         ];
     }
 
+
     /**
      * @description Selects BOM components for Service BOMs that match the given Product2 Ids
      *              (Allowed Unit evaluation).
@@ -124,6 +125,33 @@ public with sharing class ProductRelatedMaterialsSelector {
             FROM ProductRelatedMaterial
             WHERE ServiceBOM__c IN :serviceBomIdSet
             AND ProductComponentId IN :product2IdSet
+        ];
+    }
+
+    /**
+     * @description GW-5981 - Active Part components on a product's bill of material.
+     * @param parentProductId Parent Product2 Id (BOM Component.Product)
+     * @return Active Part components in component sequence
+     */
+    public static List<ProductRelatedMaterial> selectActivePartComponents(Id parentProductId) {
+        if (parentProductId == null) {
+            return new List<ProductRelatedMaterial>();
+        }
+        return [
+            SELECT
+                Id,
+                ProductComponentId,
+                ComponentSequence__c,
+                ProductComponent.ProductCode,
+                ProductComponent.Description,
+                ProductComponent.Name,
+                ProductComponent.QuantityUnitOfMeasure
+            FROM ProductRelatedMaterial
+            WHERE ProductId = :parentProductId
+                AND ProductComponentId != null
+                AND ProductComponent.IsActive = true
+                AND ProductComponent.ProductType__c = 'Part'
+            ORDER BY ComponentSequence__c NULLS LAST, ProductComponent.ProductCode
         ];
     }
 }

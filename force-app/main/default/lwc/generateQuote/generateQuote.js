@@ -26,6 +26,10 @@ import QUOTE_NUMBER_HELP_TEXT from '@salesforce/label/c.Quote_Number_Helptext';
 import QUOTE_FORECAST_INELIGIBLE_HELP_TEXT from '@salesforce/label/c.QuoteForecastIneligibleHelptext';
 import REFRESH_QUOTE_SUCCESS_MESSAGE from '@salesforce/label/c.RefreshQuoteSuccessMessage';
 import { FlowNavigationFinishEvent } from 'lightning/flowSupport'; //GC-3609
+import {
+    clearPendingNavigationTab,
+    openUrlInNewTab as openDealerPortalUrlInNewTab
+} from 'c/generateQuoteNavigation';
 
 const QUOTES_PAGE_SIZE = 5;
 const QUOTE_TYPE_GOODWILL = 'Goodwill Quote';
@@ -110,7 +114,6 @@ export default class GenerateQuote extends LightningElement {
     }
 
     connectedCallback() {
-        debugger;
         this.tryInitialize();
         this.refreshHandlerId = registerRefreshHandler(this, () => this.handleRegisteredRefresh());
     }
@@ -1169,6 +1172,7 @@ export default class GenerateQuote extends LightningElement {
 
     async handleGenerateQuote() {
         if (!(await this.ensureQuoteAccess())) {
+            this.clearDealerPortalNavigationTab();
             return;
         }
 
@@ -1216,6 +1220,7 @@ export default class GenerateQuote extends LightningElement {
                     this.closeQuickActionPanel();
                 }
             } else {
+                this.clearDealerPortalNavigationTab();
                 this.showToast(
                     'Error',
                     'Sales Connection URL is not available. Verify endpoint settings and the Account Oracle Address Id.',
@@ -1226,6 +1231,7 @@ export default class GenerateQuote extends LightningElement {
                 }
             }
         } catch (error) {
+            this.clearDealerPortalNavigationTab();
             this.showToast('Error', this.reduceError(error), 'error');
             if (this.isQuickAction) {
                 this.closeQuickActionPanel(false);
@@ -1253,6 +1259,7 @@ export default class GenerateQuote extends LightningElement {
                     this.closeQuickActionPanel();
                 }
             } else {
+                this.clearDealerPortalNavigationTab();
                 this.showToast(
                     'Error',
                     'Sales Connection URL is not available. Verify the Sales Connection Quote Id and endpoint settings, or the Account Oracle Address Id for new quotes.',
@@ -1263,6 +1270,7 @@ export default class GenerateQuote extends LightningElement {
                 }
             }
         } catch (error) {
+            this.clearDealerPortalNavigationTab();
             this.showToast('Error', this.reduceError(error), 'error');
             if (this.isQuickAction) {
                 this.closeQuickActionPanel(false);
@@ -1434,8 +1442,26 @@ export default class GenerateQuote extends LightningElement {
         this.openUrlInNewTab(targetUrl);
     }
 
+    clearDealerPortalNavigationTab() {
+        if (this.isDealerPortal === true) {
+            clearPendingNavigationTab();
+        }
+    }
+
     openUrlInNewTab(url) {
         if (!url) {
+            return;
+        }
+
+        if (this.isDealerPortal === true) {
+            const opened = openDealerPortalUrlInNewTab(url);
+            if (!opened) {
+                this.showToast(
+                    'Sales Connection',
+                    'Your browser blocked the new tab. Allow pop-ups for this site and try again.',
+                    'warning'
+                );
+            }
             return;
         }
 

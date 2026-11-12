@@ -1,0 +1,63 @@
+.editor {
+    position: relative;
+}
+
+.editor-body {
+    min-height: 12rem;
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 0.5rem;
+}
+
+.field-label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--slds-g-color-neutral-base-50, #747474);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.field-value {
+    font-weight: 600;
+}
+
+.line-card {
+    border-left-width: 3px;
+    border-left-color: var(--slds-g-color-brand-base-50, #0176d3);
+}
+
+.line-title {
+    font-weight: 600;
+}
+
+.badge-new {
+    color: var(--slds-g-color-brand-base-50, #0176d3);
+    margin-top: 0.25rem;
+}
+
+.badge-modified {
+    color: var(--slds-g-color-warning-base-60, #a96404);
+    margin-top: 0.25rem;
+}
+
+.add-button {
+    display: block;
+    text-align: center;
+    margin-top: 0.5rem;
+}
+
+.footer {
+    display: flex;
+    align-items: center;
+}
+
+.footer-left {
+    margin-right: auto;
+}
+
+.footer-count {
+    margin-right: auto;
+}

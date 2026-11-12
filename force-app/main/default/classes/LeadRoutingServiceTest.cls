@@ -8,8 +8,8 @@
  *              4. Verify a backend insert uses the same routing, unless the New Lead page skips it.
  *
  *              Queue developer names are unique per run because the org already has
- *              Lead_Team_A, Lead_Team_B, and Lead_Country_US. The ultimate queue is
- *              the existing Lead_Ultimate_Queue. Leads use CountryCode and are
+ *              Lead_Country_US. The ultimate queue is the existing Lead_Ultimate_Queue.
+ *              Leads use CountryCode and are
  *              inserted as the running user.
  * @author      Vinay
  * @date        2026-10-09
@@ -25,6 +25,7 @@ private class LeadRoutingServiceTest {
         String queueName = uniqueDeveloperName('Lead_Rt_A');
         Group teamQueue = insertQueue(queueName, 'Lead Team A');
         Lead leadRecord = insertLeadWithProduct('Sterilizer', 'US');
+        update new Lead(Id = leadRecord.Id, HubSpot_Lead__c = true);
         LeadRoutingService.testMatrixRows = new List<Lead_Routing_Matrix__mdt>{
             matrixRow('Sterilizer', queueName)
         };
@@ -84,17 +85,17 @@ private class LeadRoutingServiceTest {
     }
 
     /**
-     * A manual Lead does not call TAS, even when a TAS rep is available.
+     * A Lead created in Salesforce keeps its owner. TAS and queue routing do not run.
      */
     @IsTest
-    static void manualLeadSkipsTasAndUsesTheCountryQueue() {
-        String queueName = uniqueDeveloperName('Lead_Rt_US');
-        Group countryQueue = insertQueue(queueName, 'Lead US Queue');
+    static void manualLeadSkipsRouting() {
         Lead leadRecord = insertLeadWithProduct('Sterilizer', 'US');
-        LeadRoutingService.testMatrixRows = new List<Lead_Routing_Matrix__mdt>();
+        LeadRoutingService.testMatrixRows = new List<Lead_Routing_Matrix__mdt>{
+            matrixRow('Sterilizer', 'Lead_Rt_Unused')
+        };
         LeadRoutingService.testTasOwnerId = UserInfo.getUserId();
         LeadRoutingService.testCountryRows = new List<Lead_Country_Queue__mdt>{
-            new Lead_Country_Queue__mdt(Country__c = 'US', QueueDeveloperName__c = queueName)
+            new Lead_Country_Queue__mdt(Country__c = 'US', QueueDeveloperName__c = 'Lead_Rt_Unused')
         };
 
         Test.startTest();
@@ -102,9 +103,9 @@ private class LeadRoutingServiceTest {
         Test.stopTest();
 
         Assert.areEqual(
-            countryQueue.Id,
+            UserInfo.getUserId(),
             [SELECT OwnerId FROM Lead WHERE Id = :leadRecord.Id].OwnerId,
-            'A Lead that is not from HubSpot should skip TAS and use the country queue.'
+            'A Lead that is not from HubSpot should keep the owner who created it.'
         );
     }
 
@@ -116,6 +117,7 @@ private class LeadRoutingServiceTest {
         String queueName = uniqueDeveloperName('Lead_Rt_US');
         Group countryQueue = insertQueue(queueName, 'Lead US Queue');
         Lead leadRecord = insertLeadWithProduct('Sterilizer', 'US');
+        update new Lead(Id = leadRecord.Id, HubSpot_Lead__c = true);
         LeadRoutingService.testCountryRows = new List<Lead_Country_Queue__mdt>{
             new Lead_Country_Queue__mdt(Country__c = 'US', QueueDeveloperName__c = queueName)
         };
@@ -144,6 +146,7 @@ private class LeadRoutingServiceTest {
 
         Test.startTest();
         Lead leadRecord = newLead('Backend', 'US');
+        leadRecord.HubSpot_Lead__c = true;
         System.runAs(runningUser()) {
             insert leadRecord;
         }
@@ -172,6 +175,7 @@ private class LeadRoutingServiceTest {
 
         Test.startTest();
         Lead leadRecord = newLead('BackendUltimate', 'IE');
+        leadRecord.HubSpot_Lead__c = true;
         System.runAs(runningUser()) {
             insert leadRecord;
         }

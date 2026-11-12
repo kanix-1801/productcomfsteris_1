@@ -2,7 +2,8 @@
  * @description GW-2707 - Processes technician-to-district realignment for the next fiscal year
  *              from the Tech District Alignment file. Validates technician HRIS ID, current territory
  *              membership and ASM HRIS IDs. Creates or updates next-year territories and ASM assignments,
- *              adds technicians effective April 1, and ends current memberships today.
+ *              adds technicians effective April 1, and ends current memberships on March 31 (23:59:59) so
+ *              there is no gap and no overlap between the two memberships.
  *              Processes only IPTLS, Low Temp, Procedural and Endoscopy territories.
  *              Invalid rows are skipped and logged in a user-specific error file, which is emailed
  *              to the uploader. "-" is treated as blank; name columns are reference-only.
@@ -150,7 +151,6 @@ public with sharing class TechDistrictAlignmentService {
     private static Datetime nextFiscalYearStartDatetime() {
         return Datetime.newInstance(nextFiscalYearStart(), Time.newInstance(0, 0, 0, 0));
     }
-
     /**
      * @description Processes the uploaded file, writes the error file and emails it to the running user.
      * @param contentDocumentId Salesforce Files document Id from lightning-file-upload.
@@ -231,24 +231,8 @@ public with sharing class TechDistrictAlignmentService {
             }
         }
 
-        Datetime startDatetime = nextFiscalYearStartDatetime();
-        List<ServiceTerritoryMember> newMembers = new List<ServiceTerritoryMember>();
-        List<AlignmentRow> newMemberRows = new List<AlignmentRow>();
-        for (AlignmentRow row : rows) {
-            if (row.errorMessage == null && row.createMember) {
-                newMembers.add(buildMember(row, startDatetime));
-                newMemberRows.add(row);
-            }
-        }
-        if (!newMembers.isEmpty()) {
-            Database.SaveResult[] saveResults = store.insertRecords(newMembers);
-            for (Integer i = 0; i < saveResults.size(); i++) {
-                if (!saveResults[i].isSuccess()) {
-                    newMemberRows[i].errorMessage = 'Unable to create the service territory member: ' + firstError(saveResults[i]);
-                }
-            }
-        }
-
+        // End the current membership before creating the next year one: Salesforce rejects a new primary
+        // membership while the resource's current primary membership is still open-ended (date overlap).
         Datetime endDatetime = Datetime.now();
         List<ServiceTerritoryMember> endedMembers = new List<ServiceTerritoryMember>();
         List<AlignmentRow> endedMemberRows = new List<AlignmentRow>();
@@ -262,10 +246,38 @@ public with sharing class TechDistrictAlignmentService {
             Database.SaveResult[] saveResults = store.updateRecords(endedMembers);
             for (Integer i = 0; i < saveResults.size(); i++) {
                 if (!saveResults[i].isSuccess()) {
-                    AlignmentRow row = endedMemberRows[i];
-                    row.errorMessage = (row.createMember ? 'The next year membership was created, but ' : '') +
-                        'the current service territory membership could not be ended: ' + firstError(saveResults[i]);
+                    endedMemberRows[i].errorMessage =
+                        'The current service territory membership could not be ended: ' + firstError(saveResults[i]);
                 }
+            }
+        }
+
+        Datetime startDatetime = nextFiscalYearStartDatetime();
+        List<ServiceTerritoryMember> newMembers = new List<ServiceTerritoryMember>();
+        List<AlignmentRow> newMemberRows = new List<AlignmentRow>();
+        for (AlignmentRow row : rows) {
+            if (row.errorMessage == null && row.createMember) {
+                newMembers.add(buildMember(row, startDatetime));
+                newMemberRows.add(row);
+            }
+        }
+        if (!newMembers.isEmpty()) {
+            Database.SaveResult[] saveResults = store.insertRecords(newMembers);
+            List<ServiceTerritoryMember> restoredMembers = new List<ServiceTerritoryMember>();
+            for (Integer i = 0; i < saveResults.size(); i++) {
+                if (!saveResults[i].isSuccess()) {
+                    AlignmentRow row = newMemberRows[i];
+                    row.errorMessage = 'Unable to create the service territory member: ' + firstError(saveResults[i]);
+                    if (row.endMember) {
+                        restoredMembers.add(
+                            new ServiceTerritoryMember(Id = row.currentMember.Id, EffectiveEndDate = row.currentMember.EffectiveEndDate)
+                        );
+                    }
+                }
+            }
+            if (!restoredMembers.isEmpty()) {
+                // Undo the end date so the technician keeps the current territory when the move failed.
+                store.updateRecords(restoredMembers);
             }
         }
 
@@ -304,10 +316,8 @@ public with sharing class TechDistrictAlignmentService {
      */
     private class AlignmentPlan {
         Datetime now = Datetime.now();
-        Datetime startOfToday = Datetime.newInstance(Date.today(), Time.newInstance(0, 0, 0, 0));
-        Map<String, User> userByHris = new Map<String, User>();
+        Datetime startOfToday = Datetime.newInstance(Date.today(), Time.newInstance(0, 0, 0, 0));        Map<String, User> userByHris = new Map<String, User>();
         Map<String, ServiceResource> resourceByExternalId = new Map<String, ServiceResource>();
-        Map<Id, ServiceResource> resourceByUserId = new Map<Id, ServiceResource>();
         Map<String, ServiceTerritory> territoryByNumber = new Map<String, ServiceTerritory>();
         Map<String, List<ServiceTerritoryMember>> membersByKey = new Map<String, List<ServiceTerritoryMember>>();
         Set<Id> claimedResourceIds = new Set<Id>();
@@ -321,38 +331,25 @@ public with sharing class TechDistrictAlignmentService {
 
         AlignmentPlan(List<AlignmentRow> rows) {
             Set<String> techHrisValues = new Set<String>();
-            Set<String> hrisValues = new Set<String>();
+            Set<String> asmHrisValues = new Set<String>();
             Set<String> territoryNumbers = new Set<String>();
             for (AlignmentRow row : rows) {
                 addIfPresent(techHrisValues, row.techHris);
-                addIfPresent(hrisValues, row.techHris);
-                addIfPresent(hrisValues, row.currentAsmHris);
-                addIfPresent(hrisValues, row.nextAsmHris);
+                addIfPresent(asmHrisValues, row.currentAsmHris);
+                addIfPresent(asmHrisValues, row.nextAsmHris);
                 addIfPresent(territoryNumbers, row.currentTerritory);
                 addIfPresent(territoryNumbers, row.nextTerritory);
             }
 
             TerritoryStore store = new TerritoryStore();
-            for (User activeUser : store.selectUsers(hrisValues)) {
+            for (User activeUser : store.selectUsers(asmHrisValues)) {
                 userByHris.put(key(activeUser.EmployeeNumber__c), activeUser);
             }
 
-            Set<Id> techUserIds = new Set<Id>();
-            for (String hris : techHrisValues) {
-                User techUser = userByHris.get(key(hris));
-                if (techUser != null) {
-                    techUserIds.add(techUser.Id);
-                }
-            }
             Set<Id> resourceIds = new Set<Id>();
-            for (ServiceResource resource : store.selectResources(techHrisValues, techUserIds)) {
+            for (ServiceResource resource : store.selectResources(techHrisValues)) {
                 resourceIds.add(resource.Id);
-                if (String.isNotBlank(resource.ExternalID__c)) {
-                    resourceByExternalId.put(key(resource.ExternalID__c), resource);
-                }
-                if (resource.RelatedRecordId != null) {
-                    resourceByUserId.put(resource.RelatedRecordId, resource);
-                }
+                resourceByExternalId.put(key(resource.ExternalID__c), resource);
             }
 
             Set<Id> territoryIds = new Set<Id>();
@@ -506,12 +503,7 @@ public with sharing class TechDistrictAlignmentService {
         }
 
         ServiceResource resourceFor(String hris) {
-            String hrisKey = key(hris);
-            if (resourceByExternalId.containsKey(hrisKey)) {
-                return resourceByExternalId.get(hrisKey);
-            }
-            User techUser = userByHris.get(hrisKey);
-            return techUser == null ? null : resourceByUserId.get(techUser.Id);
+            return resourceByExternalId.get(key(hris));
         }
 
         /**
@@ -739,8 +731,8 @@ public with sharing class TechDistrictAlignmentService {
             return TechDistrictAlignmentSelector.selectActiveUsersByEmployeeNumbers(hrisValues);
         }
 
-        List<ServiceResource> selectResources(Set<String> externalIds, Set<Id> userIds) {
-            return TechDistrictAlignmentSelector.selectActiveResources(externalIds, userIds);
+        List<ServiceResource> selectResources(Set<String> externalIds) {
+            return TechDistrictAlignmentSelector.selectActiveResourcesByExternalIds(externalIds);
         }
 
         List<ServiceTerritory> selectTerritories(Set<String> regionNumbers) {

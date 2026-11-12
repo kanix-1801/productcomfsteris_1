@@ -1349,4 +1349,28 @@ public with sharing class WorkOrdersSelector extends SoqlQueryBuilder {
             .limitTo(1)
             .execute();
     }
+
+    /**
+     * @description GW-5981 - Work Order fields used to list and create Repair Center parts requests.
+     * @param workOrderId Work Order Id
+     * @return Matching Work Order, or an empty list
+     */
+    public static List<WorkOrder> selectForRepairCenterPartsRequest(Id workOrderId) {
+        if (workOrderId == null) {
+            return new List<WorkOrder>();
+        }
+        return (List<WorkOrder>) SoqlQueryBuilder.fromObject('WorkOrder')
+            .selectFields(
+                new List<String>{
+                    'Id',
+                    'Status',
+                    'Product__c',
+                    'RepairCenter__c',
+                    'Asset.Product2Id'
+                }
+            )
+            .whereEquals('Id', workOrderId)
+            .limitTo(1)
+            .execute();
+    }
 }

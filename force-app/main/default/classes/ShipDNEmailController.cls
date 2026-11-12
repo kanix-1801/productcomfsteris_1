@@ -8,7 +8,7 @@
  */
 public without sharing class ShipDNEmailController {
 	public id caseId { get; set; }
-    
+    //public String firstName { get; set; }
     /**
      * @description Returns receiving contact display name for the bound Case.
      * @param caseId Controller property used to identify the Case
@@ -256,5 +256,35 @@ public without sharing class ShipDNEmailController {
                 throw ex;
             }
         }
-   
+   		 /**
+         * @description Retrieves Contact First Name  from Case Contact Role related to the given Case.
+         * @param caseId Case Id used to locate the related Order
+         * @return String First name of Trade-in Contact.
+         */
+    public String getFirstName() {
+    try {
+    
+            List<CaseContactRole> csList = [
+                SELECT Id, Contact.FirstName, ContactId, Role
+                FROM CaseContactRole
+                WHERE Cases.Id = :caseId
+                AND Role = 'Trade-in Contact'
+            ];
+    
+            List<String> firstNames = new List<String>();
+    
+            for (CaseContactRole cs : csList) {
+                if (cs.Contact != null && String.isNotBlank(cs.Contact.FirstName)) {
+                    firstNames.add(cs.Contact.FirstName);
+                }
+            }
+    
+            return String.join(firstNames, '/');
+    
+        } catch (Exception ex) {
+            ErrorLogger.logException(ex,'ShipDNEmailController','getFirstName');
+            throw ex;
+        }
+	}
+             
 }

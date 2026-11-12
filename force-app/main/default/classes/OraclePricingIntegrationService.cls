@@ -3,6 +3,7 @@
 * @date 01-07-2026
 * @description #GC-3162,GC-3294 Service class for Oracle Pricing integration.
 *              #GC-3317 Added Prospect Account Record Type routing to Boomi pricing.
+*              #GC-3621 Lost Business uses the same Weekly x52 and Monthly x12 unit price adjustment.
 */
 public with sharing class OraclePricingIntegrationService {
 
@@ -13,6 +14,13 @@ public with sharing class OraclePricingIntegrationService {
     private static final String SOURCE_SYSTEM = System.Label.Source_System;
 
     private static final String RECORD_TYPE_PROSPECT = 'Prospect';
+
+    private static String pricingFrequencyType(Opportunity opp) {
+        if (opp.RecordType != null && opp.RecordType.DeveloperName == 'HCSalesLostBusinessConsumables') {
+            return 'Recurring Consumption';
+        }
+        return opp.Type;
+    }
 
     public class UpdateResult {
         public Boolean allProductsPriced = true;
@@ -73,6 +81,7 @@ public with sharing class OraclePricingIntegrationService {
             Opportunity opp = [
                 SELECT Id,
                 Type,
+                    RecordType.DeveloperName,
                     AccountId,
                     Account.RecordType.DeveloperName,
                     Account.OrgIDs__c,
@@ -300,7 +309,7 @@ public with sharing class OraclePricingIntegrationService {
                 return failedResult;
             }
 
-            return updateOpportunityProducts(batch, request, result.parsedResponse,opp.Type);
+            return updateOpportunityProducts(batch, request, result.parsedResponse, pricingFrequencyType(opp));
         } catch (Exception e) {
             Logger.error(CLASS_NAME + '.processCustomerBatch', e).addTag('Opportunity').setRecord(opp);
                return new UpdateResult();  
@@ -337,7 +346,7 @@ public with sharing class OraclePricingIntegrationService {
                 return failedResult;
             }
 
-            return updateProspectOpportunityProducts(batch, request, result.parsedResponse,opp.Type);
+            return updateProspectOpportunityProducts(batch, request, result.parsedResponse, pricingFrequencyType(opp));
         } catch (Exception e) {
             Logger.error(CLASS_NAME + '.processProspectBatch', e).addTag('Opportunity').setRecord(opp);
             return new UpdateResult();

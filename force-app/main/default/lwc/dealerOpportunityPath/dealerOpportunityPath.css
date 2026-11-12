@@ -1,0 +1,101 @@
+:host {
+    display: block;
+}
+
+button.slds-path__link {
+    appearance: none;
+    border: 0;
+    box-shadow: none;
+    font: inherit;
+    text-align: inherit;
+    width: 100%;
+    height: 2rem;
+    cursor: pointer;
+    background: transparent !important;
+    color: inherit;
+}
+
+.slds-path__item.slds-is-incomplete,
+.slds-path__item.slds-is-incomplete:before,
+.slds-path__item.slds-is-incomplete:after {
+    background: #e5e5e5 !important;
+    background-image: none !important;
+}
+
+.slds-path__item.slds-is-incomplete .slds-path__link {
+    color: #181818 !important;
+}
+
+.slds-path__item.slds-is-complete,
+.slds-path__item.slds-is-complete:before,
+.slds-path__item.slds-is-complete:after {
+    background: #4bca81 !important;
+    background-image: none !important;
+}
+
+.slds-path__item.slds-is-complete .slds-path__link {
+    color: #ffffff !important;
+}
+
+.slds-path__item.slds-is-current,
+.slds-path__item.slds-is-current:before,
+.slds-path__item.slds-is-current:after {
+    background: #ffffff !important;
+    background-image: none !important;
+}
+
+.slds-path__item.slds-is-current .slds-path__link {
+    color: #0176d3 !important;
+}
+
+.slds-path__item.slds-is-active,
+.slds-path__item.slds-is-active:before,
+.slds-path__item.slds-is-active:after {
+    background: #0176d3 !important;
+    background-image: none !important;
+}
+
+.slds-path__item.slds-is-active .slds-path__link {
+    color: #ffffff !important;
+}
+
+.slds-path__item.slds-is-won,
+.slds-path__item.slds-is-won:before,
+.slds-path__item.slds-is-won:after {
+    background: #04844b !important;
+    background-image: none !important;
+}
+
+.slds-path__item.slds-is-won .slds-path__link {
+    color: #ffffff !important;
+}
+
+.slds-path__item.slds-is-lost,
+.slds-path__item.slds-is-lost:before,
+.slds-path__item.slds-is-lost:after {
+    background: #c23934 !important;
+    background-image: none !important;
+}
+
+.slds-path__item.slds-is-lost .slds-path__link {
+    color: #ffffff !important;
+}
+
+.slds-path__item.slds-is-complete lightning-icon,
+.slds-path__item.slds-is-active lightning-icon,
+.slds-path__item.slds-is-won lightning-icon,
+.slds-path__item.slds-is-lost lightning-icon {
+    --slds-c-icon-color-foreground: #ffffff;
+    --slds-c-icon-color-foreground-default: #ffffff;
+}
+
+.slds-path__action {
+    align-items: center;
+    flex-shrink: 0;
+    padding-left: 0.75rem;
+}
+
+.closed-stage {
+    max-width: 20rem;
+    padding: 0.75rem 1rem 0.25rem;
+}

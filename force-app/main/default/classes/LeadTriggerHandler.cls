@@ -6,8 +6,9 @@
  * @date 06-08-2026
  * @description #GC-3279 Receives Lead trigger context and guards against recursive
  *              after-insert execution via TriggerControl. After insert, a backend
- *              Lead uses the same matrix, TAS, country queue, and ultimate queue
- *              flow as the New Lead page. The New Lead page sets
+ *              HubSpot Lead uses the same matrix, TAS, country queue, and ultimate queue
+ *              flow as the New Lead page. A Lead created in Salesforce is not routed.
+ *              The New Lead page sets
  *              LeadService.skipInsertTas so it is not routed twice. GC-3449
  *              starts the SLA clock after an owner or status change.
  */
@@ -23,7 +24,7 @@ public with sharing class LeadTriggerHandler extends TriggerHandler {
     }
 
     /**
-     * @description Routes each inserted Lead after the transaction commits.
+     * @description Routes each inserted HubSpot Lead after the transaction commits.
      *              The New Lead page sets LeadService.skipInsertTas because it
      *              enqueues this same job after its products are saved.
      */
@@ -34,9 +35,13 @@ public with sharing class LeadTriggerHandler extends TriggerHandler {
         }
         List<Id> leadIds = new List<Id>();
         for (Lead leadRecord : (List<Lead>) Trigger.new) {
-            leadIds.add(leadRecord.Id);
+            if (leadRecord.HubSpot_Lead__c) {
+                leadIds.add(leadRecord.Id);
+            }
         }
-        LeadRoutingQueueable.enqueue(leadIds);
+        if (!leadIds.isEmpty()) {
+            LeadRoutingQueueable.enqueue(leadIds);
+        }
     }
 
     /**

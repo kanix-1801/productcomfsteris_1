@@ -729,17 +729,107 @@ private class PricingFrameworkOracleInvocableTest {
 
         System.assertEquals(false, results[0].isSuccess);
         System.assertNotEquals(null, results[0].pricingDataJson);
-        System.assert(
-            results[0].errorMessage.contains('1001'),
-            'Error should include the rejected ship-to account number.'
-        );
-        System.assert(
-            results[0].errorMessage.contains('SHIPTO_ACCT_NUM_INVALID'),
-            'Error should keep the Oracle message key.'
+        System.assertEquals(
+            'Ship to Account is inactive. (ORA104)',
+            results[0].errorMessage,
+            'Header error 104 should use the STE_PRICING_ERROR_DESC description.'
         );
         System.assert(
             results[0].pricingDataJson.contains('"WorkOrder"'),
             'Salesforce Headless JSON should still be returned after an Oracle ship-to rejection.'
+        );
+    }
+
+    @IsTest
+    static void executePricing_unknownHeaderError_keepsOracleMessage() {
+        Account account = insertAccount('1001', '82');
+        insert new Product2(
+            Name = 'GW4585 Unknown Header Error',
+            ProductCode = 'PART-999',
+            PricingSource__c = 'Oracle',
+            IsActive = true
+        );
+
+        OraclePricingResponse oracleResponse = new OraclePricingResponse();
+        oracleResponse.errorCode = '999';
+        oracleResponse.messageKey = 'SHIPTO_ACCT_NUM_INVALID';
+        PricingFrameworkService.testOracleResponse = oracleResponse;
+
+        PricingFrameworkOracleInvocable.Request request =
+            new PricingFrameworkOracleInvocable.Request();
+        request.accountId = account.Id;
+        request.workstream = 'RepairCenter';
+        request.pricingLineJson =
+            '[{"lineId":"woli-999","productCode":"PART-999","quantity":1}]';
+
+        Test.startTest();
+        List<PricingFrameworkOracleInvocable.Result> results =
+            PricingFrameworkOracleInvocable.executePricing(
+                new List<PricingFrameworkOracleInvocable.Request>{ request }
+            );
+        Test.stopTest();
+
+        System.assertEquals(false, results[0].isSuccess);
+        System.assert(
+            results[0].errorMessage.contains('1001'),
+            'Unmapped errors should include the rejected ship-to account number.'
+        );
+        System.assert(
+            results[0].errorMessage.contains('SHIPTO_ACCT_NUM_INVALID'),
+            'Unmapped errors should keep the Oracle message key.'
+        );
+    }
+
+    @IsTest
+    static void executePricing_lineError_usesPricingErrorDescription() {
+        Account account = insertAccount('1001', '82');
+        insert new Product2(
+            Name = 'GW4585 Missing Pricelist Part',
+            ProductCode = 'PART-705',
+            PricingSource__c = 'Oracle',
+            IsActive = true
+        );
+
+        OraclePricingResponse oracleResponse = new OraclePricingResponse();
+        oracleResponse.messageKey = OraclePricingResponse.MESSAGE_KEY_SUCCESS;
+        oracleResponse.errorCode = '0';
+        OraclePricingResponse.PriceInfo info = new OraclePricingResponse.PriceInfo();
+        info.productPartNumber = 'PART-705';
+        info.messageKey = 'Item_Notin_Pricelist';
+        info.errorCode = '705';
+        oracleResponse.priceInfo = new List<OraclePricingResponse.PriceInfo>{ info };
+        PricingFrameworkService.testOracleResponse = oracleResponse;
+
+        PricingFrameworkOracleInvocable.Request request =
+            new PricingFrameworkOracleInvocable.Request();
+        request.accountId = account.Id;
+        request.workstream = 'RepairCenter';
+        request.pricingLineJson =
+            '[{"lineId":"woli-705","productCode":"PART-705","quantity":1}]';
+
+        Test.startTest();
+        List<PricingFrameworkOracleInvocable.Result> results =
+            PricingFrameworkOracleInvocable.executePricing(
+                new List<PricingFrameworkOracleInvocable.Request>{ request }
+            );
+        Test.stopTest();
+
+        System.assertEquals(false, results[0].isSuccess);
+        System.assertEquals(
+            'Part is not found on the existing pricelist in Oracle. (ORA705) PART-705',
+            results[0].errorMessage
+        );
+    }
+
+    @IsTest
+    static void pricingErrorDescription_mapsOraPrefix() {
+        System.assertEquals(
+            'Mandatory parameters are not provided. (ORA101)',
+            PricingFrameworkService.pricingErrorDescription('ORA101')
+        );
+        System.assertEquals(
+            null,
+            PricingFrameworkService.pricingErrorDescription('999')
         );
     }
 

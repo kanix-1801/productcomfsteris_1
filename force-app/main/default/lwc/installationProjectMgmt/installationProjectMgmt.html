@@ -1,4 +1,5 @@
 <template>
+	<div class="quick-action-width-style" lwc:dom="manual"></div>
 	<lightning-card>
 		<!-- Loading Spinner -->
 		<template if:true={isCreatingProject}>
@@ -187,6 +188,7 @@
 								data={templates}
 								columns={templateColumns}
 								max-row-selection="1"
+								max-column-width="2000"
 								selected-rows={selectedTemplateRows}
 								onrowselection={handleTemplateRowSelection}>
 							</lightning-datatable>
@@ -479,6 +481,7 @@
 								key-field="Id"
 								data={templateItemsWithDates}
 								columns={templateItemColumns}
+								max-column-width="2000"
 								draft-values={draftValues}
 								selected-rows={selectedItemIds}
 								onrowselection={handleItemRowSelection}

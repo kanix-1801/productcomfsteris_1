@@ -2,10 +2,11 @@
  * @description GC-2934 Assigns a Lead owner when Submit is clicked.
  *
  *              Responsibilities:
- *              1. Assign one queue when every Product matches the same matrix row.
- *              2. Call TAS for a HubSpot Lead when the Products do not agree, and assign one active rep.
- *              3. Use the country queue when TAS does not return one rep.
- *              4. Use the ultimate queue when the country has no queue.
+ *              1. Leave a Lead with HubSpot Lead unchecked on its current owner.
+ *              2. Assign one queue when every Product matches the same matrix row.
+ *              3. Call TAS when the Products do not agree, and assign one active rep.
+ *              4. Use the country queue when TAS does not return one rep.
+ *              5. Use the ultimate queue when the country has no queue.
  * @author      Vinay
  * @date        2026-10-09
  */
@@ -65,6 +66,9 @@ public with sharing class LeadRoutingService {
             FROM Lead
             WHERE Id = :leadId
         ];
+        if (!leadRecord.HubSpot_Lead__c) {
+            return null;
+        }
         List<LeadProduct__c> products = [
             SELECT Product__r.Name, ParentCategory__c, ProductCategory__c, BusinessUnit__c
             FROM LeadProduct__c
@@ -76,13 +80,11 @@ public with sharing class LeadRoutingService {
             return assignQueue(leadRecord.Id, matrixQueue, System.Label.LeadSubmitAssignedQueueMessage);
         }
 
-        if (leadRecord.HubSpot_Lead__c) {
-            Id tasOwnerId = resolveTasOwner(leadRecord);
-            if (tasOwnerId != null) {
-                update new Lead(Id = leadRecord.Id, OwnerId = tasOwnerId);
-                User ownerUser = [SELECT Name FROM User WHERE Id = :tasOwnerId];
-                return String.format(System.Label.LeadSubmitAssignedRepMessage, new List<String>{ ownerUser.Name });
-            }
+        Id tasOwnerId = resolveTasOwner(leadRecord);
+        if (tasOwnerId != null) {
+            update new Lead(Id = leadRecord.Id, OwnerId = tasOwnerId);
+            User ownerUser = [SELECT Name FROM User WHERE Id = :tasOwnerId];
+            return String.format(System.Label.LeadSubmitAssignedRepMessage, new List<String>{ ownerUser.Name });
         }
 
         String countryCode = normalizeCountry(leadRecord.Country);

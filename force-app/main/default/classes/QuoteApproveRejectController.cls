@@ -11,7 +11,7 @@ public with sharing class QuoteApproveRejectController {
      * @description GW-5333 - Loads the Approve/Reject Quote workspace for a Work Order.
      * @param workOrderId Work Order Id
      * @return Workspace DTO
-     *
+     */
     @AuraEnabled
     public static QuoteService.ApproveRejectWorkspace getWorkspace(Id workOrderId) {
         try {
@@ -19,14 +19,14 @@ public with sharing class QuoteApproveRejectController {
         } catch (QuoteService.ApproveRejectException e) {
             throw buildAuraException(e.getMessage());
         }
-    }/
+    }
 
     /**
      * @description GW-5333 - Saves Approve/Reject decisions for Product Serviced quote lines.
      * @param workOrderId Work Order Id
      * @param decisions Line-level Approve/Reject choices
      * @return Updated workspace DTO
-     *
+     */
     @AuraEnabled
     public static QuoteService.ApproveRejectWorkspace saveDecisions(
         Id workOrderId,
@@ -44,7 +44,7 @@ public with sharing class QuoteApproveRejectController {
      * @param quoteLineItemId Quote Line Item Id
      * @param comments Quote Comments text
      * @return Saved comments
-     *
+     */
     @AuraEnabled
     public static String saveComment(Id quoteLineItemId, String comments) {
         try {
@@ -58,10 +58,10 @@ public with sharing class QuoteApproveRejectController {
      * @description GW-5333 - Creates an AuraHandledException with a preserved client message.
      * @param message User-facing error message
      * @return AuraHandledException for the LWC
-     *
+     */
     private static AuraHandledException buildAuraException(String message) {
         AuraHandledException exceptionResult = new AuraHandledException(message);
         exceptionResult.setMessage(message);
         return exceptionResult;
-    }*/
+    }
 }

@@ -100,4 +100,64 @@ public with sharing class ProductRequestsSelector {
             'WITH USER_MODE'
         );
     }
+
+    /**
+     * @description GW-5981 - Product Request number after insert.
+     * @param productRequestId Product Request Id
+     * @return Product Request Number, or null
+     */
+    public static String selectNumberById(Id productRequestId) {
+        if (productRequestId == null) {
+            return null;
+        }
+        List<ProductRequest> rows = Database.query(
+            'SELECT ProductRequestNumber' +
+            ' FROM ProductRequest' +
+            ' WHERE Id = :productRequestId' +
+            ' WITH USER_MODE' +
+            ' LIMIT 1'
+        );
+        return rows.isEmpty() ? null : rows[0].ProductRequestNumber;
+    }
+
+    /**
+     * @description GW-5981 - Product Requests on a Work Order, including line display fields.
+     * @param workOrderIds Work Order Ids
+     * @return Product Requests and their line items
+     */
+    public static List<ProductRequest> selectWithLinesByWorkOrderId(Set<Id> workOrderIds) {
+        if (workOrderIds == null || workOrderIds.isEmpty()) {
+            return new List<ProductRequest>();
+        }
+        return Database.query(
+            'SELECT Id, ProductRequestNumber, Status, RequestType__c, WorkOrderId,' +
+            ' DestinationLocationId, ShipmentType, RecordType.DeveloperName,' +
+            ' (SELECT Id, QuantityRequested, Status, Product2Id, RecordType.DeveloperName,' +
+            ' Product2.ProductCode, Product2.Description, Product2.Name' +
+            ' FROM ProductRequestLineItems ORDER BY ProductRequestLineItemNumber)' +
+            ' FROM ProductRequest' +
+            ' WHERE WorkOrderId IN :workOrderIds' +
+            ' WITH USER_MODE' +
+            ' ORDER BY CreatedDate DESC'
+        );
+    }
+
+    /**
+     * @description Header, integration result, and one line for the Oracle submit screen.
+     * @param ids Product Request Ids.
+     * @return Product Requests the running user can read.
+     */
+    public static List<ProductRequest> selectForOracleSubmit(Set<Id> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return new List<ProductRequest>();
+        }
+        return Database.query(
+            'SELECT Id, ProductRequestNumber, Status, SubmissionToERP__c, ' +
+            'IntegrationStatus__c, IntegrationMessage__c, ERPOrderNumber__c, ' +
+            '(SELECT Id FROM ProductRequestLineItems LIMIT 1) ' +
+            'FROM ProductRequest ' +
+            'WHERE Id IN :ids ' +
+            'WITH USER_MODE'
+        );
+    }
 }

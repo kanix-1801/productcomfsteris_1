@@ -458,6 +458,13 @@
                             </template>
                         </template>
 
+                        <template lwc:elseif={isProductRequestsTab}>
+                            <c-repair-center-parts-request
+                                work-order-id={workOrderId}
+                                mode="bom"
+                            ></c-repair-center-parts-request>
+                        </template>
+
                         <template lwc:elseif={isWorkPerformedTab}>
                             <h3 class="slds-text-heading_small slds-m-bottom_small">
                                 Work Performed

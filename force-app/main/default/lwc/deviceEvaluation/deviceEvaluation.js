@@ -31,6 +31,7 @@ const TAB_WRE = 'warranty-repair-evaluation';
 const TAB_MODIFIER_CODES = 'modifier-codes';
 const TAB_CATEGORY = 'category';
 const TAB_WORK_PERFORMED = 'work-performed';
+const TAB_PRODUCT_REQUESTS = 'product-requests';
 const SUBSTATUS_SHIP_TO_VENDOR = 'Ship to Vendor';
 const STATUS_EVALUATE = 'Evaluate';
 const STATUS_REPAIR = 'Repair';
@@ -586,6 +587,7 @@ export default class DeviceEvaluation extends LightningElement {
             { label: 'Warranty Repair Evaluation', value: TAB_WRE }
         );
         if (this.showWorkPerformedTab) {
+            fixed.push({ label: 'Product Requests', value: TAB_PRODUCT_REQUESTS });
             fixed.push({ label: 'Work Performed', value: TAB_WORK_PERFORMED });
         }
         fixed.push({ label: 'Modifier Codes', value: TAB_MODIFIER_CODES });
@@ -664,6 +666,10 @@ export default class DeviceEvaluation extends LightningElement {
         return this.activeTab === TAB_MODIFIER_CODES;
     }
 
+    get isProductRequestsTab() {
+        return this.activeTab === TAB_PRODUCT_REQUESTS;
+    }
+
     get isWorkPerformedTab() {
         return this.activeTab === TAB_WORK_PERFORMED;
     }
@@ -677,6 +683,7 @@ export default class DeviceEvaluation extends LightningElement {
             !this.isWreTab &&
             !this.isCategoryTab &&
             !this.isWorkPerformedTab &&
+            !this.isProductRequestsTab &&
             !this.isModifierCodesTab
         );
     }
@@ -713,6 +720,9 @@ export default class DeviceEvaluation extends LightningElement {
     }
 
     renderedCallback() {
+        if (this.activeTab === TAB_PRODUCT_REQUESTS && this.evaluation?.status !== STATUS_REPAIR) {
+            this.activeTab = TAB_WO_DETAILS;
+        }
         this.classList.toggle('is-evaluation', this.isWorkspaceMode);
         this.syncSubStatusSelectValue();
         this.scheduleWorkspaceHeightSync();

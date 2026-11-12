@@ -1,6 +1,8 @@
 <template>
     <section class="screen">
-        <h1 class="slds-text-heading_small slds-p-horizontal_medium slds-p-top_medium">{labels.title}</h1>
+        <template lwc:if={showPageTitle}>
+            <h1 class="slds-text-heading_small slds-p-horizontal_medium slds-p-top_medium">{labels.title}</h1>
+        </template>
 
         <template lwc:if={isLoading}>
             <lightning-spinner alternative-text={labels.loading} size="medium"></lightning-spinner>
@@ -250,11 +252,51 @@
             </div>
         </template>
 
-        <template lwc:if={showSuccess}>
-            <div class="slds-p-around_medium">
-                <p class="slds-m-bottom_medium" role="status">{labels.submitted}</p>
-                <lightning-button variant="brand" label={labels.close} onclick={handleClose}></lightning-button>
-            </div>
+        <template lwc:if={showErpConfirm}>
+            <article class="erp-card">
+                <h1 class="erp-header">{labels.erpScreenTitle}</h1>
+                <div class="erp-body">
+                    <p class="slds-text-title_bold">{labels.erpSubmitHeading}</p>
+                    <lightning-formatted-rich-text value={erpSubmitBodyHtml}></lightning-formatted-rich-text>
+                    <lightning-formatted-rich-text
+                        class="slds-m-top_x-small"
+                        value={labels.erpSubmitContinue}>
+                    </lightning-formatted-rich-text>
+                    <template lwc:if={showPriorResult}>
+                        <p class="slds-text-title_bold slds-m-top_medium">{labels.erpPriorHeading}</p>
+                        <p>{labels.erpStatus}: {oracleIntegrationStatus}</p>
+                        <p>{labels.erpMessage}: {oracleIntegrationMessage}</p>
+                    </template>
+                    <template lwc:if={formError}>
+                        <div class="slds-m-top_small slds-text-color_error" role="alert">{formError}</div>
+                    </template>
+                </div>
+                <footer class="erp-footer">
+                    <lightning-button
+                        variant="brand"
+                        label={labels.erpSubmit}
+                        onclick={handleErpSubmit}
+                        disabled={isSaving}>
+                    </lightning-button>
+                </footer>
+            </article>
+        </template>
+
+        <template lwc:if={showErpSuccess}>
+            <article class="erp-card">
+                <h1 class="erp-header">{labels.erpScreenTitle}</h1>
+                <div class="erp-body">
+                    <p class="slds-text-title_bold" role="status">{labels.erpSavedHeading}</p>
+                    <p>{labels.erpSavedBody}</p>
+                    <lightning-formatted-rich-text
+                        class="slds-m-top_x-small"
+                        value={labels.erpSavedBoomi}>
+                    </lightning-formatted-rich-text>
+                </div>
+                <footer class="erp-footer">
+                    <lightning-button variant="brand" label={labels.finish} onclick={handleClose}></lightning-button>
+                </footer>
+            </article>
         </template>
 
         <template lwc:if={isSaving}>

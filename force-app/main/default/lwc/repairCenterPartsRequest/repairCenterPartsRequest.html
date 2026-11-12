@@ -1,0 +1,172 @@
+<template>
+    <div class="parts-request">
+        <template lwc:if={loadError}>
+            <div class="slds-text-color_error slds-m-bottom_small" role="alert">{loadError}</div>
+        </template>
+
+        <div class="slds-m-bottom_small">
+            <lightning-button
+                label="Create Parts Request"
+                variant="brand"
+                icon-name="utility:add"
+                onclick={openModal}
+                disabled={isBusy}
+            ></lightning-button>
+        </div>
+
+        <template lwc:if={isListLoading}>
+            <div class="slds-is-relative slds-p-around_large">
+                <lightning-spinner alternative-text="Loading product requests" size="small"></lightning-spinner>
+            </div>
+        </template>
+        <template lwc:elseif={hasRequests}>
+            <table class="slds-table slds-table_cell-buffer slds-table_bordered">
+                <thead>
+                    <tr class="slds-line-height_reset">
+                        <th scope="col">Product Request Number</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Request Type</th>
+                        <th scope="col">Products Requested</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template for:each={requests} for:item="row">
+                        <tr key={row.id}>
+                            <td>
+                                <a href={row.recordUrl}>{row.productRequestNumber}</a>
+                            </td>
+                            <td>{row.status}</td>
+                            <td>{row.requestType}</td>
+                            <td>
+                                <template for:each={row.lines} for:item="line">
+                                    <div key={line.id}>{line.displayText}</div>
+                                </template>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </template>
+        <template lwc:else>
+            <p class="slds-text-body_regular">No product requests have been created for this Work Order.</p>
+        </template>
+
+        <template lwc:if={isModalOpen}>
+            <section
+                role="dialog"
+                tabindex="-1"
+                class="slds-modal slds-fade-in-open"
+                aria-modal="true"
+                aria-labelledby="parts-request-heading"
+                onkeydown={handleModalKeyDown}
+            >
+                <div class="slds-modal__container">
+                    <header class="slds-modal__header">
+                        <h2 id="parts-request-heading" class="slds-text-heading_medium">Create Parts Request</h2>
+                    </header>
+                    <div class="slds-modal__content slds-p-around_medium">
+                        <template lwc:if={modalError}>
+                            <div class="slds-text-color_error slds-m-bottom_small" role="alert">{modalError}</div>
+                        </template>
+
+                        <template lwc:if={isBomMode}>
+                            <template lwc:if={isModalLoading}>
+                                <div class="slds-is-relative slds-p-around_large">
+                                    <lightning-spinner alternative-text="Loading parts" size="small"></lightning-spinner>
+                                </div>
+                            </template>
+                            <template lwc:elseif={draftParts.length}>
+                                <ul class="parts-list">
+                                    <template for:each={draftParts} for:item="part">
+                                        <li key={part.productId} class="part-row">
+                                            <lightning-input
+                                                type="checkbox"
+                                                label={part.label}
+                                                checked={part.selected}
+                                                data-id={part.productId}
+                                                onchange={handleChecked}
+                                                disabled={isSaving}
+                                                class="part-row__choice"
+                                            ></lightning-input>
+                                            <template lwc:if={part.selected}>
+                                                <lightning-input
+                                                    type="number"
+                                                    label="Quantity Requested"
+                                                    value={part.quantity}
+                                                    min="0.01"
+                                                    step="any"
+                                                    required
+                                                    data-id={part.productId}
+                                                    oninput={handleQuantityChange}
+                                                    disabled={isSaving}
+                                                    class="quantity-input part-row__qty"
+                                                ></lightning-input>
+                                            </template>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </template>
+                            <template lwc:else>
+                                <p>No active parts were found on the bill of material for this product.</p>
+                            </template>
+                        </template>
+                        <template lwc:else>
+                            <lightning-input
+                                type="text"
+                                label="Scan Part Barcode"
+                                value={scanValue}
+                                class="scan-input"
+                                disabled={isBusy}
+                                oninput={handleScanInput}
+                                onkeydown={handleScanKeyDown}
+                            ></lightning-input>
+                            <template lwc:if={scanError}>
+                                <div class="slds-text-color_error slds-m-top_x-small" role="alert">{scanError}</div>
+                            </template>
+                            <template lwc:if={draftParts.length}>
+                                <ul class="parts-list slds-m-top_medium">
+                                    <template for:each={draftParts} for:item="part">
+                                        <li key={part.productId} class="part-row">
+                                            <span class="part-row__label">{part.label}</span>
+                                            <lightning-input
+                                                type="number"
+                                                label="Quantity Requested"
+                                                value={part.quantity}
+                                                min="0.01"
+                                                step="any"
+                                                required
+                                                data-id={part.productId}
+                                                oninput={handleQuantityChange}
+                                                disabled={isSaving}
+                                                class="quantity-input part-row__qty"
+                                            ></lightning-input>
+                                            <lightning-button-icon
+                                                icon-name="utility:delete"
+                                                alternative-text="Remove part"
+                                                title="Remove part"
+                                                data-id={part.productId}
+                                                onclick={handleRemove}
+                                                disabled={isSaving}
+                                            ></lightning-button-icon>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </template>
+                        </template>
+                    </div>
+                    <footer class="slds-modal__footer">
+                        <lightning-button label="Cancel" onclick={closeModal} disabled={isSaving}></lightning-button>
+                        <lightning-button
+                            label="Save"
+                            variant="brand"
+                            onclick={handleSave}
+                            disabled={isSaving}
+                            class="slds-m-left_x-small"
+                        ></lightning-button>
+                    </footer>
+                </div>
+            </section>
+            <div class="slds-backdrop slds-backdrop_open"></div>
+        </template>
+    </div>
+</template>

@@ -88,6 +88,9 @@ const OBR_PRODUCT_CODE_PATTERN = /OBR/i;
 const MOBILE_DEVICE_PICTURE_TITLE = 'Mobile Device Picture';
 /** Matches WoDebriefIMSchildWOController.MICROSCOPE_PICTURE_TITLE. Listed and counted like a Mobile Device Picture. */
 const MICROSCOPE_PICTURE_TITLE = 'Microscope Picture';
+const MOBILE_PICTURE_JPEG_QUALITY = 0.72;
+/** Microscope pictures keep more fine detail; at 1600 px they stay well under the Apex upload limit. */
+const MICROSCOPE_PICTURE_JPEG_QUALITY = 0.85;
 /** Matches WoDebriefIMSchildWOController.REQUIRED_PICTURES_PER_LINE. */
 const REQUIRED_PICTURES_PER_LINE = 2;
 /** Matches WoDebriefIMSchildWOController.MOBILE_DEVICE_PICTURE_MARKER. The server counts files with this description. */
@@ -2035,7 +2038,7 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 		const dataUrl = event.detail?.dataUrl;
 		if (pending?.localPicture && dataUrl) {
 			try {
-				const markedUp = await this._compressImageDataUrl(dataUrl);
+				const markedUp = await this._compressImageDataUrl(dataUrl, MICROSCOPE_PICTURE_JPEG_QUALITY);
 				this._pendingPictureCapture = {
 					...pending,
 					localPicture: { ...pending.localPicture, previewUrl: markedUp, base64Data: markedUp }
@@ -8522,9 +8525,10 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 	/**
 	 * @description Draws an image data url to a smaller jpeg so the upload stays within Apex limits.
 	 * @param {string} source Image data url
+	 * @param {number} quality JPEG quality between 0 and 1
 	 * @return {Promise<string>}
 	 */
-	_compressImageDataUrl(source) {
+	_compressImageDataUrl(source, quality = MOBILE_PICTURE_JPEG_QUALITY) {
 		return new Promise((resolve, reject) => {
 			const image = new Image();
 			image.onerror = () => reject(new Error('The picture could not be read. Take it again.'));
@@ -8542,7 +8546,7 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 					return;
 				}
 				context.drawImage(image, 0, 0, width, height);
-				resolve(canvas.toDataURL('image/jpeg', 0.72));
+				resolve(canvas.toDataURL('image/jpeg', quality));
 			};
 			image.src = source;
 		});
@@ -8554,7 +8558,7 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 	 * @return {Promise<Object>}
 	 */
 	_dataUrlToMicroscopePicture(dataUrl) {
-		return this._compressImageDataUrl(dataUrl).then(compressed => {
+		return this._compressImageDataUrl(dataUrl, MICROSCOPE_PICTURE_JPEG_QUALITY).then(compressed => {
 			_tempIdSeq += 1;
 			const localId = `local_${_tempIdSeq}`;
 			return {

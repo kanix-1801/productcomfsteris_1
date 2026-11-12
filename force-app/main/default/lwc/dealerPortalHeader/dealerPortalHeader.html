@@ -12,5 +12,15 @@
                 </button>
             </template>
         </nav>
+        <div class="user-menu">
+            <template if:true={hasPhoto}>
+                <img class="avatar" src={userPhoto} alt="" />
+            </template>
+            <template if:false={hasPhoto}>
+                <span class="avatar avatar-fallback" aria-hidden="true">{userInitial}</span>
+            </template>
+            <span class="user-name">{userName}</span>
+            <button type="button" class="logout" onclick={logout}>Log out</button>
+        </div>
     </div>
 </template>

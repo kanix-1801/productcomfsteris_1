@@ -23,6 +23,33 @@ private class QuoteApproveRejectControllerTest {
         return null;
     }
 
+    /**
+     * @description Prefers Special Pricing when the org has it (Dev); falls back for QA.
+     * @return Active LineType__c suitable for the Special Pricing child fixture
+     */
+    private static String resolveSpecialPricingLineType() {
+        Set<String> activeValues = new Set<String>();
+        for (
+            Schema.PicklistEntry picklistEntry :
+            QuoteLineItem.LineType__c.getDescribe().getPicklistValues()
+        ) {
+            if (picklistEntry.isActive()) {
+                activeValues.add(picklistEntry.getValue());
+            }
+        }
+        for (String preferredValue : new List<String>{
+            'Special Pricing',
+            'Service Code',
+            'Observation Code',
+            'Category Code'
+        }) {
+            if (activeValues.contains(preferredValue)) {
+                return preferredValue;
+            }
+        }
+        return getFirstActiveValue(QuoteLineItem.LineType__c.getDescribe());
+    }
+
     @TestSetup
     static void setupTestData() {
         adb_Account accountBuilder = new adb_Account().name('GW-5333 Account');
@@ -41,8 +68,6 @@ private class QuoteApproveRejectControllerTest {
             Name = 'GW-5333 Opportunity',
             AccountId = accountBuilder.id,
             StageName = getFirstActiveValue(Opportunity.StageName.getDescribe()),
-            ForecastConfidenceLevel__c =
-                getFirstActiveValue(Opportunity.ForecastConfidenceLevel__c.getDescribe()),
             Type = getFirstActiveValue(Opportunity.Type.getDescribe()),
             PrimaryContact__c = primaryContact.Id,
             CloseDate = Date.today().addDays(30),
@@ -178,7 +203,7 @@ private class QuoteApproveRejectControllerTest {
                 PricebookEntryId = specialPricingEntry.Id,
                 Quantity = 1,
                 UnitPrice = 25,
-                LineType__c = 'Special Pricing',
+                LineType__c = resolveSpecialPricingLineType(),
                 Status__c = STATUS_WAITING,
                 ParentWorkOrderLineItem__c = productServicedWoli.Id,
                 WorkOrder__c = workOrder.Id
@@ -241,16 +266,16 @@ private class QuoteApproveRejectControllerTest {
         Assert.areEqual(STATUS_APPROVED, workspace.quoteStatus);
         Assert.areEqual(STATUS_APPROVED, workspace.lines[0].selectedDecision);
 
-        Map<String, QuoteLineItem> childLinesByType = new Map<String, QuoteLineItem>();
+        Map<String, QuoteLineItem> childLinesByProductCode = new Map<String, QuoteLineItem>();
         for (QuoteLineItem childLine : [
-            SELECT LineType__c, Status__c
+            SELECT Status__c, PricebookEntry.Product2.ProductCode
             FROM QuoteLineItem
-            WHERE LineType__c IN ('Category Code', 'Special Pricing')
+            WHERE PricebookEntry.Product2.ProductCode IN ('CC-5333', 'SP-5333')
         ]) {
-            childLinesByType.put(childLine.LineType__c, childLine);
+            childLinesByProductCode.put(childLine.PricebookEntry.Product2.ProductCode, childLine);
         }
-        Assert.areEqual(STATUS_APPROVED, childLinesByType.get('Category Code').Status__c);
-        Assert.areEqual(STATUS_APPROVED, childLinesByType.get('Special Pricing').Status__c);
+        Assert.areEqual(STATUS_APPROVED, childLinesByProductCode.get('CC-5333').Status__c);
+        Assert.areEqual(STATUS_APPROVED, childLinesByProductCode.get('SP-5333').Status__c);
     }
 
     @IsTest
@@ -276,16 +301,16 @@ private class QuoteApproveRejectControllerTest {
         Test.stopTest();
 
         Assert.areEqual(STATUS_REJECTED, workspace.quoteStatus);
-        Map<String, QuoteLineItem> childLinesByType = new Map<String, QuoteLineItem>();
+        Map<String, QuoteLineItem> childLinesByProductCode = new Map<String, QuoteLineItem>();
         for (QuoteLineItem childLine : [
-            SELECT LineType__c, Status__c
+            SELECT Status__c, PricebookEntry.Product2.ProductCode
             FROM QuoteLineItem
-            WHERE LineType__c IN ('Category Code', 'Special Pricing')
+            WHERE PricebookEntry.Product2.ProductCode IN ('CC-5333', 'SP-5333')
         ]) {
-            childLinesByType.put(childLine.LineType__c, childLine);
+            childLinesByProductCode.put(childLine.PricebookEntry.Product2.ProductCode, childLine);
         }
-        Assert.areEqual(STATUS_REJECTED, childLinesByType.get('Category Code').Status__c);
-        Assert.areEqual(STATUS_REJECTED, childLinesByType.get('Special Pricing').Status__c);
+        Assert.areEqual(STATUS_REJECTED, childLinesByProductCode.get('CC-5333').Status__c);
+        Assert.areEqual(STATUS_REJECTED, childLinesByProductCode.get('SP-5333').Status__c);
     }
 
     @IsTest
@@ -403,8 +428,8 @@ private class QuoteApproveRejectControllerTest {
     @IsTest
     static void testSelectors_WhenInputMissing() {
         Assert.isNull(QuoteSelector.selectForApproveRejectById(null));
-        Assert.isTrue(QuoteLineItemSelector.selectForApproveRejectByQuoteId(null).isEmpty());
-        Assert.isNull(QuoteLineItemSelector.selectForApproveRejectById(null));
+        Assert.isTrue(QuoteLineItemService.getForApproveRejectByQuoteId(null).isEmpty());
+        Assert.isNull(QuoteLineItemService.getForApproveRejectById(null));
         Assert.isTrue(WorkOrdersSelector.selectForApproveRejectQuoteByIds(null).isEmpty());
         Assert.isTrue(ProductsSelector.selectForApproveRejectByIds(null).isEmpty());
         Assert.isTrue(QuoteLineItemService.getLineItemsForApproveReject(null).isEmpty());

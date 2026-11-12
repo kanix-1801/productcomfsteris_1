@@ -6,9 +6,11 @@ private class LSTemporaryAccessPendingServiceTest {
         User submitter = lifeScienceUser('rejSub', null);
         User requester = lifeScienceUser('rejReq', null);
         stopTemporaryAccessFlows(submitter.Id);
-        TemporaryAccessException__c request = newRequest(requester.Id, UserInfo.getUserId(), Date.today());
-        request.Status__c = LSTemporaryAccessPendingService.STATUS_APPROVAL_REQUESTED;
+        Id coverageId = UserInfo.getUserId();
+        TemporaryAccessException__c request;
         System.runAs(submitter) {
+            request = newRequest(requester.Id, coverageId, Date.today());
+            request.Status__c = LSTemporaryAccessPendingService.STATUS_APPROVAL_REQUESTED;
             insert request;
         }
 
@@ -27,9 +29,11 @@ private class LSTemporaryAccessPendingServiceTest {
         User submitter = lifeScienceUser('daySub', null);
         User requester = lifeScienceUser('dayReq', null);
         stopTemporaryAccessFlows(submitter.Id);
-        TemporaryAccessException__c request = newRequest(requester.Id, UserInfo.getUserId(), Date.today());
-        request.Status__c = LSTemporaryAccessPendingService.STATUS_PENDING_APPROVAL;
+        Id coverageId = UserInfo.getUserId();
+        TemporaryAccessException__c request;
         System.runAs(submitter) {
+            request = newRequest(requester.Id, coverageId, Date.today());
+            request.Status__c = LSTemporaryAccessPendingService.STATUS_PENDING_APPROVAL;
             insert request;
         }
 
@@ -193,20 +197,46 @@ private class LSTemporaryAccessPendingServiceTest {
             LanguageLocaleKey = 'en_US',
             LocaleSidKey = 'en_US',
             ProfileId = lifeScienceProfile.Id,
-            TimeZoneSidKey = 'America/New_York',
+            TimeZoneSidKey = UserInfo.getTimeZone().getID(),
             Username = token + '@lstae.test',
             ManagerId = managerId
         );
         insert user;
-        Id permissionSetGroupId = [
-            SELECT Id
-            FROM PermissionSetGroup
-            WHERE DeveloperName = 'LSInsideSalesPSG'
-            LIMIT 1
-        ].Id;
-        Test.calculatePermissionSetGroup(permissionSetGroupId);
-        insert new PermissionSetAssignment(AssigneeId = user.Id, PermissionSetGroupId = permissionSetGroupId);
+        grantTemporaryAccessAccess(user.Id);
         return user;
+    }
+
+    /** Gives the Life Sciences user create and edit on every writable request field. */
+    private static void grantTemporaryAccessAccess(Id userId) {
+        String name = 'LSTae' + String.valueOf(Math.abs(Crypto.getRandomInteger()));
+        PermissionSet permissionSet = new PermissionSet(Name = name, Label = name);
+        insert permissionSet;
+        insert new ObjectPermissions(
+            ParentId = permissionSet.Id,
+            SobjectType = 'TemporaryAccessException__c',
+            PermissionsRead = true,
+            PermissionsCreate = true,
+            PermissionsEdit = true,
+            PermissionsDelete = true
+        );
+        List<FieldPermissions> fieldPermissions = new List<FieldPermissions>();
+        for (Schema.SObjectField field : Schema.SObjectType.TemporaryAccessException__c.fields.getMap().values()) {
+            Schema.DescribeFieldResult describe = field.getDescribe();
+            if (!describe.isPermissionable() || !describe.isUpdateable()) {
+                continue;
+            }
+            fieldPermissions.add(new FieldPermissions(
+                ParentId = permissionSet.Id,
+                SobjectType = 'TemporaryAccessException__c',
+                Field = 'TemporaryAccessException__c.' + describe.getName(),
+                PermissionsRead = true,
+                PermissionsEdit = true
+            ));
+        }
+        if (!fieldPermissions.isEmpty()) {
+            Database.insert(fieldPermissions, false);
+        }
+        insert new PermissionSetAssignment(AssigneeId = userId, PermissionSetId = permissionSet.Id);
     }
 
     /** Runs the daily job outside the permission-set setup transaction. */

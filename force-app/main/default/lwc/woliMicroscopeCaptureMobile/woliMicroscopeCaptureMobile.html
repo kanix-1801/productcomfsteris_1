@@ -113,13 +113,56 @@
               </template>
 
               <div class="video-container">
-                <video
-                  lwc:ref="videoElement"
-                  class="preview-video"
-                  playsinline
-                  autoplay
-                  muted
-                ></video>
+                <div
+                  lwc:ref="zoomViewport"
+                  class={zoomViewportClass}
+                  style={zoomViewportStyle}
+                  ontouchstart={handleZoomTouchStart}
+                  ontouchmove={handleZoomTouchMove}
+                  ontouchend={handleZoomTouchEnd}
+                  ontouchcancel={handleZoomTouchEnd}
+                  ongesturestart={handleZoomGesture}
+                  ongesturechange={handleZoomGesture}
+                >
+                  <video
+                    lwc:ref="videoElement"
+                    class="preview-video"
+                    playsinline
+                    autoplay
+                    muted
+                    onresize={handleVideoResize}
+                  ></video>
+                  <div class="zoom-controls">
+                    <button
+                      type="button"
+                      class="zoom-button"
+                      aria-label="Zoom out"
+                      onclick={handleZoomOut}
+                      disabled={isZoomOutDisabled}
+                    >
+                      −
+                    </button>
+                    <span class="zoom-badge">{zoomLabel}</span>
+                    <button
+                      type="button"
+                      class="zoom-button"
+                      aria-label="Zoom in"
+                      onclick={handleZoomIn}
+                      disabled={isZoomInDisabled}
+                    >
+                      +
+                    </button>
+                    <template lwc:if={isZoomed}>
+                      <button
+                        type="button"
+                        class="zoom-button"
+                        onclick={handleResetZoom}
+                      >
+                        Reset
+                      </button>
+                    </template>
+                  </div>
+                </div>
                 <canvas lwc:ref="canvasElement" class="hidden-canvas"></canvas>
               </div>
               <p
@@ -127,6 +170,11 @@
               >
                 {statusLabel}
               </p>
+              <template lwc:if={showCameraResolution}>
+                <p class="slds-text-body_small slds-text-color_weak">
+                  {cameraResolutionLabel}
+                </p>
+              </template>
 
               <div class="button-row slds-m-top_small">
                 <lightning-button

@@ -141,7 +141,9 @@ public with sharing class LeadCreateController {
                 insert productRows;
             }
 
-            System.enqueueJob(new LeadRoutingQueueable(leadRecord.Id));
+            if (leadRecord.HubSpot_Lead__c) {
+                System.enqueueJob(new LeadRoutingQueueable(leadRecord.Id));
+            }
             return leadRecord.Id;
         } catch (Exception ex) {
             Database.rollback(savepoint);

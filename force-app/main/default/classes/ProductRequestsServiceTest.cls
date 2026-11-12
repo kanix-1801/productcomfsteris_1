@@ -574,27 +574,26 @@ private class ProductRequestsServiceTest {
             Description = '4269123'
         );
         insert sr;
+        assignPrimaryBillToLocation(sr);
 
         Product2 prod = new Product2(Name = 'Test Part', ProductCode = 'P755718521', IsActive = true);
         insert prod;
 
-        ProductRequest pr;
-        System.runAs(u) {
-            pr = new ProductRequest(
-                Status = 'Draft',
-                NeedByDate = Datetime.newInstance(2026, 5, 8, 12, 0, 0),
-                AccountId = acct.Id,
-                ServiceResource__c = sr.Id
-            );
-            insert pr;
+        ProductRequest pr = new ProductRequest(
+            Status = 'Draft',
+            NeedByDate = Datetime.newInstance(2026, 5, 8, 12, 0, 0),
+            AccountId = acct.Id,
+            ServiceResource__c = sr.Id,
+            ShipToAddressAccount__c = acct.Id
+        );
+        insert pr;
 
-            insert new ProductRequestLineItem(
-                ParentId = pr.Id,
-                Product2Id = prod.Id,
-                QuantityRequested = 1,
-                NeedByDate = Datetime.newInstance(2026, 5, 8, 12, 0, 0)
-            );
-        }
+        insert new ProductRequestLineItem(
+            ParentId = pr.Id,
+            Product2Id = prod.Id,
+            QuantityRequested = 1,
+            NeedByDate = Datetime.newInstance(2026, 5, 8, 12, 0, 0)
+        );
 
         ProductRequestsService.OracleSubmitRequest req = new ProductRequestsService.OracleSubmitRequest();
         req.productRequestId = pr.Id;
@@ -609,12 +608,13 @@ private class ProductRequestsServiceTest {
         Assert.areEqual(1, results.size());
         Assert.areEqual(true, results[0].success, results[0].integrationMessage);
         Assert.isNotNull(results[0].requestJson);
-        // Sold-to / ship-to cust from SR.OracleAccountId__c; address ids from SR.Description
+        // Sold-to from SR.OracleAccountId__c. Ship-to from Account.AddressID__c.
+        // Invoice / bill-to from the primary Bill To address on the resource location.
         Assert.isTrue(results[0].requestJson.contains('"P_SOLD_TO_ORG_ID":"3370699"'), results[0].requestJson);
         Assert.isTrue(results[0].requestJson.contains('"P_SHIP_TO_CUST_ID":"3370699"'), results[0].requestJson);
         Assert.isTrue(results[0].requestJson.contains('"P_SHIP_TO_ADDR_ID":"4269123"'), results[0].requestJson);
-        Assert.isTrue(results[0].requestJson.contains('"P_INV_ADDR_ID":"4269123"'), results[0].requestJson);
-        Assert.isTrue(results[0].requestJson.contains('"P_BILL_TO_ADDR":"4269123"'), results[0].requestJson);
+        Assert.isTrue(results[0].requestJson.contains('"P_INV_ADDR_ID":"5551111"'), results[0].requestJson);
+        Assert.isTrue(results[0].requestJson.contains('"P_BILL_TO_ADDR":"5551111"'), results[0].requestJson);
         Assert.isTrue(results[0].requestJson.contains('"P_SHIP_TO_ADDR":"4269123"'), results[0].requestJson);
         Assert.isTrue(results[0].requestJson.contains('"P_PRODUCT_NAME":"P755718521"'), results[0].requestJson);
     }
@@ -648,26 +648,25 @@ private class ProductRequestsServiceTest {
             Description = '4269123'
         );
         insert sr;
+        assignPrimaryBillToLocation(sr);
 
         Product2 prod = new Product2(Name = 'Callout Part', ProductCode = 'P117055344', IsActive = true);
         insert prod;
 
-        ProductRequest pr;
-        System.runAs(u) {
-            pr = new ProductRequest(
-                Status = 'Draft',
-                NeedByDate = Datetime.now().addDays(3),
-                AccountId = acct.Id,
-                ServiceResource__c = sr.Id
-            );
-            insert pr;
-            insert new ProductRequestLineItem(
-                ParentId = pr.Id,
-                Product2Id = prod.Id,
-                QuantityRequested = 1,
-                NeedByDate = Datetime.now().addDays(3)
-            );
-        }
+        ProductRequest pr = new ProductRequest(
+            Status = 'Draft',
+            NeedByDate = Datetime.now().addDays(3),
+            AccountId = acct.Id,
+            ServiceResource__c = sr.Id,
+            ShipToAddressAccount__c = acct.Id
+        );
+        insert pr;
+        insert new ProductRequestLineItem(
+            ParentId = pr.Id,
+            Product2Id = prod.Id,
+            QuantityRequested = 1,
+            NeedByDate = Datetime.now().addDays(3)
+        );
 
         ProductRequestsService.OracleSubmitRequest req = new ProductRequestsService.OracleSubmitRequest();
         req.productRequestId = pr.Id;
@@ -680,7 +679,7 @@ private class ProductRequestsServiceTest {
         Test.stopTest();
 
         Assert.areEqual(true, results[0].success, results[0].integrationMessage);
-        Assert.areEqual('Success', results[0].integrationStatus);
+        Assert.areEqual('Success Create', results[0].integrationStatus);
         Assert.areEqual('TEST-SO-001', results[0].erpOrderNumber);
 
         ProductRequest stamped = [
@@ -688,8 +687,8 @@ private class ProductRequestsServiceTest {
             FROM ProductRequest
             WHERE Id = :pr.Id
         ];
-        Assert.areEqual('Submitted', stamped.SubmissionToERP__c);
-        Assert.areEqual('Success', stamped.IntegrationStatus__c);
+        Assert.isNull(stamped.SubmissionToERP__c);
+        Assert.areEqual('Success Create', stamped.IntegrationStatus__c);
         Assert.areEqual('TEST-SO-001', stamped.ERPOrderNumber__c);
     }
 
@@ -709,7 +708,7 @@ private class ProductRequestsServiceTest {
         Test.stopTest();
 
         Assert.areEqual(false, results[0].success);
-        Assert.areEqual('Fail', results[0].integrationStatus);
+        Assert.areEqual('Fail Create', results[0].integrationStatus);
         Assert.isTrue(results[0].integrationMessage.contains('No Product Request Line Items'));
     }
 
@@ -742,26 +741,25 @@ private class ProductRequestsServiceTest {
             Description = '4269123'
         );
         insert sr;
+        assignPrimaryBillToLocation(sr);
 
         Product2 prod = new Product2(Name = 'Fail Part', ProductCode = 'PFAIL0001', IsActive = true);
         insert prod;
 
-        ProductRequest pr;
-        System.runAs(u) {
-            pr = new ProductRequest(
-                Status = 'Draft',
-                NeedByDate = Datetime.now().addDays(3),
-                AccountId = acct.Id,
-                ServiceResource__c = sr.Id
-            );
-            insert pr;
-            insert new ProductRequestLineItem(
-                ParentId = pr.Id,
-                Product2Id = prod.Id,
-                QuantityRequested = 1,
-                NeedByDate = Datetime.now().addDays(3)
-            );
-        }
+        ProductRequest pr = new ProductRequest(
+            Status = 'Draft',
+            NeedByDate = Datetime.now().addDays(3),
+            AccountId = acct.Id,
+            ServiceResource__c = sr.Id,
+            ShipToAddressAccount__c = acct.Id
+        );
+        insert pr;
+        insert new ProductRequestLineItem(
+            ParentId = pr.Id,
+            Product2Id = prod.Id,
+            QuantityRequested = 1,
+            NeedByDate = Datetime.now().addDays(3)
+        );
 
         ProductRequestsService.testOracleResponseOverride = new Map<String, Object>{
             'SO_SUCCESS' => true,
@@ -785,7 +783,7 @@ private class ProductRequestsServiceTest {
         ProductRequestsService.testOracleResponseOverride = null;
 
         Assert.areEqual(false, results[0].success, results[0].integrationMessage);
-        Assert.areEqual('Fail', results[0].integrationStatus);
+        Assert.areEqual('Fail Create', results[0].integrationStatus);
         Assert.isTrue(
             results[0].integrationMessage.contains('Customer account not found'),
             results[0].integrationMessage
@@ -796,8 +794,76 @@ private class ProductRequestsServiceTest {
             FROM ProductRequest
             WHERE Id = :pr.Id
         ];
-        Assert.areEqual('Fail', stamped.IntegrationStatus__c);
+        Assert.areEqual('Fail Create', stamped.IntegrationStatus__c);
         Assert.isNull(stamped.ERPOrderNumber__c);
+    }
+
+    @IsTest
+    static void shouldUseTechnicianAddress_WhenShipToAccountBlank() {
+        Account acct = createOracleTechAccount('4269123', 'TEST-ORACLE-TECH-ADDR');
+        insert acct;
+
+        Profile p = [SELECT Id FROM Profile WHERE Name = 'Standard User' LIMIT 1];
+        User u = new User(
+            Alias = 'prtech',
+            Email = 'pr.oracle.techaddr@example.com',
+            EmailEncodingKey = 'UTF-8',
+            LastName = 'OracleTechAddr',
+            LanguageLocaleKey = 'en_US',
+            LocaleSidKey = 'en_US',
+            ProfileId = p.Id,
+            TimeZoneSidKey = 'America/New_York',
+            UserName = 'pr.oracle.techaddr.' + System.currentTimeMillis() + '@example.com'
+        );
+        insert u;
+
+        ServiceResource sr = new ServiceResource(
+            Name = 'PR Oracle Tech Addr SR',
+            RelatedRecordId = u.Id,
+            IsActive = true,
+            ResourceType = 'T',
+            AccountId = acct.Id,
+            OracleAccountId__c = '3370699'
+        );
+        insert sr;
+        Schema.Location loc = assignPrimaryBillToLocation(sr);
+        Schema.Address technicianAddress = new Schema.Address(
+            ParentId = loc.Id,
+            AddressID__c = '7770001',
+            LocationType = 'OperatingUnit'
+        );
+        insert technicianAddress;
+
+        Product2 prod = new Product2(Name = 'Tech Addr Part', ProductCode = 'PTECH0001', IsActive = true);
+        insert prod;
+
+        ProductRequest pr = new ProductRequest(
+            Status = 'Draft',
+            NeedByDate = Datetime.newInstance(2026, 5, 8, 12, 0, 0),
+            ServiceResource__c = sr.Id,
+            ShipToTechnicianAddress__c = technicianAddress.Id
+        );
+        insert pr;
+        insert new ProductRequestLineItem(
+            ParentId = pr.Id,
+            Product2Id = prod.Id,
+            QuantityRequested = 1,
+            NeedByDate = Datetime.newInstance(2026, 5, 8, 12, 0, 0)
+        );
+
+        ProductRequestsService.OracleSubmitRequest req = new ProductRequestsService.OracleSubmitRequest();
+        req.productRequestId = pr.Id;
+        req.performCallout = false;
+
+        Test.startTest();
+        List<ProductRequestsService.OracleSubmitResult> results = ProductRequestsService.submitOracleSalesOrder(
+            new List<ProductRequestsService.OracleSubmitRequest>{ req }
+        );
+        Test.stopTest();
+
+        Assert.areEqual(true, results[0].success, results[0].integrationMessage);
+        Assert.isTrue(results[0].requestJson.contains('"P_SHIP_TO_ADDR_ID":"7770001"'), results[0].requestJson);
+        Assert.isTrue(results[0].requestJson.contains('"P_INV_ADDR_ID":"5551111"'), results[0].requestJson);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -805,9 +871,30 @@ private class ProductRequestsServiceTest {
     private static Account createOracleTechAccount(String systemId, String sourceSystemId) {
         return new Account(
             Name = 'PR Oracle Test Tech ' + systemId,
+            Type = 'Address',
             SystemID__c = systemId,
-            SourceSystemID__c = sourceSystemId
+            SourceSystemID__c = sourceSystemId,
+            AddressID__c = systemId
         );
+    }
+
+    private static Schema.Location assignPrimaryBillToLocation(ServiceResource sr) {
+        Schema.Location loc = new Schema.Location(
+            Name = 'PR Oracle Location ' + sr.Id,
+            LocationType = 'Repair Center',
+            IsInventoryLocation = true,
+            IsMobile = true
+        );
+        insert loc;
+        insert new Schema.Address(
+            ParentId = loc.Id,
+            AddressID__c = '5551111',
+            BillTo__c = 'P',
+            LocationType = 'OperatingUnit'
+        );
+        sr.LocationId = loc.Id;
+        update sr;
+        return loc;
     }
 
     private static User buildTestUser() {

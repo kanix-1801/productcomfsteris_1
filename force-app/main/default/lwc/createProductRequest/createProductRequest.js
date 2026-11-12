@@ -12,6 +12,7 @@ import getAddresses from '@salesforce/apex/CreateProductRequestController.getAdd
 import searchParts from '@salesforce/apex/CreateProductRequestController.searchParts';
 import createProductRequestFromJson from '@salesforce/apex/CreateProductRequestController.createProductRequestFromJson';
 import submitProductRequest from '@salesforce/apex/CreateProductRequestController.submitProductRequest';
+import getOracleSubmitPreview from '@salesforce/apex/CreateProductRequestController.getOracleSubmitPreview';
 
 import title from '@salesforce/label/c.CreateProductRequest_Title';
 import requestDetails from '@salesforce/label/c.CreateProductRequest_RequestDetails';
@@ -38,8 +39,20 @@ import save from '@salesforce/label/c.CreateProductRequest_Save';
 import submitQuestion from '@salesforce/label/c.CreateProductRequest_SubmitQuestion';
 import yes from '@salesforce/label/c.CreateProductRequest_Yes';
 import no from '@salesforce/label/c.CreateProductRequest_No';
-import submitted from '@salesforce/label/c.CreateProductRequest_Submitted';
 import created from '@salesforce/label/c.CreateProductRequest_Created';
+import erpScreenTitle from '@salesforce/label/c.CreateProductRequest_ErpScreenTitle';
+import erpSubmitHeading from '@salesforce/label/c.CreateProductRequest_ErpSubmitHeading';
+import erpSubmitBody from '@salesforce/label/c.CreateProductRequest_ErpSubmitBody';
+import erpSubmitContinue from '@salesforce/label/c.CreateProductRequest_ErpSubmitContinue';
+import erpPriorHeading from '@salesforce/label/c.CreateProductRequest_ErpPriorHeading';
+import erpStatus from '@salesforce/label/c.CreateProductRequest_ErpStatus';
+import erpMessage from '@salesforce/label/c.CreateProductRequest_ErpMessage';
+import erpSubmit from '@salesforce/label/c.CreateProductRequest_ErpSubmit';
+import erpSavedHeading from '@salesforce/label/c.CreateProductRequest_ErpSavedHeading';
+import erpSavedBody from '@salesforce/label/c.CreateProductRequest_ErpSavedBody';
+import erpSavedBoomi from '@salesforce/label/c.CreateProductRequest_ErpSavedBoomi';
+import finish from '@salesforce/label/c.CreateProductRequest_Finish';
+import cannotSubmit from '@salesforce/label/c.CreateProductRequest_CannotSubmit';
 import close from '@salesforce/label/c.CreateProductRequest_Close';
 import loading from '@salesforce/label/c.CreateProductRequest_Loading';
 import saving from '@salesforce/label/c.CreateProductRequest_Saving';
@@ -61,7 +74,8 @@ const SHIP_TO_MY_LOCATION = 'MyLocation';
 const SHIP_TO_CUSTOMER = 'Customer';
 const SCREEN_FORM = 'form';
 const SCREEN_CONFIRM = 'confirm';
-const SCREEN_SUCCESS = 'success';
+const SCREEN_ERP_CONFIRM = 'erpConfirm';
+const SCREEN_ERP_SUCCESS = 'erpSuccess';
 const DEFAULT_NEED_BY_HOUR = 8;
 
 function isWorkOrderId(value) {
@@ -108,8 +122,20 @@ export default class CreateProductRequest extends NavigationMixin(LightningEleme
         submitQuestion,
         yes,
         no,
-        submitted,
         close,
+        erpScreenTitle,
+        erpSubmitHeading,
+        erpSubmitBody,
+        erpSubmitContinue,
+        erpPriorHeading,
+        erpStatus,
+        erpMessage,
+        erpSubmit,
+        erpSavedHeading,
+        erpSavedBody,
+        erpSavedBoomi,
+        finish,
+        cannotSubmit,
         loading,
         saving,
         removePart,
@@ -156,6 +182,9 @@ export default class CreateProductRequest extends NavigationMixin(LightningEleme
     isSearching = false;
     productRequestId;
     productRequestNumber;
+    oracleIntegrationStatus;
+    oracleIntegrationMessage;
+    showPriorResult = false;
     searchTimer;
 
     @api
@@ -219,12 +248,24 @@ export default class CreateProductRequest extends NavigationMixin(LightningEleme
         return !this.isLoading && !this.loadError && this.context?.blockMessage;
     }
 
+    get showPageTitle() {
+        return !this.showErpConfirm && !this.showErpSuccess;
+    }
+
     get showConfirm() {
         return this.screen === SCREEN_CONFIRM;
     }
 
-    get showSuccess() {
-        return this.screen === SCREEN_SUCCESS;
+    get showErpConfirm() {
+        return this.screen === SCREEN_ERP_CONFIRM;
+    }
+
+    get showErpSuccess() {
+        return this.screen === SCREEN_ERP_SUCCESS;
+    }
+
+    get erpSubmitBodyHtml() {
+        return (this.labels.erpSubmitBody || '').replace('{0}', this.escapeHtml(this.productRequestNumber || ''));
     }
 
     get hasWorkOrder() {
@@ -609,12 +650,28 @@ export default class CreateProductRequest extends NavigationMixin(LightningEleme
         this.isSaving = true;
         this.formError = undefined;
         try {
-            await submitProductRequest({ productRequestId: this.productRequestId });
-            if (this.shouldOpenCreatedRequest) {
-                this.openCreatedProductRequest();
+            const preview = await getOracleSubmitPreview({ productRequestId: this.productRequestId });
+            if (!preview?.eligible) {
+                this.formError = preview?.blockMessage || this.labels.cannotSubmit;
                 return;
             }
-            this.screen = SCREEN_SUCCESS;
+            this.oracleIntegrationStatus = preview.integrationStatus;
+            this.oracleIntegrationMessage = preview.integrationMessage;
+            this.showPriorResult = preview.showPriorResult === true;
+            this.screen = SCREEN_ERP_CONFIRM;
+        } catch (error) {
+            this.formError = this.errorMessage(error);
+        } finally {
+            this.isSaving = false;
+        }
+    }
+
+    async handleErpSubmit() {
+        this.isSaving = true;
+        this.formError = undefined;
+        try {
+            await submitProductRequest({ productRequestId: this.productRequestId });
+            this.screen = SCREEN_ERP_SUCCESS;
         } catch (error) {
             this.formError = this.errorMessage(error);
         } finally {
@@ -648,6 +705,14 @@ export default class CreateProductRequest extends NavigationMixin(LightningEleme
             }
         });
         this.dispatchEvent(new CloseActionScreenEvent());
+    }
+
+    escapeHtml(value) {
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
     }
 
     quantityValue(value) {

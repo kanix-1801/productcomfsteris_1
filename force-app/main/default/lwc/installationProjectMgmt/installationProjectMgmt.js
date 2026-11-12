@@ -342,6 +342,27 @@ export default class InstallationProjectMgmt extends NavigationMixin(LightningEl
 		}
 	}
 
+	renderedCallback() {
+		if (this.quickActionWidthApplied) {
+			return;
+		}
+		const holder = this.template.querySelector('.quick-action-width-style');
+		if (!holder) {
+			return;
+		}
+		// Component CSS is shadow-scoped and cannot reach the quick action modal, so inject a global rule.
+		// It is removed with the component when the modal closes.
+		const style = document.createElement('style');
+		style.textContent = `
+			.slds-modal__container:has(c-installation-project-mgmt) {
+				width: 75% !important;
+				max-width: 70rem !important;
+			}
+		`;
+		holder.appendChild(style);
+		this.quickActionWidthApplied = true;
+	}
+
 	// Wire to get case details when on Case path
 	@wire(getCaseDetails, { caseId: '$caseIdForWire' })
 	wiredCase({ error, data }) {

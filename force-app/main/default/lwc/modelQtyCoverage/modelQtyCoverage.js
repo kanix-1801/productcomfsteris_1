@@ -42,7 +42,12 @@ const SECTION_PRICING = 'pricingPrograms';
 const SECTION_MOBILE_VAN = 'onLocationMobileVan';
 const MIN_PROGRAM_SEARCH_LENGTH = 3;
 const PROGRAM_SEARCH_DELAY_MS = 300; // wait for the user to stop typing before searching
-const EMPTY_ADJUSTMENTS = { inclusions: [], models: [], pricingPrograms: [], pricingProgram: null };
+const EMPTY_ADJUSTMENTS = { inclusions: [], models: [], pricingPrograms: [], pricingProgram: null, mobileVan: { instrumentServices: [] } };
+// On Location - Mobile Van categories as stored: unique picklist API values, sorted so the order of clicks doesn't matter
+const pickInstrumentServices = (list) =>
+    [...new Set((Array.isArray(list) ? list : []).map(clean).filter(Boolean))].sort();
+// On Location - Mobile Van block as stored in the JSON: { instrumentServices: [...] }
+const pickMobileVan = (source) => ({ instrumentServices: pickInstrumentServices(source?.instrumentServices) });
 
 // A real, saved Quote Line Item Id. New lines in the configurator have temporary "ref_" Ids.
 const isSavedLineId = (id) => typeof id === 'string' && id.startsWith('0QL') && (id.length === 15 || id.length === 18);
@@ -132,7 +137,7 @@ export default class ModelQtyCoverage extends LightningElement {
     mobileVanFilter = '';
     mobileVanSelected = []; // picklist API values
     // On Location - Mobile Van categories: ContractAdjustment__c.InstrumentServices__c picklist values
-    // ({ label, value }) for the user's default record type. UI only for now, not saved with the configuration.
+    // ({ label, value }) for the user's default record type. Saved in the JSON as "mobileVan.instrumentServices".
     mobileVanCategories = [];
     mobileVanCategoriesLoaded = false;
     mobileVanError;
@@ -315,7 +320,8 @@ export default class ModelQtyCoverage extends LightningElement {
             })),
             models: (data?.models || []).map((m) => ({ ...pickCriteria(m), qty: Number(m.qty) })),
             pricingPrograms: (data?.pricingPrograms || []).map((p) => this.programDetails(p)),
-            pricingProgram: data?.pricingProgram || null
+            pricingProgram: data?.pricingProgram || null,
+            mobileVan: pickMobileVan(data?.mobileVan)
         };
     }
 
@@ -347,6 +353,7 @@ export default class ModelQtyCoverage extends LightningElement {
             ])
             .join(' · ');
         const modelPreview = c.models.map((m) => `${m.model || this.describe(m)} · ${m.qty} max`).join(' · ');
+        const instrumentServices = c.mobileVan?.instrumentServices || [];
         const pricingPreview = c.pricingPrograms
             .map((p) => {
                 const n = p.ctCodes.length;
@@ -376,10 +383,14 @@ export default class ModelQtyCoverage extends LightningElement {
             {
                 key: SECTION_MOBILE_VAN,
                 label: 'On Location - Mobile Van',
-                count: 0, // TODO: number of service categories chosen
-                preview: 'None configured'
+                count: instrumentServices.length,
+                preview: instrumentServices.map((v) => this.mobileVanLabel(v)).join(' · ') || 'None configured'
             }
         ];
+    }
+
+    mobileVanLabel(value) {
+        return this.mobileVanCategories.find((c) => c.value === value)?.label || value;
     }
 
     // A Pricing Program is stored and shown by its name, e.g. "PP-ENDO-01"
@@ -427,6 +438,7 @@ export default class ModelQtyCoverage extends LightningElement {
         this.pricingRows = c.pricingPrograms.map((p) => this.newPricingRow(p));
         this.resetProgramSearch();
         this.mobileVanFilter = '';
+        this.mobileVanSelected = [...(c.mobileVan?.instrumentServices || [])];
         this.ensureManufacturers({}); // new rows start at Any / Any
         this.incRules.forEach((r) => {
             this.ensureSubProductLines(r.productLine);
@@ -1015,10 +1027,18 @@ export default class ModelQtyCoverage extends LightningElement {
             .filter((row) => hasAnyValue(row) || row.qty)
             .map((row) => ({ ...pickCriteria(row), qty: row.qty }));
         const pricingPrograms = this.pricingRows.filter((row) => row.program).map(pickProgram);
-        return { inclusions, models, pricingPrograms, pricingProgram: this.committed.pricingProgram || null };
+        return {
+            inclusions,
+            models,
+            pricingPrograms,
+            pricingProgram: this.committed.pricingProgram || null,
+            mobileVan: pickMobileVan({ instrumentServices: this.mobileVanSelected })
+        };
     }
 
     get commitDisabled() {
+        console.log('workingValue 101 ', JSON.stringify(this.workingValue));
+        console.log('committed 101 ', JSON.stringify(this.committed));
         return JSON.stringify(this.workingValue) === JSON.stringify(this.toValue(this.committed));
     }
 
@@ -1030,7 +1050,8 @@ export default class ModelQtyCoverage extends LightningElement {
             })),
             models: adjustments.models.map((m) => ({ ...pickCriteria(m), qty: m.qty })),
             pricingPrograms: (adjustments.pricingPrograms || []).map(pickProgram),
-            pricingProgram: adjustments.pricingProgram || null
+            pricingProgram: adjustments.pricingProgram || null,
+            mobileVan: pickMobileVan(adjustments.mobileVan)
         };
     }
 
@@ -1100,6 +1121,7 @@ export default class ModelQtyCoverage extends LightningElement {
             return;
         }
         const value = this.workingValue;
+        console.log('Committing adjustments for line : 101 ', lineId, 'attribute', this.attributeId, 'value', value);
         const problem = this.validate(value);
         if (problem) {
             this.activeSection = problem.section;

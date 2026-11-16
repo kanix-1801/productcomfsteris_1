@@ -1,0 +1,120 @@
+<template>
+    <div class="missing-ro-form">
+        <div class="missing-ro-grid">
+            <div class="missing-ro-grid__cell">
+                <lightning-checkbox-group
+                    name="itemsReceived"
+                    label="Item(s) Received"
+                    options={itemOptions}
+                    value={itemsReceived}
+                    required
+                    onchange={handleItemsChange}
+                ></lightning-checkbox-group>
+            </div>
+            <div class="missing-ro-grid__cell">
+                <lightning-input
+                    type="number"
+                    label="Quantity Received"
+                    value={quantityReceived}
+                    min="0"
+                    max="99"
+                    step="1"
+                    onchange={handleQuantityChange}
+                ></lightning-input>
+            </div>
+
+            <div class="missing-ro-grid__cell">
+                <lightning-input
+                    type="text"
+                    label="Serial Number"
+                    value={serialNumber}
+                    maxlength="255"
+                    onchange={handleSerialChange}
+                ></lightning-input>
+            </div>
+            <div class="missing-ro-grid__cell">
+                <lightning-input
+                    type="text"
+                    label="Model"
+                    value={model}
+                    maxlength="255"
+                    onchange={handleModelChange}
+                ></lightning-input>
+            </div>
+
+            <div class="missing-ro-grid__cell">
+                <lightning-textarea
+                    label="Notes"
+                    value={notes}
+                    maxlength="30000"
+                    onchange={handleNotesChange}
+                ></lightning-textarea>
+            </div>
+            <div class="missing-ro-grid__cell">
+                <label class="slds-form-element__label missing-ro-photo-label">
+                    <span class="slds-required missing-ro-required" title="required">*</span>
+                    <span>Picture of Shipping Label</span>
+                </label>
+                <lightning-input
+                    type="file"
+                    label="Upload shipping label picture"
+                    variant="label-hidden"
+                    accept="image/*"
+                    multiple
+                    disabled={isBusy}
+                    onchange={handleFileSelected}
+                ></lightning-input>
+                <template lwc:if={hasPhotos}>
+                    <div class="missing-ro-photos slds-m-top_small">
+                        <template for:each={photos} for:item="photo">
+                            <div key={photo.contentDocumentId} class="missing-ro-photo">
+                                <img
+                                    class="missing-ro-photo__image"
+                                    src={photo.imageDownloadUrl}
+                                    alt={photo.title}
+                                />
+                                <div class="missing-ro-photo__meta">
+                                    <span class="missing-ro-photo__title" title={photo.title}
+                                        >{photo.title}</span
+                                    >
+                                    <lightning-button-icon
+                                        icon-name="utility:delete"
+                                        alternative-text="Remove photo"
+                                        title="Remove photo"
+                                        data-document-id={photo.contentDocumentId}
+                                        disabled={isBusy}
+                                        onclick={handleRemovePhoto}
+                                    ></lightning-button-icon>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <template lwc:if={errorMessage}>
+            <div class="slds-text-color_error" role="alert">{errorMessage}</div>
+        </template>
+
+        <div class="missing-ro-actions">
+            <lightning-button
+                label="Close"
+                disabled={isBusy}
+                onclick={handleClose}
+            ></lightning-button>
+            <lightning-button
+                variant="brand"
+                label="Submit"
+                disabled={isSubmitDisabled}
+                onclick={handleSubmit}
+            ></lightning-button>
+        </div>
+
+        <template lwc:if={isBusy}>
+            <div class="slds-is-relative slds-p-around_medium">
+                <lightning-spinner alternative-text="Working" size="small"></lightning-spinner>
+            </div>
+        </template>
+    </div>
+</template>

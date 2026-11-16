@@ -27,6 +27,7 @@ const TAB_VENDOR = 'vendor-information';
 const TAB_ASSET = 'asset';
 const TAB_PREFERENCES = 'preferences';
 const TAB_NOTES = 'notes';
+const TAB_PHOTOS = 'photos';
 const TAB_WRE = 'warranty-repair-evaluation';
 const TAB_MODIFIER_CODES = 'modifier-codes';
 const TAB_CATEGORY = 'category';
@@ -162,10 +163,17 @@ export default class DeviceEvaluation extends LightningElement {
         return this.isEvaluationMode || this.isSummaryMode;
     }
 
+    partsModalOpen = false;
+
     get rootClass() {
-        return this.isWorkspaceMode
+        const base = this.isWorkspaceMode
             ? 'device-evaluation-root device-evaluation-root_eval'
             : 'device-evaluation-root device-evaluation-root_scan slds-p-around_medium';
+        return this.partsModalOpen ? `${base} parts-modal-open` : base;
+    }
+
+    handlePartsModalChange(event) {
+        this.partsModalOpen = event.detail?.open === true;
     }
 
     get contentContainerClass() {
@@ -584,6 +592,7 @@ export default class DeviceEvaluation extends LightningElement {
             { label: 'Asset Information', value: TAB_ASSET },
             { label: 'Customer Preferences', value: TAB_PREFERENCES },
             { label: 'Evaluation Notes', value: TAB_NOTES },
+            { label: 'Photos', value: TAB_PHOTOS },
             { label: 'Warranty Repair Evaluation', value: TAB_WRE }
         );
         if (this.showWorkPerformedTab) {
@@ -654,6 +663,10 @@ export default class DeviceEvaluation extends LightningElement {
         return this.activeTab === TAB_NOTES;
     }
 
+    get isPhotosTab() {
+        return this.activeTab === TAB_PHOTOS;
+    }
+
     get isWreTab() {
         return this.activeTab === TAB_WRE;
     }
@@ -680,6 +693,7 @@ export default class DeviceEvaluation extends LightningElement {
             !this.isAssetTab &&
             !this.isPreferencesTab &&
             !this.isNotesTab &&
+            !this.isPhotosTab &&
             !this.isWreTab &&
             !this.isCategoryTab &&
             !this.isWorkPerformedTab &&
@@ -988,7 +1002,7 @@ export default class DeviceEvaluation extends LightningElement {
     async persistThenPrice({ applyCompletion }) {
         const restoreProductIds = [...(this.lastPersistedProductIds || [])];
         const originalNetTotal = this.evaluation?.originalNetTotalPrice;
-        await this.persistEvaluationDraft();
+        const workspace = await this.persistEvaluationDraft();
         if (applyCompletion === true || this.needsRepairPricing) {
             try {
                 const priced = await finalizeDeviceEvaluationAfterPricing({
@@ -996,7 +1010,8 @@ export default class DeviceEvaluation extends LightningElement {
                     originalNetTotal,
                     applyCompletion: applyCompletion === true,
                     restoreProductIds,
-                    subStatus: this.evaluation.subStatus
+                    subStatus: this.evaluation.subStatus,
+                    newPriceableLineItemIds: workspace?.newPriceableLineItemIds || []
                 });
                 this.applyWorkspace(priced, true);
                 if (priced?.requoteWarning) {

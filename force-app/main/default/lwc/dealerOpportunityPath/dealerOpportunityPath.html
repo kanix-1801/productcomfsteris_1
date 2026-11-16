@@ -80,6 +80,17 @@
                             value={closedChoice}
                             onchange={handleClosedChange}>
                         </lightning-combobox>
+                        <template if:true={showLostReason}>
+                            <lightning-combobox
+                                class="slds-m-top_small"
+                                label="Lost Reason"
+                                placeholder="Select a lost reason"
+                                options={lostReasonOptions}
+                                value={lostReason}
+                                required
+                                onchange={handleLostReasonChange}>
+                            </lightning-combobox>
+                        </template>
                     </div>
                 </div>
             </template>

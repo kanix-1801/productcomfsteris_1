@@ -162,6 +162,13 @@ public with sharing class WorkOrderLineItemsService {
         COMPONENT_TYPE_CATEGORY_CODE,
         COMPONENT_TYPE_SPECIAL_PRICING
     };
+    /** GW-3377 - New lines that Receive Execute Pricing on Device and Instrument Evaluation. */
+    public static final Set<String> PRICEABLE_NEW_LINE_TYPES = new Set<String>{
+        COMPONENT_TYPE_SERVICE_CODE,
+        COMPONENT_TYPE_CATEGORY_CODE,
+        COMPONENT_TYPE_SPECIAL_PRICING
+    };
+    private static List<Id> newPriceableLineIds = new List<Id>();
 
     /**
      * @description Creates new WorkOrderLineItem records with validation.
@@ -707,6 +714,7 @@ public with sharing class WorkOrderLineItemsService {
         }
         if (!linesToInsert.isEmpty()) {
             createLineItemsRethrowDml(linesToInsert);
+            recordNewPriceableLines(linesToInsert);
         }
     }
 
@@ -819,6 +827,7 @@ public with sharing class WorkOrderLineItemsService {
                 );
                 if (!repairCodeLines.isEmpty()) {
                     createLineItems(repairCodeLines);
+                    recordNewPriceableLines(repairCodeLines);
                 }
             }
             return productServicedLine.Id;
@@ -1013,6 +1022,7 @@ public with sharing class WorkOrderLineItemsService {
             );
             if (!repairCodeLines.isEmpty()) {
                 createLineItems(repairCodeLines);
+                recordNewPriceableLines(repairCodeLines);
             }
             return productServicedId;
         } catch (WorkOrderLineItemsServiceException e) {
@@ -1261,6 +1271,42 @@ public with sharing class WorkOrderLineItemsService {
             return WOLI_STATUS_WAITING_APPROVAL;
         }
         return WOLI_STATUS_APPROVED;
+    }
+
+    /**
+     * @description GW-3377 - Clears the new priceable-line list for one evaluation save.
+     */
+    public static void beginNewPriceableLineCapture() {
+        newPriceableLineIds = new List<Id>();
+    }
+
+    /**
+     * @description GW-3377 - Service Code, Category Code, and Special Pricing lines inserted
+     *              since the last beginNewPriceableLineCapture call.
+     * @return New priceable Work Order Line Item Ids
+     */
+    public static List<Id> getNewPriceableLineIds() {
+        return new List<Id>(newPriceableLineIds);
+    }
+
+    /**
+     * @description GW-3377 - Keeps newly inserted Service Code, Category Code, and Special Pricing lines.
+     * @param lines Work Order Line Items just inserted
+     */
+    @TestVisible
+    private static void recordNewPriceableLines(List<WorkOrderLineItem> lines) {
+        if (lines == null) {
+            return;
+        }
+        for (WorkOrderLineItem line : lines) {
+            if (
+                line != null &&
+                line.Id != null &&
+                PRICEABLE_NEW_LINE_TYPES.contains(line.LineType__c)
+            ) {
+                newPriceableLineIds.add(line.Id);
+            }
+        }
     }
 
     /**

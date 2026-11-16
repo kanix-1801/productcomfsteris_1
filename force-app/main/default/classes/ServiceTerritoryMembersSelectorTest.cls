@@ -68,4 +68,44 @@ private class ServiceTerritoryMembersSelectorTest {
     private static Id fakeId(Schema.SObjectType sObjectType) {
         return Id.valueOf(sObjectType.getDescribe().getKeyPrefix() + '000000000001');
     }
+
+    /**
+     * @description GW-2707: selectOpenByResourcesAndTerritories runs for unknown Ids and returns nothing for
+     *              missing input.
+     */
+    @IsTest
+    static void testSelectOpenByResourcesAndTerritories() {
+        // SETUP
+        User contextUser = new User(Id = UserInfo.getUserId());
+
+        System.runAs(contextUser) {
+            // GIVEN: Ids that do not exist, and missing inputs
+            Set<Id> resourceIds = new Set<Id>{ fakeId(ServiceResource.SObjectType) };
+            Set<Id> territoryIds = new Set<Id>{ fakeId(ServiceTerritory.SObjectType) };
+
+            // WHEN
+            Test.startTest();
+            List<ServiceTerritoryMember> unknown = ServiceTerritoryMembersSelector.selectOpenByResourcesAndTerritories(
+                resourceIds,
+                territoryIds,
+                Datetime.now()
+            );
+            List<ServiceTerritoryMember> noDate = ServiceTerritoryMembersSelector.selectOpenByResourcesAndTerritories(
+                resourceIds,
+                territoryIds,
+                null
+            );
+            List<ServiceTerritoryMember> noIds = ServiceTerritoryMembersSelector.selectOpenByResourcesAndTerritories(
+                null,
+                new Set<Id>(),
+                Datetime.now()
+            );
+            Test.stopTest();
+
+            // THEN
+            Assert.isTrue(unknown.isEmpty(), 'No rows expected for unknown Ids');
+            Assert.isTrue(noDate.isEmpty(), 'Missing date should return no rows');
+            Assert.isTrue(noIds.isEmpty(), 'Missing Ids should return no rows');
+        }
+    }
 }

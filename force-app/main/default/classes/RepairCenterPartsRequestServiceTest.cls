@@ -39,6 +39,28 @@ private class RepairCenterPartsRequestServiceTest {
     }
 
     @IsTest
+    static void getBomParts_ordersByProductCode() {
+        Fixture fixture = new Fixture().persist();
+        Product2 earlierCode = product('Earlier', 'AA.100', 'Part', true, 'Earlier part');
+        insert earlierCode;
+        insert new ProductRelatedMaterial(
+            Name = 'Earlier Part',
+            ServiceBOM__c = fixture.serviceBom.Id,
+            ProductId = fixture.parentProduct.Id,
+            ProductComponentId = earlierCode.Id,
+            QuantityPerProductUnit = 1,
+            ComponentSequence__c = 99
+        );
+
+        List<RepairCenterPartsRequestService.PartOption> parts =
+            RepairCenterPartsRequestService.getBomParts(fixture.workOrder.Id);
+
+        Assert.areEqual(2, parts.size());
+        Assert.areEqual('AA.100', parts[0].productCode);
+        Assert.areEqual(fixture.part.ProductCode, parts[1].productCode);
+    }
+
+    @IsTest
     static void findScannedPart_matchesCodeOrId() {
         Fixture fixture = new Fixture().persist();
 
@@ -86,6 +108,7 @@ private class RepairCenterPartsRequestServiceTest {
         Assert.areEqual('Parts', header.RequestType__c);
         Assert.areEqual(fixture.workOrder.Id, header.WorkOrderId);
         Assert.areEqual(fixture.repairCenter.Id, header.DestinationLocationId);
+        Assert.areEqual(fixture.repairCenter.Name, header.RepairCenterName__c);
         Assert.areEqual('Submitted', header.Status);
         Assert.areEqual('Pick Up', header.ShipmentType);
 

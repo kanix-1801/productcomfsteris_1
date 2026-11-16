@@ -7,76 +7,136 @@
  * @description
  * GCL-100 - Tests Full and Base for the Life Sciences Customer 360 panes.
  * Covers an owner who is not on the team, an Account Team member, a user on
- * neither, a missing Account Id, and a query failure.
+ * neither, a Prospect, a missing Account Id, and a query failure.
  */
 @IsTest(SeeAllData=false)
 private class LSAccountHeaderControllerTest {
 
     /**
+     * @description GCL-100 - Creates the owner, outside user, and team user shared by the tests.
+     */
+    @TestSetup
+    static void setupData() {
+        insert new List<User>{
+            createUser('owner'),
+            createUser('outside'),
+            createUser('team')
+        };
+    }
+
+    /**
      * @description GCL-100 - The Account owner gets Full even when not on the Account Team.
      */
     @IsTest
-    static void ownerSeesFull() {
+    static void testGetHeaderViewOwnerSeesFull() {
         /********************************************
          * SETUP
          ********************************************/
-        User ownerUser = createUser('owner');
-        insert ownerUser;
+        User ownerUser = userBySeed('owner');
+
+        /********************************************
+         * GIVEN
+         ********************************************/
+        Account accountRecord;
+        System.runAs(ownerUser) {
+            accountRecord = insertAccount(ownerUser.Id, 'Customer');
+        }
+        System.assertEquals(
+            ownerUser.Id,
+            accountRecord.OwnerId,
+            'The owner should own the Customer account before the check.'
+        );
+        System.assertEquals(
+            0,
+            [
+                SELECT COUNT()
+                FROM AccountTeamMember
+                WHERE AccountId = :accountRecord.Id
+                AND UserId = :ownerUser.Id
+            ],
+            'The owner should not be on the Account Team before the check.'
+        );
 
         /********************************************
          * WHEN
          ********************************************/
+        LSAccountHeaderService.HeaderView headerView;
+        Test.startTest();
         System.runAs(ownerUser) {
-            Account accountRecord = insertAccount(ownerUser.Id, 'Customer');
-            LSAccountHeaderService.HeaderView headerView =
-                LSAccountHeaderController.getHeaderView(accountRecord.Id);
-
-            System.assertEquals(LSAccountHeaderService.ACCESS_FULL, headerView.accessLevel);
-            System.assertEquals(false, headerView.showHeaderOnly);
+            headerView = LSAccountHeaderController.getHeaderView(accountRecord.Id);
         }
+        Test.stopTest();
+
+        /********************************************
+         * THEN
+         ********************************************/
+        System.assertEquals(
+            LSAccountHeaderService.ACCESS_FULL,
+            headerView.accessLevel,
+            'The Account owner should get Full.'
+        );
+        System.assertEquals(false, headerView.showHeaderOnly, 'The owner should not see the short header.');
     }
 
     /**
      * @description GCL-100 - A user who is not the owner and not on the Account Team gets Base.
      */
     @IsTest
-    static void userOutsideTheTeamSeesBase() {
+    static void testGetHeaderViewUserOutsideTeamSeesBase() {
         /********************************************
          * SETUP
          ********************************************/
-        User ownerUser = createUser('owner');
-        User outsideUser = createUser('outside');
-        insert new List<User>{ ownerUser, outsideUser };
+        User ownerUser = userBySeed('owner');
+        User outsideUser = userBySeed('outside');
 
+        /********************************************
+         * GIVEN
+         ********************************************/
         Account accountRecord;
         System.runAs(ownerUser) {
             accountRecord = insertAccount(ownerUser.Id, 'Customer');
         }
+        System.assertNotEquals(
+            outsideUser.Id,
+            accountRecord.OwnerId,
+            'The outside user should not own the Customer account.'
+        );
 
         /********************************************
          * WHEN
          ********************************************/
+        LSAccountHeaderService.HeaderView headerView;
+        Test.startTest();
         System.runAs(outsideUser) {
-            LSAccountHeaderService.HeaderView headerView =
-                LSAccountHeaderController.getHeaderView(accountRecord.Id);
-
-            System.assertEquals(LSAccountHeaderService.ACCESS_BASE, headerView.accessLevel);
-            System.assertEquals(true, headerView.showHeaderOnly);
+            headerView = LSAccountHeaderController.getHeaderView(accountRecord.Id);
         }
+        Test.stopTest();
+
+        /********************************************
+         * THEN
+         ********************************************/
+        System.assertEquals(
+            LSAccountHeaderService.ACCESS_BASE,
+            headerView.accessLevel,
+            'A user outside the Account Team should get Base.'
+        );
+        System.assertEquals(true, headerView.showHeaderOnly, 'The outside user should see the short header.');
     }
 
     /**
      * @description GCL-100 - An Account Team member gets Full.
      */
     @IsTest
-    static void teamMemberSeesFull() {
+    static void testGetHeaderViewTeamMemberSeesFull() {
         /********************************************
          * SETUP
          ********************************************/
-        User ownerUser = createUser('owner');
-        User teamUser = createUser('team');
-        insert new List<User>{ ownerUser, teamUser };
+        User ownerUser = userBySeed('owner');
+        User teamUser = userBySeed('team');
 
+        /********************************************
+         * GIVEN
+         ********************************************/
         Account accountRecord;
         System.runAs(ownerUser) {
             accountRecord = insertAccount(ownerUser.Id, 'Customer');
@@ -87,85 +147,186 @@ private class LSAccountHeaderControllerTest {
                 AccountAccessLevel = 'Read'
             );
         }
+        System.assertEquals(
+            1,
+            [
+                SELECT COUNT()
+                FROM AccountTeamMember
+                WHERE AccountId = :accountRecord.Id
+                AND UserId = :teamUser.Id
+            ],
+            'The team user should be on the Account Team before the check.'
+        );
 
         /********************************************
          * WHEN
          ********************************************/
+        LSAccountHeaderService.HeaderView headerView;
+        Test.startTest();
         System.runAs(teamUser) {
-            LSAccountHeaderService.HeaderView headerView =
-                LSAccountHeaderController.getHeaderView(accountRecord.Id);
-
-            System.assertEquals(LSAccountHeaderService.ACCESS_FULL, headerView.accessLevel);
-            System.assertEquals(false, headerView.showHeaderOnly);
+            headerView = LSAccountHeaderController.getHeaderView(accountRecord.Id);
         }
+        Test.stopTest();
+
+        /********************************************
+         * THEN
+         ********************************************/
+        System.assertEquals(
+            LSAccountHeaderService.ACCESS_FULL,
+            headerView.accessLevel,
+            'An Account Team member should get Full.'
+        );
+        System.assertEquals(false, headerView.showHeaderOnly, 'A team member should not see the short header.');
     }
 
     /**
      * @description GCL-100 - The page cannot ask for a header without an Account Id.
      */
     @IsTest
-    static void nullAccountIdIsRejected() {
+    static void testGetHeaderViewNullAccountIdIsRejected() {
+        /********************************************
+         * SETUP
+         ********************************************/
+        Boolean rejected = false;
+
+        /********************************************
+         * GIVEN
+         ********************************************/
+        Id accountId = null;
+        System.assertEquals(null, accountId, 'The Account Id should be missing before the check.');
+
+        /********************************************
+         * WHEN
+         ********************************************/
+        Test.startTest();
         try {
-            LSAccountHeaderController.getHeaderView(null);
-            System.assert(false, 'A missing Account Id should be rejected.');
+            LSAccountHeaderController.getHeaderView(accountId);
         } catch (AuraHandledException expectedException) {
-            System.assertNotEquals(null, expectedException);
+            rejected = true;
         }
+        Test.stopTest();
+
+        /********************************************
+         * THEN
+         ********************************************/
+        System.assertEquals(true, rejected, 'A missing Account Id should be rejected.');
     }
 
     /**
      * @description GCL-100 - A selector failure is returned as a handled error.
      */
     @IsTest
-    static void unexpectedErrorIsHandled() {
-        User ownerUser = createUser('owner');
-        insert ownerUser;
+    static void testGetHeaderViewUnexpectedErrorIsHandled() {
+        /********************************************
+         * SETUP
+         ********************************************/
+        User ownerUser = userBySeed('owner');
+        Boolean rejected = false;
 
+        /********************************************
+         * GIVEN
+         ********************************************/
+        Account accountRecord;
         System.runAs(ownerUser) {
-            Account accountRecord = insertAccount(ownerUser.Id, 'Customer');
-            LSAccountHeaderService.throwTestException = true;
+            accountRecord = insertAccount(ownerUser.Id, 'Customer');
+        }
+        LSAccountHeaderService.throwTestException = true;
 
+        /********************************************
+         * WHEN
+         ********************************************/
+        Test.startTest();
+        System.runAs(ownerUser) {
             try {
                 LSAccountHeaderController.getHeaderView(accountRecord.Id);
-                System.assert(false, 'A selector failure should be rejected.');
             } catch (AuraHandledException expectedException) {
-                System.assertNotEquals(null, expectedException);
+                rejected = true;
             }
         }
+        Test.stopTest();
+
+        /********************************************
+         * THEN
+         ********************************************/
+        System.assertEquals(true, rejected, 'A selector failure should be rejected.');
+    }
+
+    /**
+     * @description GCL-100 - A non-Customer record type is never reduced to Base.
+     */
+    @IsTest
+    static void testGetHeaderViewProspectOutsideTeamSeesFull() {
+        /********************************************
+         * SETUP
+         ********************************************/
+        User ownerUser = userBySeed('owner');
+        User outsideUser = userBySeed('outside');
+
+        /********************************************
+         * GIVEN
+         ********************************************/
+        Account accountRecord;
+        System.runAs(ownerUser) {
+            accountRecord = insertAccount(ownerUser.Id, 'Prospect');
+        }
+        System.assertNotEquals(
+            outsideUser.Id,
+            accountRecord.OwnerId,
+            'The outside user should not own the Prospect.'
+        );
+
+        /********************************************
+         * WHEN
+         ********************************************/
+        LSAccountHeaderService.HeaderView headerView;
+        Test.startTest();
+        System.runAs(outsideUser) {
+            headerView = LSAccountHeaderController.getHeaderView(accountRecord.Id);
+        }
+        Test.stopTest();
+
+        /********************************************
+         * THEN
+         ********************************************/
+        System.assertEquals(
+            LSAccountHeaderService.ACCESS_FULL,
+            headerView.accessLevel,
+            'A Prospect should stay Full for a user outside the Account Team.'
+        );
+        System.assertEquals(false, headerView.showHeaderOnly, 'A Prospect should not use the short header.');
     }
 
     /**
      * @description GCL-100 - A missing Account Id does not run a query.
      */
+    @IsTest
+    static void testSelectByIdNullIdReturnsEmpty() {
+        /********************************************
+         * GIVEN
+         ********************************************/
+        Id accountId = null;
+
+        /********************************************
+         * WHEN
+         ********************************************/
+        Test.startTest();
+        Integer accountCount = AccountSelector.selectById(accountId).size();
+        Integer teamCount = AccountTeamMemberSelector.selectCurrentUserTeamMember(accountId).size();
+        Test.stopTest();
+
+        /********************************************
+         * THEN
+         ********************************************/
+        System.assertEquals(0, accountCount, 'A missing Account Id should not return an Account.');
+        System.assertEquals(0, teamCount, 'A missing Account Id should not return an Account Team row.');
+    }
+
     /**
-     * @description GCL-100 - A non-Customer record type is never reduced to Base.
+     * @description GCL-100 - Inserts an Account for the supplied owner and record type.
+     * @param ownerId User who owns the Account.
+     * @param recordTypeDeveloperName Account record type developer name.
+     * @return The inserted Account.
      */
-    @IsTest
-    static void prospectOutsideTheTeamSeesFull() {
-        User ownerUser = createUser('owner');
-        User outsideUser = createUser('outside');
-        insert new List<User>{ ownerUser, outsideUser };
-
-        Account accountRecord;
-        System.runAs(ownerUser) {
-            accountRecord = insertAccount(ownerUser.Id, 'Prospect');
-        }
-
-        System.runAs(outsideUser) {
-            LSAccountHeaderService.HeaderView headerView =
-                LSAccountHeaderController.getHeaderView(accountRecord.Id);
-
-            System.assertEquals(LSAccountHeaderService.ACCESS_FULL, headerView.accessLevel);
-            System.assertEquals(false, headerView.showHeaderOnly);
-        }
-    }
-
-    @IsTest
-    static void selectorReturnsEmptyForNullId() {
-        System.assertEquals(0, LSAccountHeaderSelector.selectById(null).size());
-        System.assertEquals(0, LSAccountHeaderSelector.selectCurrentUserTeamMember(null).size());
-    }
-
     private static Account insertAccount(Id ownerId, String recordTypeDeveloperName) {
         Account accountRecord = new Account(
             Name = 'ADC Tech',
@@ -185,6 +346,11 @@ private class LSAccountHeaderControllerTest {
         return accountRecord;
     }
 
+    /**
+     * @description GCL-100 - Builds a System Administrator user. The caller inserts it.
+     * @param seed Short name used in the username and last name.
+     * @return The unsaved User.
+     */
     private static User createUser(String seed) {
         String token = uniqueToken(seed);
         return new User(
@@ -201,20 +367,52 @@ private class LSAccountHeaderControllerTest {
         );
     }
 
+    /**
+     * @description GCL-100 - Returns the user created in the test setup.
+     * @param seed Short name used when the user was created.
+     * @return The saved User.
+     */
+    private static User userBySeed(String seed) {
+        return [
+            SELECT Id
+            FROM User
+            WHERE LastName = :('Header ' + seed)
+            ORDER BY CreatedDate DESC
+            LIMIT 1
+        ];
+    }
+
+    /**
+     * @description GCL-100 - Returns the System Administrator profile Id.
+     * @return Profile Id.
+     */
     private static Id adminProfileId() {
         return [SELECT Id FROM Profile WHERE Name = 'System Administrator' LIMIT 1].Id;
     }
 
+    /**
+     * @description GCL-100 - Returns an internal role so the test user can own Accounts.
+     * @return UserRole Id.
+     */
     private static Id internalRoleId() {
         return [SELECT Id FROM UserRole WHERE PortalType = 'None' LIMIT 1].Id;
     }
 
+    /**
+     * @description GCL-100 - Returns the Account record type Id for a developer name.
+     * @param developerName Account record type developer name.
+     * @return Record type Id.
+     */
     private static Id recordTypeId(String developerName) {
         return Schema.SObjectType.Account.getRecordTypeInfosByDeveloperName()
             .get(developerName)
             .getRecordTypeId();
     }
 
+    /**
+     * @description GCL-100 - Returns an active Operating Unit so the Prospect insert skips the User Org Id query.
+     * @return Active Account.OrgIDs__c value, or null when none is active.
+     */
     private static String operatingUnitValue() {
         for (Schema.PicklistEntry entry : Account.OrgIDs__c.getDescribe().getPicklistValues()) {
             if (entry.isActive()) {
@@ -224,12 +422,21 @@ private class LSAccountHeaderControllerTest {
         return null;
     }
 
+    /**
+     * @description GCL-100 - Returns an active Account Team role.
+     * @return Team member role value.
+     */
     private static String accountTeamRole() {
         List<Schema.PicklistEntry> roles =
             AccountTeamMember.TeamMemberRole.getDescribe().getPicklistValues();
         return roles.isEmpty() ? 'Sales Rep' : roles[0].getValue();
     }
 
+    /**
+     * @description GCL-100 - Builds a unique token for usernames and source system ids.
+     * @param seed Short prefix for the token.
+     * @return Unique token.
+     */
     private static String uniqueToken(String seed) {
         return 'lsh' + seed + String.valueOf(Math.abs(Crypto.getRandomInteger()));
     }

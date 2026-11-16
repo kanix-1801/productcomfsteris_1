@@ -129,15 +129,17 @@ public with sharing class ProductRequestsSelector {
         if (workOrderIds == null || workOrderIds.isEmpty()) {
             return new List<ProductRequest>();
         }
+        // Sharing still applies because this class is with sharing. USER_MODE is omitted:
+        // ProductRequestLineItem object access cannot be granted on RepairCenterOperations,
+        // and the line subquery would fail for Repair Technicians.
         return Database.query(
             'SELECT Id, ProductRequestNumber, Status, RequestType__c, WorkOrderId,' +
-            ' DestinationLocationId, ShipmentType, RecordType.DeveloperName,' +
+            ' DestinationLocationId, RepairCenterName__c, ShipmentType, RecordType.DeveloperName,' +
             ' (SELECT Id, QuantityRequested, Status, Product2Id, RecordType.DeveloperName,' +
             ' Product2.ProductCode, Product2.Description, Product2.Name' +
             ' FROM ProductRequestLineItems ORDER BY ProductRequestLineItemNumber)' +
             ' FROM ProductRequest' +
             ' WHERE WorkOrderId IN :workOrderIds' +
-            ' WITH USER_MODE' +
             ' ORDER BY CreatedDate DESC'
         );
     }

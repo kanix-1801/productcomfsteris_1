@@ -187,7 +187,7 @@ public with sharing class DistrictZoneAlignmentService {
 	}
 
 	private static List<List<String>> readUploadedFile(Id contentDocumentId) {
-		List<ContentVersion> versionList = ContentVersionsSelector.selectLatestForAlignmentUpload(contentDocumentId);
+		List<ContentVersion> versionList = ContentVersionsSelector.selectLatestByContentDocumentId(contentDocumentId);
 		if (
 			versionList.isEmpty() ||
 			versionList[0].VersionData == null ||

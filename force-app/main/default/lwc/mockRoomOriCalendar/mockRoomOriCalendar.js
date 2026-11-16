@@ -3,6 +3,13 @@ import { FlowAttributeChangeEvent } from 'lightning/flowSupport';
 import getCalendar from '@salesforce/apex/MockRoomORICalendarController.getCalendar';
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const FLOW_OUTPUTS = ['primaryDate', 'backupDate', 'hasConflict', 'businessJustification', 'eventDuration'];
+const PAST_DATE_MESSAGE = 'A past date cannot be requested. Choose today or a later date.';
+const invalid = (errorMessage) => ({ isValid: false, errorMessage });
+const toDuration = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 1 ? Math.floor(parsed) : 1;
+};
 
 export default class MockRoomOriCalendar extends LightningElement {
     @api excludeRequestId;
@@ -13,6 +20,7 @@ export default class MockRoomOriCalendar extends LightningElement {
     _hasConflict = false;
     _eventDuration = 1;
 
+    weekdayLabels = WEEKDAYS;
     monthCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     highlightToday = false;
     events = [];
@@ -49,8 +57,7 @@ export default class MockRoomOriCalendar extends LightningElement {
         return this._eventDuration;
     }
     set eventDuration(value) {
-        const parsed = Number(value);
-        this._eventDuration = Number.isFinite(parsed) && parsed >= 1 ? Math.floor(parsed) : 1;
+        this._eventDuration = toDuration(value);
     }
 
     @api
@@ -65,59 +72,48 @@ export default class MockRoomOriCalendar extends LightningElement {
         this.loadMonth();
     }
 
-    get weekdayLabels() {
-        return WEEKDAYS;
-    }
-
     get monthLabel() {
         return this.monthCursor.toLocaleString('en-US', { month: 'long', year: 'numeric' });
     }
 
+    /** Primary span uses the event duration. The backup date stays one day until it is confirmed. */
+    get selectedDates() {
+        return [...this.spanDates(this._primaryDate, this._eventDuration), ...this.spanDates(this._backupDate, 1)];
+    }
+
     get dayCells() {
-        const first = new Date(this.monthCursor.getFullYear(), this.monthCursor.getMonth(), 1);
-        const gridStart = new Date(first);
-        gridStart.setDate(first.getDate() - first.getDay());
+        const gridStart = new Date(this.monthCursor);
+        gridStart.setDate(1 - gridStart.getDay());
+        const todayIso = this.toIso(new Date());
+        const selected = this.selectedDates;
         const cells = [];
         for (let index = 0; index < 42; index += 1) {
             const date = new Date(gridStart);
             date.setDate(gridStart.getDate() + index);
             const iso = this.toIso(date);
             const inMonth = date.getMonth() === this.monthCursor.getMonth();
-            const past = this.isBeforeToday(iso);
-            const isToday = iso === this.todayIso();
-            const classes = ['day'];
-            if (!inMonth) {
-                classes.push('outside');
-            }
-            if (past) {
-                classes.push('past');
-            }
-            if (isToday) {
-                classes.push('is-today');
-            }
-            if (isToday && this.highlightToday) {
-                classes.push('today-focus');
-            }
-            if (this.dateInSelection(iso)) {
-                classes.push('selected');
-            }
+            const past = iso < todayIso;
+            const isToday = iso === todayIso;
             let selectionLabel = '';
-            if (iso === this._primaryDate && iso === this._backupDate) {
-                selectionLabel = 'Primary and backup';
-            } else if (iso === this._primaryDate) {
-                selectionLabel = 'Primary';
+            if (iso === this._primaryDate) {
+                selectionLabel = iso === this._backupDate ? 'Primary and backup' : 'Primary';
             } else if (iso === this._backupDate) {
                 selectionLabel = 'Backup';
             }
             cells.push({
                 iso,
-                dayLabel: isToday
+                dayLabel: isToday || date.getDate() !== 1
                     ? String(date.getDate())
-                    : (date.getDate() === 1
-                        ? date.toLocaleString('en-US', { month: 'short', day: 'numeric' })
-                        : String(date.getDate())),
+                    : date.toLocaleString('en-US', { month: 'short', day: 'numeric' }),
                 numberClass: isToday ? 'number today-number' : (inMonth ? 'number' : 'number outside-number'),
-                className: classes.join(' '),
+                className: [
+                    'day',
+                    !inMonth && 'outside',
+                    past && 'past',
+                    isToday && 'is-today',
+                    isToday && this.highlightToday && 'today-focus',
+                    selected.includes(iso) && 'selected'
+                ].filter(Boolean).join(' '),
                 selectionLabel,
                 isPast: past,
                 tabIndex: past ? '-1' : '0',
@@ -127,13 +123,9 @@ export default class MockRoomOriCalendar extends LightningElement {
         return cells;
     }
 
-    previousMonth() {
-        this.monthCursor = new Date(this.monthCursor.getFullYear(), this.monthCursor.getMonth() - 1, 1);
-        this.loadMonth();
-    }
-
-    nextMonth() {
-        this.monthCursor = new Date(this.monthCursor.getFullYear(), this.monthCursor.getMonth() + 1, 1);
+    changeMonth(event) {
+        const offset = Number(event.currentTarget.dataset.offset);
+        this.monthCursor = new Date(this.monthCursor.getFullYear(), this.monthCursor.getMonth() + offset, 1);
         this.loadMonth();
     }
 
@@ -150,22 +142,18 @@ export default class MockRoomOriCalendar extends LightningElement {
     selectDay(event) {
         const iso = event.currentTarget.dataset.iso;
         if (this.isBeforeToday(iso)) {
-            this.message = 'A past date cannot be requested. Choose today or a later date.';
+            this.message = PAST_DATE_MESSAGE;
             return;
         }
-        const block = this.blockFor(iso);
-        if (block) {
+        if (this.blockFor(iso)) {
             this.message = 'This date is blocked. Choose another date. A blocked date cannot be requested.';
             return;
         }
-
-        if (!this._primaryDate || (this._primaryDate && this._backupDate)) {
+        if (!this._primaryDate || this._backupDate) {
             this._primaryDate = iso;
             this._backupDate = null;
-        } else if (iso === this._primaryDate) {
-            this._backupDate = null;
         } else {
-            this._backupDate = iso;
+            this._backupDate = iso === this._primaryDate ? null : iso;
         }
         this.refreshConflict();
     }
@@ -183,44 +171,32 @@ export default class MockRoomOriCalendar extends LightningElement {
         this.publish();
     }
 
+    durationChanged(event) {
+        this._eventDuration = toDuration(event.target.value);
+        this.refreshConflict();
+    }
+
     @api
     validate() {
+        const dates = this.selectedDates;
         if (!this._primaryDate) {
-            return {
-                isValid: false,
-                errorMessage: 'Select a primary requested date. The backup requested date is optional.'
-            };
+            return invalid('Select a primary requested date. The backup requested date is optional.');
         }
-        if (!this._eventDuration || this._eventDuration < 1) {
-            return {
-                isValid: false,
-                errorMessage: 'Enter an event duration of at least 1 day.'
-            };
+        if (dates.some((iso) => this.isBeforeToday(iso))) {
+            return invalid(PAST_DATE_MESSAGE);
         }
-        if (this.selectionHasPastDate() || (this._backupDate && this.isBeforeToday(this._backupDate))) {
-            return {
-                isValid: false,
-                errorMessage: 'A past date cannot be requested. Choose today or a later date.'
-            };
-        }
-        if (this.selectionHitsBlock()) {
-            return {
-                isValid: false,
-                errorMessage: 'A blocked date cannot be requested. Choose a date Strategic Events has not closed.'
-            };
+        if (dates.some((iso) => this.blockFor(iso))) {
+            return invalid('A blocked date cannot be requested. Choose a date Strategic Events has not closed.');
         }
         if (this._hasConflict && !this._businessJustification) {
-            return {
-                isValid: false,
-                errorMessage: 'Enter a business justification for the date that already has an event.'
-            };
+            return invalid('Enter a business justification for the date that already has an event.');
         }
         return { isValid: true };
     }
 
     loadMonth() {
-        const gridStart = new Date(this.monthCursor.getFullYear(), this.monthCursor.getMonth(), 1);
-        gridStart.setDate(gridStart.getDate() - gridStart.getDay());
+        const gridStart = new Date(this.monthCursor);
+        gridStart.setDate(1 - gridStart.getDay());
         const gridEnd = new Date(gridStart);
         gridEnd.setDate(gridStart.getDate() + 41);
         this.loadError = '';
@@ -237,19 +213,18 @@ export default class MockRoomOriCalendar extends LightningElement {
             .catch((error) => {
                 this.events = [];
                 this.blocks = [];
-                this.loadError = this.readError(error);
+                this.loadError = error?.body?.message || 'The calendar could not be loaded.';
             });
     }
 
     refreshConflict() {
-        const primaryEvents = this.conflictingSpan(this.primarySpanDates());
-        const backupEvents = this.conflictingSpan(this.backupSpanDates());
-        this._hasConflict = primaryEvents.length > 0 || backupEvents.length > 0;
-        const names = [...primaryEvents, ...backupEvents].map(
-            (row) => `${row.requestName} (${row.requestType}, ${row.status})`
+        const conflicts = this.selectedDates.flatMap((iso) =>
+            this.eventsFor(iso).filter((row) => !this.isRequestBeingEdited(row.requestId))
         );
+        this._hasConflict = conflicts.length > 0;
         if (this._hasConflict) {
-            this.message = `This date already has an event: ${[...new Set(names)].join(', ')}. You can still request it. Enter a business justification. Strategic Events will decide whether it can be supported.`;
+            const names = new Set(conflicts.map((row) => `${row.requestName} (${row.requestType}, ${row.status})`));
+            this.message = `This date already has an event: ${[...names].join(', ')}. You can still request it. Enter a business justification. Strategic Events will decide whether it can be supported.`;
         } else if (this._primaryDate && this._backupDate) {
             this.message = 'Primary and backup dates are free of other Mock Room and ORI events.';
         } else if (this._primaryDate) {
@@ -261,34 +236,22 @@ export default class MockRoomOriCalendar extends LightningElement {
     }
 
     publish() {
-        this.dispatchEvent(new FlowAttributeChangeEvent('primaryDate', this._primaryDate));
-        this.dispatchEvent(new FlowAttributeChangeEvent('backupDate', this._backupDate));
-        this.dispatchEvent(new FlowAttributeChangeEvent('hasConflict', this._hasConflict));
-        this.dispatchEvent(new FlowAttributeChangeEvent('businessJustification', this._businessJustification));
-        this.dispatchEvent(new FlowAttributeChangeEvent('eventDuration', this._eventDuration));
-    }
-
-    durationChanged(event) {
-        this.eventDuration = event.target.value;
-        this.refreshConflict();
+        FLOW_OUTPUTS.forEach((name) => this.dispatchEvent(new FlowAttributeChangeEvent(name, this[`_${name}`])));
     }
 
     openRequest(event) {
         event.preventDefault();
         const requestId = event.currentTarget.dataset.requestId;
-        if (!requestId) {
-            return;
+        if (requestId) {
+            event.stopPropagation();
+            window.open(`/${requestId}`, '_blank');
         }
-        event.stopPropagation();
-        window.open(`/${requestId}`, '_blank');
     }
 
     barsFor(iso) {
         const bars = [];
         const block = this.blockFor(iso);
         if (block) {
-            const start = this.normalizeDate(block.startDate);
-            const end = this.normalizeDate(block.endDate);
             const reason = block.reason || 'Blocked';
             bars.push({
                 key: `block-${iso}`,
@@ -296,27 +259,26 @@ export default class MockRoomOriCalendar extends LightningElement {
                 title: reason,
                 href: '#',
                 requestId: null,
-                className: this.barClass('blocked', start, end, iso)
+                className: this.barClass(this.normalizeDate(block.startDate), this.normalizeDate(block.endDate), iso)
             });
         }
         this.eventsFor(iso).slice(0, 2).forEach((row, index) => {
-            const confirmed = row.status === 'Approved';
             const typeLabel = row.requestType === 'ORI Demonstration' ? 'ORI' : 'Mock Room';
-            const customer = row.accountName || 'Customer';
-            const text = `${row.requestName} - ${customer} - ${typeLabel}`;
+            const text = `${row.requestName} - ${row.accountName || 'Customer'} - ${typeLabel}`;
             bars.push({
                 key: `${iso}-event-${index}`,
                 text,
                 title: `${text} (${row.status}, ${row.dateRole})`,
                 href: `/${row.requestId}`,
                 requestId: row.requestId,
-                className: confirmed ? 'bar confirmed span-single' : 'bar pending span-single'
+                className: row.status === 'Approved' ? 'bar confirmed span-single' : 'bar pending span-single'
             });
         });
         return bars;
     }
 
-    barClass(tone, start, end, iso) {
+    /** Rounds the block bar on the first and last day of a multi-day block. */
+    barClass(start, end, iso) {
         const continuesBefore = start && this.shiftIso(iso, -1) >= start;
         const continuesAfter = end && this.shiftIso(iso, 1) <= end;
         let span = 'span-single';
@@ -327,80 +289,28 @@ export default class MockRoomOriCalendar extends LightningElement {
         } else if (continuesAfter) {
             span = 'span-start';
         }
-        return `bar ${tone} ${span}`;
+        return `bar blocked ${span}`;
+    }
+
+    spanDates(startIso, dayCount) {
+        return startIso ? Array.from({ length: dayCount }, (unused, offset) => this.shiftIso(startIso, offset)) : [];
     }
 
     shiftIso(iso, days) {
         const [year, month, day] = iso.split('-').map(Number);
-        const date = new Date(year, month - 1, day);
-        date.setDate(date.getDate() + days);
-        return this.toIso(date);
-    }
-
-    conflictingEvents(iso) {
-        return this.eventsFor(iso).filter((row) => !this.isRequestBeingEdited(row.requestId));
-    }
-
-    spanDates(startIso, dayCount) {
-        if (!startIso) {
-            return [];
-        }
-        const spanLength = Number.isFinite(dayCount) && dayCount >= 1 ? Math.floor(dayCount) : 1;
-        const dates = [];
-        for (let offset = 0; offset < spanLength; offset += 1) {
-            dates.push(this.shiftIso(startIso, offset));
-        }
-        return dates;
-    }
-
-    primarySpanDates() {
-        return this.spanDates(this._primaryDate, this._eventDuration);
-    }
-
-    backupSpanDates() {
-        return this.spanDates(this._backupDate, 1);
-    }
-
-    dateInSelection(iso) {
-        return this.primarySpanDates().includes(iso) || this.backupSpanDates().includes(iso);
-    }
-
-    selectionHasPastDate() {
-        return [...this.primarySpanDates(), ...this.backupSpanDates()]
-            .some((iso) => this.isBeforeToday(iso));
-    }
-
-    selectionHitsBlock() {
-        return [...this.primarySpanDates(), ...this.backupSpanDates()]
-            .some((iso) => this.blockFor(iso));
-    }
-
-    conflictingSpan(dates) {
-        const matches = [];
-        dates.forEach((iso) => {
-            this.conflictingEvents(iso).forEach((row) => matches.push(row));
-        });
-        return matches;
+        return this.toIso(new Date(year, month - 1, day + days));
     }
 
     isRequestBeingEdited(requestId) {
-        if (!this.excludeRequestId || !requestId) {
-            return false;
-        }
-        return String(requestId).substring(0, 15) === String(this.excludeRequestId).substring(0, 15);
+        return !!this.excludeRequestId && !!requestId
+            && String(requestId).substring(0, 15) === String(this.excludeRequestId).substring(0, 15);
     }
 
     eventsFor(iso) {
-        if (!iso) {
-            return [];
-        }
         return this.events.filter((row) => this.normalizeDate(row.eventDate) === iso);
     }
 
     blockFor(iso) {
-        if (!iso) {
-            return null;
-        }
         return this.blocks.find((block) => {
             const start = this.normalizeDate(block.startDate);
             const end = this.normalizeDate(block.endDate);
@@ -408,29 +318,17 @@ export default class MockRoomOriCalendar extends LightningElement {
         });
     }
 
-    todayIso() {
-        return this.toIso(new Date());
-    }
-
     isBeforeToday(iso) {
-        return !!iso && iso < this.todayIso();
+        return !!iso && iso < this.toIso(new Date());
     }
 
     normalizeDate(value) {
-        if (!value) {
-            return null;
-        }
-        const text = String(value);
-        return text.length >= 10 ? text.substring(0, 10) : text;
+        return value ? String(value).substring(0, 10) : null;
     }
 
     toIso(date) {
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const day = String(date.getDate()).padStart(2, '0');
         return `${date.getFullYear()}-${month}-${day}`;
-    }
-
-    readError(error) {
-        return error?.body?.message || 'The calendar could not be loaded.';
     }
 }

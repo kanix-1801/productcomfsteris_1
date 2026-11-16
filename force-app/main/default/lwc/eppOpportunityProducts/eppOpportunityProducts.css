@@ -17,6 +17,10 @@
     margin-top: 1rem;
 }
 
+.product-record-link {
+    color: var(--lwc-brandTextLink, #0176d3);
+}
+
 .detail-section-title {
     background: var(--lwc-colorBackgroundAlt, #f3f3f3);
     border-radius: 0.25rem;
@@ -28,22 +32,55 @@
 
 .search-row {
     display: flex;
-    align-items: end;
-    gap: 1rem;
+    align-items: flex-start;
+    gap: 0.75rem;
 }
 
 .search-input {
     flex: 1 1 auto;
+    min-width: 0;
 }
 
-.existing-products-scroll {
-    overflow-x: auto;
+.search-action {
+    flex: 0 0 auto;
+    display: block;
+    margin: 0;
 }
 
+.existing-products-scroll,
 .selected-products-scroll {
     overflow-x: auto;
 }
 
 .selected-products-scroll table {
-    min-width: 72rem;
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.selected-products-scroll th,
+.selected-products-scroll td {
+    vertical-align: top;
+}
+
+.selected-products-scroll .product-cell {
+    min-width: 14rem;
+    max-width: 20rem;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.selected-products-scroll .date-cell {
+    min-width: 12.5rem;
+    width: 12.5rem;
+}
+
+.selected-products-scroll lightning-input,
+.selected-products-scroll lightning-combobox {
+    display: block;
+    min-width: 8.5rem;
+}
+
+.selected-products-scroll .date-cell lightning-input {
+    min-width: 11.5rem;
 }

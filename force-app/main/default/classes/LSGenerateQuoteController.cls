@@ -165,7 +165,7 @@ public with sharing class LSGenerateQuoteController {
      */
     @AuraEnabled
     public static Boolean isOpportunityOnHold(Id opportunityId) {
-        Opportunity opportunityRecord = OpportunitySelector.selectById(opportunityId);
+        Opportunity opportunityRecord = LSOpportunitySelector.selectById(opportunityId);
 
         if (opportunityRecord == null) {
             return false;

@@ -20,7 +20,7 @@ private class ImsProductConfiguratorControllerTest {
         ********************************************/
         User contextUser = new User(Id = UserInfo.getUserId());
         QuoteLineItem line = [SELECT Id FROM QuoteLineItem LIMIT 1];
-        line.put(ContractModifierService.COVERAGE_FIELD, ImsProductConfiguratorTestDataFactory.coverageJson(
+        line.put(ImsProductConfiguratorService.COVERAGE_FIELD, ImsProductConfiguratorTestDataFactory.coverageJson(
             null, new Map<String, Decimal>{ 'A-100' => 5 }
         ));
         System.runAs(contextUser) {
@@ -30,19 +30,21 @@ private class ImsProductConfiguratorControllerTest {
         /********************************************
         * GIVEN
         ********************************************/
-        Assert.areEqual(1, [SELECT COUNT() FROM ContractModifier__c], 'The saved coverage created one record');
+        Assert.areEqual(1, [SELECT COUNT() FROM ContractAdjustment__c], 'The saved coverage created one record');
 
         /********************************************
         * WHEN
         ********************************************/
-        ContractModifierService.ContractAdjustments saved;
-        ContractModifierService.ContractAdjustments unsaved;
-        ContractModifierService.ContractAdjustments invalid;
+        ImsProductConfiguratorService.ContractAdjustments saved;
+        ImsProductConfiguratorService.ContractAdjustments unsaved;
+        ImsProductConfiguratorService.ContractAdjustments invalid;
         Test.startTest();
         System.runAs(contextUser) {
-            saved = ContractModifierService.parseCoverage(ImsProductConfiguratorController.getCoverage(line.Id));
-            unsaved = ContractModifierService.parseCoverage(ImsProductConfiguratorController.getCoverage('ref_12345'));
-            invalid = ContractModifierService.parseCoverage(
+            saved = ImsProductConfiguratorService.parseCoverage(ImsProductConfiguratorController.getCoverage(line.Id));
+            unsaved = ImsProductConfiguratorService.parseCoverage(
+                ImsProductConfiguratorController.getCoverage('ref_12345')
+            );
+            invalid = ImsProductConfiguratorService.parseCoverage(
                 ImsProductConfiguratorController.getCoverage('0QLnotAValidId')
             );
         }
@@ -78,7 +80,7 @@ private class ImsProductConfiguratorControllerTest {
         * WHEN
         ********************************************/
         List<String> subProductLineList;
-        List<ContractModifierService.AssetGroup> groupList;
+        List<ImsProductConfiguratorService.AssetGroup> groupList;
         List<String> manufacturerList;
         List<String> filteredOutList;
         Test.startTest();
@@ -141,12 +143,24 @@ private class ImsProductConfiguratorControllerTest {
                 thrownCount++;
             }
             try {
-                ImsProductConfiguratorController.getManufacturers(line.QuoteId, null, null);
+                ImsProductConfiguratorController.getManufacturers(
+                    line.QuoteId, ImsProductConfiguratorTestDataFactory.PRODUCT_LINE, null
+                );
             } catch (AuraHandledException e) {
                 thrownCount++;
             }
             try {
                 ImsProductConfiguratorController.getAssetCatalog(line.QuoteId);
+            } catch (AuraHandledException e) {
+                thrownCount++;
+            }
+            try {
+                ImsProductConfiguratorController.searchPricingPrograms('ZZPP');
+            } catch (AuraHandledException e) {
+                thrownCount++;
+            }
+            try {
+                ImsProductConfiguratorController.getPricingProgramsByNames(new List<String>{ 'PP-0001' });
             } catch (AuraHandledException e) {
                 thrownCount++;
             }
@@ -156,7 +170,50 @@ private class ImsProductConfiguratorControllerTest {
         /********************************************
         * THEN
         ********************************************/
-        Assert.areEqual(4, thrownCount, 'Each method should throw an AuraHandledException');
+        Assert.areEqual(6, thrownCount, 'Each method should throw an AuraHandledException');
+    }
+
+    /**
+     * @description The Pricing Programs search returns active programs with their CT codes, and a saved program
+     *              is found again by its name.
+     */
+    @IsTest
+    static void testPricingPrograms() {
+        /********************************************
+        * SETUP
+        ********************************************/
+        ImsProductConfiguratorTestDataFactory.grantPricingProgramAccess();
+        User contextUser = new User(Id = UserInfo.getUserId());
+        PricingProgram__c programRecord = ImsProductConfiguratorTestDataFactory.createPricingProgram(
+            'ZZPP Controller', 'Active', Date.today(), null, new List<String>{ 'CT.ZZC01' }
+        );
+
+        /********************************************
+        * GIVEN
+        ********************************************/
+        Assert.areEqual(1, [SELECT COUNT() FROM PricingProgramLines__c], 'One CT code line');
+
+        /********************************************
+        * WHEN
+        ********************************************/
+        List<ImsProductConfiguratorService.PricingProgramOption> searchList;
+        List<ImsProductConfiguratorService.PricingProgramOption> byNameList;
+        Test.startTest();
+        System.runAs(contextUser) {
+            searchList = ImsProductConfiguratorController.searchPricingPrograms('ZZPP Contr');
+            byNameList = ImsProductConfiguratorController.getPricingProgramsByNames(
+                new List<String>{ programRecord.Name }
+            );
+        }
+        Test.stopTest();
+
+        /********************************************
+        * THEN
+        ********************************************/
+        Assert.areEqual(1, searchList.size(), 'The active program is found');
+        Assert.areEqual(programRecord.Name, searchList[0].program, 'Program name');
+        Assert.areEqual('CT.ZZC01', searchList[0].ctCodes[0].code, 'CT code of the program');
+        Assert.areEqual(1, byNameList.size(), 'The program is found by its name');
     }
 
     /**

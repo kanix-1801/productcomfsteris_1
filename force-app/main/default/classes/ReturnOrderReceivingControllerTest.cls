@@ -3049,7 +3049,7 @@ private class ReturnOrderReceivingControllerTest {
             )
         );
         System.assertEquals(
-            '1. Ring Handle: Repair | Color Dipping: Black, Red, Number of Rings: 2 | ' +
+            '1. Ring Handle - Repair | Color Dipping: Black, Red, Number of Rings: 2 | ' +
                 'Insulation Powder Coating: Blue | Laser Marking: STERIS | Stirrups: Replace Pads - Left',
             text
         );

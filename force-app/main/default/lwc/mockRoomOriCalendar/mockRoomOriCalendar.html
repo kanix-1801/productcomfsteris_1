@@ -2,8 +2,8 @@
     <div class="calendar">
         <div class="toolbar">
             <div class="toolbar-left">
-                <button type="button" class="nav-btn" onclick={previousMonth} aria-label="Previous month">&#8249;</button>
-                <button type="button" class="nav-btn next" onclick={nextMonth} aria-label="Next month">&#8250;</button>
+                <button type="button" class="nav-btn" data-offset="-1" onclick={changeMonth} aria-label="Previous month">&#8249;</button>
+                <button type="button" class="nav-btn next" data-offset="1" onclick={changeMonth} aria-label="Next month">&#8250;</button>
                 <span class="month">{monthLabel}</span>
             </div>
             <button type="button" class="today" onclick={goToToday}>Today</button>

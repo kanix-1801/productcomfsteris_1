@@ -1,4 +1,5 @@
 import { LightningElement, api, track } from 'lwc';
+import { NavigationMixin } from 'lightning/navigation';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import searchProducts from '@salesforce/apex/EPPProductController.searchProducts';
 import getOpportunityProducts from '@salesforce/apex/EPPProductController.getOpportunityProducts';
@@ -14,7 +15,7 @@ import deleteDealerProduct from '@salesforce/apex/DealerOpportunityProductContro
  * for Capital and once for Consumables by setting productMode.
  * GC-3047 - Product Mode Dealer uses DealerOpportunityProductController only.
  */
-export default class EppOpportunityProducts extends LightningElement {
+export default class EppOpportunityProducts extends NavigationMixin(LightningElement) {
     @api recordId;
     @api productMode = 'Capital';
 
@@ -26,9 +27,13 @@ export default class EppOpportunityProducts extends LightningElement {
     searchKey = '';
     dealerContext;
     isModalOpen = false;
+    dealerEntryStep = false;
     isDetailModalOpen = false;
     isDetailEdit = false;
     selectedLineId;
+    selectedProductId;
+    selectedProductName;
+    selectedProductUrl;
     isLoading = false;
 
     frequencyOptions = [
@@ -85,9 +90,25 @@ export default class EppOpportunityProducts extends LightningElement {
         }
         return [
             { label: 'Product Name', fieldName: 'productName', wrapText: true },
-            { label: 'Item Number', fieldName: 'productCode' },
-            { label: 'Description', fieldName: 'productDescription', wrapText: true },
-            { label: 'List Price', fieldName: 'listPrice', type: 'number', typeAttributes: { minimumFractionDigits: 2, maximumFractionDigits: 2 } }
+            { label: 'Product Code', fieldName: 'productCode' },
+            { label: 'Sales Category Code', fieldName: 'salesCategoryCode' },
+            { label: 'Product Family', fieldName: 'productFamily' },
+            { label: 'Business Unit', fieldName: 'businessUnit' },
+            {
+                label: 'List Price',
+                fieldName: 'listPrice',
+                type: 'currency',
+                typeAttributes: {
+                    currencyCode: { fieldName: 'currencyCode' },
+                    minimumFractionDigits: 2
+                }
+            },
+            {
+                label: 'Recently Added',
+                fieldName: 'recentlyAdded',
+                type: 'boolean',
+                initialWidth: 150
+            }
         ];
     }
 
@@ -106,7 +127,62 @@ export default class EppOpportunityProducts extends LightningElement {
     }
 
     get modalTitle() {
+        if (this.isDealer && this.dealerEntryStep) {
+            return 'Enter Unit Price';
+        }
         return this.addButtonLabel;
+    }
+
+    get hideProductSearch() {
+        return this.isDealer && this.dealerEntryStep;
+    }
+
+    get showSelectedProducts() {
+        if (!this.hasSelectedProducts) {
+            return false;
+        }
+        return !this.isDealer || this.dealerEntryStep;
+    }
+
+    get showNoSearchResults() {
+        return !this.hasSearchResults && !this.isLoading;
+    }
+
+    get showCardSpinner() {
+        return this.isLoading && !this.isModalOpen && !this.isDetailModalOpen;
+    }
+
+    get dealerTotalPriceLabel() {
+        return `Total (${this.opportunityCurrencyCode})`;
+    }
+
+    get opportunityCurrencyCode() {
+        return (this.dealerContext && this.dealerContext.currencyCode) || 'USD';
+    }
+
+    get dealerCurrencyOptions() {
+        const currencies = (this.dealerContext && this.dealerContext.currencies) || [];
+        if (currencies.length) {
+            return currencies.map((rate) => ({ label: rate.isoCode, value: rate.isoCode }));
+        }
+        return [{ label: this.opportunityCurrencyCode, value: this.opportunityCurrencyCode }];
+    }
+
+    get defaultDealerCurrency() {
+        const usd = this.dealerCurrencyOptions.find((option) => option.value === 'USD');
+        return usd ? usd.value : this.opportunityCurrencyCode;
+    }
+
+    get showDealerNext() {
+        return this.isDealer && !this.dealerEntryStep;
+    }
+
+    get showAddProducts() {
+        return !this.showDealerNext;
+    }
+
+    get isNextDisabled() {
+        return !this.hasSelectedProducts || this.isLoading;
     }
 
     get detailModalTitle() {
@@ -283,7 +359,13 @@ export default class EppOpportunityProducts extends LightningElement {
             await this.removeDealerLine(event.detail.row.opportunityLineItemId);
             return;
         }
-        this.selectedLineId = event.detail.row.opportunityLineItemId;
+        const row = event.detail.row;
+        this.selectedLineId = row.opportunityLineItemId;
+        this.selectedProductId = row.productId;
+        this.selectedProductName = row.productName;
+        this.selectedProductUrl = this.isDealer && row.productId
+            ? await this.productPageUrl(row.productId)
+            : null;
         this.isDetailEdit = actionName === 'edit';
         this.isDetailModalOpen = true;
     }
@@ -292,7 +374,37 @@ export default class EppOpportunityProducts extends LightningElement {
         if (!this.isLoading) {
             this.isDetailModalOpen = false;
             this.selectedLineId = null;
+            this.selectedProductId = null;
+            this.selectedProductName = null;
+            this.selectedProductUrl = null;
         }
+    }
+
+    openSelectedProduct(event) {
+        if (!this.selectedProductId) {
+            event.preventDefault();
+            return;
+        }
+        event.preventDefault();
+        this[NavigationMixin.Navigate]({
+            type: 'standard__recordPage',
+            attributes: {
+                recordId: this.selectedProductId,
+                objectApiName: 'Product2',
+                actionName: 'view'
+            }
+        });
+    }
+
+    productPageUrl(productId) {
+        return this[NavigationMixin.GenerateUrl]({
+            type: 'standard__recordPage',
+            attributes: {
+                recordId: productId,
+                objectApiName: 'Product2',
+                actionName: 'view'
+            }
+        });
     }
 
     async handleDetailSuccess() {
@@ -303,6 +415,9 @@ export default class EppOpportunityProducts extends LightningElement {
         }));
         this.isDetailModalOpen = false;
         this.selectedLineId = null;
+        this.selectedProductId = null;
+        this.selectedProductName = null;
+        this.selectedProductUrl = null;
         await this.loadExistingProducts();
     }
 
@@ -319,24 +434,27 @@ export default class EppOpportunityProducts extends LightningElement {
 
     async openModal() {
         this.isModalOpen = true;
+        this.dealerEntryStep = false;
         this.errorMessage = '';
         this.searchKey = '';
         this.searchResults = [];
         this.selectedProducts = [];
-        if (this.isDealer) {
-            try {
+        this.isLoading = true;
+        try {
+            if (this.isDealer) {
                 await this.loadDealerContext();
-            } catch (error) {
-                this.showError(error);
-                return;
             }
+            await this.handleSearch();
+        } catch (error) {
+            this.showError(error);
+            this.isLoading = false;
         }
-        await this.handleSearch();
     }
 
     closeModal() {
         if (!this.isLoading) {
             this.isModalOpen = false;
+            this.dealerEntryStep = false;
             this.errorMessage = '';
         }
     }
@@ -420,8 +538,18 @@ export default class EppOpportunityProducts extends LightningElement {
             if (fieldName === 'elevatedEPPPricingApplicable' && value !== true) {
                 updated.eppPrice = null;
             }
-            if (this.isDealer) {
-                updated.lineTotal = this.dealerLineTotal(updated.quantity, updated.unitPrice);
+            if (this.isDealer && fieldName === 'currencyCode' && value) {
+                updated.unitPrice = this.convertDealerAmount(product.unitPrice, product.priceCurrency, value);
+                updated.priceCurrency = value;
+                updated.currencyCode = value;
+            }
+            if (this.isDealer && (fieldName === 'quantity' || fieldName === 'unitPrice' || fieldName === 'currencyCode')) {
+                updated.lineTotal = this.dealerOpportunityTotal(
+                    updated.quantity,
+                    updated.unitPrice,
+                    updated.priceCurrency
+                );
+                updated.lineTotalLabel = this.formatDealerMoney(updated.lineTotal, this.opportunityCurrencyCode);
             }
             return updated;
         });
@@ -432,6 +560,20 @@ export default class EppOpportunityProducts extends LightningElement {
         this.selectedProducts = this.selectedProducts.filter(
             product => product.pricebookEntryId !== entryId
         );
+    }
+
+    goToDealerPricing() {
+        if (!this.hasSelectedProducts) {
+            this.errorMessage = 'Select at least one product.';
+            return;
+        }
+        this.errorMessage = '';
+        this.dealerEntryStep = true;
+    }
+
+    backToProductSearch() {
+        this.errorMessage = '';
+        this.dealerEntryStep = false;
     }
 
     async handleSave() {
@@ -523,19 +665,73 @@ export default class EppOpportunityProducts extends LightningElement {
     newDealerSelection(row) {
         const context = this.dealerContext || {};
         const quantity = 1;
-        const unitPrice = row.listPrice;
+        const entryCurrency = this.defaultDealerCurrency;
+        const unitPrice = this.convertDealerAmount(row.listPrice, this.opportunityCurrencyCode, entryCurrency);
+        const lineTotal = this.dealerOpportunityTotal(quantity, unitPrice, entryCurrency);
         return {
             ...row,
             quantity,
             unitPrice,
-            lineTotal: this.dealerLineTotal(quantity, unitPrice),
-            currencyCode: context.currencyCode || row.currencyCode,
+            priceCurrency: entryCurrency,
+            lineTotal,
+            lineTotalLabel: this.formatDealerMoney(lineTotal, this.opportunityCurrencyCode),
+            currencyCode: entryCurrency,
             status: 'Open',
             confidenceLevel: context.forecastConfidence || 'Pipeline',
             expectedOrderDate: context.closeDate || null,
             expectedShipDate: context.expectedShipDate || null,
             comments: null
         };
+    }
+
+    dealerRate(isoCode) {
+        const currencies = (this.dealerContext && this.dealerContext.currencies) || [];
+        return currencies.find((rate) => rate.isoCode === isoCode);
+    }
+
+    convertDealerAmount(amount, fromIso, toIso) {
+        if (amount === null || amount === undefined || fromIso === toIso) {
+            return this.roundDealerAmount(amount, toIso);
+        }
+        const fromRate = this.dealerRate(fromIso);
+        const toRate = this.dealerRate(toIso);
+        if (!fromRate || !toRate || !fromRate.conversionRate) {
+            return this.roundDealerAmount(amount, toIso);
+        }
+        const converted = (Number(amount) * Number(toRate.conversionRate)) / Number(fromRate.conversionRate);
+        return this.roundDealerAmount(converted, toIso);
+    }
+
+    roundDealerAmount(amount, isoCode) {
+        if (amount === null || amount === undefined || Number.isNaN(Number(amount))) {
+            return null;
+        }
+        const rate = this.dealerRate(isoCode);
+        const places = rate && rate.decimalPlaces !== null && rate.decimalPlaces !== undefined
+            ? rate.decimalPlaces
+            : 2;
+        const factor = 10 ** places;
+        return Math.round((Number(amount) + Number.EPSILON) * factor) / factor;
+    }
+
+    formatDealerMoney(amount, isoCode) {
+        if (amount === null || amount === undefined) {
+            return '';
+        }
+        const rate = this.dealerRate(isoCode);
+        const places = rate && rate.decimalPlaces !== null && rate.decimalPlaces !== undefined
+            ? rate.decimalPlaces
+            : 2;
+        return `${Number(amount).toFixed(places)} ${isoCode}`;
+    }
+
+    dealerOpportunityTotal(quantity, unitPrice, priceCurrency) {
+        const unitInOpportunityCurrency = this.convertDealerAmount(
+            unitPrice,
+            priceCurrency,
+            this.opportunityCurrencyCode
+        );
+        return this.dealerLineTotal(quantity, unitInOpportunityCurrency);
     }
 
     dealerLineTotal(quantity, unitPrice) {
@@ -559,6 +755,7 @@ export default class EppOpportunityProducts extends LightningElement {
             pricebookEntryId: product.pricebookEntryId,
             quantity: Number(product.quantity),
             unitPrice: Number(product.unitPrice),
+            currencyCode: product.priceCurrency || product.currencyCode,
             status: product.status,
             confidenceLevel: product.confidenceLevel,
             expectedOrderDate: product.expectedOrderDate || null,

@@ -96,6 +96,8 @@ public with sharing class ContentDocumentLinksService {
         public String productName;
         /** Linked entity (e.g. Product Serviced WOLI) when loaded by entity Id. */
         public Id linkedEntityId;
+        /** GW-4378 - ContentVersion.Description. Optional evaluation photos use a fixed marker. */
+        public String description;
     }
 
     /**
@@ -693,6 +695,7 @@ public with sharing class ContentDocumentLinksService {
         row.contentDocumentId = version.ContentDocumentId;
         row.contentVersionId = version.Id;
         row.title = version.Title;
+        row.description = version.Description;
         row.fileExtension = resolveFileExtension(version);
         row.fileType = version.FileType;
         row.lastModifiedDate = version.LastModifiedDate;

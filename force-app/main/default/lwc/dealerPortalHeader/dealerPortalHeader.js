@@ -5,6 +5,7 @@ import USER_ID from '@salesforce/user/Id';
 import NAME_FIELD from '@salesforce/schema/User.Name';
 import PHOTO_FIELD from '@salesforce/schema/User.SmallPhotoUrl';
 import basePath from '@salesforce/community/basePath';
+import isGuest from '@salesforce/user/isGuest';
 import BRAND_LOGO from '@salesforce/resourceUrl/DealerPortalWordmark';
 
 const PAGES = [
@@ -15,6 +16,7 @@ const PAGES = [
 
 export default class DealerPortalHeader extends NavigationMixin(LightningElement) {
     logoUrl = `${BRAND_LOGO}?v=3`;
+    isGuestUser = isGuest;
     activeKey = 'home';
     userName = '';
     userPhoto;

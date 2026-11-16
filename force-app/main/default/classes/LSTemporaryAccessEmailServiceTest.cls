@@ -46,7 +46,8 @@ private class LSTemporaryAccessEmailServiceTest {
             LSTemporaryAccessExceptionEmailService.SUBJECT_APPROVAL_NEEDED,
             notifications[0].subject
         );
-        System.assert(notifications[0].htmlBody.contains('requires your approval'));
+        System.assert(notifications[0].htmlBody.contains('requires your review'));
+        System.assert(notifications[0].htmlBody.contains('Please approve or reject the request.'));
         System.assert(notifications[0].htmlBody.contains('Coverage Duration'));
         assertCc(
             notifications[0].ccAddresses,

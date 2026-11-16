@@ -511,6 +511,8 @@ public with sharing class WorkOrdersSelector extends SoqlQueryBuilder {
         'OperatingUnit__c, ' +
         'Receiver__c, WarrantyNotes__c, RepairCategory__c, Rack__c, TurnTime__c, ' +
         'CustomerReference__c, Contaminated__c, PhotosRequired__c, ModRequest__c, ' +
+        // GW-5677 - Required so Divide child copy can read parent Additional Services Requested.
+        'AdditionalServicesRequested__c, ' +
         'Pricebook2Id, CurrencyIsoCode, ' +
         'AssetId, Asset.ProductLineCalculated__c, Asset.Product2.ProductLine__c';
 
@@ -1151,8 +1153,7 @@ public with sharing class WorkOrdersSelector extends SoqlQueryBuilder {
             .whereEquals('ReturnOrder__c', returnOrderId)
             .whereEquals('Vendor__c', vendorAccountId)
             .whereEquals('ParentWorkOrderId', null)
-            // CBMQA: RepairCenterVendor (GW-6359) not present; use Other until Sprint 10.
-            .whereEquals('RecordType.DeveloperName', 'RepairCenterOther')
+            .whereEquals('RecordType.DeveloperName', 'RepairCenterVendor')
             .orderBy('CreatedDate')
             .first();
     }
@@ -1366,6 +1367,7 @@ public with sharing class WorkOrdersSelector extends SoqlQueryBuilder {
                     'Status',
                     'Product__c',
                     'RepairCenter__c',
+                    'RepairCenter__r.Name',
                     'Asset.Product2Id'
                 }
             )
@@ -1373,4 +1375,72 @@ public with sharing class WorkOrdersSelector extends SoqlQueryBuilder {
             .limitTo(1)
             .execute();
     }
+
+    /**
+     * @description GW-4378 - Work Order Id and parent for optional evaluation photos.
+     * @param workOrderId Work Order Id
+     * @return Matching Work Order, or an empty list
+     */
+    public static List<WorkOrder> selectParentForEvaluationPhotos(Id workOrderId) {
+        if (workOrderId == null) {
+            return new List<WorkOrder>();
+        }
+        return (List<WorkOrder>) SoqlQueryBuilder.fromObject('WorkOrder')
+            .selectFields(new List<String>{ 'Id', 'ParentWorkOrderId' })
+            .whereEquals('Id', workOrderId)
+            .limitTo(1)
+            .execute();
+    }
+
+    /**
+     * @description GW-4378 - Child Work Orders whose optional photos belong on the parent quote.
+     * @param parentWorkOrderIds Parent Work Order Ids
+     * @return Child Work Orders with their parent Id
+     */
+    public static List<WorkOrder> selectChildIdsByParentIds(Set<Id> parentWorkOrderIds) {
+        if (parentWorkOrderIds == null || parentWorkOrderIds.isEmpty()) {
+            return new List<WorkOrder>();
+        }
+        return (List<WorkOrder>) SoqlQueryBuilder.fromObject('WorkOrder')
+            .selectFields(new List<String>{ 'Id', 'ParentWorkOrderId' })
+            .whereIn('ParentWorkOrderId', new List<Id>(parentWorkOrderIds))
+            .execute();
+    }
+
+	/**
+	 * @description GW-5310 - Work Order by Id or Number for signature override.
+	 *              Includes record type, parent, and Repair Center.
+	 * @param workOrderInput Work Order Id or Work Order Number
+	 * @return Matching Work Order, or null
+	 */
+	public static WorkOrder selectForSignatureOverrideByIdOrNumber(String workOrderInput) {
+		if (String.isBlank(workOrderInput)) {
+			return null;
+		}
+		String trimmedInput = workOrderInput.trim();
+		List<String> fields = new List<String>{
+			'Id',
+			'WorkOrderNumber',
+			'Status',
+			'RecordType.DeveloperName',
+			'ParentWorkOrderId',
+			'RepairCenter__c'
+		};
+		if (PlatformUtilities.isSalesforceId(trimmedInput)) {
+			List<WorkOrder> workOrdersById = (List<WorkOrder>) new WorkOrdersSelector()
+				.selectFields(fields)
+				.whereEquals('Id', (Id) trimmedInput)
+				.limitTo(1)
+				.executeSystemMode();
+			if (!workOrdersById.isEmpty()) {
+				return workOrdersById[0];
+			}
+		}
+		List<WorkOrder> workOrdersByNumber = (List<WorkOrder>) new WorkOrdersSelector()
+			.selectFields(fields)
+			.whereEquals('WorkOrderNumber', trimmedInput)
+			.limitTo(1)
+			.executeSystemMode();
+		return workOrdersByNumber.isEmpty() ? null : workOrdersByNumber[0];
+	}
 }

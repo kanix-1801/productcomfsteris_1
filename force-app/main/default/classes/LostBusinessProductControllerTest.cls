@@ -54,14 +54,14 @@ private class LostBusinessProductControllerTest {
         }
 
         Assert.areEqual(
-            'SKU-1001',
+            TestDataFactory.LB_PRODUCT_A_CODE,
             rowByName.get(TestDataFactory.LB_PRODUCT_A_NAME).productSku,
-            'The stored SKU should be returned.'
+            'Product code should be shown as the Product / SKU.'
         );
         Assert.areEqual(
-            TestDataFactory.LB_PRODUCT_B_CODE,	
+            TestDataFactory.LB_PRODUCT_B_CODE,
             rowByName.get(TestDataFactory.LB_PRODUCT_B_NAME).productSku,
-            'Product code should fill a blank SKU.'
+            'Product code should be shown as the Product / SKU.'
         );
         Assert.areEqual(
             40,
@@ -260,14 +260,13 @@ private class LostBusinessProductControllerTest {
         Assert.areEqual(sourceLine.UnitPrice, sourceAfter.UnitPrice, 'The originating unit price must stay unchanged.');
 
         List<OpportunityLineItem> copiedLineList = [
-            SELECT Quantity, UnitPrice, ConsumptionFrequency__c, Product_Number_SKU__c, PricebookEntryId
+            SELECT Quantity, UnitPrice, ConsumptionFrequency__c, PricebookEntryId
             FROM OpportunityLineItem
             WHERE OpportunityId = :context.lostOpportunityId
         ];
         Assert.areEqual(1, copiedLineList.size(), 'The deselected product should not be created.');
         Assert.areEqual(3, copiedLineList[0].Quantity.intValue(), 'The edited quantity should be stored on the new line.');
         Assert.areEqual(sourceLine.UnitPrice, copiedLineList[0].UnitPrice, 'Unit price should be copied from the originating line.');
-        Assert.areEqual('SKU-1001', copiedLineList[0].Product_Number_SKU__c, 'SKU should be copied.');
         Assert.areEqual(
             editedFrequency,
             copiedLineList[0].ConsumptionFrequency__c,
@@ -283,7 +282,7 @@ private class LostBusinessProductControllerTest {
     /**
      * @description
      * GC-3574 - Confirms a copied product uses the Lost Business price book when the originating
-     * entry belongs to a different price book, and a blank SKU falls back to the product code.
+     * entry belongs to a different price book, and a blank frequency is stored as null.
      *
      * @return void
      */
@@ -309,7 +308,7 @@ private class LostBusinessProductControllerTest {
 
         Assert.areEqual(1, createdCount, 'The custom price book product should be copied onto the standard price book.');
         OpportunityLineItem copiedCustomLine = [
-            SELECT PricebookEntryId, UnitPrice, Product_Number_SKU__c
+            SELECT PricebookEntryId, UnitPrice
             FROM OpportunityLineItem
             WHERE OpportunityId = :context.lostOpportunityId
         ];
@@ -319,9 +318,8 @@ private class LostBusinessProductControllerTest {
             'The Lost Business price book entry should be used.'
         );
         Assert.areEqual(55, copiedCustomLine.UnitPrice.intValue(), 'The originating unit price should be copied.');
-        Assert.areEqual('SKU-CUSTOM', copiedCustomLine.Product_Number_SKU__c, 'The stored SKU should be copied.');
 
-        Assert.areEqual(1, blankSkuCount, 'The blank-SKU product should be copied.');
+        Assert.areEqual(1, blankSkuCount, 'The product with a blank frequency should be copied.');
         Opportunity updatedOpportunity = [
             SELECT Pricebook2Id
             FROM Opportunity
@@ -333,14 +331,14 @@ private class LostBusinessProductControllerTest {
             'The originating price book should be set on the Lost Business opportunity.'
         );
         OpportunityLineItem blankSkuLine = [
-            SELECT Product_Number_SKU__c, ConsumptionFrequency__c
+            SELECT ConsumptionFrequency__c, PricebookEntry.Product2.ProductCode
             FROM OpportunityLineItem
             WHERE OpportunityId = :context.unpricedOpportunityId
         ];
         Assert.areEqual(
             TestDataFactory.LB_PRODUCT_B_CODE,
-            blankSkuLine.Product_Number_SKU__c,
-            'Product code should fill a blank SKU.'
+            blankSkuLine.PricebookEntry.Product2.ProductCode,
+            'The selected product should be copied.'
         );
         Assert.isNull(blankSkuLine.ConsumptionFrequency__c, 'A blank frequency should be stored as null.');
     }
@@ -549,7 +547,8 @@ private class LostBusinessProductControllerTest {
 
         OpportunityLineItem createdLine = [
             SELECT Quantity, UnitPrice, ConsumptionFrequency__c, Status__c, ConfidenceLevel__c,
-                   ExpectedShipDate_ConsumptionStart__c, Contract__c, Comments__c, Product_Number_SKU__c
+                   ExpectedShipDate_ConsumptionStart__c, Contract__c, Comments__c,
+                   PricebookEntry.Product2.ProductCode
             FROM OpportunityLineItem
             WHERE OpportunityId = :updatedOpportunity.Id
         ];
@@ -563,8 +562,8 @@ private class LostBusinessProductControllerTest {
         Assert.areEqual('Partial loss', createdLine.Comments__c, 'Comments should be stored.');
         Assert.areEqual(
             TestDataFactory.LB_PRODUCT_C_CODE,
-            createdLine.Product_Number_SKU__c,
-            'Product code should be stored as the SKU.'
+            createdLine.PricebookEntry.Product2.ProductCode,
+            'The selected catalogue product should be stored.'
         );
     }
 
@@ -841,7 +840,98 @@ private class LostBusinessProductControllerTest {
             LostBusinessProductSelector.selectActiveProducts(new Set<Id>{ context.productAId }).size(),
             'The active product should be returned.'
         );
+        Assert.isTrue(LostBusinessProductSelector.selectLinesByOpportunityIds(null).isEmpty(), 'A null set returns no lines.');
+        Assert.isTrue(LostBusinessProductSelector.selectLinesByOpportunityIds(new Set<Id>()).isEmpty(), 'An empty set returns no lines.');
+        Assert.isTrue(LostBusinessProductSelector.selectLostBusinessForProductCopy(null).isEmpty(), 'A null set is not queried.');
+        Assert.isTrue(LostBusinessProductSelector.selectLostBusinessForProductCopy(new Set<Id>()).isEmpty(), 'An empty set is not queried.');
+        Assert.isTrue(LostBusinessProductSelector.selectPricebookEntryIdsByOpportunity(null).isEmpty(), 'A null set returns no price book entries.');
+        Assert.isTrue(LostBusinessProductSelector.selectPricebookEntryIdsByOpportunity(new Set<Id>()).isEmpty(), 'An empty set returns no price book entries.');
         Test.stopTest();
+    }
+
+    /**
+     * @description
+     * GC-3574 - Standard New copies quantity, price, and frequency once. A second run,
+     * the screen skip flag, and a failed copy do not add another line.
+     *
+     * @return void
+     */
+    @IsTest
+    static void copyOriginatingProductsCopiesOnceAndSkipsExistingLines() {
+        TestDataFactory.LostBusinessProductContext context = data();
+        markLostBusinessReadyForCopy(context.lostOpportunityId, context.originatingOpportunityId, false);
+        LostBusinessProductCopyAction.Request request = new LostBusinessProductCopyAction.Request();
+        request.lostBusinessOpportunityId = context.lostOpportunityId;
+
+        Test.startTest();
+        LostBusinessProductCopyAction.copyOriginatingProducts(new List<LostBusinessProductCopyAction.Request>{ request, null });
+        Integer secondCopyCount = LostBusinessProductService.copyOriginatingProducts(new Set<Id>{ context.lostOpportunityId });
+        Test.stopTest();
+
+        Assert.areEqual(0, secondCopyCount, 'A second copy does not add a product that is already there.');
+        Map<String, OpportunityLineItem> copiedLineByProductCode = new Map<String, OpportunityLineItem>();
+        for (OpportunityLineItem copiedLine : [
+            SELECT Quantity, UnitPrice, ConsumptionFrequency__c, PricebookEntryId, PricebookEntry.Product2.ProductCode
+            FROM OpportunityLineItem
+            WHERE OpportunityId = :context.lostOpportunityId
+        ]) {
+            copiedLineByProductCode.put(copiedLine.PricebookEntry.Product2.ProductCode, copiedLine);
+        }
+        Assert.areEqual(2, copiedLineByProductCode.size(), 'Both originating products are copied once.');
+        Assert.areEqual(10, copiedLineByProductCode.get(TestDataFactory.LB_PRODUCT_A_CODE).Quantity.intValue(), 'Quantity is copied.');
+        Assert.areEqual(
+            [SELECT UnitPrice FROM OpportunityLineItem WHERE Id = :context.originatingLineAId].UnitPrice.abs(),
+            copiedLineByProductCode.get(TestDataFactory.LB_PRODUCT_A_CODE).UnitPrice.abs(),
+            'Unit price is copied. Lost Business automation may store it as a negative value.'
+        );
+        Assert.areEqual(context.standardEntryAId, copiedLineByProductCode.get(TestDataFactory.LB_PRODUCT_A_CODE).PricebookEntryId, 'The same price book entry is reused.');
+        Assert.isNotNull(copiedLineByProductCode.get(TestDataFactory.LB_PRODUCT_A_CODE).ConsumptionFrequency__c, 'Consumption frequency is copied.');
+        Assert.areEqual(4, copiedLineByProductCode.get(TestDataFactory.LB_PRODUCT_B_CODE).Quantity.intValue(), 'The second product quantity is copied.');
+        Assert.areEqual(2, [SELECT COUNT() FROM OpportunityLineItem WHERE OpportunityId = :context.originatingOpportunityId], 'Originating products stay unchanged.');
+    }
+
+    /**
+     * @description
+     * GC-3574 - Confirms ineligible opportunities and an inactive price book entry are not copied,
+     * and a missing price book is filled from the originating opportunity.
+     *
+     * @return void
+     */
+    @IsTest
+    static void copyOriginatingProductsSkipsIneligibleRowsAndSetsPricebook() {
+        TestDataFactory.LostBusinessProductContext context = data();
+        update new Opportunity(
+            Id = context.unpricedOpportunityId,
+            RecordTypeId = lostBusinessRecordTypeId(),
+            StageName = 'At Risk',
+            LossType__c = firstActivePicklistValue(Opportunity.LossType__c),
+            CustomerContact__c = context.contactId,
+            OriginatingOpportunity__c = context.originatingOpportunityId,
+            SkipLostBusinessProductCopy__c = false
+        );
+        markLostBusinessReadyForCopy(context.lostOpportunityId, context.originatingOpportunityId, true);
+        update new PricebookEntry(Id = context.standardEntryCId, IsActive = false);
+
+        Test.startTest();
+        Assert.areEqual(0, LostBusinessProductService.copyOriginatingProducts(null), 'A null request copies nothing.');
+        Assert.areEqual(0, LostBusinessProductService.copyOriginatingProducts(new Set<Id>()), 'An empty request copies nothing.');
+        Assert.areEqual(0, LostBusinessProductService.copyOriginatingProducts(new Set<Id>{ context.lostOpportunityId }), 'The screen skip flag stops the copy.');
+        LostBusinessProductCopyAction.copyOriginatingProducts(null);
+        markLostBusinessReadyForCopy(context.lostOpportunityId, context.otherOpportunityId, false);
+        Assert.areEqual(0, LostBusinessProductService.copyOriginatingProducts(new Set<Id>{ context.lostOpportunityId }), 'An inactive price book entry is skipped.');
+        LostBusinessProductService.throwTestException = true;
+        Assert.areEqual(0, LostBusinessProductService.copyOriginatingProducts(new Set<Id>{ context.lostOpportunityId }), 'A copy failure does not add products.');
+        LostBusinessProductService.throwTestException = false;
+        Integer createdCount = LostBusinessProductService.copyOriginatingProducts(new Set<Id>{ context.unpricedOpportunityId });
+        Test.stopTest();
+
+        Assert.areEqual(2, createdCount, 'Products are copied after the price book is set.');
+        Assert.areEqual(
+            context.standardPricebookId,
+            [SELECT Pricebook2Id FROM Opportunity WHERE Id = :context.unpricedOpportunityId].Pricebook2Id,
+            'The originating price book is stored on the Lost Business opportunity.'
+        );
+        Assert.areEqual(0, LostBusinessProductService.copyOriginatingProducts(new Set<Id>{ context.originatingOpportunityId }), 'Another record type is ignored.');
     }
 
     /**
@@ -852,6 +942,39 @@ private class LostBusinessProductControllerTest {
      */
     private static TestDataFactory.LostBusinessProductContext data() {
         return TestDataFactory.loadLostBusinessProductContext();
+    }
+
+    /**
+     * @description
+     * GC-3574 - Marks a test opportunity as Lost Business so the automatic copy can run.
+     *
+     * @param lostOpportunityId Lost Business opportunity.
+     * @param originatingOpportunityId Originating opportunity.
+     * @param skipCopy True when the screen path should suppress the copy.
+     */
+    private static void markLostBusinessReadyForCopy(Id lostOpportunityId, Id originatingOpportunityId, Boolean skipCopy) {
+        TestDataFactory.LostBusinessProductContext context = data();
+        update new Opportunity(
+            Id = lostOpportunityId,
+            RecordTypeId = lostBusinessRecordTypeId(),
+            StageName = 'At Risk',
+            LossType__c = firstActivePicklistValue(Opportunity.LossType__c),
+            CustomerContact__c = context.contactId,
+            OriginatingOpportunity__c = originatingOpportunityId,
+            SkipLostBusinessProductCopy__c = skipCopy
+        );
+    }
+
+    /**
+     * @description
+     * GC-3574 - Lost Business Consumables record type Id.
+     *
+     * @return Record type Id.
+     */
+    private static Id lostBusinessRecordTypeId() {
+        return Schema.SObjectType.Opportunity.getRecordTypeInfosByDeveloperName()
+            .get(LostBusinessProductSelector.LOST_BUSINESS_RECORD_TYPE)
+            .getRecordTypeId();
     }
 
     /**

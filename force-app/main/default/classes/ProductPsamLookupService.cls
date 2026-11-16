@@ -7,7 +7,7 @@
  * @description
  * Resolves Product2.PSAM__c lookup data when the field is available in the org schema.
  */
-public with sharing class ProductPsamLookupService {
+public without sharing class ProductPsamLookupService {
     public static final String PRODUCT_PSAM_LOOKUP_FIELD = 'PSAM__c';
     public static final String PRODUCT_PSAM_RELATIONSHIP = 'PSAM__r';
 

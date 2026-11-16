@@ -12,6 +12,12 @@ public with sharing class LostBusinessProductSelector {
 
     /**
      * @description
+     * GC-3574 - Lost Business Consumables record type. Automatic product copy runs only for this type.
+     */
+    public static final String LOST_BUSINESS_RECORD_TYPE = 'HCSalesLostBusinessConsumables';
+
+    /**
+     * @description
      * GC-3574 - Returns the opportunity price book and currency used when adding products.
      *
      * @param opportunityId Opportunity to load.
@@ -52,12 +58,30 @@ public with sharing class LostBusinessProductSelector {
             return new List<OpportunityLineItem>();
         }
 
+        return selectLinesByOpportunityIds(new Set<Id>{ opportunityId });
+    }
+
+    /**
+     * @description
+     * GC-3574 - Returns Opportunity Products for the supplied opportunities.
+     *
+     * @param opportunityIds Originating or Lost Business opportunities.
+     * @return Matching Opportunity Products ordered by product name.
+     *
+     * @example
+     * LostBusinessProductSelector.selectLinesByOpportunityIds(opportunityIds);
+     */
+    public static List<OpportunityLineItem> selectLinesByOpportunityIds(Set<Id> opportunityIds) {
+        if (opportunityIds == null || opportunityIds.isEmpty()) {
+            return new List<OpportunityLineItem>();
+        }
+
         return [
             SELECT Id,
+                   OpportunityId,
                    Quantity,
                    UnitPrice,
                    ConsumptionFrequency__c,
-                   Product_Number_SKU__c,
                    PricebookEntryId,
                    PricebookEntry.IsActive,
                    PricebookEntry.UnitPrice,
@@ -67,9 +91,42 @@ public with sharing class LostBusinessProductSelector {
                    PricebookEntry.Product2.ProductCode,
                    PricebookEntry.CurrencyIsoCode
             FROM OpportunityLineItem
-            WHERE OpportunityId = :opportunityId
+            WHERE OpportunityId IN :opportunityIds
             WITH SYSTEM_MODE
             ORDER BY PricebookEntry.Product2.Name ASC
+        ];
+    }
+
+    /**
+     * @description
+     * GC-3574 - Returns Lost Business opportunities that should receive originating products.
+     * Screen-created opportunities are excluded by Skip Lost Business Product Copy.
+     *
+     * @param opportunityIds Opportunities saved from the standard New button.
+     * @return Lost Business opportunities with an originating opportunity and copy still enabled.
+     *
+     * @example
+     * LostBusinessProductSelector.selectLostBusinessForProductCopy(opportunityIds);
+     */
+    public static List<Opportunity> selectLostBusinessForProductCopy(Set<Id> opportunityIds) {
+        if (opportunityIds == null || opportunityIds.isEmpty()) {
+            return new List<Opportunity>();
+        }
+
+        return [
+            SELECT Id,
+                   Pricebook2Id,
+                   CurrencyIsoCode,
+                   OriginatingOpportunity__c,
+                   OriginatingOpportunity__r.Pricebook2Id,
+                   SkipLostBusinessProductCopy__c,
+                   RecordType.DeveloperName
+            FROM Opportunity
+            WHERE Id IN :opportunityIds
+            AND RecordType.DeveloperName = :LOST_BUSINESS_RECORD_TYPE
+            AND OriginatingOpportunity__c != null
+            AND SkipLostBusinessProductCopy__c = false
+            WITH SYSTEM_MODE
         ];
     }
 
@@ -98,7 +155,6 @@ public with sharing class LostBusinessProductSelector {
                    Quantity,
                    UnitPrice,
                    ConsumptionFrequency__c,
-                   Product_Number_SKU__c,
                    PricebookEntryId,
                    PricebookEntry.IsActive,
                    PricebookEntry.UnitPrice,
@@ -126,22 +182,45 @@ public with sharing class LostBusinessProductSelector {
      * LostBusinessProductSelector.selectPricebookEntryIds(opportunityId);
      */
     public static Set<Id> selectPricebookEntryIds(Id opportunityId) {
-        Set<Id> pricebookEntryIds = new Set<Id>();
-
         if (opportunityId == null) {
-            return pricebookEntryIds;
+            return new Set<Id>();
+        }
+
+        Set<Id> pricebookEntryIds = selectPricebookEntryIdsByOpportunity(new Set<Id>{ opportunityId })
+            .get(opportunityId);
+        return pricebookEntryIds == null ? new Set<Id>() : pricebookEntryIds;
+    }
+
+    /**
+     * @description
+     * GC-3574 - Returns price book entry Ids already present on each Lost Business opportunity.
+     *
+     * @param opportunityIds Lost Business opportunity Ids.
+     * @return Price book entry Ids keyed by opportunity.
+     *
+     * @example
+     * LostBusinessProductSelector.selectPricebookEntryIdsByOpportunity(opportunityIds);
+     */
+    public static Map<Id, Set<Id>> selectPricebookEntryIdsByOpportunity(Set<Id> opportunityIds) {
+        Map<Id, Set<Id>> pricebookEntryIdsByOpportunityId = new Map<Id, Set<Id>>();
+
+        if (opportunityIds == null || opportunityIds.isEmpty()) {
+            return pricebookEntryIdsByOpportunityId;
         }
 
         for (OpportunityLineItem lineItem : [
-            SELECT PricebookEntryId
+            SELECT OpportunityId, PricebookEntryId
             FROM OpportunityLineItem
-            WHERE OpportunityId = :opportunityId
+            WHERE OpportunityId IN :opportunityIds
             WITH SYSTEM_MODE
         ]) {
-            pricebookEntryIds.add(lineItem.PricebookEntryId);
+            if (!pricebookEntryIdsByOpportunityId.containsKey(lineItem.OpportunityId)) {
+                pricebookEntryIdsByOpportunityId.put(lineItem.OpportunityId, new Set<Id>());
+            }
+            pricebookEntryIdsByOpportunityId.get(lineItem.OpportunityId).add(lineItem.PricebookEntryId);
         }
 
-        return pricebookEntryIds;
+        return pricebookEntryIdsByOpportunityId;
     }
 
     /**

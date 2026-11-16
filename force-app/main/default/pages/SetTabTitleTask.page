@@ -2,13 +2,20 @@
     
     <apex:includeScript value="/support/console/66.0/integration.js"/>
 
-    <script>
+    <script type="text/javascript">
         function setCaseTitle() {
-            sforce.console.setTabTitle('{!JSENCODE(relatedCase.Subject)}');
+            if (sforce.console.isInConsole()) {
+                sforce.console.setTabTitle('{!JSENCODE(relatedCase.Subject)}');
+                sforce.console.getFocusedPrimaryTabId(function(result) {
+                    sforce.console.setTabTitle('{!JSENCODE(relatedCase.Subject)}', result.id);
+                });
+            }            
         }
 
         if (typeof sforce !== 'undefined' && sforce.console) {
-            setCaseTitle();
+            window.addEventListener('load', function() {
+                setTimeout(setCaseTitle, 200);
+            });
         }
     </script>
 </apex:page>

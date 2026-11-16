@@ -3,8 +3,17 @@
         Repair History
     </h3>
     <template lwc:if={hasVisibleRows}>
-        <div class="slds-scrollable_x">
-            <table class="slds-table slds-table_cell-buffer slds-table_bordered">
+        <div class="history-table-wrap">
+            <table class="slds-table slds-table_cell-buffer slds-table_bordered history-table">
+                <colgroup>
+                    <col class="col-work-order" />
+                    <col class="col-lab" />
+                    <col class="col-problem" />
+                    <col class="col-repair-date" />
+                    <col class="col-repair-codes" />
+                    <col class="col-notes" />
+                    <col class="col-notes" />
+                </colgroup>
                 <thead>
                     <tr class="slds-line-height_reset">
                         <th scope="col">Work Order Number</th>
@@ -35,17 +44,20 @@
                                         year="numeric"
                                         month="2-digit"
                                         day="2-digit"
+                                        time-zone="UTC"
                                     ></lightning-formatted-date-time>
                                 </template>
                                 <template lwc:else>—</template>
                             </td>
-                            <td>
+                            <td class="repair-codes-cell">
                                 <template lwc:if={row.hasRepairCodes}>
-                                    <template for:each={row.repairCodeLines} for:item="codeLine">
-                                        <span key={codeLine.key} class="repair-code-chip">
-                                            {codeLine.label}
-                                        </span>
-                                    </template>
+                                    <div class="repair-code-list">
+                                        <template for:each={row.repairCodeLines} for:item="codeLine">
+                                            <span key={codeLine.key} class="repair-code-chip">
+                                                {codeLine.label}
+                                            </span>
+                                        </template>
+                                    </div>
                                 </template>
                                 <template lwc:else>—</template>
                             </td>

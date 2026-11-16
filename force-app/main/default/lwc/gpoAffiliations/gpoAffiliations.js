@@ -1,5 +1,5 @@
 import { LightningElement, api } from 'lwc';
-import getGpoAffiliations from '@salesforce/apex/GpoAffiliationsController.getGpoAffiliations';
+//import getGpoAffiliations from '@salesforce/apex/GpoAffiliationsController.getGpoAffiliations';
 
 const COLUMNS = [
     { label: 'Contract', fieldName: 'contract' },

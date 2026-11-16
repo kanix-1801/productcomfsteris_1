@@ -427,12 +427,11 @@ private class QuoteApproveRejectControllerTest {
 
     @IsTest
     static void testSelectors_WhenInputMissing() {
-        Assert.isNull(QuoteSelector.selectForApproveRejectById(null));
         Assert.isTrue(QuoteLineItemService.getForApproveRejectByQuoteId(null).isEmpty());
         Assert.isNull(QuoteLineItemService.getForApproveRejectById(null));
         Assert.isTrue(WorkOrdersSelector.selectForApproveRejectQuoteByIds(null).isEmpty());
         Assert.isTrue(ProductsSelector.selectForApproveRejectByIds(null).isEmpty());
-        Assert.isTrue(QuoteLineItemService.getLineItemsForApproveReject(null).isEmpty());
+        Assert.isTrue(QuoteLineItemService.getForApproveRejectByQuoteId(null).isEmpty());
         QuoteLineItemService.updateLineItemsForApproveReject(null);
         Assert.isTrue(WorkOrdersService.getWorkOrdersForApproveRejectQuote(null).isEmpty());
         Assert.isTrue(ProductsService.getProductsForApproveRejectById(null).isEmpty());

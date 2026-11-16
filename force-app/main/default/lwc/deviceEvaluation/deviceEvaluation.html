@@ -448,6 +448,13 @@
                             ></c-repair-center-eval-notes>
                         </template>
 
+                        <template lwc:elseif={isPhotosTab}>
+                            <c-evaluation-photos
+                                work-order-id={workOrderId}
+                                onmodalchange={handlePartsModalChange}
+                            ></c-evaluation-photos>
+                        </template>
+
                         <template lwc:elseif={isWreTab}>
                             <template lwc:if={workOrderId}>
                                 <c-warranty-repair-evaluation-panel
@@ -462,6 +469,7 @@
                             <c-repair-center-parts-request
                                 work-order-id={workOrderId}
                                 mode="bom"
+                                onmodalchange={handlePartsModalChange}
                             ></c-repair-center-parts-request>
                         </template>
 

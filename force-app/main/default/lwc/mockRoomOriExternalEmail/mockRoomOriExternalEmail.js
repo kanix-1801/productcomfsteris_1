@@ -6,17 +6,15 @@ export default class MockRoomOriExternalEmail extends LightningElement {
     @api required = false;
 
     handleChange(event) {
-        this.value = event.detail.value;
-        this.dispatchEvent(new FlowAttributeChangeEvent('value', this.value));
-        this.dispatchEvent(new CustomEvent('emailchange', { detail: { value: this.value } }));
+        const value = event.detail.value;
+        this.dispatchEvent(new FlowAttributeChangeEvent('value', value));
+        this.dispatchEvent(new CustomEvent('emailchange', { detail: { value } }));
     }
 
+    /** Shows the message under the email field. A blank message clears it. Returns true when the field is valid. */
     @api
     setError(message) {
         const input = this.template.querySelector('lightning-input');
-        if (!input) {
-            return false;
-        }
         input.setCustomValidity(message || '');
         return input.reportValidity();
     }

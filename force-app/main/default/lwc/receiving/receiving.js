@@ -26,6 +26,7 @@ import getRepairCenterOptions from '@salesforce/apex/ReceivingController.getRepa
 import getInternalAccountOptions from '@salesforce/apex/ReceivingController.getInternalAccountOptions';
 import getVendorAccountOptions from '@salesforce/apex/ReceivingController.getVendorAccountOptions';
 import canCreateNewOrderApex from '@salesforce/apex/ReceivingController.canCreateNewOrder';
+import canResolveMissingReturnOrderApex from '@salesforce/apex/ReceivingController.canResolveMissingReturnOrder';
 import buildCreateOrderPlan from '@salesforce/apex/ReceivingController.buildCreateOrderPlan';
 import submitCreateOrder from '@salesforce/apex/ReceivingController.submitCreateOrder';
 import createWorkOrdersForCreateOrder from '@salesforce/apex/ReceivingController.createWorkOrdersForCreateOrder';
@@ -37,6 +38,7 @@ import getProductDetails from '@salesforce/apex/CreateReturnOrderController.getP
 const PAGE_SCAN = 'scan';
 const PAGE_RECEIVE = 'receive';
 const PAGE_CREATE_NEW_ORDER = 'createNewOrder';
+const PAGE_MISSING_RETURN_ORDER = 'missingReturnOrder';
 const CREATE_ORDER_STEP_ACCOUNT = '1';
 const CREATE_ORDER_STEP_ADD_ITEM = '2';
 const CREATE_ORDER_STEP_PRODUCT = '3';
@@ -75,6 +77,8 @@ const CREATE_ORDER_PROGRESS_STEPS = [
 ];
 /** sessionStorage key — Create New Order eligibility (repair-center gate). */
 const CAN_CREATE_NEW_ORDER_CACHE_KEY = 'receiving.canCreateNewOrder';
+/** sessionStorage key — Missing Return Order eligibility (repair-center gate). */
+const CAN_RESOLVE_MISSING_RO_CACHE_KEY = 'receiving.canResolveMissingReturnOrder';
 const PATH_WORK_ORDER = 'WorkOrder';
 const BROWSER_TAB_LABEL = 'Receiving';
 
@@ -111,6 +115,40 @@ function writeCanCreateNewOrderCache(canCreate) {
         // Ignore storage failures; wire result still drives the UI.
     }
 }
+
+/**
+ * GW-6057 - Read cached Missing Return Order eligibility for instant paint.
+ * @returns {boolean|undefined} Cached true/false, or undefined when unknown
+ */
+function readCanResolveMissingReturnOrderCache() {
+    try {
+        const cached = sessionStorage.getItem(CAN_RESOLVE_MISSING_RO_CACHE_KEY);
+        if (cached === 'true') {
+            return true;
+        }
+        if (cached === 'false') {
+            return false;
+        }
+    } catch (e) {
+        // sessionStorage may be unavailable
+    }
+    return undefined;
+}
+
+/**
+ * GW-6057 - Persist Missing Return Order eligibility for this browser session.
+ * @param {boolean} canResolve Whether the user can resolve a missing return order
+ */
+function writeCanResolveMissingReturnOrderCache(canResolve) {
+    try {
+        sessionStorage.setItem(
+            CAN_RESOLVE_MISSING_RO_CACHE_KEY,
+            canResolve === true ? 'true' : 'false'
+        );
+    } catch (e) {
+        // Ignore storage failures; wire result still drives the UI.
+    }
+}
 const SCAN_FIELD_LABEL = 'Return Order / Work Order Id / Number';
 const SCAN_FIELD_PLACEHOLDER = 'Scan or enter Return Order / Work Order Id / Number';
 const MOD_FORM_ACCEPT = 'image/*,.jpg,.jpeg,.png,.heic,.webp';
@@ -125,6 +163,7 @@ const REASON_CODE_REPAIR_EXCHANGE_MODEL_MISMATCH = 'Repair Exchange Model Mismat
 const REASON_CODE_QUANTITY_MISMATCH = 'Quantity Mismatch';
 const BADGE_LABEL_WORK_ORDER_CREATED = 'Work Order Created';
 const BADGE_LABEL_REDIRECT = 'Redirect';
+const BADGE_LABEL_OUTSIDE_VENDOR = 'Outside Vendor';
 // Blue, yellow, red, then purple and green. Alphabetical within each color.
 const BADGE_COLOR_ORDER = {
     info: 0,
@@ -327,6 +366,17 @@ export default class Receiving extends NavigationMixin(LightningElement) {
         }
     }
 
+    @wire(canResolveMissingReturnOrderApex)
+    wiredCanResolveMissingReturnOrder({ data, error }) {
+        if (data === true) {
+            this.canResolveMissingReturnOrder = true;
+            writeCanResolveMissingReturnOrderCache(true);
+        } else if (data === false || error) {
+            this.canResolveMissingReturnOrder = false;
+            writeCanResolveMissingReturnOrderCache(false);
+        }
+    }
+
     _recordId;
     _initializedFromRecord = false;
 
@@ -346,6 +396,8 @@ export default class Receiving extends NavigationMixin(LightningElement) {
     isResolving = false;
     /** @type {boolean|undefined} undefined = wire pending (no cache) */
     canCreateNewOrder = readCanCreateNewOrderCache();
+    /** @type {boolean|undefined} undefined = wire pending (no cache) */
+    canResolveMissingReturnOrder = readCanResolveMissingReturnOrderCache();
     createOrderCurrentStep = CREATE_ORDER_STEP_ACCOUNT;
     createOrderHeader = {};
     createOrderSelectedItemType = '';
@@ -412,8 +464,12 @@ export default class Receiving extends NavigationMixin(LightningElement) {
             classes.push('receiving-root_create-order', 'slds-p-around_medium');
             return classes.join(' ');
         }
+        if (this.showMissingReturnOrderPage) {
+            classes.push('receiving-root_missing-ro', 'slds-p-around_medium');
+            return classes.join(' ');
+        }
         classes.push('receiving-root_scan', 'slds-p-around_medium');
-        if (this.showCreateNewOrderButton) {
+        if (this.showCreateNewOrderButton || this.showResolveMissingReturnOrderButton) {
             classes.push('receiving-root_scan-with-create');
         }
         return classes.join(' ');
@@ -427,6 +483,10 @@ export default class Receiving extends NavigationMixin(LightningElement) {
         return !this.isLoading && this.currentPage === PAGE_CREATE_NEW_ORDER;
     }
 
+    get showMissingReturnOrderPage() {
+        return !this.isLoading && this.currentPage === PAGE_MISSING_RETURN_ORDER;
+    }
+
     /**
      * Show Create New Order when eligible, or while eligibility is still loading
      * (disabled). Hide only after Apex/cache confirms the user is ineligible.
@@ -437,6 +497,17 @@ export default class Receiving extends NavigationMixin(LightningElement) {
 
     get isCreateNewOrderButtonDisabled() {
         return this.isScanBusy || this.canCreateNewOrder !== true;
+    }
+
+    /**
+     * GW-6057 - Show Resolve Missing Return Order only when eligibility is confirmed.
+     */
+    get showResolveMissingReturnOrderButton() {
+        return this.canResolveMissingReturnOrder === true;
+    }
+
+    get isResolveMissingReturnOrderButtonDisabled() {
+        return this.isScanBusy || this.canResolveMissingReturnOrder !== true;
     }
 
     get showCreateOrderAccountStep() {
@@ -864,6 +935,33 @@ export default class Receiving extends NavigationMixin(LightningElement) {
         } finally {
             this.isResolving = false;
         }
+    }
+
+    /**
+     * GW-6057 - Open Resolve Missing Return Order form from Receiving scan.
+     */
+    handleResolveMissingReturnOrder() {
+        if (this.canResolveMissingReturnOrder !== true || this.isScanBusy) {
+            return;
+        }
+        this.scanErrorMessage = undefined;
+        this.currentPage = PAGE_MISSING_RETURN_ORDER;
+    }
+
+    /**
+     * GW-6057 - Close Missing Return Order form and return to scan.
+     */
+    handleMissingReturnOrderClose() {
+        this.currentPage = PAGE_SCAN;
+    }
+
+    /**
+     * GW-6057 - After Case submit, return to Receiving scan.
+     */
+    handleMissingReturnOrderSubmitted() {
+        this.currentPage = PAGE_SCAN;
+        this.scanInput = '';
+        this.scanErrorMessage = undefined;
     }
 
     /**
@@ -2860,7 +2958,7 @@ export default class Receiving extends NavigationMixin(LightningElement) {
                         ? item.quantityReturned
                         : null,
                 accessoryQuantity: null,
-                customerCareReasonCodes: this.reasonCodesFromBadges(item.badges),
+                customerCareReasonCodes: this.initialReasonCodesForItem(item),
                 customerCareNotes: '',
                 customerCareDraftReasonCodes: [],
                 customerCareDraftNotes: '',
@@ -2895,6 +2993,27 @@ export default class Receiving extends NavigationMixin(LightningElement) {
             };
         });
         return stateByKey;
+    }
+
+    /**
+     * GW-4542 - Seed Customer Care reasons from badges and systematic Repair Exchange
+     * model mismatch (Outbound Model Sent vs Inbound MD #).
+     * @param {object} item Shell item from Apex
+     * @returns {string[]} Reason codes
+     */
+    initialReasonCodesForItem(item) {
+        let codes = this.reasonCodesFromBadges(item?.badges);
+        if (
+            item?.isRepairExchange === true &&
+            item?.modelsMatchSystematically === false
+        ) {
+            codes = this.withReasonCode(
+                codes,
+                REASON_CODE_REPAIR_EXCHANGE_MODEL_MISMATCH,
+                true
+            );
+        }
+        return codes;
     }
 
     getItemState(itemKey) {
@@ -3016,10 +3135,14 @@ export default class Receiving extends NavigationMixin(LightningElement) {
                 REASON_CODE_MODEL_MISMATCH,
                 value === 'No' && !repairExchange
             );
+            // GW-4542 - Flag mismatch when MD = No OR Outbound/Inbound models differ.
+            const repairExchangeMismatch =
+                repairExchange &&
+                (value === 'No' || item?.modelsMatchSystematically === false);
             return this.withReasonCode(
                 withoutModel,
                 REASON_CODE_REPAIR_EXCHANGE_MODEL_MISMATCH,
-                value === 'No' && repairExchange
+                repairExchangeMismatch
             );
         }
         return [...(reasonCodes || [])];
@@ -3250,6 +3373,9 @@ export default class Receiving extends NavigationMixin(LightningElement) {
         const isInstrumentItem = item.isInstrumentItem === true;
         const showSerialVerify = item.showSerialVerify === true;
         const showModelVerify = item.showModelVerify === true;
+        const showModelSent = item.showModelSent === true;
+        const modelsMatchSystematically = item.modelsMatchSystematically === true;
+        const showModelMatchIndicator = showModelSent === true;
         const showQuantityVerify = item.showQuantityVerify === true;
         const showDisinfectedVerify = item.showDisinfectedVerify !== false && this.isReturnOrderPath;
         const showOutsideVendor =
@@ -3297,9 +3423,12 @@ export default class Receiving extends NavigationMixin(LightningElement) {
             const column = index % 2 === 0 ? leftActionOptions : rightActionOptions;
             const isTravelSelected =
                 action.key === ACTION_KEY_TRAVEL_TAG && state.travelTagSelected === true;
+            const isOutsideVendorSelected =
+                action.key === ACTION_KEY_OUTSIDE_VENDOR && !!state.vendorAccountId;
+            const isActionSelected = isTravelSelected || isOutsideVendorSelected;
             column.push({
                 ...action,
-                cardClass: isTravelSelected ? 'action-card action-card_selected' : 'action-card'
+                cardClass: isActionSelected ? 'action-card action-card_selected' : 'action-card'
             });
         });
         const accessoriesDraft = this.toDisplayAccessories(state.accessoriesDraft || []);
@@ -3359,6 +3488,18 @@ export default class Receiving extends NavigationMixin(LightningElement) {
             isInstrumentItem,
             showSerialVerify,
             showModelVerify,
+            showModelSent,
+            showModelMatchIndicator,
+            modelSentDisplay: item.modelSent || '',
+            modelMatchIconName: modelsMatchSystematically
+                ? 'utility:success'
+                : 'utility:error',
+            modelMatchIconClass: modelsMatchSystematically
+                ? 'model-match-icon_match'
+                : 'model-match-icon_mismatch',
+            modelMatchIndicatorLabel: modelsMatchSystematically
+                ? 'Models match'
+                : 'Models do not match',
             showQuantityVerify,
             showDisinfectedVerify,
             showOutsideVendor,
@@ -3493,6 +3634,18 @@ export default class Receiving extends NavigationMixin(LightningElement) {
                 iconName: 'utility:truck'
             });
         }
+        // GW-5881 / GW-6381 - Same purple truck style as Redirect when a vendor is selected.
+        if (
+            state.vendorAccountId &&
+            !badges.some((b) => b.label === BADGE_LABEL_OUTSIDE_VENDOR)
+        ) {
+            pushBadge({
+                key: `${item.itemKey}-OutsideVendor`,
+                label: BADGE_LABEL_OUTSIDE_VENDOR,
+                variant: 'redirect',
+                iconName: 'utility:truck'
+            });
+        }
         if (
             state.hasWorkOrderCreated === true &&
             !badges.some((b) => b.label === BADGE_LABEL_WORK_ORDER_CREATED)
@@ -3509,8 +3662,9 @@ export default class Receiving extends NavigationMixin(LightningElement) {
     }
 
     /**
-     * GW-5492 - Informational (blue), Customer Care (yellow), warning (red),
-     * then Redirect (purple) and Work Order Created (green). Alphabetical within a color.
+     * GW-5492 / GW-6381 - Informational (blue), Customer Care (yellow), warning (red),
+     * then Redirect / Outside Vendor (purple) and Work Order Created (green).
+     * Alphabetical within a color.
      * @param {object[]} badges Display badges
      * @return {object[]} Badges in color, then label, order
      */

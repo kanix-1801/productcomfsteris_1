@@ -187,8 +187,11 @@ public with sharing class AssetsSelector extends SoqlQueryBuilder{
         'Product2.Manufacturer__c'
     };
 
+    private static final String STERIS_ASSET_TYPE = 'STERIS Asset';
+
     /**
-     * @description GW-1509 - Assets for an Account used by Create Return Order line selection.
+     * @description GW-1509 / GW-6614 - Assets for an Account used by Create Return Order line selection.
+     *              Excludes Asset Type = STERIS Asset.
      * @param accountId Account Id
      * @return Matching Asset rows
      */
@@ -196,9 +199,12 @@ public with sharing class AssetsSelector extends SoqlQueryBuilder{
         if (accountId == null) {
             return new List<Asset>();
         }
-        return (List<Asset>) SoqlQueryBuilder.fromObject('Asset')
+        return (List<Asset>) new AssetsSelector()
             .selectFields(CREATE_RETURN_ORDER_LINE_FIELDS)
             .whereEquals('AccountId', accountId)
+            .whereField('AssetType__c', '!=', STERIS_ASSET_TYPE)
+            .whereField('AssetType__c', '=', null)
+            .withFilterLogic('1 AND (2 OR 3)')
             .orderBy('SerialNumber', false, true)
             .orderBy('Name')
             .execute();
@@ -219,8 +225,25 @@ public with sharing class AssetsSelector extends SoqlQueryBuilder{
             .execute();
     }
 
+    private static final List<String> CREATE_RETURN_ORDER_SERIAL_SEARCH_FIELDS = new List<String>{
+        'Id',
+        'SerialNumber',
+        'ModelCalculated__c',
+        'Department__c',
+        'Product2Id',
+        'Product2.ProductLine__c',
+        'Product2.Name',
+        'Product2.ProductCode',
+        'Product2.SubProductLine__c',
+        'Product2.DeviceType__c',
+        'Product2.Manufacturer__c',
+        'AccountId',
+        'Account.Name'
+    };
+
     /**
-     * @description GW-1509 - Assets matching a serial number for Create Return Order scan.
+     * @description GW-1509 / GW-6614 - Assets matching a serial number for Create Return Order scan.
+     *              Excludes Asset Type = STERIS Asset.
      * @param serialNumber Exact SerialNumber
      * @return Matching Asset rows (LIMIT 50)
      */
@@ -228,24 +251,61 @@ public with sharing class AssetsSelector extends SoqlQueryBuilder{
         if (String.isBlank(serialNumber)) {
             return new List<Asset>();
         }
-        return (List<Asset>) SoqlQueryBuilder.fromObject('Asset')
-            .selectFields(
-                new List<String>{
-                    'Id',
-                    'SerialNumber',
-                    'ModelCalculated__c',
-                    'Department__c',
-                    'Product2Id',
-                    'Product2.ProductLine__c',
-                    'Product2.Name',
-                    'AccountId',
-                    'Account.Name'
-                }
-            )
+        return (List<Asset>) new AssetsSelector()
+            .selectFields(CREATE_RETURN_ORDER_SERIAL_SEARCH_FIELDS)
             .whereEquals('SerialNumber', serialNumber)
+            .whereField('AssetType__c', '!=', STERIS_ASSET_TYPE)
+            .whereField('AssetType__c', '=', null)
+            .withFilterLogic('1 AND (2 OR 3)')
             .orderBy('Account.Name', false, true)
             .orderBy('SerialNumber', false, true)
             .limitTo(50)
+            .execute();
+    }
+
+    /**
+     * @description GW-6614 - Serial Number lookup for Create Return Order lines.
+     *              Matches SerialNumber LIKE the search term. Excludes STERIS Asset.
+     * @param searchLikeTerm LIKE term including wildcards
+     * @param accountId Optional Account Id filter
+     * @param queryLimit Max rows
+     * @return Matching Asset rows
+     */
+    public static List<Asset> selectForCreateReturnOrderBySerialSearch(
+        String searchLikeTerm,
+        Id accountId,
+        Integer queryLimit
+    ) {
+        // Empty search: browse account assets only (org-wide browse is not selective).
+        if (String.isBlank(searchLikeTerm) && accountId == null) {
+            return new List<Asset>();
+        }
+
+        SoqlQueryBuilder builder = new AssetsSelector()
+            .selectFields(CREATE_RETURN_ORDER_SERIAL_SEARCH_FIELDS)
+            .whereField('AssetType__c', '!=', STERIS_ASSET_TYPE)
+            .whereField('AssetType__c', '=', null);
+
+        // (not STERIS Asset OR Asset Type null)
+        List<String> logicParts = new List<String>{ '(1 OR 2)' };
+        Integer filterIndex = 2;
+        if (String.isNotBlank(searchLikeTerm)) {
+            filterIndex++;
+            builder.whereField('SerialNumber', 'LIKE', searchLikeTerm);
+            logicParts.add(String.valueOf(filterIndex));
+        }
+        if (accountId != null) {
+            filterIndex++;
+            builder.whereEquals('AccountId', accountId);
+            logicParts.add(String.valueOf(filterIndex));
+        }
+        builder.withFilterLogic(String.join(logicParts, ' AND '));
+
+        Integer limitRows = (queryLimit == null || queryLimit <= 0) ? 50 : queryLimit;
+        return (List<Asset>) builder
+            .orderBy('Account.Name', false, true)
+            .orderBy('SerialNumber', false, true)
+            .limitTo(limitRows)
             .execute();
     }
 

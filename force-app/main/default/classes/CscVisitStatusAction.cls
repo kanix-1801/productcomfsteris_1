@@ -129,7 +129,9 @@ public with sharing class CscVisitStatusAction {
 
     /**
      * @description #GC-3579 Replaces an existing Confirmed Date and sets Status to Approved.
-     *              The approval is already complete, so this save does not approve, reject, or submit one.
+     *              A Postponed visit has no Confirmed Date. Change Date writes the selected
+     *              date and returns that visit to Approved. The approval is already complete,
+     *              so this save does not approve, reject, or submit one.
      * @param recordId Id CSC Visit Request to reschedule
      * @param confirmedDate Date the administrator selected on the calendar
      * @return void
@@ -143,14 +145,16 @@ public with sharing class CscVisitStatusAction {
             throw handledException(System.Label.CSC_Select_Available_Date);
         }
         CSC_Visit_Request__c visit = loadVisit(recordId);
-        if (visit.Confirmed_Date__c == null) {
+        Boolean isPostponed = visit.Status__c == CscVisitRequestSelector.STATUS_POSTPONED;
+        if (visit.Confirmed_Date__c == null && !isPostponed) {
             throw handledException(System.Label.CSC_Change_Date_Use_Confirm);
         }
         assertStatus(
             visit,
             new Set<String>{
                 CscVisitRequestSelector.STATUS_APPROVED,
-                CscVisitRequestSelector.STATUS_CONFIRMED
+                CscVisitRequestSelector.STATUS_CONFIRMED,
+                CscVisitRequestSelector.STATUS_POSTPONED
             },
             System.Label.CSC_Change_Date_Needs_Date
         );

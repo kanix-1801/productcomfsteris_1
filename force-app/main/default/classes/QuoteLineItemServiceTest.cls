@@ -218,8 +218,6 @@
             QuoteLineItemService.getForPricingFrameworkByQuoteIds(new Set<Id>{ lineItem.QuoteId });
         Map<Id, QuoteLineItem> headlessRows =
             QuoteLineItemService.getForPricingFrameworkHeadlessByIds(new Set<Id>{ lineItem.Id });
-        List<QuoteLineItem> approveViaAlias =
-            QuoteLineItemService.getLineItemsForApproveReject(lineItem.QuoteId);
         List<QuoteLineItem> documentRows =
             QuoteLineItemService.selectForRepairCenterDocumentGeneration(lineItem.QuoteId);
         List<QuoteLineItem> preApprovalRows =
@@ -242,7 +240,6 @@
         Assert.isFalse(pricingRows.isEmpty());
         Assert.areEqual(lineItem.Id, pricingRows[0].Id);
         Assert.isTrue(headlessRows.containsKey(lineItem.Id));
-        Assert.isFalse(approveViaAlias.isEmpty());
         Assert.isFalse(documentRows.isEmpty());
         Assert.isFalse(preApprovalRows.isEmpty());
         Assert.areEqual('Coverage comment', saved.QuoteComments__c);

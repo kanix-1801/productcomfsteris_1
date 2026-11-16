@@ -139,12 +139,41 @@ public with sharing class WorkOrderRepairPricingService {
         Decimal originalTotal,
         Boolean blockWhenExceeded
     ) {
+        return priceAfterLineChanges(
+            workOrder,
+            requoteGate,
+            originalTotal,
+            blockWhenExceeded,
+            null
+        );
+    }
+
+    /**
+     * @description Runs Execute Pricing and applies the Repair requote gate.
+     *              A non-null priceableLineIds list prices only those new Service Code,
+     *              Category Code, and Special Pricing lines. An empty list skips the callout.
+     * @param workOrder Work Order after line DML
+     * @param requoteGate True when Repair requote rules apply
+     * @param originalTotal Snapshot taken before line DML
+     * @param blockWhenExceeded True on Next. False shows a warning and keeps the save.
+     * @param priceableLineIds New priceable line Ids, or null to price every line on the order
+     * @return Original and new totals
+     */
+    public static PricingTotals priceAfterLineChanges(
+        WorkOrder workOrder,
+        Boolean requoteGate,
+        Decimal originalTotal,
+        Boolean blockWhenExceeded,
+        List<Id> priceableLineIds
+    ) {
         lastRequoteWarning = null;
-        executeRepairCenterPricing(workOrder);
-        PricingTotals totals = new PricingTotals();
-        totals.workOrderId = workOrder == null ? null : workOrder.Id;
-        totals.originalNetTotal = originalTotal == null ? 0 : originalTotal;
-        totals.newNetTotal = sumRepairCodeNetTotal(workOrder);
+        if (priceableLineIds != null && normalizeLineIds(priceableLineIds).isEmpty()) {
+            PricingTotals skipped = buildPricingTotals(workOrder, originalTotal);
+            lastTotals = skipped;
+            return skipped;
+        }
+        executeRepairCenterPricing(workOrder, priceableLineIds);
+        PricingTotals totals = buildPricingTotals(workOrder, originalTotal);
         if (requoteGate == true && repairCostExceedsApproval(workOrder, totals.newNetTotal)) {
             if (blockWhenExceeded == true) {
                 throw new WorkOrdersService.WorkOrdersServiceException(REQUOTE_BLOCKED_MESSAGE);
@@ -228,8 +257,28 @@ public with sharing class WorkOrderRepairPricingService {
      * @param workOrder Work Order whose WOLIs were just saved
      */
     public static void executeRepairCenterPricing(WorkOrder workOrder) {
+        executeRepairCenterPricing(workOrder, null);
+    }
+
+    /**
+     * @description Invokes Execute Pricing for the whole Work Order, or only the given lines.
+     *              Null prices every line. An empty list does not call the flow.
+     * @param workOrder Work Order whose WOLIs were just saved
+     * @param priceableLineIds New Service Code, Category Code, or Special Pricing line Ids
+     */
+    public static void executeRepairCenterPricing(WorkOrder workOrder, List<Id> priceableLineIds) {
         if (workOrder == null || workOrder.Id == null) {
             return;
+        }
+        List<Map<String, String>> pricingLines = null;
+        if (priceableLineIds != null) {
+            pricingLines = new List<Map<String, String>>();
+            for (Id lineId : normalizeLineIds(priceableLineIds)) {
+                pricingLines.add(new Map<String, String>{ 'lineId' => String.valueOf(lineId) });
+            }
+            if (pricingLines.isEmpty()) {
+                return;
+            }
         }
 
         List<WorkOrder> billingRows = [
@@ -284,6 +333,9 @@ public with sharing class WorkOrderRepairPricingService {
             'varPricingProcedureId' => PRICING_PROCEDURE_NAME,
             'varWorkstream' => WORKSTREAM_REPAIR_CENTER
         };
+        if (pricingLines != null) {
+            inputs.put('varPricingLineJson', JSON.serialize(pricingLines));
+        }
         if (Test.isRunningTest() && executePricingInTests != true) {
             return;
         }
@@ -295,6 +347,28 @@ public with sharing class WorkOrderRepairPricingService {
             String detail = errorMessage == null ? 'Oracle pricing failed.' : String.valueOf(errorMessage);
             throw new WorkOrdersService.WorkOrdersServiceException(detail);
         }
+    }
+
+    private static PricingTotals buildPricingTotals(WorkOrder workOrder, Decimal originalTotal) {
+        PricingTotals totals = new PricingTotals();
+        totals.workOrderId = workOrder == null ? null : workOrder.Id;
+        totals.originalNetTotal = originalTotal == null ? 0 : originalTotal;
+        totals.newNetTotal = sumRepairCodeNetTotal(workOrder);
+        return totals;
+    }
+
+    private static List<Id> normalizeLineIds(List<Id> lineIds) {
+        List<Id> normalized = new List<Id>();
+        if (lineIds == null) {
+            return normalized;
+        }
+        Set<Id> seen = new Set<Id>();
+        for (Id lineId : lineIds) {
+            if (lineId != null && seen.add(lineId)) {
+                normalized.add(lineId);
+            }
+        }
+        return normalized;
     }
 
     private static String resolveProductLine(WorkOrder workOrder) {

@@ -2,13 +2,14 @@ import { LightningElement, api, track, wire } from 'lwc';
 import { CurrentPageReference } from 'lightning/navigation';
 import { getRecordNotifyChange } from 'lightning/uiRecordApi';
 import { RefreshEvent } from 'lightning/refresh';
-import { openPendingNavigationTab, clearPendingNavigationTab } from 'c/generateQuoteNavigation';
+import { clearPendingNavigationTab } from 'c/generateQuoteNavigation';
+import hasDealerQuoteAccess from '@salesforce/apex/DealerPortalAccessController.hasDealerQuoteAccess';
 
 const RECORD_ID_PATTERN = /^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$/;
 
 /**
- * @description Dealer Portal (LWR) — brand action button that opens Generate Quote in dealer mode,
- *              equivalent to the Opportunity.Generate_Quote quick action via generateQuoteAction.
+ * @description Dealer Portal (LWR) launcher. Shows Generate Quote only when DealerManagerPS is assigned.
+ *              Dealer launch opens Sales Connection in a new tab once the quote URL is ready.
  */
 export default class DealerOpportunityGenerateQuoteButton extends LightningElement {
     @api recordId;
@@ -16,6 +17,22 @@ export default class DealerOpportunityGenerateQuoteButton extends LightningEleme
 
     @track showQuotePanel = false;
     pageRecordId;
+    dealerAccessLoaded = false;
+    dealerQuoteAccessGranted = false;
+
+    @wire(hasDealerQuoteAccess)
+    wiredDealerQuoteAccess({ data, error }) {
+        if (error) {
+            this.dealerQuoteAccessGranted = false;
+            this.dealerAccessLoaded = true;
+            return;
+        }
+
+        if (data !== undefined) {
+            this.dealerQuoteAccessGranted = data === true;
+            this.dealerAccessLoaded = true;
+        }
+    }
 
     @wire(CurrentPageReference)
     wiredPageReference(pageReference) {
@@ -30,18 +47,13 @@ export default class DealerOpportunityGenerateQuoteButton extends LightningEleme
     }
 
     get showLaunchButton() {
-        return Boolean(this.effectiveRecordId) && !this.showQuotePanel;
-    }
-
-    get showMissingRecordMessage() {
-        return !this.effectiveRecordId && !this.showQuotePanel;
+        return this.dealerAccessLoaded && this.dealerQuoteAccessGranted && !this.showQuotePanel;
     }
 
     handleOpenGenerateQuote() {
         if (!this.effectiveRecordId) {
             return;
         }
-        openPendingNavigationTab();
         this.showQuotePanel = true;
     }
 

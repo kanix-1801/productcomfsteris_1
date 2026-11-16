@@ -114,6 +114,8 @@ public with sharing class WorkOrdersService {
         public Decimal newNetTotalPrice;
         /** GW-3377 - Warning when a Repair save exceeds the approved cost. */
         public String requoteWarning;
+        /** GW-3377 - New Service Code, Category Code, and Special Pricing lines from this save. */
+        public List<Id> newPriceableLineItemIds = new List<Id>();
     }
 
     /**
@@ -924,6 +926,7 @@ public with sharing class WorkOrdersService {
         Decimal originalTotal = requoteGate
             ? WorkOrderRepairPricingService.sumRepairCodeNetTotal(workOrder)
             : null;
+        WorkOrderLineItemsService.beginNewPriceableLineCapture();
         WorkOrderLineItemsService.reconcileRepairCodeWolisForDeviceEvaluation(
             workOrder,
             selectedIds,
@@ -958,7 +961,13 @@ public with sharing class WorkOrdersService {
         }
 
         workOrder = requireWorkOrderById(workOrderId);
-        return buildDeviceEvaluationContext(workOrder, photosRequired, catalog);
+        DeviceEvaluationContext context = buildDeviceEvaluationContext(
+            workOrder,
+            photosRequired,
+            catalog
+        );
+        context.newPriceableLineItemIds = WorkOrderLineItemsService.getNewPriceableLineIds();
+        return context;
     }
 
     /**
@@ -972,6 +981,36 @@ public with sharing class WorkOrdersService {
         Boolean applyCompletion,
         List<Id> restoreProductIds,
         String subStatus
+    ) {
+        return finalizeDeviceEvaluationAfterPricing(
+            workOrderId,
+            originalTotal,
+            applyCompletion,
+            restoreProductIds,
+            subStatus,
+            null
+        );
+    }
+
+    /**
+     * @description GW-3377 - Runs Execute Pricing after WOLI DML has committed.
+     *              When newPriceableLineItemIds is set and the Repair requote gate applies,
+     *              only those Service Code, Category Code, and Special Pricing lines are priced.
+     * @param workOrderId Device Evaluation Work Order Id
+     * @param originalTotal Repair Code net total from before the latest line save
+     * @param applyCompletion True to apply Complete Status / Sub Status after pricing
+     * @param restoreProductIds Repair Code Product Ids to restore when requote is blocked
+     * @param subStatus Sub Status from the LWC (Outside Vendor complete is blocked)
+     * @param newPriceableLineItemIds New priceable lines from the preceding save. Null prices every line.
+     * @return Device Evaluation context after pricing
+     */
+    public static DeviceEvaluationContext finalizeDeviceEvaluationAfterPricing(
+        Id workOrderId,
+        Decimal originalTotal,
+        Boolean applyCompletion,
+        List<Id> restoreProductIds,
+        String subStatus,
+        List<Id> newPriceableLineItemIds
     ) {
         if (workOrderId == null) {
             throw new WorkOrdersServiceException('Work Order is required.');
@@ -1012,7 +1051,8 @@ public with sharing class WorkOrdersService {
                         workOrder,
                         requoteGate,
                         originalTotal,
-                        applyCompletion == true
+                        applyCompletion == true,
+                        requoteGate == true ? newPriceableLineItemIds : null
                     );
             } catch (Exception e) {
                 restoreDeviceEvaluationRepairCodes(workOrder, catalog, restoreProductIds);
@@ -1054,6 +1094,29 @@ public with sharing class WorkOrdersService {
         Decimal originalTotal,
         Boolean applyCompletion
     ) {
+        finalizeInstrumentEvaluationAfterPricing(
+            workOrderId,
+            originalTotal,
+            applyCompletion,
+            null
+        );
+    }
+
+    /**
+     * @description GW-3377 - Runs Execute Pricing after Instrument Evaluation line DML.
+     *              When newPriceableLineItemIds is set and the Repair requote gate applies,
+     *              only those Service Code, Category Code, and Special Pricing lines are priced.
+     * @param workOrderId Instrument Evaluation Work Order Id
+     * @param originalTotal Repair Code net total from before the latest line save
+     * @param applyCompletion True to apply Complete Status / Sub Status after pricing
+     * @param newPriceableLineItemIds New priceable lines from the preceding save. Null prices every line.
+     */
+    public static void finalizeInstrumentEvaluationAfterPricing(
+        Id workOrderId,
+        Decimal originalTotal,
+        Boolean applyCompletion,
+        List<Id> newPriceableLineItemIds
+    ) {
         if (workOrderId == null) {
             throw new WorkOrdersServiceException('Work Order is required.');
         }
@@ -1071,7 +1134,8 @@ public with sharing class WorkOrdersService {
                     workOrder,
                     requoteGate,
                     originalTotal,
-                    applyCompletion == true
+                    applyCompletion == true,
+                    requoteGate == true ? newPriceableLineItemIds : null
                 );
         }
         if (applyCompletion == true) {
@@ -2801,6 +2865,7 @@ public with sharing class WorkOrdersService {
         Logger.setScenario('Instrument Evaluation');
         try {
             throwIfSimulated();
+            WorkOrderLineItemsService.beginNewPriceableLineCapture();
             WorkOrder workOrder = requireInstrumentEvaluationWorkOrder(workOrderId);
             ensurePricebookForEvaluationLineItems(workOrder);
             Boolean requoteGate = WorkOrderRepairPricingService.requiresRequoteGate(workOrder);
@@ -3027,6 +3092,7 @@ public with sharing class WorkOrdersService {
         Logger.setScenario('Instrument Evaluation');
         try {
             throwIfSimulated();
+            WorkOrderLineItemsService.beginNewPriceableLineCapture();
             WorkOrder workOrder = requireInstrumentEvaluationWorkOrder(workOrderId);
             List<InstrumentEvaluationDraftItem> normalizedDraftItems = draftItems == null
                 ? new List<InstrumentEvaluationDraftItem>()
@@ -3101,6 +3167,7 @@ public with sharing class WorkOrdersService {
         Logger.setScenario('Instrument Evaluation');
         try {
             throwIfSimulated();
+            WorkOrderLineItemsService.beginNewPriceableLineCapture();
             WorkOrder workOrder = requireInstrumentEvaluationWorkOrder(workOrderId);
             Boolean hasNewDrafts = draftItems != null && !draftItems.isEmpty();
             if (!hasNewDrafts) {

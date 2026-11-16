@@ -1,11 +1,27 @@
 <template>
-    <div class="page-shell">
+    <div class={pageShellClass}>
         <template lwc:if={isMenu}>
             <section class="menu-panel">
                 <h1 class="slds-text-heading_large">Repair Coordinator Actions</h1>
                 <p class="subtitle">Select which action you’d like to perform.</p>
 
                 <div class="action-grid">
+                    <button class="action-tile" type="button" onclick={openViewWorkOrderSummary}>
+                        <span class="action-icon">
+                            <lightning-icon
+                                class="action-icon__glyph"
+                                icon-name="custom:custom62"
+                                size="medium"
+                                alternative-text="View Work Order Summary"
+                            ></lightning-icon>
+                        </span>
+                        <span class="action-copy">
+                            <span class="action-title">View Work Order Summary</span>
+                            <span class="action-description">
+                                View the current status of Device and Instrument Work Orders.
+                            </span>
+                        </span>
+                    </button>
                     <button class="action-tile" type="button" onclick={openAssignWorkOrder}>
                         <span class="action-icon">
                             <lightning-icon
@@ -22,11 +38,34 @@
                             </span>
                         </span>
                     </button>
+                    <button class="action-tile" type="button" onclick={openOverrideSignatures}>
+                        <span class="action-icon">
+                            <lightning-icon
+                                class="action-icon__glyph"
+                                icon-name="utility:signature"
+                                size="medium"
+                                alternative-text="Override Repair Signatures"
+                            ></lightning-icon>
+                        </span>
+                        <span class="action-copy">
+                            <span class="action-title">Override Repair Signatures</span>
+                            <span class="action-description">
+                                Adjust technician sign-off on completed repair activities.
+                            </span>
+                        </span>
+                    </button>
                 </div>
             </section>
         </template>
 
-        <template lwc:else>
+        <template lwc:elseif={isSummary}>
+            <c-view-work-order-summary
+                show-return-to-menu
+                onreturntomenu={returnToMenu}
+            ></c-view-work-order-summary>
+        </template>
+
+        <template lwc:elseif={isAssign}>
             <section class="scan-panel">
                 <div class="scan-header">
                     <div>
@@ -132,6 +171,183 @@
                 </template>
             </section>
         </template>
+
+        <template lwc:elseif={isOverride}>
+            <section class="scan-panel">
+                <div class="scan-header">
+                    <div>
+                        <h1 class="slds-text-heading_large">Override Repair Signatures</h1>
+                        <p class="subtitle">
+                            Adjust technician sign-off on completed repair activities.
+                        </p>
+                    </div>
+                    <lightning-button
+                        label="Return to Actions Menu"
+                        onclick={returnToMenu}
+                        disabled={isBusy}
+                    ></lightning-button>
+                </div>
+
+                <div class="scan-field slds-form-element">
+                    <label class="slds-form-element__label" for="signature-barcode-input">
+                        Scan Barcode
+                    </label>
+                    <div class="slds-form-element__control">
+                        <input
+                            id="signature-barcode-input"
+                            data-id="barcode-input"
+                            class="slds-input"
+                            type="text"
+                            autocomplete="off"
+                            value={scanValue}
+                            disabled={isBusy}
+                            oninput={handleScanInput}
+                            onkeydown={handleScanKeyDown}
+                        />
+                    </div>
+                </div>
+
+                <template lwc:if={errorMessage}>
+                    <div class="message message_error" role="alert">{errorMessage}</div>
+                </template>
+
+                <template lwc:if={isBusy}>
+                    <div class="spinner-wrap">
+                        <lightning-spinner
+                            size="small"
+                            alternative-text="Processing barcode"
+                        ></lightning-spinner>
+                    </div>
+                </template>
+
+                <template lwc:if={hasSignatureWorkOrder}>
+                    <section class="work-performed" aria-label="Work Performed">
+                        <h2 class="slds-text-heading_small">Work Performed</h2>
+                        <p class="work-performed__wo">
+                            Work Order {signatureWorkspace.workOrderNumber}
+                        </p>
+
+                        <template lwc:if={isDeviceTable}>
+                            <table class="summary-table">
+                                <colgroup>
+                                    <col class="summary-table__col-category" />
+                                    <col class="summary-table__col-item-number" />
+                                    <col class="summary-table__col-description" />
+                                    <col class="summary-table__col-signature" />
+                                </colgroup>
+                                <thead>
+                                    <tr>
+                                        <th class="summary-table__col-category">Category</th>
+                                        <th class="summary-table__col-item-number">Item Number</th>
+                                        <th class="summary-table__col-description">Description</th>
+                                        <th class="summary-table__col-signature">Apply Signature</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={workPerformedRows} for:item="row">
+                                        <tr key={row.workOrderLineItemId}>
+                                            <td class="summary-table__col-category">{row.category}</td>
+                                            <td class="summary-table__col-item-number">{row.itemNumber}</td>
+                                            <td class="summary-table__col-description">{row.description}</td>
+                                            <td class="summary-table__col-signature">
+                                                <div class="signature-stack">
+                                                    <template for:each={row.signatures} for:item="signature">
+                                                        <div key={signature.id} class="signature-line">
+                                                            <span>{signature.userName}</span>
+                                                            <lightning-button-icon
+                                                                icon-name="utility:delete"
+                                                                alternative-text="Remove signature"
+                                                                title="Remove signature"
+                                                                variant="bare"
+                                                                data-signature-id={signature.id}
+                                                                onclick={handleRemoveSignature}
+                                                                disabled={isBusy}
+                                                            ></lightning-button-icon>
+                                                        </div>
+                                                    </template>
+                                                    <lightning-button
+                                                        label="Add Signature"
+                                                        variant="neutral"
+                                                        data-line-id={row.workOrderLineItemId}
+                                                        onclick={openAddSignature}
+                                                        disabled={isBusy}
+                                                    ></lightning-button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </template>
+
+                        <template lwc:if={isInstrumentTable}>
+                            <table class="summary-table">
+                                <colgroup>
+                                    <col class="summary-table__col-item-number" />
+                                    <col class="summary-table__col-product-name" />
+                                    <col class="summary-table__col-qty" />
+                                    <col class="summary-table__col-repair-desc" />
+                                    <col class="summary-table__col-status" />
+                                    <col class="summary-table__col-signature" />
+                                </colgroup>
+                                <thead>
+                                    <tr>
+                                        <th class="summary-table__col-item-number">Item Number</th>
+                                        <th class="summary-table__col-product-name">Product Name</th>
+                                        <th class="summary-table__col-qty">Qty</th>
+                                        <th class="summary-table__col-repair-desc">Repair Description</th>
+                                        <th class="summary-table__col-status">Status</th>
+                                        <th class="summary-table__col-signature">Apply Signature</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={workPerformedRows} for:item="row">
+                                        <tr key={row.workOrderLineItemId}>
+                                            <td class="summary-table__col-item-number">{row.itemNumber}</td>
+                                            <td class="summary-table__col-product-name">{row.productName}</td>
+                                            <td class="summary-table__col-qty">{row.quantity}</td>
+                                            <td class="summary-table__col-repair-desc">{row.repairDescription}</td>
+                                            <td class="summary-table__col-status">{row.status}</td>
+                                            <td class="summary-table__col-signature">
+                                                <div class="signature-stack">
+                                                    <template for:each={row.signatures} for:item="signature">
+                                                        <div key={signature.id} class="signature-line">
+                                                            <span>{signature.userName}</span>
+                                                            <lightning-button-icon
+                                                                icon-name="utility:delete"
+                                                                alternative-text="Remove signature"
+                                                                title="Remove signature"
+                                                                variant="bare"
+                                                                data-signature-id={signature.id}
+                                                                onclick={handleRemoveSignature}
+                                                                disabled={isBusy}
+                                                            ></lightning-button-icon>
+                                                        </div>
+                                                    </template>
+                                                    <lightning-button
+                                                        label="Add Signature"
+                                                        variant="neutral"
+                                                        data-line-id={row.workOrderLineItemId}
+                                                        onclick={openAddSignature}
+                                                        disabled={isBusy}
+                                                    ></lightning-button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </template>
+
+                        <template lwc:if={hasNoRepairCodes}>
+                            <p class="work-performed__empty">
+                                No repair codes are on this Work Order.
+                            </p>
+                        </template>
+                    </section>
+                </template>
+            </section>
+        </template>
     </div>
 
     <template lwc:if={showCandidateModal}>
@@ -180,6 +396,78 @@
                         label="Assign"
                         onclick={assignSelectedCandidates}
                         disabled={isAssignDisabled}
+                    ></lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open" role="presentation"></div>
+    </template>
+
+    <template lwc:if={showAddSignature}>
+        <section
+            role="dialog"
+            tabindex="-1"
+            aria-modal="true"
+            aria-labelledby="add-signature-heading"
+            class="slds-modal slds-fade-in-open"
+        >
+            <div class="slds-modal__container">
+                <header class="slds-modal__header">
+                    <h2 id="add-signature-heading" class="slds-text-heading_medium">
+                        Add Signature
+                    </h2>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium">
+                    <div class="slds-form-element">
+                        <label class="slds-form-element__label" for="technician-search">
+                            <abbr class="slds-required" title="required">*</abbr>
+                            Technician
+                        </label>
+                        <div class="slds-form-element__control">
+                            <input
+                                id="technician-search"
+                                class="slds-input"
+                                type="text"
+                                autocomplete="off"
+                                value={technicianSearch}
+                                disabled={isBusy}
+                                oninput={handleTechnicianSearch}
+                            />
+                        </div>
+                        <template lwc:if={hasTechnicianOptions}>
+                            <div class="technician-results" role="listbox">
+                                <template for:each={technicianOptions} for:item="option">
+                                    <button
+                                        key={option.userId}
+                                        class="technician-option"
+                                        type="button"
+                                        role="option"
+                                        data-user-id={option.userId}
+                                        data-user-name={option.name}
+                                        onclick={selectTechnician}
+                                    >
+                                        {option.name}
+                                    </button>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                    <template lwc:if={modalError}>
+                        <div class="message message_error" role="alert">{modalError}</div>
+                    </template>
+                </div>
+                <footer class="slds-modal__footer">
+                    <lightning-button
+                        label="Cancel"
+                        onclick={closeAddSignature}
+                        disabled={isBusy}
+                    ></lightning-button>
+                    <lightning-button
+                        class="slds-m-left_x-small"
+                        variant="brand"
+                        label="Save"
+                        onclick={saveSignature}
+                        disabled={isSaveSignatureDisabled}
                     ></lightning-button>
                 </footer>
             </div>

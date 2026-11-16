@@ -41,6 +41,28 @@
                                 </button>
                             </div>
                         </template>
+                        <template lwc:if={showResolveMissingReturnOrderButton}>
+                            <div class="scan-order-row__action">
+                                <button
+                                    type="button"
+                                    class="create-order-button create-order-button_missing-ro"
+                                    disabled={isResolveMissingReturnOrderButtonDisabled}
+                                    onclick={handleResolveMissingReturnOrder}
+                                >
+                                    <span class="create-order-button__icon" aria-hidden="true">
+                                        <span class="create-order-button__icon-mark">
+                                            <lightning-icon
+                                                icon-name="utility:questions_and_answers"
+                                                size="xx-small"
+                                            ></lightning-icon>
+                                        </span>
+                                    </span>
+                                    <span class="create-order-button__text"
+                                        >Resolve Missing Return Order</span
+                                    >
+                                </button>
+                            </div>
+                        </template>
                     </div>
 
                     <template lwc:if={scanErrorMessage}>
@@ -54,6 +76,20 @@
                             <lightning-spinner alternative-text="Loading" size="small"></lightning-spinner>
                         </div>
                     </template>
+                </div>
+            </lightning-card>
+        </template>
+
+        <template lwc:if={showMissingReturnOrderPage}>
+            <lightning-card
+                title="Resolve Missing Return Order"
+                icon-name="standard:contact_support"
+            >
+                <div class="slds-p-around_medium">
+                    <c-resolve-missing-return-order
+                        onclose={handleMissingReturnOrderClose}
+                        onsubmitted={handleMissingReturnOrderSubmitted}
+                    ></c-resolve-missing-return-order>
                 </div>
             </lightning-card>
         </template>
@@ -1546,6 +1582,29 @@
                                                                             No
                                                                         </button>
                                                                     </div>
+                                                                </div>
+                                                            </div>
+                                                        </template>
+
+                                                        <template lwc:if={item.showModelSent}>
+                                                            <div class="verify-field">
+                                                                <div class="verify-field__label">
+                                                                    Model Sent
+                                                                </div>
+                                                                <div class="verify-field__control verify-field__control_model-sent">
+                                                                    <span class="model-sent-value">
+                                                                        {item.modelSentDisplay}
+                                                                    </span>
+                                                                    <template
+                                                                        lwc:if={item.showModelMatchIndicator}
+                                                                    >
+                                                                        <lightning-icon
+                                                                            icon-name={item.modelMatchIconName}
+                                                                            alternative-text={item.modelMatchIndicatorLabel}
+                                                                            size="x-small"
+                                                                            class={item.modelMatchIconClass}
+                                                                        ></lightning-icon>
+                                                                    </template>
                                                                 </div>
                                                             </div>
                                                         </template>

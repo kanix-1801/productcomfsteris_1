@@ -3,7 +3,7 @@
     <apiVersion>67.0</apiVersion>
     <isExposed>true</isExposed>
     <masterLabel>IMS Product Configurator</masterLabel>
-    <description>GW-4777 / GW-5676 - IMS Product Configurator: Contract Adjustments (Inclusions / Exclusions, Model Quantity; Pricing Programs to follow) for the RCA product configurator (IMS Service Agreement).</description>
+    <description>GW-4777 / GW-5676 - IMS Product Configurator: Contract Adjustments (Inclusions / Exclusions, Model Quantity, Pricing Programs, On Location - Mobile Van) for the RCA product configurator (IMS Service Agreement).</description>
     <targets>
         <target>lightning__FlowScreen</target>
     </targets>

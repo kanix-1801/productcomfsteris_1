@@ -318,10 +318,12 @@ public with sharing class ProductsSelector extends SoqlQueryBuilder {
         'Name',
         'Description',
         'ProductLine__c',
+        'SubProductLine__c',
         'ProductType__c',
         'ProductCode',
         'Model__c',
-        'Manufacturer__c'
+        'Manufacturer__c',
+        'DeviceType__c'
     };
 
     private static final List<String> CREATE_RETURN_ORDER_PICKLIST_FIELDS = new List<String>{
@@ -330,6 +332,9 @@ public with sharing class ProductsSelector extends SoqlQueryBuilder {
         'ProductCode',
         'Model__c',
         'Description',
+        'ProductLine__c',
+        'SubProductLine__c',
+        'Manufacturer__c',
         'DeviceType__c'
     };
 
@@ -373,7 +378,7 @@ public with sharing class ProductsSelector extends SoqlQueryBuilder {
         if (productId == null) {
             return new List<Product2>();
         }
-        SoqlQueryBuilder builder = SoqlQueryBuilder.fromObject('Product2')
+        SoqlQueryBuilder builder = new ProductsSelector()
             .selectFields(CREATE_RETURN_ORDER_DETAIL_FIELDS)
             .whereEquals('Id', productId)
             .whereEquals('IsActive', true);
@@ -397,7 +402,7 @@ public with sharing class ProductsSelector extends SoqlQueryBuilder {
         String searchLikeTerm,
         Integer queryLimit
     ) {
-        SoqlQueryBuilder builder = SoqlQueryBuilder.fromObject('Product2')
+        SoqlQueryBuilder builder = new ProductsSelector()
             .selectFields(CREATE_RETURN_ORDER_PICKLIST_FIELDS)
             .whereEquals('IsActive', true);
 
@@ -415,14 +420,39 @@ public with sharing class ProductsSelector extends SoqlQueryBuilder {
             logicParts.add(String.valueOf(filterIndex));
         }
         if (String.isNotBlank(searchLikeTerm)) {
+            // GW-6614 - Item search matches the five product segments plus Name/ProductCode.
             Integer nameIdx = filterIndex + 1;
             Integer codeIdx = filterIndex + 2;
             Integer modelIdx = filterIndex + 3;
+            Integer productLineIdx = filterIndex + 4;
+            Integer subProductLineIdx = filterIndex + 5;
+            Integer deviceTypeIdx = filterIndex + 6;
+            Integer manufacturerIdx = filterIndex + 7;
             builder
                 .whereField('Name', 'LIKE', searchLikeTerm)
                 .whereField('ProductCode', 'LIKE', searchLikeTerm)
-                .whereField('Model__c', 'LIKE', searchLikeTerm);
-            logicParts.add('(' + nameIdx + ' OR ' + codeIdx + ' OR ' + modelIdx + ')');
+                .whereField('Model__c', 'LIKE', searchLikeTerm)
+                .whereField('ProductLine__c', 'LIKE', searchLikeTerm)
+                .whereField('SubProductLine__c', 'LIKE', searchLikeTerm)
+                .whereField('DeviceType__c', 'LIKE', searchLikeTerm)
+                .whereField('Manufacturer__c', 'LIKE', searchLikeTerm);
+            logicParts.add(
+                '(' +
+                nameIdx +
+                ' OR ' +
+                codeIdx +
+                ' OR ' +
+                modelIdx +
+                ' OR ' +
+                productLineIdx +
+                ' OR ' +
+                subProductLineIdx +
+                ' OR ' +
+                deviceTypeIdx +
+                ' OR ' +
+                manufacturerIdx +
+                ')'
+            );
         }
 
         if (logicParts.size() > 1) {
@@ -431,6 +461,48 @@ public with sharing class ProductsSelector extends SoqlQueryBuilder {
 
         Integer limitRows = (queryLimit == null || queryLimit <= 0) ? 200 : queryLimit;
         return (List<Product2>) builder.orderBy('Name').limitTo(limitRows).execute();
+    }
+
+    /**
+     * @description GW-6614 - Active products for Create Return Order Model lookup.
+     *              Searches Model__c only.
+     * @param modelLikeTerm LIKE term including wildcards
+     * @param requireServiceAsset When true, ProductType__c must be Service Asset
+     * @param productLine Optional ProductLine__c filter
+     * @param queryLimit Max rows
+     * @return Matching Product2 rows ordered by Model__c
+     */
+    public static List<Product2> selectActiveByModelForCreateReturnOrder(
+        String modelLikeTerm,
+        Boolean requireServiceAsset,
+        String productLine,
+        Integer queryLimit
+    ) {
+        SoqlQueryBuilder builder = new ProductsSelector()
+            .selectFields(CREATE_RETURN_ORDER_PICKLIST_FIELDS)
+            .whereEquals('IsActive', true);
+
+        List<String> logicParts = new List<String>{ '1' };
+        Integer filterIndex = 1;
+        if (String.isNotBlank(modelLikeTerm)) {
+            filterIndex++;
+            builder.whereField('Model__c', 'LIKE', modelLikeTerm);
+            logicParts.add(String.valueOf(filterIndex));
+        }
+        if (requireServiceAsset == true) {
+            filterIndex++;
+            builder.whereEquals('ProductType__c', 'Service Asset');
+            logicParts.add(String.valueOf(filterIndex));
+        }
+        if (String.isNotBlank(productLine)) {
+            filterIndex++;
+            builder.whereEquals('ProductLine__c', productLine);
+            logicParts.add(String.valueOf(filterIndex));
+        }
+        builder.withFilterLogic(String.join(logicParts, ' AND '));
+
+        Integer limitRows = (queryLimit == null || queryLimit <= 0) ? 50 : queryLimit;
+        return (List<Product2>) builder.orderBy('Model__c').limitTo(limitRows).execute();
     }
 
     /**

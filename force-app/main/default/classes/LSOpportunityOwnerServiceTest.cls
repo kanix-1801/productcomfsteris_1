@@ -5,7 +5,7 @@
  * @group Life Sciences Opportunity
  *
  * @description
- * GCL-73 - Tests the Life Sciences Opportunity owner check. The current owner,
+ * GCL-73 - Tests LSOpportunityService.validateOwnerChange. The current owner,
  * a Business System Admin, and a parent role can change Owner. A peer cannot.
  * System Administrator is outside the Life Sciences Sales profile.
  */
@@ -55,7 +55,7 @@ private class LSOpportunityOwnerServiceTest {
         PermissionSet businessSystemAdminPermissionSet = [
             SELECT Id
             FROM PermissionSet
-            WHERE Name = :LSOpportunityOwnerService.BUSINESS_SYSTEM_ADMIN_PERMISSION_SET
+            WHERE Name = :LSOpportunityService.BUSINESS_SYSTEM_ADMIN_PERMISSION_SET
             LIMIT 1
         ];
         PermissionSet transferPermissionSet = [
@@ -116,8 +116,8 @@ private class LSOpportunityOwnerServiceTest {
         User lifeSciencesUser = userByLastName(OWNER_LAST_NAME);
 
         System.runAs(lifeSciencesUser) {
-            User runningUser = LSOpportunityOwnerSelector.selectRunningUser();
-            String profileName = LSOpportunityOwnerSelector.selectProfileName(UserInfo.getProfileId());
+            User runningUser = OpportunitySelector.selectRunningUser();
+            String profileName = OpportunitySelector.selectProfileName(UserInfo.getProfileId());
 
             System.assertEquals(lifeSciencesUser.Id, runningUser.Id);
             System.assertEquals('Life Sciences Sales', profileName);
@@ -139,9 +139,9 @@ private class LSOpportunityOwnerServiceTest {
         );
         Opportunity previousOpportunity = opportunityRecord.clone(true, true, false, false);
 
-        LSOpportunityOwnerService.validateOwnerChange(null, null);
-        LSOpportunityOwnerService.validateOwnerChange(new List<Opportunity>(), new Map<Id, Opportunity>());
-        LSOpportunityOwnerService.validateOwnerChange(
+        LSOpportunityService.validateOwnerChange(null, null);
+        LSOpportunityService.validateOwnerChange(new List<Opportunity>(), new Map<Id, Opportunity>());
+        LSOpportunityService.validateOwnerChange(
             new List<Opportunity>{ opportunityRecord },
             new Map<Id, Opportunity>{ opportunityRecord.Id => previousOpportunity }
         );
@@ -185,7 +185,7 @@ private class LSOpportunityOwnerServiceTest {
             System.assert(false, 'A peer in the same role should be blocked.');
         } catch (DmlException exceptionValue) {
             System.assert(
-                exceptionValue.getDmlMessage(0).contains(LSOpportunityOwnerService.OWNER_CHANGE_ERROR),
+                exceptionValue.getDmlMessage(0).contains(LSOpportunityService.OWNER_CHANGE_ERROR),
                 exceptionValue.getDmlMessage(0)
             );
         }
@@ -307,14 +307,14 @@ private class LSOpportunityOwnerServiceTest {
      */
     @IsTest
     static void unexpectedErrorIsLoggedAndRethrown() {
-        LSOpportunityOwnerService.throwTestException = true;
+        LSOpportunityService.throwOwnerChangeTestException = true;
         Opportunity updatedOpportunity = lifeSciencesOwnerChange('000000000001');
         Opportunity previousOpportunity = updatedOpportunity.clone(true, true, false, false);
         previousOpportunity.OwnerId = fakeId(User.SObjectType, '000000000002');
 
         System.runAs(userByLastName(OWNER_LAST_NAME)) {
             try {
-                LSOpportunityOwnerService.validateOwnerChange(
+                LSOpportunityService.validateOwnerChange(
                     new List<Opportunity>{ updatedOpportunity },
                     new Map<Id, Opportunity>{ updatedOpportunity.Id => previousOpportunity }
                 );

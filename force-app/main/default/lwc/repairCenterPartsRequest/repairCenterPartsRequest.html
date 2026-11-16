@@ -55,7 +55,7 @@
             <section
                 role="dialog"
                 tabindex="-1"
-                class="slds-modal slds-fade-in-open"
+                class="slds-modal slds-fade-in-open parts-modal"
                 aria-modal="true"
                 aria-labelledby="parts-request-heading"
                 onkeydown={handleModalKeyDown}
@@ -65,10 +65,6 @@
                         <h2 id="parts-request-heading" class="slds-text-heading_medium">Create Parts Request</h2>
                     </header>
                     <div class="slds-modal__content slds-p-around_medium">
-                        <template lwc:if={modalError}>
-                            <div class="slds-text-color_error slds-m-bottom_small" role="alert">{modalError}</div>
-                        </template>
-
                         <template lwc:if={isBomMode}>
                             <template lwc:if={isModalLoading}>
                                 <div class="slds-is-relative slds-p-around_large">
@@ -155,6 +151,9 @@
                         </template>
                     </div>
                     <footer class="slds-modal__footer">
+                        <template lwc:if={modalError}>
+                            <div class="slds-text-color_error slds-m-bottom_small slds-text-align_left" role="alert">{modalError}</div>
+                        </template>
                         <lightning-button label="Cancel" onclick={closeModal} disabled={isSaving}></lightning-button>
                         <lightning-button
                             label="Save"
@@ -166,7 +165,7 @@
                     </footer>
                 </div>
             </section>
-            <div class="slds-backdrop slds-backdrop_open"></div>
+            <div class="slds-backdrop slds-backdrop_open parts-modal-backdrop"></div>
         </template>
     </div>
 </template>

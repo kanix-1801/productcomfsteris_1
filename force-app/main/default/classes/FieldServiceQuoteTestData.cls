@@ -22,8 +22,8 @@ public class FieldServiceQuoteTestData {
     }
 
     /**
-     * @description Account, Rate List, Work Order on the standard price book, priced products (part, labor,
-     *              travel, expense) and Products Required on the Work Order (one priced, one without a price).
+     * @description Account, Rate List, Work Order on the standard price book and products (part, labor, travel,
+     *              expense priced; one part without a price).
      * @return Scenario
      */
     public static Scenario createScenario() {
@@ -84,19 +84,49 @@ public class FieldServiceQuoteTestData {
             RateList__c = scenario.rateList.Id
         );
         insert scenario.workOrder;
-
-        insert new List<ProductRequired>{
-            new ProductRequired(
-                ParentRecordId = scenario.workOrder.Id,
-                Product2Id = scenario.part.Id,
-                QuantityRequired = 2
-            ),
-            new ProductRequired(
-                ParentRecordId = scenario.workOrder.Id,
-                Product2Id = scenario.unpricedPart.Id,
-                QuantityRequired = 1
-            )
-        };
         return scenario;
+    }
+
+    /**
+     * @description Field Service quote on the scenario Work Order (as the mobile Create Quote flow builds it),
+     *              with its Field Service opportunity and one Parts line (part x2 at PART_PRICE).
+     * @param scenario Scenario from createScenario
+     * @return Quote Id
+     */
+    public static Id createQuote(Scenario scenario) {
+        Id pricebookId = Test.getStandardPricebookId();
+        Quote quoteRecord = new Quote(
+            RecordTypeId = FieldServiceQuoteService.recordTypeId(
+                Quote.SObjectType,
+                FieldServiceQuoteService.QUOTE_RECORD_TYPE
+            ),
+            Name = 'GW5892 Quote',
+            Status = FieldServiceQuoteService.STATUS_DRAFT,
+            PricingStatus__c = FieldServiceQuoteService.PRICING_NOT_PRICED,
+            QuoteAccountId = scenario.account.Id,
+            WorkOrder__c = scenario.workOrder.Id,
+            Pricebook2Id = pricebookId,
+            CurrencyIsoCode = CURRENCY_CODE,
+            RateList__c = scenario.rateList.Id,
+            ExpirationDate = Date.today().addDays(FieldServiceQuoteService.QUOTE_VALIDITY_DAYS)
+        );
+        insert quoteRecord;
+        FieldServiceQuoteService.ensureOpportunity(quoteRecord.Id);
+
+        PricebookEntry entry = [
+            SELECT Id, UnitPrice
+            FROM PricebookEntry
+            WHERE Product2Id = :scenario.part.Id AND Pricebook2Id = :pricebookId AND CurrencyIsoCode = :CURRENCY_CODE
+        ];
+        insert new QuoteLineItem(
+            QuoteId = quoteRecord.Id,
+            PricebookEntryId = entry.Id,
+            Product2Id = scenario.part.Id,
+            Quantity = 2,
+            UnitPrice = entry.UnitPrice,
+            LineType__c = FieldServiceQuoteService.LINE_TYPE_PARTS,
+            WorkOrder__c = scenario.workOrder.Id
+        );
+        return quoteRecord.Id;
     }
 }

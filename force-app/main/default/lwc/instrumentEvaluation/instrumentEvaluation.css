@@ -861,7 +861,31 @@
     }
 }
 
+/* GW-5677 - One column: label stacked above the value, same label style as detail rows. */
 .additional-services-requested {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
     width: 100%;
-    margin-top: 0.75rem;
+    min-width: 0;
+    margin: 0;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid #e5e5e5;
+    box-sizing: border-box;
+}
+
+.additional-services-requested_inline {
+    border-bottom: 0;
+    padding: 0;
+}
+
+.additional-services-requested__value {
+    width: 100%;
+    font-size: 0.8125rem;
+    font-weight: 400;
+    line-height: 1.4;
+    color: #181818;
+    text-align: left;
+    white-space: pre-wrap;
 }

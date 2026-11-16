@@ -3,8 +3,8 @@
  * @date 2026/10/22
  * @description GW-5676 - Controller class for the imsProductConfigurator LWC (Contract Adjustments in the RCA product
  *              configurator). Reads only. The LWC writes the adjustments into the configuration
- *              (QuoteLineItem.ModelQtyCoverage__c through the context); ContractModifierService creates the
- *              ContractModifier__c records on save.
+ *              (QuoteLineItem.ModelQtyCoverage__c through the context); ImsProductConfiguratorService creates the
+ *              ContractAdjustment__c records on save.
  */
 public with sharing class ImsProductConfiguratorController {
 
@@ -23,10 +23,10 @@ public with sharing class ImsProductConfiguratorController {
     public static String getCoverage(String lineId) {
         Id quoteLineItemId = toQuoteLineId(lineId);
         if (quoteLineItemId == null) {
-            return JSON.serialize(new ContractModifierService.ContractAdjustments());
+            return JSON.serialize(new ImsProductConfiguratorService.ContractAdjustments());
         }
         try {
-            return JSON.serialize(ContractModifierService.getContractAdjustments(quoteLineItemId));
+            return JSON.serialize(ImsProductConfiguratorService.getContractAdjustments(quoteLineItemId));
         } catch (Exception e) {
             throw toAuraException('getCoverage: unable to load adjustments', quoteLineItemId, e,
                                   'Unable to load the contract adjustments for this line.');
@@ -43,7 +43,7 @@ public with sharing class ImsProductConfiguratorController {
     @AuraEnabled(cacheable=true)
     public static List<String> getSubProductLines(String productLine) {
         try {
-            return ContractModifierService.getSubProductLines(productLine);
+            return ImsProductConfiguratorService.getSubProductLines(productLine);
         } catch (Exception e) {
             throw toAuraException('getSubProductLines: lookup failed for ' + productLine, null, e,
                                   'Unable to load the Sub Product Lines.');
@@ -63,7 +63,7 @@ public with sharing class ImsProductConfiguratorController {
     @AuraEnabled(cacheable=true)
     public static List<String> getManufacturers(Id quoteId, String productLine, String subProductLine) {
         try {
-            return ContractModifierService.getManufacturers(quoteId, productLine, subProductLine);
+            return ImsProductConfiguratorService.getManufacturers(quoteId, productLine, subProductLine);
         } catch (Exception e) {
             throw toAuraException('getManufacturers: lookup failed', quoteId, e,
                                   'Unable to load the Manufacturers.');
@@ -79,12 +79,49 @@ public with sharing class ImsProductConfiguratorController {
      * @return Asset groups
      */
     @AuraEnabled(cacheable=true)
-    public static List<ContractModifierService.AssetGroup> getAssetCatalog(Id quoteId) {
+    public static List<ImsProductConfiguratorService.AssetGroup> getAssetCatalog(Id quoteId) {
         try {
-            return ContractModifierService.getAssetCatalog(quoteId);
+            return ImsProductConfiguratorService.getAssetCatalog(quoteId);
         } catch (Exception e) {
             throw toAuraException('getAssetCatalog: lookup failed', quoteId, e,
                                   'Unable to load the assets on this account.');
+        } finally {
+            Logger.saveLog();
+        }
+    }
+
+    /**
+     * @description Active, in-date pricing programs matching the search text, with their CT codes
+     *              (Pricing Programs search).
+     * @param searchTerm Text typed in the Pricing Programs search (3 characters minimum)
+     * @return Matching programs; empty for a blank or too-short term
+     */
+    @AuraEnabled(cacheable=true)
+    public static List<ImsProductConfiguratorService.PricingProgramOption> searchPricingPrograms(String searchTerm) {
+        try {
+            return ImsProductConfiguratorService.searchPricingPrograms(searchTerm);
+        } catch (Exception e) {
+            throw toAuraException('searchPricingPrograms: search failed for ' + searchTerm, null, e,
+                                  'Unable to load the Pricing Programs.');
+        } finally {
+            Logger.saveLog();
+        }
+    }
+
+    /**
+     * @description Pricing programs by name with their current CT codes, to refresh the programs saved on a line.
+     * @param programNames PricingProgram__c names, e.g. PP-0009
+     * @return The programs found
+     */
+    @AuraEnabled(cacheable=true)
+    public static List<ImsProductConfiguratorService.PricingProgramOption> getPricingProgramsByNames(
+        List<String> programNames
+    ) {
+        try {
+            return ImsProductConfiguratorService.getPricingProgramsByNames(programNames);
+        } catch (Exception e) {
+            throw toAuraException('getPricingProgramsByNames: lookup failed', null, e,
+                                  'Unable to load the Pricing Programs.');
         } finally {
             Logger.saveLog();
         }

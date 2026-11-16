@@ -44,9 +44,17 @@
     min-width: 0;
 }
 
+.part-side-top {
+    display: flex;
+    align-items: flex-start;
+    width: 100%;
+    gap: 0.5rem;
+}
+
 .part-remove {
-    align-self: flex-end;
+    align-self: flex-start;
     flex: 0 0 auto;
+    margin-left: auto;
 }
 
 .ship-set {
@@ -63,6 +71,28 @@
     text-align: left;
     overflow-wrap: anywhere;
     white-space: normal;
+}
+
+.oe-notes {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.oe-notes-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    width: 100%;
+    text-align: left;
+    font-size: 0.875rem;
+    --slds-c-icon-color-foreground-default: var(--slds-g-color-error-base-40, #ba0517);
+}
+
+.oe-notes-body {
+    display: block;
+    margin-top: 0.25rem;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
 }
 
 .footer {

@@ -62,8 +62,6 @@ import WOLI_MODEL from '@salesforce/schema/WorkOrderLineItem.Model__c';
 import WOLI_DEPARTMENT from '@salesforce/schema/WorkOrderLineItem.Department__c';
 import WOLI_REPORTED_PROBLEM from '@salesforce/schema/WorkOrderLineItem.ReportedProblem__c';
 import WOLI_NOT_INSPECTED_REASON from '@salesforce/schema/WorkOrderLineItem.NotInspectedReason__c';
-import WOLI_ADDITIONAL_SERVICES from '@salesforce/schema/WorkOrderLineItem.AdditionalServices__c';
-import WOLI_INSULATION from '@salesforce/schema/WorkOrderLineItem.InsulationPowderCoating__c';
 import WOLI_BILLING_TYPE from '@salesforce/schema/WorkOrderLineItem.BillingType__c';
 import WOLI_DISCOUNT from '@salesforce/schema/WorkOrderLineItem.Discount';
 import WOLI_RECORDTYPE from '@salesforce/schema/WorkOrderLineItem.RecordTypeId';
@@ -354,8 +352,6 @@ const REPAIR_CENTER_LINES_QUERY = gql`
 							Department__c { value }
 							ReportedProblem__c { value }
 							NotInspectedReason__c { value }
-							AdditionalServices__c { value }
-							InsulationPowderCoating__c { value }
 							SendToRepairCenter__c { value }
 						}
 					}
@@ -482,11 +478,6 @@ const LINE_STATUS_NEW = 'New';
 const WO_STATUS_NEW = 'New';
 const STATUS_IN_PROGRESS = 'In Progress';
 const SA_STATUSES_BEFORE_IN_PROGRESS = ['None', 'Scheduled', 'Dispatched', 'Accepted', 'En Route'];
-const INSULATION_POWDER_COATING_OPTIONS = [
-	'Black', 'Blue', 'Light Blue', 'Navy Blue', 'Green', 'Yellow', 'Orange',
-	'Light Gray', 'Purple', 'Salmon Orange', 'Lavender', 'Brown', 'Red'
-].map(value => ({ label: value, value }));
-
 const EMPTY_ASSET_FILTERS = () => ({
 	productLine: '',
 	subProductLine: '',
@@ -614,7 +605,6 @@ export default class WoDebrief extends LightningElement {
 	assetScanMessage = '';
 	departmentOptions = [];
 	_extraDepartmentOptions = [];
-	_insulationPicklistOptions = [];
 	_repairCenterByLineId = {};
 	_repairCenterLoaded = false;
 	_assetDepartmentById = {};
@@ -833,19 +823,6 @@ export default class WoDebrief extends LightningElement {
 	}
 
 	/**
-	 * @description Insulation / Powder Coating values from the work order line field.
-	 */
-	@wire(getPicklistValues, {
-		recordTypeId: '$woliPicklistRecordTypeId',
-		fieldApiName: WOLI_INSULATION
-	})
-	wiredInsulationPicklist({ data }) {
-		if (data?.values?.length) {
-			this._insulationPicklistOptions = data.values.map(({ label, value }) => ({ label, value }));
-		}
-	}
-
-	/**
 	 * @description GW-6017 - Return orders created from this work order.
 	 */
 	@wire(graphql, { query: RETURN_ORDERS_QUERY, variables: '$queryVariables' })
@@ -939,8 +916,6 @@ export default class WoDebrief extends LightningElement {
 				departmentId: node.Department__c?.value ?? null,
 				reportedProblem: node.ReportedProblem__c?.value ?? '',
 				notInspectedReason: node.NotInspectedReason__c?.value ?? '',
-				additionalServices: !!node.AdditionalServices__c?.value,
-				insulationPowderCoating: node.InsulationPowderCoating__c?.value ?? '',
 				sendToRepairCenter: !!node.SendToRepairCenter__c?.value
 			};
 		}
@@ -1277,24 +1252,10 @@ export default class WoDebrief extends LightningElement {
 		return this.woAccountId || undefined;
 	}
 	/**
-	 * @description Insulation / Powder Coating options for Do Not Use (P0) lines.
-	 */
-	get insulationPowderCoatingOptions() {
-		return this._insulationPicklistOptions.length
-			? this._insulationPicklistOptions
-			: INSULATION_POWDER_COATING_OPTIONS;
-	}
-	/**
 	 * @description True when the single-line add form should collect repair-center details.
 	 */
 	get addFormShowRepairCenterFields() {
 		return this.addFormState?.inspectionOutcome === DO_NOT_USE_P0;
-	}
-	/**
-	 * @description True when Additional Services is checked on the add form.
-	 */
-	get addFormShowInsulation() {
-		return this.addFormShowRepairCenterFields && !!this.addFormState?.additionalServices;
 	}
 	/**
 	 * @description Pictures chosen on a new line before it is saved.
@@ -2476,8 +2437,6 @@ export default class WoDebrief extends LightningElement {
 				departmentId: state.departmentId ?? edit?.departmentId,
 				reportedProblem: state.reportedProblem ?? edit?.reportedProblem,
 				notInspectedReason: state.notInspectedReason ?? edit?.notInspectedReason,
-				additionalServices: state.additionalServices ?? edit?.additionalServices,
-				insulationPowderCoating: state.insulationPowderCoating ?? edit?.insulationPowderCoating,
 				pictures: edit?.pictures || []
 			}, savedRepair),
 			isDirty: !!edit,
@@ -2562,8 +2521,6 @@ export default class WoDebrief extends LightningElement {
 				departmentId: state.departmentId ?? a.departmentId,
 				reportedProblem: state.reportedProblem ?? a.reportedProblem,
 				notInspectedReason: state.notInspectedReason ?? a.notInspectedReason,
-				additionalServices: state.additionalServices ?? a.additionalServices,
-				insulationPowderCoating: state.insulationPowderCoating ?? a.insulationPowderCoating,
 				pictures: a.pictures || []
 			}, {}),
 			isDirty: false,
@@ -2971,16 +2928,11 @@ export default class WoDebrief extends LightningElement {
 			? {}
 			: { [WOLI_SEND_TO_REPAIR_CENTER.fieldApiName]: sendToRepairCenter };
 		if (!sendToRepairCenter) return fields;
-		const additionalServices = !!source.additionalServices;
 		fields[WOLI_SERIAL_NUMBER.fieldApiName] = String(source.serialNumber || '').trim();
 		fields[WOLI_MODEL.fieldApiName] = String(source.model || '').trim();
 		fields[WOLI_DEPARTMENT.fieldApiName] = source.departmentId || null;
 		fields[WOLI_REPORTED_PROBLEM.fieldApiName] = String(source.reportedProblem || '').trim();
 		fields[WOLI_NOT_INSPECTED_REASON.fieldApiName] = String(source.notInspectedReason || '').trim();
-		fields[WOLI_ADDITIONAL_SERVICES.fieldApiName] = additionalServices;
-		fields[WOLI_INSULATION.fieldApiName] = additionalServices
-			? this._insulationPersistValue(source.insulationPowderCoating)
-			: null;
 		return fields;
 	}
 
@@ -3007,8 +2959,6 @@ export default class WoDebrief extends LightningElement {
 			departmentId: saved.departmentId || null,
 			reportedProblem: saved.reportedProblem || '',
 			notInspectedReason: saved.notInspectedReason || '',
-			additionalServices: !!saved.additionalServices,
-			insulationPowderCoating: this._insulationList(saved.insulationPowderCoating),
 			pictures: []
 		};
 	}
@@ -3024,7 +2974,6 @@ export default class WoDebrief extends LightningElement {
 	_repairCenterView(lineId, inspectionOutcome, source, stored) {
 		const saved = stored || {};
 		const showRepairCenterFields = inspectionOutcome === DO_NOT_USE_P0;
-		const additionalServices = source?.additionalServices ?? saved.additionalServices ?? false;
 		const pictures = source?.pictures || [];
 		return {
 			showRepairCenterFields,
@@ -3033,11 +2982,6 @@ export default class WoDebrief extends LightningElement {
 			editDepartmentId: source?.departmentId ?? saved.departmentId ?? null,
 			editNotInspectedReason: source?.notInspectedReason ?? saved.notInspectedReason ?? '',
 			editReportedProblem: source?.reportedProblem ?? saved.reportedProblem ?? '',
-			editAdditionalServices: !!additionalServices,
-			showInsulationField: showRepairCenterFields && !!additionalServices,
-			editInsulationPowderCoating: this._insulationList(
-				source?.insulationPowderCoating ?? saved.insulationPowderCoating
-			),
 			showRecordPictureUpload: showRepairCenterFields && this._isSalesforceWoliId(lineId),
 			showStagedPictureUpload: showRepairCenterFields && !this._isSalesforceWoliId(lineId),
 			persistedLineIdForUpload: this._isSalesforceWoliId(lineId) ? lineId : null,
@@ -3057,27 +3001,6 @@ export default class WoDebrief extends LightningElement {
 	 */
 	_isSalesforceWoliId(value) {
 		return this._isPersistedWoliId(value);
-	}
-
-	/**
-	 * @description Multi-select values as a list.
-	 * @param {string|Array} value Stored or staged insulation values
-	 * @return {Array}
-	 */
-	_insulationList(value) {
-		if (Array.isArray(value)) return value.filter(Boolean);
-		if (!value) return [];
-		return String(value).split(';').map(item => item.trim()).filter(Boolean);
-	}
-
-	/**
-	 * @description Multi-select values stored as a semicolon-separated string.
-	 * @param {string|Array} value Staged insulation values
-	 * @return {string|null}
-	 */
-	_insulationPersistValue(value) {
-		const items = this._insulationList(value);
-		return items.length ? items.join(';') : null;
 	}
 
 	/**
@@ -3575,7 +3498,7 @@ export default class WoDebrief extends LightningElement {
 	async handleEditFieldChange(e) {
 		const id    = e.currentTarget.dataset.id;
 		const field = e.currentTarget.dataset.field;
-		const value = (field === 'overrideBillableAmount' || field === 'additionalServices' || field === 'canceled')
+		const value = (field === 'overrideBillableAmount' || field === 'canceled')
 			? e.detail.checked === true
 			: e.detail.value;
 		if (this._ignoreBlankRepairClear(field, value)) return;
@@ -3585,9 +3508,6 @@ export default class WoDebrief extends LightningElement {
 		}
 		if (field === 'inspectionOutcome' && value === DO_NOT_USE_P0) {
 			this._requestAssetRepairDefaults(id);
-		}
-		if (field === 'additionalServices' && value !== true) {
-			this._stageEdit(id, 'insulationPowderCoating', []);
 		}
 		if (field === 'lineType' && (value === 'Travel' || value === 'Labor')) {
 			this._stageEdit(id, 'workTypeId', null);
@@ -3642,16 +3562,13 @@ export default class WoDebrief extends LightningElement {
 	 */
 	async handleAddFieldChange(e) {
 		const field = e.currentTarget.dataset.field;
-		const value = (field === 'overrideBillableAmount' || field === 'additionalServices' || field === 'canceled')
+		const value = (field === 'overrideBillableAmount' || field === 'canceled')
 			? e.detail.checked === true
 			: e.detail.value;
 		if (this._ignoreBlankRepairClear(field, value)) return;
 		let next = { ...this.addFormState, [field]: value };
 		if (field === 'canceled') {
 			next.lineStatus = value ? LINE_STATUS_CANCELED : LINE_STATUS_NEW;
-		}
-		if (field === 'additionalServices' && value !== true) {
-			next.insulationPowderCoating = [];
 		}
 		if (field === 'inspectionOutcome' && value === DO_NOT_USE_P0) {
 			this.addFormState = next;
@@ -3799,8 +3716,6 @@ export default class WoDebrief extends LightningElement {
 				departmentId: addPayload.departmentId || null,
 				reportedProblem: addPayload.reportedProblem || '',
 				notInspectedReason: addPayload.notInspectedReason || '',
-				additionalServices: !!addPayload.additionalServices,
-				insulationPowderCoating: addPayload.insulationPowderCoating || [],
 				pictures: addPayload.pictures || [],
 				mobilePictures: addPayload.mobilePictures || [],
 				billingType: BILLING_TYPE_NON_BILLABLE,
@@ -5326,8 +5241,6 @@ export default class WoDebrief extends LightningElement {
 			departmentId:       null,
 			reportedProblem:    '',
 			notInspectedReason: '',
-			additionalServices: false,
-			insulationPowderCoating: [],
 			pictures:           [],
 			mobilePictures:     [],
 			canceled:           false,

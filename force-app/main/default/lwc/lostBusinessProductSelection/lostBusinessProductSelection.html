@@ -18,7 +18,7 @@
             <lightning-card title="Products from the originating opportunity" icon-name="standard:product">
                 <lightning-button-icon slot="actions" icon-name={originatingToggleIcon}
                     alternative-text={originatingToggleLabel} title={originatingToggleLabel}
-                    variant="border-filled" onclick={handleToggleOriginatingProducts}>
+                    variant="border-filled" data-section="originating" onclick={handleToggleSection}>
                 </lightning-button-icon>
                 <div class="slds-p-horizontal_medium slds-p-bottom_medium">
                     <p class="loss-guidance-primary">
@@ -55,7 +55,7 @@
                     <lightning-card title="Selected products" icon-name="standard:orders">
                         <lightning-button-icon slot="actions" icon-name={selectedProductsToggleIcon}
                             alternative-text={selectedProductsToggleLabel} title={selectedProductsToggleLabel}
-                            variant="border-filled" onclick={handleToggleSelectedProducts}>
+                            variant="border-filled" data-section="selected" onclick={handleToggleSection}>
                         </lightning-button-icon>
                         <div class={selectedProductsBodyClass}>
                             <table class="slds-table slds-table_cell-buffer slds-table_bordered selected-products-table">
@@ -161,7 +161,7 @@
                             <lightning-button-icon icon-name={searchResultsToggleIcon}
                                 alternative-text={searchResultsToggleLabel}
                                 title={searchResultsToggleLabel} variant="border-filled"
-                                onclick={handleToggleSearchResults}>
+                                data-section="search" onclick={handleToggleSection}>
                             </lightning-button-icon>
                         </div>
 
@@ -198,7 +198,7 @@
                     <lightning-card title="Selected Products" icon-name="standard:orders">
                         <lightning-button-icon slot="actions" icon-name={selectedProductsToggleIcon}
                             alternative-text={selectedProductsToggleLabel} title={selectedProductsToggleLabel}
-                            variant="border-filled" onclick={handleToggleSelectedProducts}>
+                            variant="border-filled" data-section="selected" onclick={handleToggleSection}>
                         </lightning-button-icon>
                         <div class={selectedProductsBodyClass}>
                             <table class="slds-table slds-table_cell-buffer slds-table_bordered selected-products-table">

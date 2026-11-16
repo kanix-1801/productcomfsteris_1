@@ -660,6 +660,35 @@ private class OpportunityDuplicateMatchKeyTest {
     }
 
     /**
+     * Skips duplicate key generation when the Opportunity has no Account.
+     */
+    @IsTest
+    static void testPopulateDuplicateMatchKeySkipsNullAccount() {
+        Opportunity noAccount = new Opportunity(
+            Name = 'No Account',
+            RecordTypeId = CONSUMABLE_RECORD_TYPE_ID,
+            Type = 'Renewal',
+            PrimaryContact__c = getTestPrimaryContactId(),
+            StageName = 'Discovery',
+            CloseDate = Date.today().addDays(30)
+        );
+
+        Test.startTest();
+        OpportunityService.populateDuplicateMatchKey(
+            new List<Opportunity>{ noAccount },
+            null
+        );
+        Test.stopTest();
+
+        System.assertEquals(
+            null,
+            noAccount.Duplicate_Match_Key__c,
+            'Key should stay null when Account is missing.'
+        );
+        System.assertEquals(null, noAccount.Territory_ID__c, 'Territory should stay null when Account is missing.');
+    }
+
+    /**
      * @description An open Forecast Eligible HC Sales quote blocks Closed Won.
      */
     @IsTest

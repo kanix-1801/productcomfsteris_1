@@ -1,5 +1,5 @@
 import { LightningElement, api } from 'lwc';
-import getAddresses from '@salesforce/apex/AccountAddressesController.getAddresses';
+//import getAddresses from '@salesforce/apex/AccountAddressesController.getAddresses';
 import { NavigationMixin } from 'lightning/navigation';
 
 

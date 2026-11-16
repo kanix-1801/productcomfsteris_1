@@ -14,6 +14,8 @@ export default class RepairCenterItemEditor extends LightningElement {
     @api doneLabel = 'Done';
     @api previousLabel = 'Previous';
     @api quantityHint = '';
+    /** GW-5677 - Shows the Additional Services Requested slot beside quantity. */
+    @api showServices = false;
 
     get quantityValue() {
         return this.quantity == null ? '' : String(this.quantity);
@@ -25,6 +27,16 @@ export default class RepairCenterItemEditor extends LightningElement {
 
     get hasQuantityHint() {
         return Boolean(this.quantityHint);
+    }
+
+    /**
+     * GW-5677 - Side-by-side layout when Additional Services Requested is shown.
+     * @return {string} CSS class for the quantity, services, and actions row
+     */
+    get editorTopClass() {
+        return this.showServices === true
+            ? 'item-editor__top item-editor__top_with-services'
+            : 'item-editor__top';
     }
 
     /**

@@ -4,6 +4,43 @@
 
 :host {
     display: block;
+    --create-return-order-brand: var(
+        --slds-c-button-brand-color-background,
+        var(--lwc-brandAccessible, #0b5cab)
+    );
+}
+
+.shell-account {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    flex-wrap: wrap;
+    padding: 0.85rem 1rem;
+    background: #f3f3f3;
+    border-radius: 0.25rem;
+}
+
+.shell-account_create-order {
+    align-items: center;
+}
+
+.create-order-add-item-menu {
+    flex-shrink: 0;
+}
+
+.shell-account__name {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--create-return-order-brand);
+    line-height: 1.25;
+}
+
+.shell-account__meta {
+    margin-top: 0.2rem;
+    font-size: 0.8125rem;
+    color: #706e6b;
+    line-height: 1.3;
 }
 
 /* Full-page tab launch: shrink white card to content width and left-align it. */
@@ -78,13 +115,36 @@ lightning-accordion-section .slds-accordion__section {
     overflow: visible;
 }
 
+.field-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.customer-information-heading {
+    margin-top: 1.5rem;
+}
+
+.loaner-checkbox-row {
+    display: flex;
+    align-items: flex-end;
+    min-height: 2rem;
+    padding-top: 1.35rem;
+}
+
 .contact-field-row {
     display: flex;
     align-items: flex-end;
     gap: 0.5rem;
+    width: 100%;
 }
 
 .contact-field-row__combobox {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.contact-field-row .product-search-lookup {
     flex: 1 1 auto;
     min-width: 0;
 }
@@ -147,42 +207,66 @@ lightning-accordion-section .slds-accordion__section {
     width: 100%;
 }
 
-/* Review step: every return order on the screen uses the same column widths. */
-table.review-lines-table {
-    table-layout: fixed;
+/* Review step: scroll horizontally when columns exceed the wizard width. */
+.review-lines-table-wrapper {
     width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+table.review-lines-table {
+    table-layout: auto;
+    width: max-content;
+    min-width: 100%;
+}
+
+.review-lines-table th,
+.review-lines-table td {
+    white-space: nowrap;
+}
+
+.review-lines-table th {
+    min-width: 7rem;
+}
+
+.review-lines-table th .slds-truncate {
+    display: block;
+    overflow: visible;
+    text-overflow: clip;
+    max-width: none;
+}
+
+.review-lines-table td .slds-truncate {
+    display: block;
+    max-width: 14rem;
 }
 
 .review-lines-table__col-serial {
-    width: 14%;
+    min-width: 7rem;
 }
 
 .review-lines-table__col-model {
-    width: 16%;
+    min-width: 7rem;
 }
 
 .review-lines-table__col-product-line {
-    width: 22%;
+    min-width: 9rem;
 }
 
 .review-lines-table__col-qty {
-    width: 8%;
+    min-width: 5rem;
 }
 
 .review-lines-table__col-contact {
-    width: 20%;
+    min-width: 10rem;
 }
 
 .review-lines-table__col-department {
-    width: 20%;
+    min-width: 8rem;
 }
 
 .review-lines-table__col-item-desc {
-    width: 36%;
-}
-
-.review-lines-table .slds-truncate {
-    display: block;
+    min-width: 12rem;
 }
 
 .line-type-add-table__type-col {
@@ -226,17 +310,40 @@ table.review-lines-table {
     overflow: visible;
 }
 
-/*
- * Fixed to the field so the list opens directly beneath it.
- * Do not use slds-dropdown here — it applies translateX(-50%) and shifts the menu left.
- */
+/* Match native Salesforce lookup: utility:search on the right. */
+.product-search-lookup__input {
+    position: relative;
+}
+
+/* Pin to input height — top:50% sinks the icon when lightning-input shows an error. */
+.product-search-lookup__input lightning-icon.slds-input__icon {
+    position: absolute;
+    top: 0.9375rem;
+    right: 0.75rem;
+    margin-top: 0;
+    transform: translateY(-50%);
+    z-index: 1;
+    pointer-events: none;
+    line-height: 1;
+}
+
+.product-search-lookup__input lightning-input {
+    --sds-c-input-spacing-horizontal-end: 2rem;
+    --slds-c-input-spacing-horizontal-end: 2rem;
+}
+
+/* Anchor under the field; avoid fixed+viewport coords (misplaces under modal transforms). */
 .product-search-results--fixed {
-    position: fixed;
+    position: absolute;
+    top: calc(100% + 0.125rem);
+    left: 0;
+    right: 0;
+    width: 100%;
+    min-width: 100%;
     display: block;
-    z-index: 100000;
+    z-index: 10000;
     float: none;
     transform: none;
-    inset: auto;
     margin-top: 0;
     max-height: 15rem;
     overflow-y: auto;
@@ -267,4 +374,62 @@ table.review-lines-table {
 
 .product-search-results .slds-listbox__option:hover {
     background-color: var(--slds-g-color-neutral-base-95, #f3f3f3);
+}
+
+.item-field-row {
+    margin-bottom: 0.75rem;
+    overflow: visible;
+    align-items: flex-start;
+}
+
+/* Keep paired field inputs on the same baseline (Model helptext vs Item). */
+.item-field-row > .slds-col {
+    display: flex;
+    flex-direction: column;
+}
+
+.item-field-row .slds-form-element__label {
+    display: flex;
+    align-items: center;
+    min-height: 1.5rem;
+    margin-bottom: 0.125rem;
+    box-sizing: border-box;
+}
+
+.item-field-row__checkbox {
+    display: flex;
+    align-items: flex-end;
+    padding-top: 1.5rem;
+    min-height: 2.5rem;
+}
+
+.mod-request-header-checkbox {
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.mod-request-header-checkbox__label {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.8125rem;
+    color: var(--slds-g-color-neutral-base-10, #181818);
+}
+
+.mod-request-header-checkbox .model-field-helptext {
+    top: -0.2rem;
+}
+
+.model-field-label {
+    display: flex;
+    align-items: center;
+}
+
+.model-field-helptext {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 0.25rem;
+    line-height: 1;
+    /* Nudge the help icon up to match Serialized Model label alignment. */
+    position: relative;
+    top: -0.125rem;
 }

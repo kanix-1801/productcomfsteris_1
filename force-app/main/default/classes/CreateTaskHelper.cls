@@ -465,7 +465,7 @@ public with sharing class CreateTaskHelper {
             // Load active task configs for OrderItem (Order Line) objects
             List<TaskSLAConfig__mdt> configs = [
                 SELECT AssignTo__c, DueDateCriteria__c, Frequency__c, IsActive__c,
-                       Object__c, TaskCreationCriteria__c, TaskSubject__c, DeveloperName
+                       Object__c, TaskCreationCriteria__c, TaskSubject__c, DeveloperName, CompleteTaskWhenLineClosed__c
                 FROM TaskSLAConfig__mdt
                 WHERE IsActive__c = true AND Object__c = 'OrderItem'
             ];
@@ -503,6 +503,9 @@ public with sharing class CreateTaskHelper {
                 }
             }
 
+            // CBM-1244: CompleteTaskWhenLineClosed__c is true
+            Set<String> completeTaskWhenLineClosedSubjects = new Set<String>();
+            
             // Prepare frequency-based de-duplication
             Set<String> onetimeSubjects = new Set<String>();
             Set<String> phasewiseSubjects = new Set<String>();
@@ -519,6 +522,10 @@ public with sharing class CreateTaskHelper {
                     // Frequency__c contains 'Phasewise If Completed'
                     if (!String.isBlank(cfg.Frequency__c) && cfg.Frequency__c.toLowerCase().contains('phasewise if completed')) {
                         phasewiseIfCompletedSubjects.add(cfg.TaskSubject__c.trim());
+                    }
+                    // CBM-1244: CompleteTaskWhenLineClosed__c is true
+                    if (cfg.CompleteTaskWhenLineClosed__c) {
+                        completeTaskWhenLineClosedSubjects.add(cfg.TaskSubject__c.trim());
                     }
                 }
             }
@@ -620,7 +627,8 @@ public with sharing class CreateTaskHelper {
                     }
                     if(allLinesInactive){
                         for(Task phaseTask : phaseTaskList){
-                            if(phaseTask.Status != 'Completed'){
+                            // CBM-1244: CompleteTaskWhenLineClosed__c is NOT true
+                            if(phaseTask.Status != 'Completed' && !completeTaskWhenLineClosedSubjects.contains(phaseTask.Subject)){
                                 phaseTask.Status = 'Completed';
                                 if(!tasksToUpdate.contains(phaseTask)){
                                     tasksToUpdate.add(phaseTask);

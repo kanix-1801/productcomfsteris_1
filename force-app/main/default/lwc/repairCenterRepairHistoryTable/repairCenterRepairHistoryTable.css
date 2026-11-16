@@ -1,27 +1,81 @@
 :host {
     display: block;
+    max-width: 100%;
+}
+
+.history-table-wrap {
+    max-width: 100%;
+}
+
+.history-table.slds-table {
+    width: 100%;
+    table-layout: fixed;
+}
+
+.history-table.slds-table th,
+.history-table.slds-table td {
+    white-space: normal;
+    vertical-align: top;
 }
 
 table thead th {
     font-weight: 700;
-    white-space: nowrap;
 }
 
-.notes-cell {
-    max-width: 14rem;
+.col-work-order {
+    width: 11%;
+}
+
+.col-lab {
+    width: 12%;
+}
+
+.col-problem {
+    width: 16%;
+}
+
+.col-repair-date {
+    width: 9%;
+}
+
+.col-repair-codes {
+    width: 26%;
+}
+
+.col-notes {
+    width: 13%;
+}
+
+.history-table.slds-table td.notes-cell {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
+.history-table.slds-table td.repair-codes-cell {
+    white-space: normal;
+}
+
+.repair-code-list {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+    max-width: 100%;
+    min-width: 0;
+}
+
 .repair-code-chip {
     display: inline-block;
-    margin: 0.125rem 0.25rem 0.125rem 0;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
     padding: 0.125rem 0.5rem;
     border: 1px solid #dddbda;
     border-radius: 1rem;
     background: #f3f3f3;
     font-size: 0.75rem;
     line-height: 1.25;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
 }

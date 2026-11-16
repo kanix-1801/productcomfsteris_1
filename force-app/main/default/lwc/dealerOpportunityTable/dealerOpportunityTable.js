@@ -50,7 +50,13 @@ export default class DealerOpportunityTable extends NavigationMixin(LightningEle
     }
 
     get tableClass() {
-        return this.variant === 'workspace' ? 'opportunity-table table-workspace' : 'opportunity-table';
+        if (this.variant === 'workspace') {
+            return 'opportunity-table table-workspace';
+        }
+        if (this.variant === 'recent') {
+            return 'opportunity-table table-recent';
+        }
+        return 'opportunity-table';
     }
 
     get columns() {

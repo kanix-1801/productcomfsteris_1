@@ -7,6 +7,7 @@ public without sharing class DealerOpportunityProductController {
     private static final String DEALER_RECORD_TYPE = 'HCSalesDealer';
     private static final String SERVICE_CATEGORY = 'SERVICE';
     private static final Integer SEARCH_LIMIT = 50;
+    private static final Integer RECENT_LIMIT = 10;
     private static final Set<String> STATUSES = new Set<String>{
         'Open',
         'Closed Won',
@@ -28,6 +29,13 @@ public without sharing class DealerOpportunityProductController {
         @AuraEnabled public Date closeDate;
         @AuraEnabled public Date expectedShipDate;
         @AuraEnabled public String forecastConfidence;
+        @AuraEnabled public List<CurrencyRate> currencies;
+    }
+
+    public class CurrencyRate {
+        @AuraEnabled public String isoCode;
+        @AuraEnabled public Integer decimalPlaces;
+        @AuraEnabled public Decimal conversionRate;
     }
 
     public class ProductOption {
@@ -35,9 +43,13 @@ public without sharing class DealerOpportunityProductController {
         @AuraEnabled public Id productId;
         @AuraEnabled public String productName;
         @AuraEnabled public String productCode;
+        @AuraEnabled public String productFamily;
+        @AuraEnabled public String businessUnit;
+        @AuraEnabled public String salesCategoryCode;
         @AuraEnabled public String productDescription;
         @AuraEnabled public Decimal listPrice;
         @AuraEnabled public String currencyCode;
+        @AuraEnabled public Boolean recentlyAdded;
     }
 
     public class ProductLine {
@@ -65,6 +77,7 @@ public without sharing class DealerOpportunityProductController {
         public Date expectedOrderDate;
         public Date expectedShipDate;
         public String comments;
+        public String currencyCode;
     }
 
     /**
@@ -80,6 +93,7 @@ public without sharing class DealerOpportunityProductController {
         context.closeDate = opportunity.CloseDate;
         context.expectedShipDate = opportunity.Expected_Ship_Date__c;
         context.forecastConfidence = opportunity.ForecastConfidenceLevel__c;
+        context.currencies = activeCurrencyRates();
         return context;
     }
 
@@ -87,7 +101,7 @@ public without sharing class DealerOpportunityProductController {
      * @description Searches active Standard Price Book products for one dealer opportunity.
      * Service products are excluded. The price book and currency come from the opportunity.
      * @param opportunityId Dealer opportunity open on the page
-     * @param searchKey Product name, item number, or description. Blank returns the first matches.
+     * @param searchKey Product name, item number, or description. Blank lists this dealer's recently added products first, then the price book by name.
      * @return Eligible price book entries
      */
     @AuraEnabled
@@ -95,42 +109,28 @@ public without sharing class DealerOpportunityProductController {
         Opportunity opportunity = requireDealerOpportunity(opportunityId);
         requirePriceBook(opportunity);
         String likeKey = likeTerm(searchKey);
-        List<PricebookEntry> entries;
-        if (likeKey == null) {
-            entries = [
-                SELECT Id, UnitPrice, Product2Id, Product2.Name, Product2.ProductCode, Product2.Description
-                FROM PricebookEntry
-                WHERE Pricebook2Id = :opportunity.Pricebook2Id
-                AND CurrencyIsoCode = :opportunity.CurrencyIsoCode
-                AND IsActive = true
-                AND Product2.IsActive = true
-                AND (NOT Product2.SalesCategoryCode__c = :SERVICE_CATEGORY)
-                WITH SYSTEM_MODE
-                ORDER BY Product2.Name
-                LIMIT :SEARCH_LIMIT
-            ];
-        } else {
-            entries = [
-                SELECT Id, UnitPrice, Product2Id, Product2.Name, Product2.ProductCode, Product2.Description
-                FROM PricebookEntry
-                WHERE Pricebook2Id = :opportunity.Pricebook2Id
-                AND CurrencyIsoCode = :opportunity.CurrencyIsoCode
-                AND IsActive = true
-                AND Product2.IsActive = true
-                AND (NOT Product2.SalesCategoryCode__c = :SERVICE_CATEGORY)
-                AND (
-                    Product2.Name LIKE :likeKey
-                    OR Product2.ProductCode LIKE :likeKey
-                    OR Product2.Description LIKE :likeKey
-                )
-                WITH SYSTEM_MODE
-                ORDER BY Product2.Name
-                LIMIT :SEARCH_LIMIT
-            ];
-        }
+        List<Id> recentIds = recentProductIds(opportunity);
+        Set<Id> recentIdSet = new Set<Id>(recentIds);
         List<ProductOption> options = new List<ProductOption>();
-        for (PricebookEntry entry : entries) {
-            options.add(toOption(entry, opportunity.CurrencyIsoCode));
+        Set<Id> excludedProductIds = new Set<Id>();
+        if (likeKey == null) {
+            for (PricebookEntry entry : entriesForProducts(opportunity, recentIds)) {
+                if (options.size() == SEARCH_LIMIT) {
+                    break;
+                }
+                options.add(toOption(entry, opportunity.CurrencyIsoCode, true));
+                excludedProductIds.add(entry.Product2Id);
+            }
+        }
+        Integer remaining = SEARCH_LIMIT - options.size();
+        if (remaining > 0) {
+            for (PricebookEntry entry : catalogEntries(opportunity, likeKey, excludedProductIds, remaining)) {
+                options.add(toOption(
+                    entry,
+                    opportunity.CurrencyIsoCode,
+                    recentIdSet.contains(entry.Product2Id)
+                ));
+            }
         }
         return options;
     }
@@ -183,6 +183,7 @@ public without sharing class DealerOpportunityProductController {
         requirePriceBook(opportunity);
         List<LineInput> inputs = parseInputs(productInputsJson);
         Map<Id, PricebookEntry> entriesById = entriesForInputs(opportunity, inputs);
+        Map<String, CurrencyType> ratesByCode = currencyTypesByCode();
         List<OpportunityLineItem> lines = new List<OpportunityLineItem>();
         for (LineInput input : inputs) {
             PricebookEntry entry = entriesById.get(input.pricebookEntryId);
@@ -193,7 +194,12 @@ public without sharing class DealerOpportunityProductController {
             line.OpportunityId = opportunity.Id;
             line.PricebookEntryId = entry.Id;
             line.Quantity = input.quantity;
-            line.UnitPrice = input.unitPrice;
+            line.UnitPrice = convertToOpportunityCurrency(
+                input.unitPrice,
+                input.currencyCode,
+                opportunity.CurrencyIsoCode,
+                ratesByCode
+            );
             line.Status__c = String.isBlank(input.status) ? 'Open' : input.status;
             line.ConfidenceLevel__c = String.isBlank(input.confidenceLevel)
                 ? opportunity.ForecastConfidenceLevel__c
@@ -241,7 +247,7 @@ public without sharing class DealerOpportunityProductController {
             throwAura('Opportunity is required.');
         }
         List<Opportunity> opportunities = [
-            SELECT Id, Pricebook2Id, CurrencyIsoCode, CloseDate, Expected_Ship_Date__c,
+            SELECT Id, AccountId, Pricebook2Id, CurrencyIsoCode, CloseDate, Expected_Ship_Date__c,
                 ForecastConfidenceLevel__c, RecordType.DeveloperName
             FROM Opportunity
             WHERE Id = :opportunityId
@@ -320,16 +326,161 @@ public without sharing class DealerOpportunityProductController {
         return entriesById;
     }
 
-    private static ProductOption toOption(PricebookEntry entry, String currencyCode) {
+    private static List<Id> recentProductIds(Opportunity opportunity) {
+        List<Id> productIds = new List<Id>();
+        if (opportunity.AccountId == null) {
+            return productIds;
+        }
+        for (AggregateResult result : [
+            SELECT Product2Id
+            FROM OpportunityLineItem
+            WHERE Opportunity.AccountId = :opportunity.AccountId
+            AND Opportunity.RecordType.DeveloperName = :DEALER_RECORD_TYPE
+            AND Product2Id != null
+            AND (NOT Product2.SalesCategoryCode__c = :SERVICE_CATEGORY)
+            WITH USER_MODE
+            GROUP BY Product2Id
+            ORDER BY MAX(CreatedDate) DESC
+            LIMIT :RECENT_LIMIT
+        ]) {
+            productIds.add((Id) result.get('Product2Id'));
+        }
+        return productIds;
+    }
+
+    private static List<PricebookEntry> entriesForProducts(Opportunity opportunity, List<Id> productIds) {
+        List<PricebookEntry> ordered = new List<PricebookEntry>();
+        if (productIds.isEmpty()) {
+            return ordered;
+        }
+        Map<Id, PricebookEntry> entriesByProduct = new Map<Id, PricebookEntry>();
+        for (PricebookEntry entry : [
+            SELECT Id, UnitPrice, Product2Id, Product2.Name, Product2.ProductCode, Product2.Description,
+                Product2.ItemFamily__c, Product2.BusinessUnit__c, Product2.SalesCategoryCode__c
+            FROM PricebookEntry
+            WHERE Pricebook2Id = :opportunity.Pricebook2Id
+            AND CurrencyIsoCode = :opportunity.CurrencyIsoCode
+            AND IsActive = true
+            AND Product2.IsActive = true
+            AND Product2Id IN :productIds
+            AND (NOT Product2.SalesCategoryCode__c = :SERVICE_CATEGORY)
+            WITH SYSTEM_MODE
+        ]) {
+            entriesByProduct.put(entry.Product2Id, entry);
+        }
+        for (Id productId : productIds) {
+            if (entriesByProduct.containsKey(productId)) {
+                ordered.add(entriesByProduct.get(productId));
+            }
+        }
+        return ordered;
+    }
+
+    private static List<PricebookEntry> catalogEntries(
+        Opportunity opportunity,
+        String likeKey,
+        Set<Id> excludedProductIds,
+        Integer rowLimit
+    ) {
+        if (likeKey == null) {
+            return [
+                SELECT Id, UnitPrice, Product2Id, Product2.Name, Product2.ProductCode, Product2.Description,
+                Product2.ItemFamily__c, Product2.BusinessUnit__c, Product2.SalesCategoryCode__c
+                FROM PricebookEntry
+                WHERE Pricebook2Id = :opportunity.Pricebook2Id
+                AND CurrencyIsoCode = :opportunity.CurrencyIsoCode
+                AND IsActive = true
+                AND Product2.IsActive = true
+                AND (NOT Product2.SalesCategoryCode__c = :SERVICE_CATEGORY)
+                AND Product2Id NOT IN :excludedProductIds
+                WITH SYSTEM_MODE
+                ORDER BY Product2.Name
+                LIMIT :rowLimit
+            ];
+        }
+        return [
+            SELECT Id, UnitPrice, Product2Id, Product2.Name, Product2.ProductCode, Product2.Description,
+                Product2.ItemFamily__c, Product2.BusinessUnit__c, Product2.SalesCategoryCode__c
+            FROM PricebookEntry
+            WHERE Pricebook2Id = :opportunity.Pricebook2Id
+            AND CurrencyIsoCode = :opportunity.CurrencyIsoCode
+            AND IsActive = true
+            AND Product2.IsActive = true
+            AND (NOT Product2.SalesCategoryCode__c = :SERVICE_CATEGORY)
+            AND Product2Id NOT IN :excludedProductIds
+            AND (
+                Product2.Name LIKE :likeKey
+                OR Product2.ProductCode LIKE :likeKey
+                OR Product2.Description LIKE :likeKey
+            )
+            WITH SYSTEM_MODE
+            ORDER BY Product2.Name
+            LIMIT :rowLimit
+        ];
+    }
+
+    private static ProductOption toOption(PricebookEntry entry, String currencyCode, Boolean recentlyAdded) {
         ProductOption option = new ProductOption();
         option.pricebookEntryId = entry.Id;
         option.productId = entry.Product2Id;
         option.productName = entry.Product2.Name;
         option.productCode = entry.Product2.ProductCode;
+        option.productFamily = entry.Product2.ItemFamily__c;
+        option.businessUnit = entry.Product2.BusinessUnit__c;
+        option.salesCategoryCode = entry.Product2.SalesCategoryCode__c;
         option.productDescription = entry.Product2.Description;
         option.listPrice = entry.UnitPrice;
         option.currencyCode = currencyCode;
+        option.recentlyAdded = recentlyAdded;
         return option;
+    }
+
+    private static List<CurrencyRate> activeCurrencyRates() {
+        List<CurrencyRate> rates = new List<CurrencyRate>();
+        for (CurrencyType currencyType : [
+            SELECT IsoCode, ConversionRate, DecimalPlaces
+            FROM CurrencyType
+            WHERE IsActive = true
+            ORDER BY IsoCode
+        ]) {
+            CurrencyRate rate = new CurrencyRate();
+            rate.isoCode = currencyType.IsoCode;
+            rate.decimalPlaces = currencyType.DecimalPlaces;
+            rate.conversionRate = currencyType.ConversionRate;
+            rates.add(rate);
+        }
+        return rates;
+    }
+
+    private static Map<String, CurrencyType> currencyTypesByCode() {
+        Map<String, CurrencyType> ratesByCode = new Map<String, CurrencyType>();
+        for (CurrencyType currencyType : [
+            SELECT IsoCode, ConversionRate, DecimalPlaces
+            FROM CurrencyType
+            WHERE IsActive = true
+        ]) {
+            ratesByCode.put(currencyType.IsoCode, currencyType);
+        }
+        return ratesByCode;
+    }
+
+    private static Decimal convertToOpportunityCurrency(
+        Decimal amount,
+        String enteredCurrency,
+        String opportunityCurrency,
+        Map<String, CurrencyType> ratesByCode
+    ) {
+        if (String.isBlank(enteredCurrency) || enteredCurrency == opportunityCurrency) {
+            return amount;
+        }
+        CurrencyType fromRate = ratesByCode.get(enteredCurrency);
+        CurrencyType toRate = ratesByCode.get(opportunityCurrency);
+        if (fromRate == null || toRate == null || fromRate.ConversionRate == null || fromRate.ConversionRate == 0) {
+            throwAura('Select a permitted currency.');
+        }
+        Integer places = toRate.DecimalPlaces == null ? 2 : toRate.DecimalPlaces;
+        return (amount * toRate.ConversionRate / fromRate.ConversionRate)
+            .setScale(places, System.RoundingMode.HALF_UP);
     }
 
     private static String likeTerm(String searchKey) {

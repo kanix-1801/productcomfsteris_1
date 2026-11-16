@@ -174,4 +174,51 @@
                 WITH USER_MODE
             ];
         }
+
+        /**
+         * @description GCL-79 - Existing Account Team rows for a Life Sciences overlay submit.
+         *              Healthcare team lookups are unchanged.
+         * @param accountIds Account Ids receiving the overlay.
+         * @param userIds Overlay user Ids.
+         * @return Existing AccountId and UserId pairs.
+         */
+        public static List<AccountTeamMember> selectLifeSciencesByAccountsAndUsers(
+            Set<Id> accountIds,
+            Set<Id> userIds
+        ) {
+            if (accountIds == null || accountIds.isEmpty() || userIds == null || userIds.isEmpty()) {
+                return new List<AccountTeamMember>();
+            }
+            return [
+                SELECT AccountId, UserId
+                FROM AccountTeamMember
+                WHERE AccountId IN :accountIds
+                AND UserId IN :userIds
+            ];
+        }
+
+/**
+         * @description
+         * GCL-100 - Returns the running user's Account Team row for one Account.
+         * Life Sciences territory coverage is assigned through the Account Team.
+         *
+         * @param accountId Account record Id from the record page.
+         * @return The current user's team row, or an empty list when they are not a member.
+         *
+         * @example
+         * AccountTeamMemberSelector.selectCurrentUserTeamMember(accountId);
+         */
+        public static List<AccountTeamMember> selectCurrentUserTeamMember(Id accountId) {
+            if (accountId == null) {
+                return new List<AccountTeamMember>();
+            }
+
+            return [
+                SELECT Id
+                FROM AccountTeamMember
+                WHERE AccountId = :accountId
+                AND UserId = :UserInfo.getUserId()
+                LIMIT 1
+            ];
+        }
     }

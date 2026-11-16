@@ -550,7 +550,9 @@ public with sharing class WorkOrderLineItemsSelector extends SoqlQueryBuilder {
                 AssetId,
                 Asset.Name,
                 RepairLevel__c,
+                MobileDevicePictureCount__c,
                 SendToRepairCenter__c,
+                ReplacedWithIXchange__c,
                 SerialNumber__c,
                 Model__c,
                 Quantity,
@@ -722,7 +724,14 @@ public with sharing class WorkOrderLineItemsSelector extends SoqlQueryBuilder {
                 'ProductCodeWoli__c',
                 'ProductDescription__c',
                 'CategoryCodeDiscount__c',
-                // GW-3458 PricingModifier/ModifierReason/OrderReference omitted for CBMQA
+                'PricingModifier__c',
+                'PricingModifier__r.Name',
+                'PricingModifier__r.ModifierLevel__c',
+                'PricingModifierName__c',
+                'PricingModifierValue__c',
+                'ModifierReasonCode__c',
+                'OrderReference__c',
+                'OrderReference__r.WorkOrderNumber',
                 'Product2.Name',
                 'Product2.ProductCode',
                 'Product2.Manufacturer__c',
@@ -775,8 +784,13 @@ public with sharing class WorkOrderLineItemsSelector extends SoqlQueryBuilder {
                 'LineType__c',
                 'IsAccessory__c',
                 'ParentWorkOrderLineItemId',
-                'CategoryCodeDiscount__c'
-                // GW-3458 PricingModifier/ModifierReason/OrderReference omitted for CBMQA
+                'CategoryCodeDiscount__c',
+                'PricingModifier__c',
+                'PricingModifier__r.ModifierLevel__c',
+                'PricingModifierName__c',
+                'PricingModifierValue__c',
+                'ModifierReasonCode__c',
+                'OrderReference__c'
             })
             .whereEquals('Id', lineItemId)
             .limitTo(1)
@@ -794,8 +808,15 @@ public with sharing class WorkOrderLineItemsSelector extends SoqlQueryBuilder {
         }
         return (List<WorkOrderLineItem>) new WorkOrderLineItemsSelector()
             .selectFields(new List<String>{
-                'Id'
-                // GW-3458 PricingModifier/ModifierReason/OrderReference omitted for CBMQA
+                'Id',
+                'PricingModifier__c',
+                'PricingModifier__r.Name',
+                'PricingModifier__r.ModifierLevel__c',
+                'PricingModifier__r.ModifierValue__c',
+                'PricingModifierName__c',
+                'PricingModifierValue__c',
+                'ModifierReasonCode__c',
+                'OrderReference__c'
             })
             .whereField('Id', 'IN', new List<Id>(lineItemIds))
             .execute();
@@ -811,7 +832,7 @@ public with sharing class WorkOrderLineItemsSelector extends SoqlQueryBuilder {
             return new List<WorkOrderLineItem>();
         }
         return (List<WorkOrderLineItem>) new WorkOrderLineItemsSelector()
-            .selectFields(new List<String>{ 'Id', 'LineType__c' })
+            .selectFields(new List<String>{ 'Id', 'PricingModifier__c', 'LineType__c' })
             .whereEquals('ParentWorkOrderLineItemId', parentLineItemId)
             .whereEquals('LineType__c', 'Service Code')
             .execute();
@@ -1021,4 +1042,70 @@ public with sharing class WorkOrderLineItemsSelector extends SoqlQueryBuilder {
             .limitTo(1)
             .execute();
     }
+
+    /**
+     * @description GW-4378 - Work Order lines and product labels for the evaluation Photos tab.
+     * @param workOrderIds Work Order Ids
+     * @return Lines with Product code and description
+     */
+    public static List<WorkOrderLineItem> selectWithProductByWorkOrderIds(Set<Id> workOrderIds) {
+        if (workOrderIds == null || workOrderIds.isEmpty()) {
+            return new List<WorkOrderLineItem>();
+        }
+        return (List<WorkOrderLineItem>) SoqlQueryBuilder.fromObject('WorkOrderLineItem')
+            .selectFields(
+                new List<String>{
+                    'Id',
+                    'WorkOrderId',
+                    'Product__c',
+                    'Product__r.ProductCode',
+                    'Product__r.Name',
+                    'Product__r.Description'
+                }
+            )
+            .whereIn('WorkOrderId', new List<Id>(workOrderIds))
+            .execute();
+    }
+
+	/**
+	 * @description GW-5310 - Repair Code lines, parent item, and product labels for signature override.
+	 * @param workOrderId Work Order Id
+	 * @param repairCodeRtId Repair Code record type Id
+	 * @return Repair Code Work Order Line Items
+	 */
+	public static List<WorkOrderLineItem> selectRepairCodesForSignatureOverride(
+		Id workOrderId,
+		Id repairCodeRtId
+	) {
+		if (workOrderId == null || repairCodeRtId == null) {
+			return new List<WorkOrderLineItem>();
+		}
+		return (List<WorkOrderLineItem>) new WorkOrderLineItemsSelector()
+			.selectFields(
+				new List<String>{
+					'Id',
+					'Status',
+					'Quantity',
+					'ParentWorkOrderLineItemId',
+					'Product2.ProductCode',
+					'Product2.Name',
+					'Product2.Description',
+					'Product2.EvalCategory__c',
+					'Product__r.ProductCode',
+					'Product__r.Name',
+					'Product__r.Description',
+					'Product__r.EvalCategory__c',
+					'ParentWorkOrderLineItem.Quantity',
+					'ParentWorkOrderLineItem.Product2.ProductCode',
+					'ParentWorkOrderLineItem.Product2.Name',
+					'ParentWorkOrderLineItem.Product__r.ProductCode',
+					'ParentWorkOrderLineItem.Product__r.Name'
+				}
+			)
+			.whereEquals('WorkOrderId', workOrderId)
+			.whereEquals('RecordTypeId', repairCodeRtId)
+			.orderBy('CreatedDate')
+			.limitTo(200)
+			.executeSystemMode();
+	}
 }

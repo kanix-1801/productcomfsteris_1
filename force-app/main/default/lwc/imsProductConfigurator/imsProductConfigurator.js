@@ -1,9 +1,10 @@
 // GW-4777 / GW-5676 - IMS Product Configurator: Contract Adjustments card for the RCA product configurator
 // (IMS Service Agreement).
-// Inclusions / Exclusions and Model Quantity are written into the configuration as JSON
-// (QuoteLineItem.ModelQtyCoverage__c via a ContextFields update, like the ES Service asset components). When the
-// configuration is saved, ContractModifierService creates the line's ContractModifier__c records from it:
-// INC/EXC (one per inclusion and per exclusion) and MODEL QTY (one per row).
+// Inclusions / Exclusions, Model Quantity, Pricing Programs and On Location - Mobile Van are written into the
+// configuration as JSON (QuoteLineItem.ModelQtyCoverage__c via a ContextFields update, like the ES Service asset
+// components). When the configuration is saved, ImsProductConfiguratorService creates the line's
+// ContractAdjustment__c records from it: Inc/Exc (one per inclusion and per exclusion, the inclusion being the
+// exclusion's parent), Model Qty (one per row), Pricing Program (one per program) and Mobile Van (one per category).
 import { LightningElement, api, wire } from 'lwc';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import { publish, subscribe, unsubscribe, MessageContext, APPLICATION_SCOPE } from 'lightning/messageService';
@@ -11,34 +12,51 @@ import CONFIGURATOR_CHANNEL from '@salesforce/messageChannel/lightning__productC
 import getAttributeIds from '@salesforce/apex/EsServiceProductConfigController.getAttributeIds';
 import getCoverage from '@salesforce/apex/ImsProductConfiguratorController.getCoverage';
 import { getObjectInfo, getPicklistValues } from 'lightning/uiObjectInfoApi';
-import CONTRACT_MODIFIER_OBJECT from '@salesforce/schema/ContractModifier__c';
-import PRODUCT_LINE_FIELD from '@salesforce/schema/ContractModifier__c.ProductLine__c';
-import SUB_PRODUCT_LINE_FIELD from '@salesforce/schema/ContractModifier__c.SubProductLine__c';
-import PRODUCT_TYPE_FIELD from '@salesforce/schema/ContractModifier__c.ProductType__c';
+import CONTRACT_ADJUSTMENT_OBJECT from '@salesforce/schema/ContractAdjustment__c';
+import PRODUCT_LINE_FIELD from '@salesforce/schema/ContractAdjustment__c.ProductLine__c';
+import SUB_PRODUCT_LINE_FIELD from '@salesforce/schema/ContractAdjustment__c.SubProductLine__c';
+import PRODUCT_TYPE_FIELD from '@salesforce/schema/ContractAdjustment__c.ProductType__c';
+import INSTRUMENT_SERVICES_FIELD from '@salesforce/schema/ContractAdjustment__c.InstrumentServices__c';
 import getManufacturers from '@salesforce/apex/ImsProductConfiguratorController.getManufacturers';
 import getSubProductLines from '@salesforce/apex/ImsProductConfiguratorController.getSubProductLines';
 import getAssetCatalog from '@salesforce/apex/ImsProductConfiguratorController.getAssetCatalog';
+import searchPricingPrograms from '@salesforce/apex/ImsProductConfiguratorController.searchPricingPrograms';
+import getPricingProgramsByNames from '@salesforce/apex/ImsProductConfiguratorController.getPricingProgramsByNames';
 
 const COVERAGE_FIELD = 'ModelQtyCoverage__c';
-const MODEL_MAX_LENGTH = 100; // ContractModifier__c.Model__c
-const QTY_MAX = 99999; // ContractModifier__c.ModelQty__c is Number(5, 0)
+const MODEL_MAX_LENGTH = 50; // ContractAdjustment__c.Model__c
+const QTY_MAX = 99999; // ContractAdjustment__c.ModelQty__c is Number(5, 0)
+// ContractAdjustment__c record type labels whose picklist values the pickers offer
+const INC_EXC_RECORD_TYPE = 'Inclusion Exclusion';
+const MOBILE_VAN_RECORD_TYPE = 'ONL Mobile';
 const ANY_OPTION = { label: 'Any', value: '' };
 
 // The five fields that describe equipment, in order; a blank field means any value.
 const FIELDS = ['productLine', 'subProductLine', 'productType', 'manufacturer', 'model'];
 const FIELD_LABELS = {
-    productLine: 'Product Line',
-    subProductLine: 'Sub Product Line',
-    productType: 'Device Type', // stored in ContractModifier__c.ProductType__c
-    manufacturer: 'Manufacturer',
-    model: 'Model'
+    productLine: 'Product Line', subProductLine: 'Sub Product Line',
+    productType: 'Device Type', manufacturer: 'Manufacturer', model: 'Model'
 };
 // Inclusion / Exclusion fields picked from a list (Model is free text)
 const PICKLIST_FIELDS = ['productLine', 'subProductLine', 'productType', 'manufacturer'];
 
 const SECTION_INC_EXC = 'incExc';
 const SECTION_MODEL_QTY = 'modelQty';
-const EMPTY_ADJUSTMENTS = { inclusions: [], models: [], pricingProgram: null };
+const SECTION_PRICING = 'pricingPrograms';
+const SECTION_MOBILE_VAN = 'onLocationMobileVan';
+const MIN_PROGRAM_SEARCH_LENGTH = 3;
+const PROGRAM_SEARCH_DELAY_MS = 300; // wait for the user to stop typing before searching
+const EMPTY_ADJUSTMENTS = {
+    inclusions: [],
+    models: [],
+    pricingPrograms: [],
+    pricingProgram: null,
+    mobileVan: { instrumentServices: [] }
+};
+// Mobile Van as stored in the JSON: the InstrumentServices__c values picked, once each, sorted
+const pickMobileVan = (source) => ({
+    instrumentServices: [...new Set((source?.instrumentServices || []).map(clean).filter(Boolean))].sort()
+});
 
 // A real, saved Quote Line Item Id. New lines in the configurator have temporary "ref_" Ids.
 const isSavedLineId = (id) => typeof id === 'string' && id.startsWith('0QL') && (id.length === 15 || id.length === 18);
@@ -50,6 +68,31 @@ const pickCriteria = (source) => Object.fromEntries(FIELDS.map((f) => [f, blankT
 const hasAnyValue = (criteria) => FIELDS.some((f) => !!clean(criteria[f]));
 const criteriaKey = (criteria) => FIELDS.map((f) => lower(criteria[f])).join('|');
 const manufacturerKey = (row) => `${lower(row?.productLine)}|${lower(row?.subProductLine)}`;
+// A program's CT codes (its child records) as { code, name }; an older single "ctCode" string is read as one code
+const pickCtCodes = (source) => {
+    const list = Array.isArray(source?.ctCodes) ? source.ctCodes : source?.ctCode ? [{ code: source.ctCode }] : [];
+    return list
+        .map((c) => ({ code: clean(c?.code), name: clean(c?.name) }))
+        .filter((c) => c.code);
+};
+// Pricing Program row as stored in the JSON: program Id and name, description, CT codes
+const pickProgram = (source) => ({
+    programId: blankToNull(source?.programId),
+    program: blankToNull(source?.program),
+    description: blankToNull(source?.description),
+    ctCodes: pickCtCodes(source)
+});
+// CT Code pill: "3 CT Codes · 4410, 4412, 4415" (cut off with an ellipsis by CSS); hover/focus shows the full list
+const ctCodeView = (ctCodes, keyPrefix) => {
+    const codes = ctCodes || [];
+    const count = codes.length;
+    return {
+        hasCtCodes: count > 0,
+        ctCount: count,
+        ctPillLabel: `${count} CT ${count === 1 ? 'Code' : 'Codes'} · ${codes.map((c) => c.code).join(', ')}`,
+        ctCodeList: codes.map((c, i) => ({ key: `${keyPrefix}-ct-${i}`, code: c.code, name: c.name || '—' }))
+    };
+};
 
 export default class ImsProductConfigurator extends LightningElement {
     // configuratorContext > transactionLineId: the configuration's root line
@@ -86,7 +129,27 @@ export default class ImsProductConfigurator extends LightningElement {
     activeSection = SECTION_INC_EXC;
     incRules = [];
     modelRows = [];
+    pricingRows = [];
     _seq = 0;
+ 
+    // Pricing Programs from the org (PricingProgram__c + its CT code lines) by program name, filled from the
+    // search results and from the programs saved on a line; gives a row its current description and CT codes
+    knownPrograms = {};
+    // "Add pricing program" search bar: results come from Apex (Active, in-date programs)
+    programSearchTerm = '';
+    programSearchData = [];
+    programSearching = false;
+    programSearchError;
+    _programSearchTimer;
+    selectedProgramNames = [];
+    // On Location - Mobile Van: category filter and the categories checked
+    mobileVanFilter = '';
+    mobileVanSelected = []; // picklist API values
+    // On Location - Mobile Van categories: ContractAdjustment__c.InstrumentServices__c picklist values
+    // ({ label, value }) for the user's default record type. UI only for now, not saved with the configuration.
+    mobileVanCategories = [];
+    mobileVanCategoriesLoaded = false;
+    mobileVanError;
 
     productLineValues = [];
     subProductLineValues = [];
@@ -100,30 +163,53 @@ export default class ImsProductConfigurator extends LightningElement {
 
     @wire(MessageContext) messageContext;
 
-    // Picklist values need field access to ContractModifier__c; without it the UI API answers
+    // Picklist values need field access to ContractAdjustment__c; without it the UI API answers
     // "The requested resource does not exist".
-    @wire(getObjectInfo, { objectApiName: CONTRACT_MODIFIER_OBJECT })
-    objectInfo;
+    // Record types whose values the pickers offer (the user's default record type when one is not found)
+    incExcRecordTypeId;
+    mobileVanRecordTypeId;
 
-    @wire(getPicklistValues, { recordTypeId: '$objectInfo.data.defaultRecordTypeId', fieldApiName: PRODUCT_LINE_FIELD })
+    @wire(getObjectInfo, { objectApiName: CONTRACT_ADJUSTMENT_OBJECT })
+    wiredContractAdjustmentInfo({ data, error }) {
+        if (data) {
+            const byLabel = (label) =>
+                Object.values(data.recordTypeInfos || {}).find((rt) => rt.name === label)?.recordTypeId ||
+                data.defaultRecordTypeId;
+            this.incExcRecordTypeId = byLabel(INC_EXC_RECORD_TYPE);
+            this.mobileVanRecordTypeId = byLabel(MOBILE_VAN_RECORD_TYPE);
+        } else if (error) {
+            this.errorMessage = reduceError(error);
+        }
+    }
+
+    @wire(getPicklistValues, { recordTypeId: '$incExcRecordTypeId', fieldApiName: PRODUCT_LINE_FIELD })
     wiredProductLines({ data, error }) {
         if (data) this.productLineValues = data.values;
         else if (error) this.errorMessage = reduceError(error);
     }
 
-    @wire(getPicklistValues, {
-        recordTypeId: '$objectInfo.data.defaultRecordTypeId',
-        fieldApiName: SUB_PRODUCT_LINE_FIELD
-    })
+    @wire(getPicklistValues, { recordTypeId: '$incExcRecordTypeId', fieldApiName: SUB_PRODUCT_LINE_FIELD })
     wiredSubProductLineValues({ data, error }) {
         if (data) this.subProductLineValues = data.values;
         else if (error) this.errorMessage = reduceError(error);
     }
 
-    @wire(getPicklistValues, { recordTypeId: '$objectInfo.data.defaultRecordTypeId', fieldApiName: PRODUCT_TYPE_FIELD })
+    @wire(getPicklistValues, { recordTypeId: '$incExcRecordTypeId', fieldApiName: PRODUCT_TYPE_FIELD })
     wiredProductTypes({ data, error }) {
         if (data) this.productTypeValues = data.values;
         else if (error) this.errorMessage = reduceError(error);
+    }
+
+    @wire(getPicklistValues, { recordTypeId: '$mobileVanRecordTypeId', fieldApiName: INSTRUMENT_SERVICES_FIELD })
+    wiredInstrumentServices({ data, error }) {
+        if (data) {
+            this.mobileVanCategories = data.values.map((v) => ({ label: v.label, value: v.value }));
+            this.mobileVanCategoriesLoaded = true;
+        } else if (error) {
+            // Shown in the Mobile Van tab only: the other tabs still work without this object
+            this.mobileVanCategoriesLoaded = true;
+            this.mobileVanError = reduceError(error);
+        }
     }
 
     @wire(getAssetCatalog, { quoteId: '$transactionId' })
@@ -148,6 +234,7 @@ export default class ImsProductConfigurator extends LightningElement {
     disconnectedCallback() {
         unsubscribe(this.subscription);
         this.subscription = null;
+        clearTimeout(this._programSearchTimer);
     }
 
     handleMessage(message) {
@@ -187,7 +274,8 @@ export default class ImsProductConfigurator extends LightningElement {
     async loadLine(lineId) {
         if (!lineId || this.savedByLine[lineId] || this.loadingLines[lineId]) return;
         if (!isSavedLineId(lineId)) {
-            this.savedByLine = { ...this.savedByLine, [lineId]: EMPTY_ADJUSTMENTS }; // new line: nothing stored
+            // new line: nothing stored yet
+            this.savedByLine = { ...this.savedByLine, [lineId]: this.fromJson(null) };
             return;
         }
         this.loadingLines = { ...this.loadingLines, [lineId]: true };
@@ -202,6 +290,33 @@ export default class ImsProductConfigurator extends LightningElement {
             delete next[lineId];
             this.loadingLines = next;
         }
+        this.refreshSavedPrograms(lineId);
+    }
+
+    // Reloads the line's saved Pricing Programs from the org so they show their current description and CT codes.
+    // Non-fatal: if it fails, the values saved in the JSON are shown.
+    async refreshSavedPrograms(lineId) {
+        const names = (this.savedByLine[lineId]?.pricingPrograms || []).map((p) => p.program).filter(Boolean);
+        if (!names.length) return;
+        try {
+            this.rememberPrograms(await getPricingProgramsByNames({ programNames: names }));
+            const saved = this.savedByLine[lineId];
+            this.savedByLine = {
+                ...this.savedByLine,
+                [lineId]: { ...saved, pricingPrograms: saved.pricingPrograms.map((p) => this.programDetails(p)) }
+            };
+        } catch (e) {
+            // keep the saved values
+        }
+    }
+
+    // Adds programs from Apex to knownPrograms, by program name
+    rememberPrograms(programs) {
+        const next = { ...this.knownPrograms };
+        (programs || []).forEach((p) => {
+            if (p?.program) next[p.program] = p;
+        });
+        this.knownPrograms = next;
     }
 
     fromJson(raw) {
@@ -217,7 +332,9 @@ export default class ImsProductConfigurator extends LightningElement {
                 exclusions: (r.exclusions || []).map(pickCriteria)
             })),
             models: (data?.models || []).map((m) => ({ ...pickCriteria(m), qty: Number(m.qty) })),
-            pricingProgram: data?.pricingProgram || null
+            pricingPrograms: (data?.pricingPrograms || []).map((p) => this.programDetails(p)),
+            pricingProgram: data?.pricingProgram || null,
+            mobileVan: pickMobileVan(data?.mobileVan)
         };
     }
 
@@ -249,6 +366,14 @@ export default class ImsProductConfigurator extends LightningElement {
             ])
             .join(' · ');
         const modelPreview = c.models.map((m) => `${m.model || this.describe(m)} · ${m.qty} max`).join(' · ');
+        const pricingPreview = c.pricingPrograms
+            .map((p) => {
+                const n = p.ctCodes.length;
+                const label = this.programLabel(p.program);
+                return n ? `${label} (${n} CT ${n === 1 ? 'code' : 'codes'})` : label;
+            })
+            .join(' · ');
+        const mobileVan = c.mobileVan?.instrumentServices || [];
         return [
             {
                 key: SECTION_INC_EXC,
@@ -261,8 +386,30 @@ export default class ImsProductConfigurator extends LightningElement {
                 label: 'Model Quantity',
                 count: c.models.length,
                 preview: modelPreview || 'None configured'
+            },
+            {
+                key: SECTION_PRICING,
+                label: 'Pricing Programs',
+                count: c.pricingPrograms.length,
+                preview: pricingPreview || 'None configured'
+            },
+            {
+                key: SECTION_MOBILE_VAN,
+                label: 'On Location - Mobile Van',
+                count: mobileVan.length,
+                preview: mobileVan.map((v) => this.mobileVanLabel(v)).join(' · ') || 'None configured'
             }
         ];
+    }
+
+    // Label of an InstrumentServices__c value (the value itself until the picklist has loaded)
+    mobileVanLabel(value) {
+        return this.mobileVanCategories.find((c) => c.value === value)?.label || value;
+    }
+
+    // A Pricing Program is stored and shown by its name, e.g. "PP-ENDO-01"
+    programLabel(value) {
+        return value || 'No program';
     }
 
     // "Manufacturer: Pentax" for a single field, otherwise the values joined: "Flexible Endoscopy / Olympus"
@@ -302,6 +449,10 @@ export default class ImsProductConfigurator extends LightningElement {
         this.incRules = c.inclusions.map((r) => this.newRule(r, r.exclusions));
         this.modelRows = c.models.map((m) => this.newModelRow(m, m.qty));
         if (!this.modelRows.length) this.modelRows = [this.newModelRow()];
+        this.pricingRows = c.pricingPrograms.map((p) => this.newPricingRow(p));
+        this.resetProgramSearch();
+        this.mobileVanFilter = '';
+        this.mobileVanSelected = [...(c.mobileVan?.instrumentServices || [])];
         this.ensureManufacturers({}); // new rows start at Any / Any
         this.incRules.forEach((r) => {
             this.ensureSubProductLines(r.productLine);
@@ -330,6 +481,12 @@ export default class ImsProductConfigurator extends LightningElement {
     get isModelQtySection() {
         return this.activeSection === SECTION_MODEL_QTY;
     }
+    get isPricingSection() {
+        return this.activeSection === SECTION_PRICING;
+    }
+    get isMobileVanSection() {
+        return this.activeSection === SECTION_MOBILE_VAN;
+    }
 
     get navItems() {
         const incExcCount = this.incRules.reduce(
@@ -337,9 +494,12 @@ export default class ImsProductConfigurator extends LightningElement {
             0
         );
         const modelCount = this.modelRows.filter(hasAnyValue).length;
+        const pricingCount = this.pricingRows.filter((r) => r.program).length;
         return [
             { key: SECTION_INC_EXC, label: 'Inclusions / Exclusions', count: incExcCount },
-            { key: SECTION_MODEL_QTY, label: 'Model Quantity', count: modelCount }
+            { key: SECTION_MODEL_QTY, label: 'Model Quantity', count: modelCount },
+            { key: SECTION_PRICING, label: 'Pricing Programs', count: pricingCount },
+            { key: SECTION_MOBILE_VAN, label: 'On Location - Mobile Van', count: this.mobileVanSelected.length }
         ].map((item) => {
             const active = item.key === this.activeSection;
             return {
@@ -639,6 +799,234 @@ export default class ImsProductConfigurator extends LightningElement {
         this.modelRows = this.modelRows.filter((r) => r.key !== rowKey);
     }
 
+    /* =====================  PRICING PROGRAMS  ===================== */
+    // One row per program: Program is the program name itself (e.g. "PP-ENDO-01"), shown as plain text.
+    // Description and CT Code come from the program list for a known name.
+
+    // A program's description and CT codes come from the org (knownPrograms: its child CT Code records),
+    // so rows saved earlier show the current ones. The saved values are kept for a program not loaded from the org.
+    programDetails(source) {
+        const p = pickProgram(source);
+        const known = this.knownPrograms[p.program];
+        if (!known) return p;
+        const knownCodes = pickCtCodes(known);
+        return {
+            programId: blankToNull(known.programId) || p.programId,
+            program: p.program,
+            description: blankToNull(known.description) || p.description,
+            ctCodes: knownCodes.length ? knownCodes : p.ctCodes
+        };
+    }
+
+    newPricingRow(source) {
+        const p = this.programDetails(source);
+        return {
+            key: this.nextKey('pp'),
+            programId: p.programId,
+            program: p.program || '',
+            description: p.description || '',
+            ctCodes: p.ctCodes
+        };
+    }
+
+    get pricingProgramRows() {
+        return this.pricingRows.map((row, i) => {
+            const number = i + 1;
+            return {
+                key: row.key,
+                program: row.program,
+                programLabel: `Pricing Program ${number} Program`,
+                description: row.description || '—',
+                ...ctCodeView(row.ctCodes, row.key),
+                deleteLabel: `Remove Pricing Program ${number}`
+            };
+        });
+    }
+
+    get noPricingRows() {
+        return this.pricingRows.length === 0;
+    }
+
+    /* ---------- Add pricing program: search + select ---------- */
+    // Once 3+ characters are typed (and the user pauses), Apex searches the Active, in-date programs by program
+    // name, CT code or CT name. Checked results are added as rows by the Add button; programs already in the
+    // table are not offered.
+
+    get programSearchTooShort() {
+        const len = this.programSearchTerm.length;
+        return len > 0 && len < MIN_PROGRAM_SEARCH_LENGTH;
+    }
+
+    get isProgramSearchActive() {
+        return this.programSearchTerm.length >= MIN_PROGRAM_SEARCH_LENGTH;
+    }
+
+    get programSearchResults() {
+        if (!this.isProgramSearchActive) return [];
+        const added = new Set(this.pricingRows.map((r) => r.program));
+        return this.programSearchData
+            .filter((p) => !added.has(p.program))
+            .map((p) => ({
+                program: p.program,
+                description: p.description || '—',
+                category: p.category || '—',
+                ...ctCodeView(pickCtCodes(p), `sr-${p.program}`),
+                selected: this.selectedProgramNames.includes(p.program),
+                selectLabel: `Select ${p.program}`
+            }));
+    }
+
+    get hasProgramSearchResults() {
+        return this.programSearchResults.length > 0;
+    }
+
+    get noProgramSearchResults() {
+        return (
+            this.isProgramSearchActive &&
+            !this.programSearching &&
+            !this.programSearchError &&
+            !this.hasProgramSearchResults
+        );
+    }
+
+    get showProgramSearchSpinner() {
+        return this.isProgramSearchActive && this.programSearching;
+    }
+
+    get addProgramsDisabled() {
+        return this.selectedProgramNames.length === 0;
+    }
+
+    get addProgramsLabel() {
+        const n = this.selectedProgramNames.length;
+        return n ? `Add (${n})` : 'Add';
+    }
+
+    resetProgramSearch() {
+        clearTimeout(this._programSearchTimer);
+        this.programSearchTerm = '';
+        this.programSearchData = [];
+        this.programSearching = false;
+        this.programSearchError = null;
+        this.selectedProgramNames = [];
+    }
+
+    handlePricingProgramSearch(event) {
+        this.programSearchTerm = clean(event.detail.value);
+        this.programSearchError = null;
+        clearTimeout(this._programSearchTimer);
+        if (!this.isProgramSearchActive) {
+            this.programSearchData = [];
+            this.programSearching = false;
+            return;
+        }
+        this.programSearching = true;
+        const searchTerm = this.programSearchTerm;
+        // eslint-disable-next-line @lwc/lwc/no-async-operation
+        this._programSearchTimer = setTimeout(() => this.runProgramSearch(searchTerm), PROGRAM_SEARCH_DELAY_MS);
+    }
+
+    async runProgramSearch(searchTerm) {
+        try {
+            const programs = await searchPricingPrograms({ searchTerm });
+            if (searchTerm !== this.programSearchTerm) return; // the user typed on: a newer search is coming
+            this.programSearchData = programs || [];
+            this.rememberPrograms(this.programSearchData);
+        } catch (e) {
+            if (searchTerm !== this.programSearchTerm) return;
+            this.programSearchData = [];
+            this.programSearchError = reduceError(e);
+        } finally {
+            if (searchTerm === this.programSearchTerm) this.programSearching = false;
+        }
+    }
+
+    handleProgramSelect(event) {
+        const program = event.target.dataset.program;
+        const others = this.selectedProgramNames.filter((name) => name !== program);
+        this.selectedProgramNames = event.target.checked ? [...others, program] : others;
+    }
+
+    handleAddSelectedPrograms() {
+        const added = new Set(this.pricingRows.map((r) => r.program));
+        const toAdd = this.programSearchData.filter(
+            (p) => this.selectedProgramNames.includes(p.program) && !added.has(p.program)
+        );
+        this.pricingRows = [...this.pricingRows, ...toAdd.map((p) => this.newPricingRow(p))];
+        this.resetProgramSearch();
+    }
+
+    handleRemovePricingProgram(event) {
+        const ruleKey = event.currentTarget.dataset.ruleKey;
+        this.pricingRows = this.pricingRows.filter((r) => r.key !== ruleKey);
+    }
+
+    /* =====================  ON LOCATION - MOBILE VAN  ===================== */
+    // Tiles with a checkbox per category. The filter narrows the tiles shown; the count, Select all and Clear
+    // work on the tiles shown.
+
+    // Categories ({ label, value }) whose label matches the filter
+    get visibleMobileVanCategories() {
+        const term = lower(this.mobileVanFilter);
+        return term
+            ? this.mobileVanCategories.filter((c) => c.label.toLowerCase().includes(term))
+            : this.mobileVanCategories;
+    }
+
+    get mobileVanTiles() {
+        return this.visibleMobileVanCategories.map(({ label, value }) => {
+            const checked = this.mobileVanSelected.includes(value);
+            return { key: value, label, value, checked, tileClass: `ca-tile${checked ? ' ca-tile_checked' : ''}` };
+        });
+    }
+
+    get visibleMobileVanSelectedCount() {
+        return this.visibleMobileVanCategories.filter((c) => this.mobileVanSelected.includes(c.value)).length;
+    }
+
+    get mobileVanEmptyMessage() {
+        if (!this.mobileVanCategoriesLoaded) return 'Loading categories...';
+        if (this.mobileVanError) return `Unable to load the instrument service categories: ${this.mobileVanError}`;
+        if (!this.mobileVanCategories.length) return 'No instrument service categories are available.';
+        return `No categories match "${this.mobileVanFilter}".`;
+    }
+
+    get mobileVanCountLabel() {
+        return `${this.visibleMobileVanSelectedCount} of ${this.visibleMobileVanCategories.length} selected`;
+    }
+
+    get noMobileVanTiles() {
+        return this.visibleMobileVanCategories.length === 0;
+    }
+
+    get mobileVanSelectAllDisabled() {
+        return this.visibleMobileVanSelectedCount === this.visibleMobileVanCategories.length;
+    }
+
+    get mobileVanClearDisabled() {
+        return this.visibleMobileVanSelectedCount === 0;
+    }
+
+    handleMobileVanFilter(event) {
+        this.mobileVanFilter = event.detail.value || '';
+    }
+
+    handleMobileVanToggle(event) {
+        const category = event.target.dataset.category;
+        const others = this.mobileVanSelected.filter((c) => c !== category);
+        this.mobileVanSelected = event.target.checked ? [...others, category] : others;
+    }
+
+    handleMobileVanSelectAll() {
+        const visible = this.visibleMobileVanCategories.map((c) => c.value);
+        this.mobileVanSelected = [...new Set([...this.mobileVanSelected, ...visible])];
+    }
+
+    handleMobileVanClear() {
+        const visible = new Set(this.visibleMobileVanCategories.map((c) => c.value));
+        this.mobileVanSelected = this.mobileVanSelected.filter((c) => !visible.has(c));
+    }
+
     /* =====================  SAVE (commit)  ===================== */
 
     // The adjustments as entered; fully blank rows are left out
@@ -652,7 +1040,14 @@ export default class ImsProductConfigurator extends LightningElement {
         const models = this.modelRows
             .filter((row) => hasAnyValue(row) || row.qty)
             .map((row) => ({ ...pickCriteria(row), qty: row.qty }));
-        return { inclusions, models, pricingProgram: this.committed.pricingProgram || null };
+        const pricingPrograms = this.pricingRows.filter((row) => row.program).map(pickProgram);
+        return {
+            inclusions,
+            models,
+            pricingPrograms,
+            pricingProgram: this.committed.pricingProgram || null,
+            mobileVan: pickMobileVan({ instrumentServices: this.mobileVanSelected })
+        };
     }
 
     get commitDisabled() {
@@ -666,7 +1061,9 @@ export default class ImsProductConfigurator extends LightningElement {
                 exclusions: r.exclusions.map(pickCriteria)
             })),
             models: adjustments.models.map((m) => ({ ...pickCriteria(m), qty: m.qty })),
-            pricingProgram: adjustments.pricingProgram || null
+            pricingPrograms: (adjustments.pricingPrograms || []).map(pickProgram),
+            pricingProgram: adjustments.pricingProgram || null,
+            mobileVan: pickMobileVan(adjustments.mobileVan)
         };
     }
 
@@ -708,6 +1105,17 @@ export default class ImsProductConfigurator extends LightningElement {
                 return { section: SECTION_MODEL_QTY, message: `${name} is the same as an earlier row.` };
             }
             seenModels.add(criteriaKey(row));
+        }
+
+        const seenPrograms = new Set();
+        for (const [i, row] of value.pricingPrograms.entries()) {
+            if (seenPrograms.has(row.program)) {
+                return {
+                    section: SECTION_PRICING,
+                    message: `Pricing Program ${i + 1}: ${this.programLabel(row.program)} is already added.`
+                };
+            }
+            seenPrograms.add(row.program);
         }
         return null;
     }

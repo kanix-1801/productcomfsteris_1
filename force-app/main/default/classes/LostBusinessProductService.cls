@@ -7,7 +7,9 @@
  * @description
  * GC-3574 - Service for the Lost Business product selection screen. Loads products from the
  * originating opportunity, searches the active catalogue when that opportunity has none, and
- * inserts Opportunity Products on the new Lost Business opportunity only.
+ * inserts Opportunity Products on the new Lost Business opportunity only. The standard New
+ * button copies originating products after save. The screen flow sets a skip flag so that
+ * copy does not run before the user can deselect products.
  */
 public with sharing class LostBusinessProductService {
 
@@ -167,7 +169,7 @@ public with sharing class LostBusinessProductService {
     /**
      * @description
      * GC-3574 - Inserts one Opportunity Product on the Lost Business opportunity for each selected
-     * product. Copy rows keep the originating unit price and SKU. An empty selection is allowed.
+     * product. Copy rows keep the originating unit price. An empty selection is allowed.
      * A repeated submit does not create a second line for a price book entry already on the opportunity.
      * The originating opportunity's products are not updated.
      *
@@ -259,6 +261,92 @@ public with sharing class LostBusinessProductService {
 
     /**
      * @description
+     * GC-3574 - Copies every originating Opportunity Product onto Lost Business opportunities
+     * created from the standard New button. A product already on the Lost Business opportunity
+     * is skipped. A line that cannot be copied is skipped so the opportunity save still succeeds.
+     * Screen-created opportunities are excluded by the selector.
+     *
+     * @param lostOpportunityIds Lost Business opportunities that were just created.
+     * @return Number of Opportunity Products inserted.
+     *
+     * @example
+     * LostBusinessProductService.copyOriginatingProducts(lostOpportunityIds);
+     */
+    public static Integer copyOriginatingProducts(Set<Id> lostOpportunityIds) {
+        if (lostOpportunityIds == null || lostOpportunityIds.isEmpty()) {
+            return 0;
+        }
+
+        try {
+            if (Test.isRunningTest() && throwTestException) {
+                throw new CalloutException('Forced test exception');
+            }
+
+            List<Opportunity> lostOpportunityList =
+                LostBusinessProductSelector.selectLostBusinessForProductCopy(lostOpportunityIds);
+
+            if (lostOpportunityList.isEmpty()) {
+                return 0;
+            }
+
+            Map<Id, Id> pricebookIdByLostOpportunityId = resolveCopyPricebooks(lostOpportunityList);
+            Set<Id> originatingOpportunityIds = new Set<Id>();
+
+            for (Opportunity lostOpportunity : lostOpportunityList) {
+                if (pricebookIdByLostOpportunityId.containsKey(lostOpportunity.Id)) {
+                    originatingOpportunityIds.add(lostOpportunity.OriginatingOpportunity__c);
+                }
+            }
+
+            Map<Id, List<OpportunityLineItem>> sourceLinesByOpportunityId = new Map<Id, List<OpportunityLineItem>>();
+
+            for (OpportunityLineItem sourceLine : LostBusinessProductSelector.selectLinesByOpportunityIds(
+                originatingOpportunityIds
+            )) {
+                if (!sourceLinesByOpportunityId.containsKey(sourceLine.OpportunityId)) {
+                    sourceLinesByOpportunityId.put(sourceLine.OpportunityId, new List<OpportunityLineItem>());
+                }
+                sourceLinesByOpportunityId.get(sourceLine.OpportunityId).add(sourceLine);
+            }
+
+            List<OpportunityLineItem> lineItemList = linesToCopy(
+                lostOpportunityList,
+                pricebookIdByLostOpportunityId,
+                sourceLinesByOpportunityId,
+                LostBusinessProductSelector.selectPricebookEntryIdsByOpportunity(
+                    pricebookIdByLostOpportunityId.keySet()
+                )
+            );
+
+            if (lineItemList.isEmpty()) {
+                return 0;
+            }
+
+            Integer createdCount = 0;
+
+            for (Database.SaveResult saveResult : Database.insert(lineItemList, false)) {
+                if (saveResult.isSuccess()) {
+                    createdCount++;
+                    continue;
+                }
+
+                Logger.error(
+                    'Lost Business product was not copied: ' + saveResult.getErrors()[0].getMessage()
+                ).addTag(LOGGER_TAG);
+            }
+
+            return createdCount;
+        } catch (Exception exceptionValue) {
+            Logger.error('Error copying originating products onto Lost Business opportunities', exceptionValue)
+                .addTag(LOGGER_TAG);
+            return 0;
+        } finally {
+            Logger.saveLog();
+        }
+    }
+
+    /**
+     * @description
      * GC-3574 - Builds the display row for one originating Opportunity Product.
      *
      * @param lineItem Originating Opportunity Product.
@@ -275,7 +363,7 @@ public with sharing class LostBusinessProductService {
         productRow.sourceLineItemId = lineItem.Id;
         productRow.productId = lineItem.PricebookEntry.Product2Id;
         productRow.productName = lineItem.PricebookEntry.Product2.Name;
-        productRow.productSku = productSku(lineItem);
+        productRow.productSku = lineItem.PricebookEntry.Product2.ProductCode;
         productRow.quantity = lineItem.Quantity;
         productRow.consumptionFrequency = lineItem.ConsumptionFrequency__c;
         productRow.unitPrice = lineItem.UnitPrice;
@@ -411,8 +499,7 @@ public with sharing class LostBusinessProductService {
                 PricebookEntryId = pricebookEntry.Id,
                 Quantity = productInput.quantity,
                 UnitPrice = sourceLine.UnitPrice == null ? pricebookEntry.UnitPrice : sourceLine.UnitPrice,
-                ConsumptionFrequency__c = blankToNull(productInput.consumptionFrequency),
-                Product_Number_SKU__c = productSku(sourceLine)
+                ConsumptionFrequency__c = blankToNull(productInput.consumptionFrequency)
             ));
         }
 
@@ -533,12 +620,198 @@ public with sharing class LostBusinessProductService {
                 ConfidenceLevel__c = blankToNull(productInput.confidenceLevel),
                 ExpectedShipDate_ConsumptionStart__c = productInput.expectedShipDate,
                 Contract__c = blankToNull(productInput.contractValue),
-                Comments__c = blankToNull(productInput.comments),
-                Product_Number_SKU__c = product.ProductCode
+                Comments__c = blankToNull(productInput.comments)
             ));
         }
 
         throwIfErrors(errorMessageList);
+        return lineItemList;
+    }
+
+    /**
+     * @description
+     * GC-3574 - Chooses the Lost Business price book, then the originating price book, then the
+     * standard price book, and stores a missing price book before products are inserted.
+     *
+     * @param lostOpportunityList Lost Business opportunities eligible for automatic copy.
+     * @return Price book Id keyed by Lost Business opportunity Id. Opportunities with no price book are omitted.
+     *
+     * @example
+     * resolveCopyPricebooks(lostOpportunityList);
+     */
+    private static Map<Id, Id> resolveCopyPricebooks(List<Opportunity> lostOpportunityList) {
+        Map<Id, Id> pricebookIdByLostOpportunityId = new Map<Id, Id>();
+        List<Opportunity> pricebookUpdates = new List<Opportunity>();
+        Id standardPricebookId;
+
+        for (Opportunity lostOpportunity : lostOpportunityList) {
+            Id pricebookId = lostOpportunity.Pricebook2Id;
+
+            if (pricebookId == null && lostOpportunity.OriginatingOpportunity__r != null) {
+                pricebookId = lostOpportunity.OriginatingOpportunity__r.Pricebook2Id;
+            }
+
+            if (pricebookId == null) {
+                if (standardPricebookId == null) {
+                    standardPricebookId = LostBusinessProductSelector.selectStandardPricebookId();
+                }
+                pricebookId = standardPricebookId;
+            }
+
+            if (pricebookId == null) {
+                continue;
+            }
+
+            pricebookIdByLostOpportunityId.put(lostOpportunity.Id, pricebookId);
+
+            if (lostOpportunity.Pricebook2Id != null) {
+                continue;
+            }
+
+            pricebookUpdates.add(new Opportunity(
+                Id = lostOpportunity.Id,
+                Pricebook2Id = pricebookId
+            ));
+            lostOpportunity.Pricebook2Id = pricebookId;
+        }
+
+        if (!pricebookUpdates.isEmpty()) {
+            update pricebookUpdates;
+        }
+
+        return pricebookIdByLostOpportunityId;
+    }
+
+    /**
+     * @description
+     * GC-3574 - Builds Lost Business lines for originating products that can be copied and are not
+     * already on the Lost Business opportunity. Inactive lines are skipped.
+     *
+     * @param lostOpportunityList Lost Business opportunities eligible for automatic copy.
+     * @param pricebookIdByLostOpportunityId Price book chosen for each Lost Business opportunity.
+     * @param sourceLinesByOpportunityId Originating lines keyed by originating opportunity.
+     * @param existingPricebookEntryIdsByOpportunityId Price book entries already on each Lost Business opportunity.
+     * @return Opportunity Products to insert.
+     *
+     * @example
+     * linesToCopy(lostOpportunityList, pricebookIdByLostOpportunityId, sourceLinesByOpportunityId, existingPricebookEntryIdsByOpportunityId);
+     */
+    private static List<OpportunityLineItem> linesToCopy(
+        List<Opportunity> lostOpportunityList,
+        Map<Id, Id> pricebookIdByLostOpportunityId,
+        Map<Id, List<OpportunityLineItem>> sourceLinesByOpportunityId,
+        Map<Id, Set<Id>> existingPricebookEntryIdsByOpportunityId
+    ) {
+        Map<Id, Map<String, Set<Id>>> productIdsByPricebook = new Map<Id, Map<String, Set<Id>>>();
+
+        for (Opportunity lostOpportunity : lostOpportunityList) {
+            Id pricebookId = pricebookIdByLostOpportunityId.get(lostOpportunity.Id);
+            List<OpportunityLineItem> sourceLines =
+                sourceLinesByOpportunityId.get(lostOpportunity.OriginatingOpportunity__c);
+
+            if (pricebookId == null || sourceLines == null) {
+                continue;
+            }
+
+            String currencyMapKey = lostOpportunity.CurrencyIsoCode == null ? '' : lostOpportunity.CurrencyIsoCode;
+            Map<String, Set<Id>> productIdsByCurrency = productIdsByPricebook.get(pricebookId);
+
+            if (productIdsByCurrency == null) {
+                productIdsByCurrency = new Map<String, Set<Id>>();
+                productIdsByPricebook.put(pricebookId, productIdsByCurrency);
+            }
+
+            Set<Id> productIds = productIdsByCurrency.get(currencyMapKey);
+
+            if (productIds == null) {
+                productIds = new Set<Id>();
+                productIdsByCurrency.put(currencyMapKey, productIds);
+            }
+
+            for (OpportunityLineItem sourceLine : sourceLines) {
+                if (sourceLine.PricebookEntry != null && sourceLine.PricebookEntry.Product2Id != null) {
+                    productIds.add(sourceLine.PricebookEntry.Product2Id);
+                }
+            }
+        }
+
+        Map<Id, Map<String, Map<Id, PricebookEntry>>> entriesByPricebook =
+            new Map<Id, Map<String, Map<Id, PricebookEntry>>>();
+
+        for (Id pricebookId : productIdsByPricebook.keySet()) {
+            Map<String, Map<Id, PricebookEntry>> entriesByCurrency = new Map<String, Map<Id, PricebookEntry>>();
+            entriesByPricebook.put(pricebookId, entriesByCurrency);
+
+            for (String currencyMapKey : productIdsByPricebook.get(pricebookId).keySet()) {
+                entriesByCurrency.put(
+                    currencyMapKey,
+                    entryByProductId(
+                        pricebookId,
+                        productIdsByPricebook.get(pricebookId).get(currencyMapKey),
+                        currencyMapKey
+                    )
+                );
+            }
+        }
+
+        List<OpportunityLineItem> lineItemList = new List<OpportunityLineItem>();
+        Set<String> pricebookEntriesInThisSave = new Set<String>();
+
+        for (Opportunity lostOpportunity : lostOpportunityList) {
+            Id pricebookId = pricebookIdByLostOpportunityId.get(lostOpportunity.Id);
+            List<OpportunityLineItem> sourceLines =
+                sourceLinesByOpportunityId.get(lostOpportunity.OriginatingOpportunity__c);
+
+            if (pricebookId == null || sourceLines == null) {
+                continue;
+            }
+
+            Set<Id> existingPricebookEntryIds = existingPricebookEntryIdsByOpportunityId.containsKey(lostOpportunity.Id)
+                ? existingPricebookEntryIdsByOpportunityId.get(lostOpportunity.Id)
+                : new Set<Id>();
+            Map<String, Map<Id, PricebookEntry>> entriesByCurrency = entriesByPricebook.get(pricebookId);
+            String currencyMapKey = lostOpportunity.CurrencyIsoCode == null ? '' : lostOpportunity.CurrencyIsoCode;
+            Map<Id, PricebookEntry> entryByProduct = entriesByCurrency == null
+                ? null
+                : entriesByCurrency.get(currencyMapKey);
+
+            if (entryByProduct == null) {
+                entryByProduct = new Map<Id, PricebookEntry>();
+            }
+
+            for (OpportunityLineItem sourceLine : sourceLines) {
+                if (sourceLine.Quantity == null || sourceLine.Quantity <= 0) {
+                    continue;
+                }
+
+                PricebookEntry pricebookEntry = resolveCopyEntry(
+                    sourceLine,
+                    pricebookId,
+                    lostOpportunity.CurrencyIsoCode,
+                    entryByProduct
+                );
+
+                if (pricebookEntry == null || existingPricebookEntryIds.contains(pricebookEntry.Id)) {
+                    continue;
+                }
+
+                String saveKey = String.valueOf(lostOpportunity.Id) + String.valueOf(pricebookEntry.Id);
+
+                if (pricebookEntriesInThisSave.contains(saveKey)) {
+                    continue;
+                }
+
+                pricebookEntriesInThisSave.add(saveKey);
+                lineItemList.add(new OpportunityLineItem(
+                    OpportunityId = lostOpportunity.Id,
+                    PricebookEntryId = pricebookEntry.Id,
+                    Quantity = sourceLine.Quantity,
+                    UnitPrice = sourceLine.UnitPrice == null ? pricebookEntry.UnitPrice : sourceLine.UnitPrice,
+                    ConsumptionFrequency__c = blankToNull(sourceLine.ConsumptionFrequency__c)
+                ));
+            }
+        }
+
         return lineItemList;
     }
 
@@ -677,24 +950,6 @@ public with sharing class LostBusinessProductService {
         }
 
         return entryByProductId;
-    }
-
-    /**
-     * @description
-     * GC-3574 - SKU stored on the originating line, or the product code when that field is blank.
-     *
-     * @param lineItem Originating Opportunity Product.
-     * @return SKU to display and copy.
-     *
-     * @example
-     * productSku(lineItem);
-     */
-    private static String productSku(OpportunityLineItem lineItem) {
-        if (String.isNotBlank(lineItem.Product_Number_SKU__c)) {
-            return lineItem.Product_Number_SKU__c;
-        }
-
-        return lineItem.PricebookEntry.Product2.ProductCode;
     }
 
     /**

@@ -7,6 +7,9 @@ private class DealerOpportunityProductControllerTest {
     static void search_excludesServiceAndMatchesName() {
         Opportunity opportunity = insertDealerOpportunity();
         Product2 eligible = insertProduct('Dealer Pump', 'DP-1', null);
+        eligible.ItemFamily__c = 'Sterilizers';
+        eligible.BusinessUnit__c = 'IMS';
+        update eligible;
         Product2 service = insertProduct('Dealer Service', 'DS-1', 'SERVICE');
         insertPrice(opportunity, eligible, 25);
         insertPrice(opportunity, service, 15);
@@ -18,7 +21,60 @@ private class DealerOpportunityProductControllerTest {
 
         System.assertEquals(1, results.size(), 'Service products stay out of dealer search');
         System.assertEquals('Dealer Pump', results[0].productName);
+        System.assertEquals('Sterilizers', results[0].productFamily);
+        System.assertEquals('IMS', results[0].businessUnit);
         System.assertEquals('USD', results[0].currencyCode);
+        System.assertEquals(false, results[0].recentlyAdded, 'A typed search keeps products that were not added by this dealer unmarked');
+    }
+
+    @IsTest
+    static void search_blankPutsThisDealersRecentProductsFirst() {
+        Account account = insertAccount();
+        Opportunity current = insertDealerOpportunity(account);
+        Opportunity earlier = insertDealerOpportunity(account);
+        Opportunity later = insertDealerOpportunity(account);
+        Account otherAccount = insertAccount();
+        Opportunity otherDealer = insertDealerOpportunity(otherAccount);
+        Product2 olderProduct = insertProduct('Older Catalog Item', 'OLD-1', null);
+        Product2 newerProduct = insertProduct('Newer Catalog Item', 'NEW-1', null);
+        Product2 otherProduct = insertProduct('Other Catalog Item', 'OTH-1', null);
+        Product2 otherAccountProduct = insertProduct('Outside Catalog Item', 'OUT-1', null);
+        PricebookEntry olderEntry = insertPrice(current, olderProduct, 10);
+        PricebookEntry newerEntry = insertPrice(current, newerProduct, 12);
+        insertPrice(current, otherProduct, 14);
+        PricebookEntry outsideEntry = insertPrice(current, otherAccountProduct, 16);
+        insertLine(earlier, olderEntry);
+        insertLine(later, newerEntry);
+        insertLine(otherDealer, outsideEntry);
+        Test.setCreatedDate(lineId(earlier), DateTime.now().addDays(-2));
+        Test.setCreatedDate(lineId(later), DateTime.now().addDays(-1));
+
+        Test.startTest();
+        List<DealerOpportunityProductController.ProductOption> blank =
+            DealerOpportunityProductController.searchProducts(current.Id, null);
+        List<DealerOpportunityProductController.ProductOption> typed =
+            DealerOpportunityProductController.searchProducts(current.Id, 'Other Catalog');
+        Test.stopTest();
+
+        System.assertEquals(newerProduct.Id, blank[0].productId, 'The newest product added by this dealer is first');
+        System.assertEquals(true, blank[0].recentlyAdded);
+        System.assertEquals(olderProduct.Id, blank[1].productId);
+        System.assertEquals(true, blank[1].recentlyAdded);
+        Boolean otherMarked = false;
+        Boolean outsidePresent = false;
+        for (DealerOpportunityProductController.ProductOption option : blank) {
+            if (option.productId == otherProduct.Id) {
+                otherMarked = option.recentlyAdded;
+            }
+            if (option.productId == otherAccountProduct.Id) {
+                outsidePresent = option.recentlyAdded;
+            }
+        }
+        System.assertEquals(false, otherMarked, 'A price book product this dealer has not added stays unmarked');
+        System.assertEquals(false, outsidePresent, 'Another dealer account does not supply recently added products');
+        System.assertEquals(1, typed.size(), 'A typed search still filters the price book by name');
+        System.assertEquals(otherProduct.Id, typed[0].productId);
+        System.assertEquals(false, typed[0].recentlyAdded);
     }
 
     @IsTest
@@ -98,6 +154,55 @@ private class DealerOpportunityProductControllerTest {
     }
 
     @IsTest
+    static void create_convertsSelectedCurrencyIntoOpportunityCurrency() {
+        Opportunity opportunity = insertDealerOpportunity();
+        Product2 eligible = insertProduct('Dealer Pump', 'DP-1', null);
+        PricebookEntry eligibleEntry = insertPrice(opportunity, eligible, 25);
+        CurrencyType entered = [
+            SELECT ConversionRate
+            FROM CurrencyType
+            WHERE IsoCode = 'EUR' AND IsActive = true
+            LIMIT 1
+        ];
+        CurrencyType opportunityCurrency = [
+            SELECT ConversionRate, DecimalPlaces
+            FROM CurrencyType
+            WHERE IsoCode = 'USD'
+            LIMIT 1
+        ];
+        Decimal enteredPrice = 86;
+        Integer places = opportunityCurrency.DecimalPlaces == null ? 2 : opportunityCurrency.DecimalPlaces;
+        Decimal expected = (enteredPrice * opportunityCurrency.ConversionRate / entered.ConversionRate)
+            .setScale(places, System.RoundingMode.HALF_UP);
+
+        Test.startTest();
+        DealerOpportunityProductController.DealerContext context =
+            DealerOpportunityProductController.getDealerContext(opportunity.Id);
+        DealerOpportunityProductController.createProducts(
+            opportunity.Id,
+            JSON.serialize(new List<Object>{
+                new Map<String, Object>{
+                    'pricebookEntryId' => eligibleEntry.Id,
+                    'quantity' => 1,
+                    'unitPrice' => enteredPrice,
+                    'currencyCode' => 'EUR'
+                }
+            })
+        );
+        Test.stopTest();
+
+        System.assertEquals('USD', context.currencyCode);
+        System.assert(context.currencies.size() > 1, 'Active corporate currencies are available to the dealer');
+        OpportunityLineItem line = [
+            SELECT UnitPrice
+            FROM OpportunityLineItem
+            WHERE OpportunityId = :opportunity.Id
+        ];
+        System.assertEquals(expected, line.UnitPrice);
+        System.assertEquals(expected, [SELECT Amount FROM Opportunity WHERE Id = :opportunity.Id].Amount);
+    }
+
+    @IsTest
     static void getAndDelete_roundTripTheDealerLine() {
         Opportunity opportunity = insertDealerOpportunity();
         Product2 eligible = insertProduct('Dealer Pump', 'DP-1', null);
@@ -126,7 +231,10 @@ private class DealerOpportunityProductControllerTest {
     }
 
     private static Opportunity insertDealerOpportunity() {
-        Account account = insertAccount();
+        return insertDealerOpportunity(insertAccount());
+    }
+
+    private static Opportunity insertDealerOpportunity(Account account) {
         Opportunity opportunity = new Opportunity(
             Name = 'Dealer Product Opportunity',
             AccountId = account.Id,
@@ -174,5 +282,27 @@ private class DealerOpportunityProductControllerTest {
         );
         insert entry;
         return entry;
+    }
+
+    private static void insertLine(Opportunity opportunity, PricebookEntry entry) {
+        DealerOpportunityProductController.createProducts(
+            opportunity.Id,
+            JSON.serialize(new List<Object>{
+                new Map<String, Object>{
+                    'pricebookEntryId' => entry.Id,
+                    'quantity' => 1,
+                    'unitPrice' => entry.UnitPrice
+                }
+            })
+        );
+    }
+
+    private static Id lineId(Opportunity opportunity) {
+        return [
+            SELECT Id
+            FROM OpportunityLineItem
+            WHERE OpportunityId = :opportunity.Id
+            LIMIT 1
+        ].Id;
     }
 }

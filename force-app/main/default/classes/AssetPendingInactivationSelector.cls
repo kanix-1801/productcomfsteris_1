@@ -1,6 +1,10 @@
 /**
  * @description GW-2459 - Queries Assets pending inactivation and their open Work Orders
- *              or active contract lines.
+ *              or active contract lines. The pending-Asset locator uses AssetsSelector.
+ *              Open Work Orders and active contract lines use static SOQL: queryWithBinds
+ *              cannot bind a List of Object in an IN clause. Queries run in system mode
+ *              so an open Work Order or contract line still blocks inactivation when the
+ *              running user cannot see that record.
  * @author STERIS
  * @see AssetPendingInactivationService
  */
@@ -11,14 +15,11 @@ public without sharing class AssetPendingInactivationSelector {
      * @return QueryLocator of pending-inactivation Assets
      */
     public static Database.QueryLocator selectPendingInactivationQueryLocator() {
-        String pendingStatus = AssetPendingInactivationService.STATUS_PENDING_INACTIVATION;
-        return Database.getQueryLocator(
-            [
-                SELECT Id, Status
-                FROM Asset
-                WHERE Status = :pendingStatus
-            ]
-        );
+        DynamicSoqlQuery.PreparedQuery query = new AssetsSelector()
+            .selectFields(new List<String>{ 'Id', 'Status' })
+            .whereEquals('Status', AssetPendingInactivationService.STATUS_PENDING_INACTIVATION)
+            .build();
+        return Database.getQueryLocatorWithBinds(query.soql, query.binds, AccessLevel.SYSTEM_MODE);
     }
 
     /**
@@ -34,13 +35,14 @@ public without sharing class AssetPendingInactivationSelector {
             return openWorkOrderAssetIdSet;
         }
 
-        Set<String> closedWorkOrderStatuses = AssetPendingInactivationService.CLOSED_WORK_ORDER_STATUSES;
+        Set<String> closedStatuses = AssetPendingInactivationService.CLOSED_WORK_ORDER_STATUSES;
         for (WorkOrder workOrderRecord : [
             SELECT AssetId
             FROM WorkOrder
             WHERE AssetId IN :assetIdSet
-            AND IsClosed = FALSE
-            AND Status NOT IN :closedWorkOrderStatuses
+                AND IsClosed = false
+                AND Status NOT IN :closedStatuses
+            WITH SYSTEM_MODE
         ]) {
             openWorkOrderAssetIdSet.add(workOrderRecord.AssetId);
         }
@@ -62,7 +64,8 @@ public without sharing class AssetPendingInactivationSelector {
             SELECT AssetId
             FROM ContractLineItem
             WHERE AssetId IN :assetIdSet
-            AND Status = 'Active'
+                AND Status = 'Active'
+            WITH SYSTEM_MODE
         ]) {
             activeContractAssetIdSet.add(contractLine.AssetId);
         }

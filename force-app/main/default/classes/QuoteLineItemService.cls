@@ -545,14 +545,6 @@ public with sharing class QuoteLineItemService {
         return (List<QuoteLineItem>) query.execute();
     }
 
-    /**
-     * @description GW-5333 - Returns Quote Line Items for Approve/Reject Quote.
-     * @param quoteId Quote Id
-     * @return Matching Quote Line Item rows
-     */
-    public static List<QuoteLineItem> getLineItemsForApproveReject(Id quoteId) {
-        return getForApproveRejectByQuoteId(quoteId);
-    }
 
     /**
      * @description GW-5333 - Persists Quote Line Item status updates for Approve/Reject Quote.

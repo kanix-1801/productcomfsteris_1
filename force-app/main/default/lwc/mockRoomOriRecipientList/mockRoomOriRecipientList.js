@@ -10,18 +10,17 @@ const EMAIL_REQUIRED_MESSAGE = 'Enter a valid email such as name@company.com.';
 
 let rowSequence = 0;
 
-/**
- * GC-3483. One approval recipient. The checkbox chooses a Salesforce user or an external email.
- */
+/** GC-3483. One approval recipient. The checkbox chooses a Salesforce user or an external email. */
 function createRow(source) {
+    const { isSalesforceUser, userId, email, role } = source || {};
+    const exists = isSalesforceUser !== false;
     rowSequence += 1;
-    const exists = source ? source.existsInSalesforce !== false : true;
     return {
         key: String(rowSequence),
         existsInSalesforce: exists,
-        userId: exists && source ? source.userId || null : null,
-        email: !exists && source ? source.email || '' : '',
-        role: source && source.role ? source.role : ''
+        userId: exists ? userId || null : null,
+        email: exists ? '' : email || '',
+        role: role || ''
     };
 }
 
@@ -38,14 +37,12 @@ export default class MockRoomOriRecipientList extends LightningElement {
     get recipients() {
         return this._recipients;
     }
-
     set recipients(value) {
         this._recipients = value;
-        if (this.restored || !Array.isArray(value) || value.length === 0) {
-            return;
+        if (!this.restored && Array.isArray(value) && value.length > 0) {
+            this.rows = value.map((item) => createRow(item));
+            this.restored = true;
         }
-        this.rows = value.map((item) => createRow(item));
-        this.restored = true;
     }
 
     connectedCallback() {
@@ -66,72 +63,55 @@ export default class MockRoomOriRecipientList extends LightningElement {
     }
 
     handleRemove(event) {
-        if (this.onlyOneRow) {
-            return;
-        }
-        const key = event.currentTarget.dataset.key;
-        this.rows = this.rows.filter((row) => row.key !== key);
+        this.rows = this.rows.filter((row) => row.key !== event.currentTarget.dataset.key);
         this.publish();
     }
 
     handleExistsChange(event) {
         const key = event.currentTarget.dataset.key;
-        const exists = event.detail.checked === true;
-        this.updateRow(key, {
-            existsInSalesforce: exists,
-            userId: null,
-            email: ''
-        });
-        this.applyExternalApproverValidity(key);
+        this.updateRow(key, { existsInSalesforce: event.detail.checked === true, userId: null, email: '' });
+        this.showExternalApproverError(key);
     }
 
     handleUserChange(event) {
-        this.updateRow(event.currentTarget.dataset.key, {
-            userId: event.detail.recordId || null
-        });
+        this.updateRow(event.currentTarget.dataset.key, { userId: event.detail.recordId || null });
     }
 
     handleEmailChange(event) {
-        this.updateRow(event.currentTarget.dataset.key, {
-            email: event.detail.value || ''
-        });
+        this.updateRow(event.currentTarget.dataset.key, { email: event.detail.value || '' });
     }
 
     handleRoleChange(event) {
         const key = event.currentTarget.dataset.key;
         this.updateRow(key, { role: event.detail.value || '' });
-        this.applyExternalApproverValidity(key);
+        this.showExternalApproverError(key);
     }
 
+    /** Runs on Submit for Approval. Required and email errors are shown only here, not while the user is typing. */
     @api
     validate() {
-        let firstMessage = '';
+        let errorMessage = '';
         this.rows.forEach((row) => {
-            const card = this.template.querySelector(`section[data-key="${row.key}"]`);
+            const card = this.cardFor(row.key);
             if (!card) {
                 return;
             }
-            const roleMessage = this.roleMessage(row);
+            const roleMessage = row.role ? this.externalApproverMessage(row) : ROLE_REQUIRED_MESSAGE;
             const roleInput = card.querySelector('lightning-combobox');
             roleInput.setCustomValidity(roleMessage);
-            if (!roleInput.reportValidity() && !firstMessage) {
-                firstMessage = roleMessage;
+            if (!roleInput.reportValidity()) {
+                errorMessage = errorMessage || roleMessage;
             }
-            if (row.existsInSalesforce) {
-                const picker = card.querySelector('lightning-record-picker');
-                if (picker && !picker.reportValidity() && !firstMessage) {
-                    firstMessage = USER_REQUIRED_MESSAGE;
-                }
-            } else {
-                const emailMessage = this.emailMessage(row);
-                const emailField = card.querySelector('c-mock-room-ori-external-email');
-                if (emailField && !emailField.setError(emailMessage) && !firstMessage) {
-                    firstMessage = emailMessage;
-                }
+            const personValid = row.existsInSalesforce
+                ? card.querySelector('lightning-record-picker').reportValidity()
+                : card.querySelector('c-mock-room-ori-external-email')
+                    .setError(EMAIL_PATTERN.test((row.email || '').trim()) ? '' : EMAIL_REQUIRED_MESSAGE);
+            if (!personValid) {
+                errorMessage = errorMessage || (row.existsInSalesforce ? USER_REQUIRED_MESSAGE : EMAIL_REQUIRED_MESSAGE);
             }
         });
-        if (firstMessage) {
-            return { isValid: false, errorMessage: firstMessage };
+        if (errorMessage) {
+            return { isValid: false, errorMessage };
         }
         this.publish();
         return { isValid: true };
@@ -142,36 +122,25 @@ export default class MockRoomOriRecipientList extends LightningElement {
         this.publish();
     }
 
-    applyExternalApproverValidity(key) {
+    showExternalApproverError(key) {
         const row = this.rows.find((item) => item.key === key);
-        const card = this.template.querySelector(`section[data-key="${key}"]`);
-        if (!row || !card) {
+        const roleInput = this.cardFor(key)?.querySelector('lightning-combobox');
+        if (!row || !roleInput) {
             return;
         }
-        const roleInput = card.querySelector('lightning-combobox');
-        const message = !row.existsInSalesforce && row.role === 'Approver' ? EXTERNAL_APPROVER_MESSAGE : '';
+        const message = this.externalApproverMessage(row);
         roleInput.setCustomValidity(message);
         if (message || row.role) {
             roleInput.reportValidity();
         }
     }
 
-    roleMessage(row) {
-        if (!row.role) {
-            return ROLE_REQUIRED_MESSAGE;
-        }
-        if (!row.existsInSalesforce && row.role === 'Approver') {
-            return EXTERNAL_APPROVER_MESSAGE;
-        }
-        return '';
+    externalApproverMessage(row) {
+        return !row.existsInSalesforce && row.role === 'Approver' ? EXTERNAL_APPROVER_MESSAGE : '';
     }
 
-    emailMessage(row) {
-        const email = (row.email || '').trim();
-        if (!EMAIL_PATTERN.test(email)) {
-            return EMAIL_REQUIRED_MESSAGE;
-        }
-        return '';
+    cardFor(key) {
+        return this.template.querySelector(`section[data-key="${key}"]`);
     }
 
     publish() {
@@ -179,7 +148,7 @@ export default class MockRoomOriRecipientList extends LightningElement {
             userId: row.existsInSalesforce ? row.userId || null : null,
             email: row.existsInSalesforce ? null : row.email || null,
             role: row.role || null,
-            existsInSalesforce: row.existsInSalesforce === true
+            isSalesforceUser: row.existsInSalesforce === true
         }));
         this._recipients = recipients;
         this.dispatchEvent(new FlowAttributeChangeEvent('recipients', recipients));

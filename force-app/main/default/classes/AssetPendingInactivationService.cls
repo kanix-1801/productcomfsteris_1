@@ -68,6 +68,132 @@ public without sharing class AssetPendingInactivationService {
     }
 
     /**
+     * @description Message returned to the flow when open items block inactivation.
+     */
+    public static final String OPEN_ITEMS_ERROR =
+        'This Asset can\'t be inactivated because open work orders or active contract lines were found. It stays in Pending Inactivation.';
+
+    /**
+     * @description Flow input for inactivating one Asset.
+     */
+    public class InactivateRequest {
+        @InvocableVariable(label='Asset Id' required=true)
+        public Id assetId;
+
+        @InvocableVariable(label='Service Reason' required=true)
+        public String serviceReason;
+    }
+
+    /**
+     * @description Flow output for one inactivation request.
+     */
+    public class InactivateResult {
+        @InvocableVariable(label='Is Success')
+        public Boolean isSuccess = false;
+
+        @InvocableVariable(label='Error Message')
+        public String errorMessage;
+    }
+
+    /**
+     * @description GW-6918 - Called from Asset_SCR_Inactivate. Re-checks open Work Orders and
+     *              active contract lines, then sets Service Inactive and Service Reason.
+     *              Runs as an evaluation so preventUnevaluatedServiceInactive allows the update.
+     *              Updates in system mode because the flow runs in system mode and users
+     *              do not have edit access to Asset Status or Service Reason.
+     * @param requestList One request per Asset
+     * @return One result per request, in the same order
+     */
+    @InvocableMethod(
+        label='Inactivate Asset'
+        description='Sets Service Inactive and Service Reason when no open Work Orders or active contract lines exist.'
+        category='Asset'
+    )
+    public static List<InactivateResult> inactivateFromFlow(List<InactivateRequest> requestList) {
+        List<InactivateResult> resultList = new List<InactivateResult>();
+        Set<Id> assetIdSet = new Set<Id>();
+        for (InactivateRequest request : requestList) {
+            InactivateResult result = new InactivateResult();
+            resultList.add(result);
+            if (request == null || request.assetId == null) {
+                result.errorMessage = 'Asset Id is required.';
+                continue;
+            }
+            assetIdSet.add(request.assetId);
+        }
+        if (assetIdSet.isEmpty()) {
+            return resultList;
+        }
+
+        try {
+            if (forceExceptionForTest == true) {
+                throw new AssetPendingInactivationException('Forced inactivation failure for test');
+            }
+
+            Set<Id> blockedAssetIdSet = new Set<Id>();
+            blockedAssetIdSet.addAll(
+                AssetPendingInactivationSelector.selectAssetIdsWithOpenWorkOrders(assetIdSet)
+            );
+            blockedAssetIdSet.addAll(
+                AssetPendingInactivationSelector.selectAssetIdsWithActiveContractLines(assetIdSet)
+            );
+
+            List<Asset> assetsToInactivate = new List<Asset>();
+            List<Integer> resultIndexList = new List<Integer>();
+            for (Integer index = 0; index < requestList.size(); index++) {
+                InactivateRequest request = requestList[index];
+                if (request == null || request.assetId == null) {
+                    continue;
+                }
+                if (blockedAssetIdSet.contains(request.assetId)) {
+                    resultList[index].errorMessage = OPEN_ITEMS_ERROR;
+                    Logger.info('AssetPendingInactivationService: Asset ' + request.assetId + ' not inactivated from flow; open Work Order or active contract line found.');
+                    continue;
+                }
+                assetsToInactivate.add(new Asset(
+                    Id = request.assetId,
+                    Status = STATUS_SERVICE_INACTIVE,
+                    ServiceReason__c = request.serviceReason
+                ));
+                resultIndexList.add(index);
+            }
+
+            if (assetsToInactivate.isEmpty()) {
+                return resultList;
+            }
+
+            isEvaluatingInactivation = true;
+            List<Database.SaveResult> saveResultList =
+                Database.update(assetsToInactivate, false, AccessLevel.SYSTEM_MODE);
+            for (Integer index = 0; index < saveResultList.size(); index++) {
+                Database.SaveResult saveResult = saveResultList[index];
+                InactivateResult result = resultList[resultIndexList[index]];
+                Id assetId = assetsToInactivate[index].Id;
+                if (saveResult.isSuccess()) {
+                    result.isSuccess = true;
+                    Logger.info('AssetPendingInactivationService: Asset ' + assetId + ' set to ' + STATUS_SERVICE_INACTIVE + ' from flow. userId=' + UserInfo.getUserId());
+                } else {
+                    result.errorMessage = saveResult.getErrors()[0].getMessage();
+                    Logger.error('AssetPendingInactivationService: failed to inactivate Asset ' + assetId + ' from flow: ' + result.errorMessage);
+                }
+            }
+            return resultList;
+        } catch (Exception e) {
+            Logger.error('AssetPendingInactivationService.inactivateFromFlow', e);
+            if (e instanceof AssetPendingInactivationException) {
+                throw e;
+            }
+            throw new AssetPendingInactivationException(
+                'An unexpected error occurred while inactivating the Asset.',
+                e
+            );
+        } finally {
+            isEvaluatingInactivation = false;
+            Logger.saveLog();
+        }
+    }
+
+    /**
      * @description Blocks Pending Inactivation → Service Inactive unless this service
      *              already evaluated the Asset in the current transaction.
      * @param newAssetList Trigger.new

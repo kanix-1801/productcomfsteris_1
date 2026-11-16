@@ -143,6 +143,7 @@ public without sharing class ShipDNEmailController {
     
 	private List<LineItem> shippingLineItems;
     private List<LineItem> tradeInLineItems;
+    private List<LineItem> closedTradeInLineItems;
 
 
 	
@@ -203,7 +204,16 @@ public without sharing class ShipDNEmailController {
         }
         return tradeInLineItems;
     }
-    
+    public List<LineItem> getClosedTradeInLineItems() {
+        if (closedTradeInLineItems == null) {
+            closedTradeInLineItems = new List<LineItem>();
+            if (caseId != null) {
+                List<OrderItem> trade = EmailControllerHelper.closedTradeInEquipmentDetails(caseId);
+                closedTradeInLineItems = mapOrderItems(trade);            
+            }
+        }
+        return closedTradeInLineItems;
+    }
     
     /**
      * @description Returns the email signature for the current running user or context.
@@ -278,13 +288,29 @@ public without sharing class ShipDNEmailController {
                     firstNames.add(cs.Contact.FirstName);
                 }
             }
-    
+            
+            if(!firstNames.isEmpty()) {
             return String.join(firstNames, '/');
+            } 
+            return '';
     
         } catch (Exception ex) {
             ErrorLogger.logException(ex,'ShipDNEmailController','getFirstName');
             throw ex;
         }
 	}
-             
+    public String getOrderNumber() {
+    try {
+    
+           List<Order> ordlist = [SELECT id,OrderNumber__c  from Order WHERE ParentCase__r.Id =: caseId limit 1];
+         if(!ordlist.isEmpty()) {
+            return ordlist[0].OrderNumber__c;
+            } 
+         return '';
+        
+        } catch (Exception ex) {
+            ErrorLogger.logException(ex,'ShipDNEmailController','getOrderNumber');
+            throw ex;
+        }
+	}         
 }

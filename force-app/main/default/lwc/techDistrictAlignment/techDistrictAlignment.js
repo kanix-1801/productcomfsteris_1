@@ -4,12 +4,46 @@ import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import getTemplateDownloadUrl from '@salesforce/apex/TechDistrictAlignmentController.getTemplateDownloadUrl';
 import getErrorFileDownloadUrl from '@salesforce/apex/TechDistrictAlignmentController.getErrorFileDownloadUrl';
 import processUpload from '@salesforce/apex/TechDistrictAlignmentController.processUpload';
+import cardTitle from '@salesforce/label/c.TDA_CardTitle';
+import instructionsProcess from '@salesforce/label/c.TDA_InstructionsProcess';
+import instructionsColumns from '@salesforce/label/c.TDA_InstructionsColumns';
+import uploadLabel from '@salesforce/label/c.TDA_UploadLabel';
+import selectedFile from '@salesforce/label/c.TDA_SelectedFile';
+import startUpload from '@salesforce/label/c.TDA_StartUpload';
+import downloadTemplate from '@salesforce/label/c.TDA_DownloadTemplate';
+import downloadErrorFile from '@salesforce/label/c.TDA_DownloadErrorFile';
+import processing from '@salesforce/label/c.TDA_Processing';
+import fileUploadedTitle from '@salesforce/label/c.TDA_FileUploadedTitle';
+import fileUploadedMessage from '@salesforce/label/c.TDA_FileUploadedMessage';
+import downloadTemplateFailed from '@salesforce/label/c.TDA_DownloadTemplateFailed';
+import downloadErrorFileFailed from '@salesforce/label/c.TDA_DownloadErrorFileFailed';
+import noFileSelectedTitle from '@salesforce/label/c.TDA_NoFileSelectedTitle';
+import fileRequired from '@salesforce/label/c.TDA_FileRequired';
+import uploadComplete from '@salesforce/label/c.TDA_UploadComplete';
+import uploadFailed from '@salesforce/label/c.TDA_UploadFailed';
+import emailSent from '@salesforce/label/c.TDA_EmailSent';
+import emailNotSent from '@salesforce/label/c.TDA_EmailNotSent';
+import moreErrors from '@salesforce/label/c.TDA_MoreErrors';
+import unexpectedError from '@salesforce/label/c.TDA_UnexpectedError';
 
 const VISIBLE_ERROR_LIMIT = 20;
 
+/**
+ * GW-2707: Tech District Alignment. Uploads the Excel file, starts processing and downloads the template or the
+ * user's latest error file. Opened from the Field Service Backoffice Tool.
+ */
 export default class TechDistrictAlignment extends NavigationMixin(LightningElement) {
-    acceptedFormats = ['.csv', '.xlsx'];
-    visibleErrorLimit = VISIBLE_ERROR_LIMIT;
+    label = {
+        cardTitle,
+        instructionsProcess,
+        instructionsColumns,
+        uploadLabel,
+        startUpload,
+        downloadTemplate,
+        downloadErrorFile,
+        processing
+    };
+    acceptedFormats = ['.xlsx'];
     contentDocumentId;
     uploadedFileName;
     isBusy = false;
@@ -19,6 +53,14 @@ export default class TechDistrictAlignment extends NavigationMixin(LightningElem
 
     get isStartDisabled() {
         return this.isBusy || !this.contentDocumentId;
+    }
+
+    get selectedFileText() {
+        return format(selectedFile, this.uploadedFileName);
+    }
+
+    get moreErrorsText() {
+        return format(moreErrors, VISIBLE_ERROR_LIMIT);
     }
 
     get hasErrors() {
@@ -49,19 +91,19 @@ export default class TechDistrictAlignment extends NavigationMixin(LightningElem
         this.errors = [];
         this.dispatchEvent(
             new ShowToastEvent({
-                title: 'File uploaded',
-                message: uploadedFile.name + ' is ready. Click Start Upload to process.',
+                title: fileUploadedTitle,
+                message: format(fileUploadedMessage, uploadedFile.name),
                 variant: 'success'
             })
         );
     }
 
     handleDownloadTemplate() {
-        this.openFile(getTemplateDownloadUrl, 'Template download failed');
+        this.openFile(getTemplateDownloadUrl, downloadTemplateFailed);
     }
 
     handleDownloadErrorFile() {
-        this.openFile(getErrorFileDownloadUrl, 'Error file download failed');
+        this.openFile(getErrorFileDownloadUrl, downloadErrorFileFailed);
     }
 
     openFile(getUrl, failureTitle) {
@@ -93,8 +135,8 @@ export default class TechDistrictAlignment extends NavigationMixin(LightningElem
         if (!this.contentDocumentId) {
             this.dispatchEvent(
                 new ShowToastEvent({
-                    title: 'No file selected',
-                    message: 'Upload a file before clicking Start Upload.',
+                    title: noFileSelectedTitle,
+                    message: fileRequired,
                     variant: 'warning'
                 })
             );
@@ -109,12 +151,10 @@ export default class TechDistrictAlignment extends NavigationMixin(LightningElem
             .then((result) => {
                 this.errors = result.errors || [];
                 this.resultSummary = result.summary;
-                this.emailMessage = result.emailSent
-                    ? 'The error file has been emailed to you. Use Download Error File to get it again.'
-                    : 'The error file could not be emailed. Use Download Error File to get it.';
+                this.emailMessage = result.emailSent ? emailSent : emailNotSent;
                 this.dispatchEvent(
                     new ShowToastEvent({
-                        title: 'Upload complete',
+                        title: uploadComplete,
                         message: this.resultSummary,
                         variant: result.skippedCount > 0 ? 'warning' : 'success'
                     })
@@ -123,7 +163,7 @@ export default class TechDistrictAlignment extends NavigationMixin(LightningElem
             .catch((error) => {
                 this.dispatchEvent(
                     new ShowToastEvent({
-                        title: 'Upload failed',
+                        title: uploadFailed,
                         message: this.reduceError(error),
                         variant: 'error'
                     })
@@ -141,6 +181,10 @@ export default class TechDistrictAlignment extends NavigationMixin(LightningElem
         if (error && error.message) {
             return error.message;
         }
-        return 'Unexpected error.';
+        return unexpectedError;
     }
+}
+
+function format(text, value) {
+    return text.replace('{0}', value);
 }

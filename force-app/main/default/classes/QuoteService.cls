@@ -21,6 +21,14 @@ public with sharing class QuoteService {
     private static final String SERVICE_CODE_TYPE_DISINFECTION = 'Disinfection';
     private static final String WOLI_RECORD_TYPE_REPAIR_CODE = 'RepairCode';
     private static final String LOGGER_TAG_APPROVE_REJECT = 'Quote Approve Reject';
+    private static final List<String> APPROVE_REJECT_QUOTE_FIELDS = new List<String>{
+        'Id',
+        'Status',
+        'Version__c',
+        'Pricebook2Id',
+        'CurrencyIsoCode',
+        'WorkOrder__c'
+    };
     private static final Set<String> ESTIMATE_PRICE_LINE_TYPES = new Set<String>{
         LINE_TYPE_SPECIAL_PRICING,
         LINE_TYPE_CATEGORY_CODE,
@@ -42,6 +50,7 @@ public with sharing class QuoteService {
     };
 
     private static Id hcSalesRecordTypeId;
+    private static Id repairCodeRecordTypeId;
 
     @TestVisible
     private static Boolean automationDisabled = false;
@@ -388,6 +397,7 @@ public with sharing class QuoteService {
      * @param quoteRecords Trigger.new rows.
      */
     public static void handleAfterInsert(List<Quote> quoteRecords) {
+        EvaluationPhotosService.attachOptionalPhotosToQuotes(quoteRecords);
         QuoteForecastChangeNotificationHandler.afterInsert(quoteRecords);
         Set<Id> opportunityIds = collectOpportunityIds(quoteRecords);
         OppForecastConfPropagateService.syncBannerStateForOpportunityIds(opportunityIds);
@@ -1127,9 +1137,10 @@ public with sharing class QuoteService {
     public static ApproveRejectWorkspace getApproveRejectWorkspace(Id workOrderId) {
         try {
             return new ApproveRejectWorker().getWorkspace(workOrderId);
-        } catch (ApproveRejectException e) {
-            throw e;
         } catch (Exception e) {
+            if (e instanceof ApproveRejectException) {
+                throw (ApproveRejectException) e;
+            }
             Logger.error('QuoteService.getApproveRejectWorkspace', e).addTag(LOGGER_TAG_APPROVE_REJECT);
             throw new ApproveRejectException(
                 'Unable to load Approve/Reject Quote: ' + e.getMessage()
@@ -1151,9 +1162,10 @@ public with sharing class QuoteService {
     ) {
         try {
             return new ApproveRejectWorker().saveDecisions(workOrderId, decisions);
-        } catch (ApproveRejectException e) {
-            throw e;
         } catch (Exception e) {
+            if (e instanceof ApproveRejectException) {
+                throw (ApproveRejectException) e;
+            }
             Logger.error('QuoteService.saveApproveRejectDecisions', e).addTag(LOGGER_TAG_APPROVE_REJECT);
             throw new ApproveRejectException(
                 'Unable to save Approve/Reject Quote: ' + e.getMessage()
@@ -1173,9 +1185,10 @@ public with sharing class QuoteService {
         try {
             QuoteLineItem lineItem = QuoteLineItemService.saveQuoteComments(quoteLineItemId, comments);
             return lineItem.QuoteComments__c;
-        } catch (QuoteLineItemService.QuoteLineItemServiceException e) {
-            throw new ApproveRejectException(e.getMessage());
         } catch (Exception e) {
+            if (e instanceof QuoteLineItemService.QuoteLineItemServiceException) {
+                throw new ApproveRejectException(e.getMessage());
+            }
             Logger.error('QuoteService.saveApproveRejectComment', e).addTag(LOGGER_TAG_APPROVE_REJECT);
             throw new ApproveRejectException(
                 'Unable to save Quote Comments: ' + e.getMessage()
@@ -1232,6 +1245,24 @@ public with sharing class QuoteService {
     public class ApproveRejectException extends Exception {
     }
 
+    /**
+     * @description GW-5333 - Quote header for Approve/Reject Quote (SYSTEM_MODE).
+     * @param quoteId Quote Id
+     * @return Matching Quote, or null
+     */
+    private static Quote selectQuoteForApproveRejectById(Id quoteId) {
+        if (quoteId == null) {
+            return null;
+        }
+
+        List<Quote> quotes = (List<Quote>) new QuoteSelector()
+            .selectFields(APPROVE_REJECT_QUOTE_FIELDS)
+            .whereEquals('Id', quoteId)
+            .limitTo(1)
+            .executeSystemMode();
+        return quotes.isEmpty() ? null : quotes[0];
+    }
+
     private class ApproveRejectWorker {
         private ApproveRejectWorkspace getWorkspace(Id workOrderId) {
             WorkOrder workOrder = requireWorkOrder(workOrderId);
@@ -1246,7 +1277,7 @@ public with sharing class QuoteService {
             WorkOrder workOrder = requireWorkOrder(workOrderId);
             Quote quoteRecord = requireActiveQuote(workOrder);
             List<QuoteLineItem> lineItems =
-                QuoteLineItemService.getLineItemsForApproveReject(quoteRecord.Id);
+                QuoteLineItemService.getForApproveRejectByQuoteId(quoteRecord.Id);
             Map<Id, String> decisionsByLineId = mapDecisions(decisions);
             Map<Id, Product2> productsById = loadProducts(lineItems);
 
@@ -1303,7 +1334,7 @@ public with sharing class QuoteService {
 
             return buildWorkspace(
                 requireWorkOrder(workOrderId),
-                QuoteSelector.selectForApproveRejectById(quoteRecord.Id)
+                selectQuoteForApproveRejectById(quoteRecord.Id)
             );
         }
 
@@ -1323,7 +1354,7 @@ public with sharing class QuoteService {
             if (workOrder.ActiveQuote__c == null) {
                 throw new ApproveRejectException('This Work Order does not have an Active Quote.');
             }
-            Quote quoteRecord = QuoteSelector.selectForApproveRejectById(workOrder.ActiveQuote__c);
+            Quote quoteRecord = selectQuoteForApproveRejectById(workOrder.ActiveQuote__c);
             if (quoteRecord == null) {
                 throw new ApproveRejectException('Active Quote was not found.');
             }
@@ -1337,7 +1368,7 @@ public with sharing class QuoteService {
 
         private ApproveRejectWorkspace buildWorkspace(WorkOrder workOrder, Quote quoteRecord) {
             List<QuoteLineItem> lineItems =
-                QuoteLineItemService.getLineItemsForApproveReject(quoteRecord.Id);
+                QuoteLineItemService.getForApproveRejectByQuoteId(quoteRecord.Id);
             Map<Id, WorkOrderLineItem> wolisById = loadWorkOrderLineItems(lineItems);
             Map<Id, WorkOrder> workOrdersById = loadLineWorkOrders(workOrder, lineItems);
             Map<Id, Product2> productsById = loadProducts(lineItems);
@@ -1738,10 +1769,14 @@ public with sharing class QuoteService {
         }
 
         private Id resolveRepairCodeRecordTypeId() {
+            if (repairCodeRecordTypeId != null) {
+                return repairCodeRecordTypeId;
+            }
             Map<String, Schema.RecordTypeInfo> recordTypes =
                 Schema.SObjectType.WorkOrderLineItem.getRecordTypeInfosByDeveloperName();
             Schema.RecordTypeInfo recordTypeInfo = recordTypes.get(WOLI_RECORD_TYPE_REPAIR_CODE);
-            return recordTypeInfo == null ? null : recordTypeInfo.getRecordTypeId();
+            repairCodeRecordTypeId = recordTypeInfo == null ? null : recordTypeInfo.getRecordTypeId();
+            return repairCodeRecordTypeId;
         }
     }
 

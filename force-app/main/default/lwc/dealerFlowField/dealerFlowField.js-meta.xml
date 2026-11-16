@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>66.0</apiVersion>
+    <isExposed>true</isExposed>
+    <masterLabel>Dealer Flow Field</masterLabel>
+    <description>#GC-3598 Create-form field whose required error clears when the user leaves a completed field.</description>
+    <targets>
+        <target>lightning__FlowScreen</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightning__FlowScreen">
+            <property name="label" type="String" label="Label" role="inputOnly"/>
+            <property name="fieldType" type="String" label="Field Type" role="inputOnly" description="text, date, textarea, or picklist"/>
+            <property name="required" type="Boolean" label="Required" role="inputOnly"/>
+            <property name="helpText" type="String" label="Help Text" role="inputOnly"/>
+            <property name="choices" type="String" label="Choices" role="inputOnly" description="Semicolon-separated picklist values"/>
+            <property name="showErrors" type="Boolean" label="Show Errors" role="inputOnly"/>
+            <property name="value" type="String" label="Value"/>
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

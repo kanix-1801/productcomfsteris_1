@@ -629,31 +629,6 @@
 													</lightning-textarea>
 												</div>
 												<div class="field-full">
-													<lightning-input
-														type="checkbox"
-														label="Additional Services"
-														checked={line.editAdditionalServices}
-														data-id={line.Id}
-														data-field="additionalServices"
-														onchange={handleEditFieldChange}>
-													</lightning-input>
-												</div>
-												<template lwc:if={line.showInsulationField}>
-													<div class="field-full">
-														<lightning-dual-listbox
-															label="Insulation / Powder Coating"
-															source-label="Available"
-															selected-label="Selected"
-															options={insulationPowderCoatingOptions}
-															value={line.editInsulationPowderCoating}
-															size="4"
-															data-id={line.Id}
-															data-field="insulationPowderCoating"
-															onchange={handleEditFieldChange}>
-														</lightning-dual-listbox>
-													</div>
-												</template>
-												<div class="field-full">
 													<template lwc:if={line.showRecordPictureUpload}>
 														<lightning-file-upload
 															label="Picture (Repair Center)"
@@ -1067,29 +1042,6 @@
 													onchange={handleAddFieldChange}>
 												</lightning-textarea>
 											</div>
-											<div class="field-full">
-												<lightning-input
-													type="checkbox"
-													label="Additional Services"
-													checked={addFormState.additionalServices}
-													data-field="additionalServices"
-													onchange={handleAddFieldChange}>
-												</lightning-input>
-											</div>
-											<template lwc:if={addFormShowInsulation}>
-												<div class="field-full">
-													<lightning-dual-listbox
-														label="Insulation / Powder Coating"
-														source-label="Available"
-														selected-label="Selected"
-														options={insulationPowderCoatingOptions}
-														value={addFormState.insulationPowderCoating}
-														size="4"
-														data-field="insulationPowderCoating"
-														onchange={handleAddFieldChange}>
-													</lightning-dual-listbox>
-												</div>
-											</template>
 											<div class="field-full">
 												<lightning-file-upload
 													label="Picture"

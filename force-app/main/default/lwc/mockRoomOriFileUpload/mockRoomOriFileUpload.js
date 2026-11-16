@@ -6,6 +6,7 @@ export default class MockRoomOriFileUpload extends LightningElement {
 
     _uploadedDocumentIds = '';
     _fileNames = '';
+    hideNativeLabelStyleApplied = false;
 
     @api
     get uploadedDocumentIds() {
@@ -23,14 +24,10 @@ export default class MockRoomOriFileUpload extends LightningElement {
         this._fileNames = value || '';
     }
 
-    hideNativeLabelStyleApplied = false;
-
+    /** lightning-file-upload renders its own label inside its shadow tree. This hides it so the custom label and help icon are shown. */
     renderedCallback() {
-        if (this.hideNativeLabelStyleApplied) {
-            return;
-        }
         const upload = this.template.querySelector('.native-upload');
-        if (!upload) {
+        if (this.hideNativeLabelStyleApplied || !upload) {
             return;
         }
         const style = document.createElement('style');
@@ -43,18 +40,12 @@ export default class MockRoomOriFileUpload extends LightningElement {
         return !!this._fileNames;
     }
 
+    /** Appends the new files to any uploaded earlier, so returning to this screen keeps them. */
     handleUploadFinished(event) {
         const files = event.detail.files || [];
-        const existingIds = this._uploadedDocumentIds ? this._uploadedDocumentIds.split(',') : [];
-        const existingNames = this._fileNames ? this._fileNames.split(', ') : [];
-        this._uploadedDocumentIds = [...existingIds, ...files.map((file) => file.documentId)].join(',');
-        this._fileNames = [...existingNames, ...files.map((file) => file.name)].join(', ');
+        this._uploadedDocumentIds = [this._uploadedDocumentIds, ...files.map((file) => file.documentId)].filter(Boolean).join(',');
+        this._fileNames = [this._fileNames, ...files.map((file) => file.name)].filter(Boolean).join(', ');
         this.dispatchEvent(new FlowAttributeChangeEvent('uploadedDocumentIds', this._uploadedDocumentIds));
         this.dispatchEvent(new FlowAttributeChangeEvent('fileNames', this._fileNames));
-    }
-
-    @api
-    validate() {
-        return { isValid: true };
     }
 }

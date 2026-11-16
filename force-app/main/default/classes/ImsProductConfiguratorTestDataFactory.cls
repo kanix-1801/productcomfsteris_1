@@ -5,18 +5,32 @@
  * @group Contract Modifier
  *
  * @description
- * GW-4777 / GW-5676 - Test data for the Model Qty coverage tests (ContractModifierServiceTest,
- * ImsProductConfiguratorControllerTest): access to ContractModifier__c and QuoteLineItem.ModelQtyCoverage__c,
- * and a quote with one line whose account has a repair asset.
+ * GW-4777 / GW-5676 - Test data for the Contract Adjustments tests (ImsProductConfiguratorServiceTest,
+ * ImsProductConfiguratorControllerTest, and the legacy ContractModifierServiceTest): access to
+ * ContractAdjustment__c, ContractModifier__c and QuoteLineItem.ModelQtyCoverage__c, and a quote with one line
+ * whose account has a repair asset.
  */
 @IsTest
 public class ImsProductConfiguratorTestDataFactory {
 
-    public static final String PRODUCT_LINE = 'ESPC Model Qty Line';
+    // ContractAdjustment__c.ProductLine__c value whose dependent Manufacturer__c values include OLYMPUS and PENTAX
+    public static final String PRODUCT_LINE = 'Video';
     public static final String SUB_PRODUCT_LINE = 'ESPC Model Qty Sub Line';
-    public static final String MANUFACTURER = 'ESPC Model Qty Maker';
+    // A ContractAdjustment__c.Manufacturer__c value valid for PRODUCT_LINE, so it can be saved
+    public static final String MANUFACTURER = 'OLYMPUS';
+    // A second manufacturer valid for PRODUCT_LINE
+    public static final String OTHER_MANUFACTURER = 'PENTAX';
+
+    private static final List<String> OBJECT_LIST = new List<String>{ 'ContractAdjustment__c', 'ContractModifier__c' };
 
     private static final List<String> FIELD_LIST = new List<String>{
+        'ContractAdjustment__c.Model__c', 'ContractAdjustment__c.ModelQty__c', 'ContractAdjustment__c.Type__c',
+        'ContractAdjustment__c.Quote__c', 'ContractAdjustment__c.QuoteLineItem__c',
+        'ContractAdjustment__c.StartDate__c', 'ContractAdjustment__c.EndDate__c',
+        'ContractAdjustment__c.InclusionExclusionType__c', 'ContractAdjustment__c.ParentContractAdjustment__c',
+        'ContractAdjustment__c.ProductLine__c', 'ContractAdjustment__c.SubProductLine__c',
+        'ContractAdjustment__c.ProductType__c', 'ContractAdjustment__c.Manufacturer__c',
+        'ContractAdjustment__c.PricingProgram__c', 'ContractAdjustment__c.InstrumentServices__c',
         'ContractModifier__c.Model__c', 'ContractModifier__c.ModelQty__c', 'ContractModifier__c.Type__c',
         'ContractModifier__c.Quote__c', 'ContractModifier__c.QuoteLineItem__c', 'ContractModifier__c.StartDate__c',
         'ContractModifier__c.EndDate__c', 'ContractModifier__c.InclusionExclusionType__c',
@@ -32,8 +46,8 @@ public class ImsProductConfiguratorTestDataFactory {
     public static final Date TERM_END = Date.today().addYears(1).addDays(-1);
 
     /**
-     * @description Grants the running user CRUD on ContractModifier__c and read/edit on the fields the
-     *              feature uses, through a test-only permission set (setup DML isolated with runAs).
+     * @description Grants the running user CRUD on ContractAdjustment__c and ContractModifier__c and read/edit on
+     *              the fields the feature uses, through a test-only permission set (setup DML isolated with runAs).
      */
     public static void grantAccess() {
         System.runAs(new User(Id = UserInfo.getUserId())) {
@@ -42,14 +56,18 @@ public class ImsProductConfiguratorTestDataFactory {
                 Label = 'IMS Product Configurator Test Access'
             );
             insert permissionSetRecord;
-            insert new ObjectPermissions(
-                ParentId = permissionSetRecord.Id,
-                SobjectType = 'ContractModifier__c',
-                PermissionsRead = true,
-                PermissionsCreate = true,
-                PermissionsEdit = true,
-                PermissionsDelete = true
-            );
+            List<ObjectPermissions> objectPermissionList = new List<ObjectPermissions>();
+            for (String objectName : OBJECT_LIST) {
+                objectPermissionList.add(new ObjectPermissions(
+                    ParentId = permissionSetRecord.Id,
+                    SobjectType = objectName,
+                    PermissionsRead = true,
+                    PermissionsCreate = true,
+                    PermissionsEdit = true,
+                    PermissionsDelete = true
+                ));
+            }
+            insert objectPermissionList;
             List<FieldPermissions> fieldPermissionList = new List<FieldPermissions>();
             for (String field : FIELD_LIST) {
                 fieldPermissionList.add(new FieldPermissions(
@@ -85,8 +103,9 @@ public class ImsProductConfiguratorTestDataFactory {
         Opportunity opportunityRecord = new Opportunity(
             Name = 'Model Qty Test Opportunity',
             AccountId = accountBuilder.id,
-            StageName = firstActiveValue(Opportunity.StageName.getDescribe()),
-            ForecastConfidenceLevel__c = firstActiveValue(Opportunity.ForecastConfidenceLevel__c.getDescribe()),
+            // ForecastConfidenceLevel__c depends on StageName: Pipeline is valid for Discovery
+            StageName = 'Discovery',
+            ForecastConfidenceLevel__c = 'Pipeline',
             Type = firstActiveValue(Opportunity.Type.getDescribe()),
             PrimaryContact__c = primaryContact.Id,
             CloseDate = Date.today().addDays(30),
@@ -201,10 +220,127 @@ public class ImsProductConfiguratorTestDataFactory {
     }
 
     /**
-     * @description An active ContractModifier__c.ProductLine__c value (the field is a restricted picklist).
+     * @description Grants the running user read/create on PricingProgram__c and PricingProgramLines__c and
+     *              read on the optional fields the Pricing Programs search uses (required, master-detail and
+     *              formula fields are covered by the object access), through a test-only permission set.
+     */
+    public static void grantPricingProgramAccess() {
+        System.runAs(new User(Id = UserInfo.getUserId())) {
+            PermissionSet permissionSetRecord = new PermissionSet(
+                Name = 'PricingProgramTestAccess',
+                Label = 'Pricing Program Test Access'
+            );
+            insert permissionSetRecord;
+            List<ObjectPermissions> objectPermissionList = new List<ObjectPermissions>();
+            for (String objectName : new List<String>{ 'PricingProgram__c', 'PricingProgramLines__c' }) {
+                objectPermissionList.add(new ObjectPermissions(
+                    ParentId = permissionSetRecord.Id,
+                    SobjectType = objectName,
+                    PermissionsRead = true,
+                    PermissionsCreate = true
+                ));
+            }
+            insert objectPermissionList;
+            List<FieldPermissions> fieldPermissionList = new List<FieldPermissions>();
+            for (String field : new List<String>{
+                'PricingProgram__c.DisplayName__c', 'PricingProgram__c.EndDate__c', 'PricingProgram__c.Status__c',
+                'PricingProgramLines__c.CategoryCodeId__c', 'PricingProgramLines__c.CategoryCode__c',
+                'PricingProgramLines__c.CategoryCodeName__c'
+            }) {
+                fieldPermissionList.add(new FieldPermissions(
+                    ParentId = permissionSetRecord.Id,
+                    SobjectType = field.substringBefore('.'),
+                    Field = field,
+                    PermissionsRead = true,
+                    PermissionsEdit = false
+                ));
+            }
+            insert fieldPermissionList;
+            insert new PermissionSetAssignment(
+                AssigneeId = UserInfo.getUserId(),
+                PermissionSetId = permissionSetRecord.Id
+            );
+        }
+    }
+
+    /**
+     * @description A pricing program with one line per CT code. The CT code and name on a line are formulas
+     *              from its Category Code product, so a Product2 is created per code (Name = "<code> Name").
+     * @param programName ProgramName__c (and DisplayName__c)
+     * @param status Status__c, e.g. Active or Draft
+     * @param startDate StartDate__c
+     * @param endDate EndDate__c (null = open-ended)
+     * @param ctCodes ProductCode of each Category Code product, in insert order
+     * @return The program, re-queried with its auto-number Name
+     */
+    public static PricingProgram__c createPricingProgram(
+        String programName, String status, Date startDate, Date endDate, List<String> ctCodes
+    ) {
+        AutomationControl.setAllDisabled(true);
+        // Manufacturer__c depends on ProductLine__c: take the first Product Line that has a valid Manufacturer
+        String productLine;
+        String manufacturer;
+        List<Schema.PicklistEntry> productLineList = PricingProgram__c.ProductLine__c.getDescribe().getPicklistValues();
+        for (Integer i = 0; i < productLineList.size() && manufacturer == null; i++) {
+            if (productLineList[i].isActive()) {
+                productLine = productLineList[i].getValue();
+                manufacturer = firstDependentValue(PricingProgram__c.Manufacturer__c.getDescribe(), i);
+            }
+        }
+        PricingProgram__c programRecord = new PricingProgram__c(
+            ProgramName__c = programName,
+            DisplayName__c = programName,
+            Status__c = status,
+            StartDate__c = startDate,
+            EndDate__c = endDate,
+            ProductLine__c = productLine,
+            SubProductLine__c = firstActiveValue(PricingProgram__c.SubProductLine__c.getDescribe()),
+            Manufacturer__c = manufacturer,
+            DeviceType__c = firstActiveValue(PricingProgram__c.DeviceType__c.getDescribe())
+        );
+        insert programRecord;
+
+        List<Product2> categoryCodeList = new List<Product2>();
+        for (String ctCode : ctCodes) {
+            // CategoryCodeId__c only accepts Category Code products (lookup filter)
+            categoryCodeList.add(new Product2(
+                Name = ctCode + ' Name', ProductCode = ctCode, IsActive = true, ProductType__c = 'Category Code'
+            ));
+        }
+        insert categoryCodeList;
+        List<PricingProgramLines__c> lineList = new List<PricingProgramLines__c>();
+        for (Product2 categoryCode : categoryCodeList) {
+            lineList.add(new PricingProgramLines__c(
+                PricingProgram__c = programRecord.Id,
+                CategoryCodeId__c = categoryCode.Id
+            ));
+        }
+        insert lineList;
+        AutomationControl.setAllDisabled(false);
+        return [SELECT Id, Name, ProgramName__c FROM PricingProgram__c WHERE Id = :programRecord.Id];
+    }
+
+    /**
+     * @description An active ContractAdjustment__c.ProductLine__c value (the field is a restricted picklist; it
+     *              has the same values as ContractModifier__c.ProductLine__c).
      */
     public static String validProductLine() {
-        return firstActiveValue(ContractModifier__c.ProductLine__c.getDescribe());
+        return firstActiveValue(ContractAdjustment__c.ProductLine__c.getDescribe());
+    }
+
+    /**
+     * @description An active ContractAdjustment__c.InstrumentServices__c value (Mobile Van category).
+     * @param index Position among the active values (0 = first)
+     */
+    public static String instrumentService(Integer index) {
+        List<String> valueList = new List<String>();
+        for (Schema.PicklistEntry picklistEntry : ContractAdjustment__c.InstrumentServices__c.getDescribe()
+                                                     .getPicklistValues()) {
+            if (picklistEntry.isActive()) {
+                valueList.add(picklistEntry.getValue());
+            }
+        }
+        return valueList[index];
     }
 
     /**
@@ -230,6 +366,41 @@ public class ImsProductConfiguratorTestDataFactory {
             insert userRecord;
         }
         return userRecord;
+    }
+
+    // First active value of a dependent picklist that is valid for the controlling value at controllerIndex
+    // (decoded from the entry's "validFor" bitmap: one bit per controlling value, high bit first).
+    private static String firstDependentValue(Schema.DescribeFieldResult fieldDescribe, Integer controllerIndex) {
+        for (Schema.PicklistEntry picklistEntry : fieldDescribe.getPicklistValues()) {
+            if (!picklistEntry.isActive()) {
+                continue;
+            }
+            Map<String, Object> entryMap = (Map<String, Object>) JSON.deserializeUntyped(JSON.serialize(picklistEntry));
+            String validFor = (String) entryMap.get('validFor');
+            if (String.isBlank(validFor)) {
+                continue;
+            }
+            String hex = EncodingUtil.convertToHex(EncodingUtil.base64Decode(validFor));
+            Integer byteIndex = controllerIndex / 8;
+            if (hex.length() < (byteIndex + 1) * 2) {
+                continue;
+            }
+            Integer byteValue = hexToInteger(hex.substring(byteIndex * 2, byteIndex * 2 + 2));
+            Integer mask = 128 >> Math.mod(controllerIndex, 8);
+            if ((byteValue & mask) != 0) {
+                return picklistEntry.getValue();
+            }
+        }
+        return null;
+    }
+
+    private static Integer hexToInteger(String hex) {
+        String digits = '0123456789abcdef';
+        Integer value = 0;
+        for (Integer i = 0; i < hex.length(); i++) {
+            value = value * 16 + digits.indexOf(hex.substring(i, i + 1).toLowerCase());
+        }
+        return value;
     }
 
     private static String firstActiveValue(Schema.DescribeFieldResult fieldDescribe) {

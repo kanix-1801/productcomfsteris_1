@@ -106,4 +106,61 @@ public with sharing class TASSelector {
             WITH SECURITY_ENFORCED
         ];
     }
+
+    /**
+     * @description GCL-79 - Life Sciences territory rows matching Territory ID, Description, or Number.
+     *              Existing Healthcare search is unchanged.
+     * @param searchKey User-entered search text.
+     * @param classCodes Life Sciences ClassCode__c values.
+     * @param rowLimit Maximum rows to return.
+     * @return Matching Order Line rows. Empty when the search text or class codes are blank.
+     */
+    public static List<OrderLineContact__c> selectLifeSciencesTerritoriesBySearch(
+        String searchKey,
+        Set<String> classCodes,
+        Integer rowLimit
+    ) {
+        if (String.isBlank(searchKey) || classCodes == null || classCodes.isEmpty() || rowLimit == null || rowLimit <= 0) {
+            return new List<OrderLineContact__c>();
+        }
+        String key = '%' + searchKey.trim() + '%';
+        return [
+            SELECT TerritoryID__c, TerritoryDescription__c
+            FROM OrderLineContact__c
+            WHERE TerritoryID__c != null
+            AND (
+                TerritoryID__c LIKE :key
+                OR TerritoryDescription__c LIKE :key
+                OR TerritoryNumber__c LIKE :key
+            )
+            AND ClassCode__c IN :classCodes
+            WITH USER_MODE
+            LIMIT :rowLimit
+        ];
+    }
+
+    /**
+     * @description GCL-79 - Life Sciences territory rows for the selected Territory IDs.
+     * @param territoryIds Territory IDs to load.
+     * @param classCodes Life Sciences ClassCode__c values.
+     * @return Rows with a TAS address. The caller keeps the first row per address.
+     */
+    public static List<OrderLineContact__c> selectLifeSciencesTerritoriesByIds(
+        Set<String> territoryIds,
+        Set<String> classCodes
+    ) {
+        if (territoryIds == null || territoryIds.isEmpty() || classCodes == null || classCodes.isEmpty()) {
+            return new List<OrderLineContact__c>();
+        }
+        return [
+            SELECT TerritoryID__c, TerritoryDescription__c, TerritoryNumber__c, TASAddressId__c,
+                   TAS_Sales_Category__c, SalesCategoryDescription__c,
+                   BusinessUnit__c, TASZone__c, RegionName__c
+            FROM OrderLineContact__c
+            WHERE TerritoryID__c IN :territoryIds
+            AND TASAddressId__c != null
+            AND ClassCode__c IN :classCodes
+            WITH USER_MODE
+        ];
+    }
 }

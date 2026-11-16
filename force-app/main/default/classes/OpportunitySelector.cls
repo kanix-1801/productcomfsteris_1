@@ -88,8 +88,7 @@ public with sharing class OpportunitySelector {
                 AccountId,
                 CurrencyIsoCode,
                 ForecastConfidenceLevel__c,
-                RecordType.DeveloperName,
-                OnHold__c   //GCL-66
+                RecordType.DeveloperName
             FROM Opportunity
             WHERE Id = :opportunityId
             WITH USER_MODE

@@ -124,43 +124,26 @@ export default class LostBusinessProductSelection extends LightningElement {
         return count === 1 ? '1 product selected' : count + ' products selected';
     }
 
-    get searchResultsToggleIcon() {
-        return this.isSearchResultsCollapsed ? 'utility:chevrondown' : 'utility:chevronup';
-    }
-
-    get searchResultsToggleLabel() {
-        return this.isSearchResultsCollapsed ? 'Show search results' : 'Hide search results';
-    }
-
-    get searchResultsBodyClass() {
-        return this.isSearchResultsCollapsed ? 'slds-hide' : '';
-    }
-
-    get originatingToggleIcon() {
-        return this.isOriginatingProductsCollapsed ? 'utility:chevrondown' : 'utility:chevronup';
-    }
-
-    get originatingToggleLabel() {
-        return this.isOriginatingProductsCollapsed
-            ? 'Show products from the originating opportunity'
-            : 'Hide products from the originating opportunity';
-    }
-
-    get originatingBodyClass() {
-        return this.isOriginatingProductsCollapsed ? 'slds-hide' : '';
-    }
-
-    get selectedProductsToggleIcon() {
-        return this.isSelectedProductsCollapsed ? 'utility:chevrondown' : 'utility:chevronup';
-    }
-
-    get selectedProductsToggleLabel() {
-        return this.isSelectedProductsCollapsed ? 'Show selected products' : 'Hide selected products';
-    }
+    get searchResultsToggleIcon() { return this.collapseIcon(this.isSearchResultsCollapsed); }
+    get originatingToggleIcon() { return this.collapseIcon(this.isOriginatingProductsCollapsed); }
+    get selectedProductsToggleIcon() { return this.collapseIcon(this.isSelectedProductsCollapsed); }
+    get searchResultsToggleLabel() { return this.collapseLabel(this.isSearchResultsCollapsed, 'search results'); }
+    get originatingToggleLabel() { return this.collapseLabel(this.isOriginatingProductsCollapsed, 'products from the originating opportunity'); }
+    get selectedProductsToggleLabel() { return this.collapseLabel(this.isSelectedProductsCollapsed, 'selected products'); }
+    get searchResultsBodyClass() { return this.isSearchResultsCollapsed ? 'slds-hide' : ''; }
+    get originatingBodyClass() { return this.isOriginatingProductsCollapsed ? 'slds-hide' : ''; }
 
     get selectedProductsBodyClass() {
         const baseClass = 'slds-p-horizontal_medium slds-p-bottom_medium selected-products-scroll';
         return this.isSelectedProductsCollapsed ? baseClass + ' slds-hide' : baseClass;
+    }
+
+    collapseIcon(isCollapsed) {
+        return isCollapsed ? 'utility:chevrondown' : 'utility:chevronup';
+    }
+
+    collapseLabel(isCollapsed, sectionName) {
+        return (isCollapsed ? 'Show ' : 'Hide ') + sectionName;
     }
 
     /**
@@ -225,16 +208,15 @@ export default class LostBusinessProductSelection extends LightningElement {
         }
     }
 
-    handleToggleSearchResults() {
-        this.isSearchResultsCollapsed = !this.isSearchResultsCollapsed;
-    }
-
-    handleToggleOriginatingProducts() {
-        this.isOriginatingProductsCollapsed = !this.isOriginatingProductsCollapsed;
-    }
-
-    handleToggleSelectedProducts() {
-        this.isSelectedProductsCollapsed = !this.isSelectedProductsCollapsed;
+    handleToggleSection(event) {
+        const sectionName = event.currentTarget.dataset.section;
+        if (sectionName === 'search') {
+            this.isSearchResultsCollapsed = !this.isSearchResultsCollapsed;
+        } else if (sectionName === 'originating') {
+            this.isOriginatingProductsCollapsed = !this.isOriginatingProductsCollapsed;
+        } else if (sectionName === 'selected') {
+            this.isSelectedProductsCollapsed = !this.isSelectedProductsCollapsed;
+        }
     }
 
     /**

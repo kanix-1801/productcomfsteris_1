@@ -19,7 +19,7 @@ public with sharing class RepairCenterPartsRequestService {
      * @description Active Part BOM components for the Work Order product.
      *              Uses Work Order Product, then the Asset product when Product is blank.
      * @param workOrderId Work Order Id
-     * @return One row per active part, in component sequence
+     * @return One row per active part, ordered by Product Code
      */
     public static List<PartOption> getBomParts(Id workOrderId) {
         WorkOrder workOrder = requireWorkOrder(workOrderId);
@@ -122,6 +122,7 @@ public with sharing class RepairCenterPartsRequestService {
         header.RequestType__c = REQUEST_TYPE_PARTS;
         header.WorkOrderId = workOrder.Id;
         header.DestinationLocationId = workOrder.RepairCenter__c;
+        header.RepairCenterName__c = repairCenterName(workOrder);
         header.Status = STATUS_SUBMITTED;
         header.ShipmentType = SHIPMENT_TYPE_PICK_UP;
 
@@ -161,6 +162,18 @@ public with sharing class RepairCenterPartsRequestService {
             throw new RepairCenterPartsRequestException('Work Order was not found.');
         }
         return workOrders[0];
+    }
+
+    /**
+     * @description Destination Location name used by Repair Center sharing rules.
+     *              ProductRequest.RepairCenterName__c is Text(80).
+     */
+    private static String repairCenterName(WorkOrder workOrder) {
+        String locationName = workOrder.RepairCenter__r == null ? null : workOrder.RepairCenter__r.Name;
+        if (String.isBlank(locationName)) {
+            return null;
+        }
+        return locationName.length() > 80 ? locationName.left(80) : locationName;
     }
 
     private static Id parentProductId(WorkOrder workOrder) {

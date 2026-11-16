@@ -1,59 +1,54 @@
 <template>
-    <lightning-card title="Tech District Alignment" icon-name="standard:location">
+    <lightning-card title={label.cardTitle} icon-name="standard:location">
         <div class="slds-p-around_medium">
-            <p class="slds-m-bottom_small">
-                Upload the Tech District Alignment file and click Start Upload. Each row moves the technician to the
-                Next Year Territory from the first day of the next fiscal year (April 1) and ends the current
-                membership today. Next Year Territories that do not exist are created with the Next Year ASM as
-                Territory Manager. When the Next Year ASM differs from the Current ASM, the Territory Manager is updated.
-            </p>
-            <p class="slds-text-body_small slds-m-bottom_medium">
-                Required: TECH HRIS#, Current Territory, Current ASM HRIS#, Next Year Territory, Next Year ASM HRIS#.
-                Territories are matched by Territory ID and must be IPTLS, Low Temp, Procedural or Endoscopy.
-            </p>
+            <p class="slds-m-bottom_small">{label.instructionsProcess}</p>
+            <p class="slds-text-body_small slds-m-bottom_medium">{label.instructionsColumns}</p>
 
             <div class="slds-m-bottom_medium">
                 <lightning-file-upload
-                    label="Upload technician assignment file"
+                    label={label.uploadLabel}
                     name="techDistrictAlignmentUpload"
                     accept={acceptedFormats}
                     onuploadfinished={handleUploadFinished}
                     disabled={isBusy}
                 ></lightning-file-upload>
                 <template lwc:if={uploadedFileName}>
-                    <p class="slds-m-top_x-small slds-text-body_small">Selected file: {uploadedFileName}</p>
+                    <p class="slds-m-top_x-small slds-text-body_small" data-id="uploaded-file">{selectedFileText}</p>
                 </template>
             </div>
 
             <div class="slds-m-bottom_medium">
                 <lightning-button
                     variant="brand"
-                    label="Start Upload"
+                    label={label.startUpload}
                     onclick={handleStartUpload}
                     disabled={isStartDisabled}
                     class="slds-m-right_small"
+                    data-id="start-upload"
                 ></lightning-button>
                 <lightning-button
                     variant="neutral"
-                    label="Download Template"
+                    label={label.downloadTemplate}
                     onclick={handleDownloadTemplate}
                     disabled={isBusy}
                     class="slds-m-right_small"
+                    data-id="download-template"
                 ></lightning-button>
                 <lightning-button
                     variant="neutral"
-                    label="Download Error File"
+                    label={label.downloadErrorFile}
                     onclick={handleDownloadErrorFile}
                     disabled={isBusy}
+                    data-id="download-error-file"
                 ></lightning-button>
             </div>
 
             <template lwc:if={isBusy}>
-                <lightning-spinner alternative-text="Processing" size="small"></lightning-spinner>
+                <lightning-spinner alternative-text={label.processing} size="small"></lightning-spinner>
             </template>
 
             <template lwc:if={resultSummary}>
-                <div class="slds-box slds-theme_shade slds-m-top_small">
+                <div class="slds-box slds-theme_shade slds-m-top_small" data-id="result">
                     <p>{resultSummary}</p>
                     <p class="slds-text-body_small slds-m-top_x-small">{emailMessage}</p>
                     <template lwc:if={hasErrors}>
@@ -63,9 +58,7 @@
                             </template>
                         </ul>
                         <template lwc:if={hasHiddenErrors}>
-                            <p class="slds-text-body_small slds-m-top_x-small">
-                                Showing the first {visibleErrorLimit} errors. Download the error file for the full list.
-                            </p>
+                            <p class="slds-text-body_small slds-m-top_x-small">{moreErrorsText}</p>
                         </template>
                     </template>
                 </div>

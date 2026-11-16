@@ -227,4 +227,30 @@ private class UserSelectorTest {
             Test.stopTest();
         }
     }
+
+    /**
+     * @description GW-2707: selectActiveByEmployeeNumbers returns active users by Employee Number and nothing for
+     *              missing input.
+     */
+    @IsTest
+    static void selectActiveByEmployeeNumbers_matchesAndBlank() {
+        String employeeNumber = 'GW2707-' + Math.abs(Crypto.getRandomInteger());
+        User runningUser = new User(Id = UserInfo.getUserId(), EmployeeNumber__c = employeeNumber);
+        System.runAs(new User(Id = UserInfo.getUserId())) {
+            Database.update(runningUser, AccessLevel.SYSTEM_MODE);
+        }
+
+        Test.startTest();
+        List<User> matches = UserSelector.selectActiveByEmployeeNumbers(
+            new Set<String>{ employeeNumber, 'GW2707-NO-MATCH' }
+        );
+        List<User> blank = UserSelector.selectActiveByEmployeeNumbers(new Set<String>());
+        List<User> missing = UserSelector.selectActiveByEmployeeNumbers(null);
+        Test.stopTest();
+
+        Assert.areEqual(1, matches.size(), 'Only the existing Employee Number should match.');
+        Assert.areEqual(UserInfo.getUserId(), matches[0].Id, 'Unexpected user.');
+        Assert.isTrue(blank.isEmpty(), 'Empty input should return no rows.');
+        Assert.isTrue(missing.isEmpty(), 'Missing input should return no rows.');
+    }
 }

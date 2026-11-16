@@ -74,6 +74,138 @@
                     <div class="ca-content">
                         <div lwc:if={modalError} class="ca-error" role="alert">{modalError}</div>
 
+                        <!-- Pricing Programs -->
+                        <template lwc:if={isPricingSection}>
+                            <div class="ca-section-head">
+                                <div>
+                                    <h3 class="ca-section-title">Pricing Programs</h3>
+                                    <p class="ca-section-sub">Assign pricing programs set up outside the quote. Hover or focus a program's CT codes to check which device categories it covers</p>
+                                </div>
+                            </div>
+                            <!-- Search Bar -->
+                            <div class="ca-search-bar slds-size_2-of-3">
+                                <div class="ca-search-row">
+                                    <lightning-input type="search" label="Add pricing program" class="ca-search-input"
+                                        placeholder="Search program, CT code or category..."
+                                        value={programSearchTerm}
+                                        onchange={handlePricingProgramSearch}></lightning-input>
+                                    <lightning-button label={addProgramsLabel} variant="brand" icon-name="utility:add"
+                                        class="ca-search-add" disabled={addProgramsDisabled}
+                                        onclick={handleAddSelectedPrograms}></lightning-button>
+                                </div>
+
+                                <p lwc:if={programSearchTooShort} class="ca-search-hint" aria-live="polite">
+                                    Type at least 3 characters to search.
+                                </p>
+                                <div lwc:if={showProgramSearchSpinner} class="ca-search-hint" aria-live="polite">
+                                    <lightning-spinner alternative-text="Searching pricing programs" size="small"
+                                        variant="brand" class="slds-is-relative"></lightning-spinner>
+                                </div>
+                                <p lwc:if={programSearchError} class="ca-search-hint slds-text-color_error" role="alert">
+                                    {programSearchError}
+                                </p>
+
+                                <div lwc:if={hasProgramSearchResults} class="ca-search-results">
+                                    <table class="ca-table">
+                                        <thead>
+                                            <tr>
+                                                <th class="ca-col-select"><span class="slds-assistive-text">Select</span></th>
+                                                <th class="ca-col-program">Program</th>
+                                                <th>Description</th>
+                                                <th class="ca-col-ctcode">CT Code</th>
+                                                <th>Category</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <template for:each={programSearchResults} for:item="result">
+                                                <tr key={result.program}>
+                                                    <td class="ca-col-select">
+                                                        <lightning-input type="checkbox" variant="label-hidden"
+                                                            label={result.selectLabel} checked={result.selected}
+                                                            data-program={result.program}
+                                                            onchange={handleProgramSelect}></lightning-input>
+                                                    </td>
+                                                    <td class="ca-col-program">{result.program}</td>
+                                                    <td>{result.description}</td>
+                                                    <td class="ca-col-ctcode">
+                                                        <template lwc:if={result.hasCtCodes}>
+                                                            <span class="ca-ct" tabindex="0">
+                                                                <span class="slds-badge ca-ct-pill">{result.ctPillLabel}</span>
+                                                                <div class="ca-ct-pop" role="tooltip">
+                                                                    <table class="ca-ct-table">
+                                                                        <thead>
+                                                                            <tr><th>CT Code</th><th>Name</th></tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            <template for:each={result.ctCodeList} for:item="ct">
+                                                                                <tr key={ct.key}><td>{ct.code}</td><td>{ct.name}</td></tr>
+                                                                            </template>
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </span>
+                                                        </template>
+                                                        <template lwc:else>—</template>
+                                                    </td>
+                                                    <td>{result.category}</td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <p lwc:if={noProgramSearchResults} class="ca-search-hint">
+                                    No pricing programs match "{programSearchTerm}".
+                                </p>
+                            </div>
+
+                            <table class="ca-table">
+                                <thead>
+                                    <tr>
+                                        <th class="ca-col-program">Program</th>
+                                        <th>Description</th>
+                                        <th class="ca-col-ctcode">CT Code</th>
+                                        <th class="ca-col-action"><span class="slds-assistive-text">Actions</span></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={pricingProgramRows} for:item="row">
+                                        <tr key={row.key}>
+                                            <td class="ca-col-program">{row.program}</td>
+                                            <td>{row.description}</td>
+                                            <!-- pricing program line items -->
+                                            <td class="ca-col-ctcode">
+                                                <template lwc:if={row.hasCtCodes}>
+                                                    <span class="ca-ct" tabindex="0">
+                                                        <span class="slds-badge ca-ct-pill">{row.ctPillLabel}</span>
+                                                        <div class="ca-ct-pop" role="tooltip">
+                                                            <table class="ca-ct-table">
+                                                                <thead>
+                                                                    <tr><th>CT Code</th><th>Name</th></tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    <template for:each={row.ctCodeList} for:item="ct">
+                                                                        <tr key={ct.key}><td>{ct.code}</td><td>{ct.name}</td></tr>
+                                                                    </template>
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </span>
+                                                </template>
+                                                <template lwc:else>—</template>
+                                            </td>
+                                            <td class="ca-col-action">
+                                                <lightning-button-icon icon-name="utility:delete"
+                                                    variant="border-filled" size="small"
+                                                    alternative-text={row.deleteLabel} data-rule-key={row.key}
+                                                    onclick={handleRemovePricingProgram}></lightning-button-icon>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                            <p lwc:if={noPricingRows} class="ca-empty">No pricing programs yet.</p>
+                        </template>
                         <!-- Inclusions / Exclusions -->
                         <template lwc:if={isIncExcSection}>
                             <div class="ca-section-head">
@@ -258,6 +390,45 @@
                                     fields picked in that row, and updates as the picks change. A field left at "Any"
                                     matches every value.</span>
                             </p>
+                        </template>
+                        <!-- On Location - Mobile Van -->
+                        <template lwc:if={isMobileVanSection}>
+                            <div class="ca-section-head">
+                                <div>
+                                    <h3 class="ca-section-title">On Location Mobile Van</h3>
+                                    <p class="ca-section-sub">Choose the instrument service categories covered by
+                                        on-location mobile van service. Each category chosen is saved as one
+                                        adjustment on this line.</p>
+                                </div>
+                            </div>
+
+                            <div class="ca-tile-toolbar">
+                                <div class="ca-tile-filter">
+                                    <lightning-input type="search" variant="label-hidden" label="Filter categories"
+                                        placeholder="Filter categories..." value={mobileVanFilter}
+                                        onchange={handleMobileVanFilter}></lightning-input>
+                                </div>
+                                <span class="ca-count ca-tile-count" aria-live="polite">{mobileVanCountLabel}</span>
+                                <div class="ca-tile-actions">
+                                    <lightning-button variant="base" label="Select all"
+                                        disabled={mobileVanSelectAllDisabled}
+                                        onclick={handleMobileVanSelectAll}></lightning-button>
+                                    <lightning-button variant="base" label="Clear"
+                                        disabled={mobileVanClearDisabled}
+                                        onclick={handleMobileVanClear}></lightning-button>
+                                </div>
+                            </div>
+
+                            <div class="ca-tile-grid" role="group" aria-label="Mobile van service categories">
+                                <template for:each={mobileVanTiles} for:item="tile">
+                                    <label key={tile.key} class={tile.tileClass}>
+                                        <input type="checkbox" class="ca-tile-check" checked={tile.checked}
+                                            data-category={tile.value} onchange={handleMobileVanToggle} />
+                                        <span class="ca-tile-label">{tile.label}</span>
+                                    </label>
+                                </template>
+                            </div>
+                            <p lwc:if={noMobileVanTiles} class="ca-empty">{mobileVanEmptyMessage}</p>
                         </template>
                     </div>
                 </div>

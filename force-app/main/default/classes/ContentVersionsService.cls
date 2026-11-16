@@ -25,10 +25,14 @@
         'LastModifiedDate'
     };
 
+    /** GW-4378 - Marks optional evaluation photos so quote copy ignores other Work Order files. */
+    public static final String OPTIONAL_EVALUATION_PHOTO_DESCRIPTION = 'Evaluation optional photo';
+
     private static final List<String> DEVICE_EVALUATION_FILE_FIELDS = new List<String>{
         'Id',
         'ContentDocumentId',
         'Title',
+        'Description',
         'FileExtension',
         'FileType',
         'PathOnClient',
@@ -492,6 +496,56 @@
                 : product.Name;
         }
         return result;
+    }
+
+    /**
+     * @description GW-4378 - Stages an optional evaluation photo that is not tied to a repair code.
+     *              Title follows the [date] TBD convention. The caller links the file to the child Work Order.
+     * @param base64Data File payload (optionally data-URL prefixed)
+     * @param fileName Optional original file name, used only to keep the extension
+     * @return Inserted ContentVersion with ContentDocumentId
+     * @throws ContentVersionsServiceException for validation / unexpected failures
+     * @throws DmlException when underlying DML fails
+     */
+    public static ContentVersion stageOptionalEvaluationPhoto(String base64Data, String fileName) {
+        if (String.isBlank(base64Data)) {
+            throw new ContentVersionsServiceException('File data is required.');
+        }
+
+        String title = Datetime.now().format('yyyy-MM-dd') + ' TBD';
+        String extension = 'jpg';
+        if (String.isNotBlank(fileName) && fileName.contains('.')) {
+            String candidate = fileName.substringAfterLast('.').trim().toLowerCase();
+            if (String.isNotBlank(candidate) && candidate.length() <= 8) {
+                extension = candidate;
+            }
+        }
+        String pathOnClient = title.replace(' ', '-') + '-' + Datetime.now().format('HHmmssSSS') + '.' + extension;
+
+        String payload = base64Data;
+        Integer commaIndex = payload.indexOf(',');
+        if (payload.startsWith('data:') && commaIndex > -1) {
+            payload = payload.substring(commaIndex + 1);
+        }
+
+        ContentVersion version = new ContentVersion();
+        version.Title = title;
+        version.PathOnClient = pathOnClient;
+        version.Description = OPTIONAL_EVALUATION_PHOTO_DESCRIPTION;
+        version.VersionData = EncodingUtil.base64Decode(payload);
+
+        List<ContentVersion> createdVersions = createContentVersionsRethrowDml(
+            new List<ContentVersion>{ version }
+        );
+        ContentVersion inserted = getForDeviceEvaluationFileRow(
+            createdVersions.isEmpty() ? null : createdVersions[0].Id
+        );
+        if (inserted == null || inserted.ContentDocumentId == null) {
+            throw new ContentVersionsServiceException(
+                'Unable to save photo: the file could not be loaded.'
+            );
+        }
+        return inserted;
     }
 
     /**

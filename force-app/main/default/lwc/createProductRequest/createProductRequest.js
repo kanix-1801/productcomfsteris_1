@@ -28,6 +28,7 @@ import parts from '@salesforce/label/c.CreateProductRequest_Parts';
 import addPart from '@salesforce/label/c.CreateProductRequest_AddPart';
 import addSelected from '@salesforce/label/c.CreateProductRequest_AddSelected';
 import substitutePart from '@salesforce/label/c.CreateProductRequest_SubstitutePart';
+import oeNotes from '@salesforce/label/c.CreateProductRequest_OeNotes';
 import scanPart from '@salesforce/label/c.CreateProductRequest_ScanPart';
 import requiredOnWorkOrder from '@salesforce/label/c.CreateProductRequest_RequiredOnWorkOrder';
 import quantity from '@salesforce/label/c.CreateProductRequest_Quantity';
@@ -112,6 +113,7 @@ export default class CreateProductRequest extends NavigationMixin(LightningEleme
         addPart,
         addSelected,
         substitutePart,
+        oeNotes,
         scanPart,
         requiredOnWorkOrder,
         quantity,
@@ -304,7 +306,10 @@ export default class CreateProductRequest extends NavigationMixin(LightningEleme
     }
 
     get addressOptions() {
-        return this.addresses.map((row) => ({ label: row.name, value: row.recordId }));
+        return this.addresses.map((row) => ({
+            label: [row.name, row.addressID].filter((part) => part).join(' - '),
+            value: row.recordId
+        }));
     }
 
     get shipToAccountOptions() {
@@ -387,7 +392,9 @@ export default class CreateProductRequest extends NavigationMixin(LightningEleme
         this.partsRows = (data.requiredParts || []).map((row) => ({
             ...row,
             quantity: row.quantity || 1,
-            shipSet: false
+            shipSet: false,
+            oeNotesExpanded: false,
+            oeNotesIcon: 'utility:chevronright'
         }));
     }
 
@@ -538,7 +545,9 @@ export default class CreateProductRequest extends NavigationMixin(LightningEleme
                 key: part.key || part.productId,
                 quantity: 1,
                 shipSet: this.shipSet === true,
-                requiredOnWorkOrder: part.requiredOnWorkOrder === true
+                requiredOnWorkOrder: part.requiredOnWorkOrder === true,
+                oeNotesExpanded: false,
+                oeNotesIcon: 'utility:chevronright'
             }
         ];
     }
@@ -576,6 +585,21 @@ export default class CreateProductRequest extends NavigationMixin(LightningEleme
         if (!checked) {
             this.shipSet = false;
         }
+    }
+
+    handleToggleOeNotes(event) {
+        const key = event.currentTarget.dataset.key;
+        this.partsRows = this.partsRows.map((row) => {
+            if (row.key !== key) {
+                return row;
+            }
+            const expanded = row.oeNotesExpanded !== true;
+            return {
+                ...row,
+                oeNotesExpanded: expanded,
+                oeNotesIcon: expanded ? 'utility:chevrondown' : 'utility:chevronright'
+            };
+        });
     }
 
     handleRemovePart(event) {

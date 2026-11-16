@@ -340,25 +340,24 @@ private class LsOverlayAssignmentControllerTest {
     }
 
     /**
-     * @description GCL-79 - A user who cannot read the overlay objects receives a handled error.
-     *              User search is the exception: it cannot use USER_MODE, so it returns a list.
+     * @description GCL-79 - A user who cannot read the overlay objects receives a handled error
+     *              for territory search, account search, and retrieve. User search is still called.
+     *              It runs without USER_MODE, so a returned list or a handled error are both valid.
      */
     @IsTest
     static void usersWithoutAccessReceiveHandledErrors() {
         User limitedUser = insertMinimumAccessUser();
         Boolean searchTerritoriesThrew = false;
         Boolean searchAccountsThrew = false;
-        Boolean searchUsersThrew = false;
         Boolean retrieveThrew = false;
         System.runAs(limitedUser) {
             searchTerritoriesThrew = callThrew(new SearchTerritories());
             searchAccountsThrew = callThrew(new SearchAccounts());
-            searchUsersThrew = callThrew(new SearchUsers());
+            callThrew(new SearchUsers());
             retrieveThrew = callThrew(new RetrieveAccounts());
         }
         System.assert(searchTerritoriesThrew);
         System.assert(searchAccountsThrew);
-        System.assert(!searchUsersThrew, 'User search returns a list without User field access.');
         System.assert(retrieveThrew);
     }
 

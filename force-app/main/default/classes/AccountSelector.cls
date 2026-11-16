@@ -615,4 +615,136 @@ public with sharing class AccountSelector extends SoqlQueryBuilder {
             .execute();
     }
 
+    /**
+     * @description GCL-79 - Life Sciences Customer accounts whose name or number matches.
+     *              Existing Healthcare search methods are unchanged.
+     * @param searchTerm Bound LIKE term, including the percent wildcards.
+     * @param classCodes Life Sciences CustomerClassCode__c values.
+     * @param rowLimit Maximum rows to return.
+     * @return Matching Customer accounts.
+     */
+    public static List<Account> selectLifeSciencesCustomersByName(
+        String searchTerm,
+        Set<String> classCodes,
+        Integer rowLimit
+    ) {
+        if (String.isBlank(searchTerm) || classCodes == null || classCodes.isEmpty() || rowLimit == null || rowLimit <= 0) {
+            return new List<Account>();
+        }
+        return [
+            SELECT Id, Name, AccountNumber, Type, ParentId, Parent.Name, OracleAddressId__c,
+                   BillingStreet, BillingCity, BillingState, BillingPostalCode, BillingCountry
+            FROM Account
+            WHERE Type = 'Customer'
+            AND CustomerClassCode__c IN :classCodes
+            AND (Name LIKE :searchTerm OR AccountNumber LIKE :searchTerm)
+            WITH USER_MODE
+            ORDER BY Name
+            LIMIT :rowLimit
+        ];
+    }
+
+    /**
+     * @description GCL-79 - Life Sciences Customer accounts.
+     * @param classCodes Life Sciences CustomerClassCode__c values.
+     * @param rowLimit Maximum rows to return.
+     * @return Customer accounts with a Life Sciences class code.
+     */
+    public static List<Account> selectLifeSciencesCustomers(Set<String> classCodes, Integer rowLimit) {
+        if (classCodes == null || classCodes.isEmpty() || rowLimit == null || rowLimit <= 0) {
+            return new List<Account>();
+        }
+        return [
+            SELECT Id, Name, AccountNumber, Type, ParentId, Parent.Name, OracleAddressId__c,
+                   BillingStreet, BillingCity, BillingState, BillingPostalCode, BillingCountry
+            FROM Account
+            WHERE Type = 'Customer'
+            AND CustomerClassCode__c IN :classCodes
+            WITH USER_MODE
+            ORDER BY Name
+            LIMIT :rowLimit
+        ];
+    }
+
+    /**
+     * @description GCL-79 - Loads the Account fields used by Life Sciences overlay for the given Ids.
+     * @param accountIds Account Ids to load.
+     * @return Accounts matching the given Ids.
+     */
+    public static List<Account> selectLifeSciencesAccountsByIds(Set<Id> accountIds) {
+        if (accountIds == null || accountIds.isEmpty()) {
+            return new List<Account>();
+        }
+        return [
+            SELECT Id, Name, AccountNumber, Type, ParentId, Parent.Name, OracleAddressId__c,
+                   BillingStreet, BillingCity, BillingState, BillingPostalCode, BillingCountry
+            FROM Account
+            WHERE Id IN :accountIds
+            WITH USER_MODE
+        ];
+    }
+
+    /**
+     * @description GCL-79 - Accounts whose Oracle address matches a Life Sciences territory.
+     * @param oracleAddressIds TAS address ids.
+     * @param rowLimit Maximum rows to return.
+     * @return Matching accounts.
+     */
+    public static List<Account> selectLifeSciencesAccountsByOracleAddress(
+        Set<String> oracleAddressIds,
+        Integer rowLimit
+    ) {
+        if (oracleAddressIds == null || oracleAddressIds.isEmpty() || rowLimit == null || rowLimit <= 0) {
+            return new List<Account>();
+        }
+        return [
+            SELECT Id, Name, AccountNumber, Type, ParentId, Parent.Name, OracleAddressId__c,
+                   BillingStreet, BillingCity, BillingState, BillingPostalCode, BillingCountry
+            FROM Account
+            WHERE OracleAddressId__c IN :oracleAddressIds
+            WITH USER_MODE
+            LIMIT :rowLimit
+        ];
+    }
+
+    /**
+     * @description GCL-79 - Child accounts under the given Life Sciences Customer accounts.
+     * @param parentIds Customer Account Ids.
+     * @return Child accounts. The caller decides which types to keep.
+     */
+    public static List<Account> selectLifeSciencesChildAccounts(Set<Id> parentIds) {
+        if (parentIds == null || parentIds.isEmpty()) {
+            return new List<Account>();
+        }
+        return [
+            SELECT Id, Type, OracleAddressId__c
+            FROM Account
+            WHERE ParentId IN :parentIds
+            WITH USER_MODE
+        ];
+    }
+
+    /**
+     * @description
+     * GCL-100 - Returns the Account owner and record type used to decide Full or Base.
+     * Sharing controls visibility. The page fields are read by the UI API.
+     *
+     * @param accountId Account record Id from the record page.
+     * @return The Account row, or an empty list when the Id is missing or not visible.
+     *
+     * @example
+     * AccountSelector.selectById(accountId);
+     */
+    public static List<Account> selectById(Id accountId) {
+        if (accountId == null) {
+            return new List<Account>();
+        }
+
+        return [
+            SELECT Id, OwnerId, RecordType.DeveloperName
+            FROM Account
+            WHERE Id = :accountId
+            LIMIT 1
+        ];
+    }
 }

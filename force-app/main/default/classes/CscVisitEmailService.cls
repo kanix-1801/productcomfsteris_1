@@ -3,8 +3,9 @@
  * @date 23-10-2026
  * @description #GC-3518 Emails ORC, IMS, and OSV Team Members when a visit is
  *              requested, postponed, or cancelled.
- *              #GC-3562 Adds Oracle Assigned Account Team members, their
- *              managers, the visit queue, and PDMs to the confirmation email.
+ *              #GC-3562 Adds Account Team members, their managers, the visit
+ *              queue, and PDMs to the confirmation email.
+ *              #GC-3650 Includes the manager of every Account Team member.
  *              Without sharing so the user saving the visit can reach Account
  *              Team members, managers, and queue users they do not own.
  */
@@ -56,8 +57,8 @@ public without sharing class CscVisitEmailService {
 
     /**
      * @description Extra confirmation addresses for the first confirmation email.
-     *              Team Members for ORC, IMS, and OSV. Oracle Assigned users,
-     *              managers, the visit queue, and PDMs for a CSC visit.
+     *              Team Members for ORC, IMS, and OSV. Account Team members,
+     *              their managers, the visit queue, and PDMs for a CSC visit.
      * @param visits Confirmed visits.
      * @param attendeesByVisit STERIS attendees already loaded for those visits.
      * @param facilityTeam Account Team already loaded for the visit facilities.
@@ -214,7 +215,7 @@ public without sharing class CscVisitEmailService {
                 addTeamMembers(recipients, seen, membersByVisit.get(visit.Id));
             }
             if (!onlyPdm && !nonCsc) {
-                addOracleTeamAndQueue(recipients, seen, visit, opportunityMembers, queueAddresses);
+                addAccountTeamAndQueue(recipients, seen, visit, opportunityMembers, queueAddresses);
             }
             if (!nonCsc && (onlyPdm || visit.PlanningDesignRequired__c == PLANNING_YES)) {
                 addPdmMembers(recipients, seen, visit, opportunityMembers, categories);
@@ -243,7 +244,7 @@ public without sharing class CscVisitEmailService {
         }
     }
 
-    private static void addOracleTeamAndQueue(
+    private static void addAccountTeamAndQueue(
         List<String> recipients,
         Set<String> seen,
         CSC_Visit_Request__c visit,
@@ -252,9 +253,6 @@ public without sharing class CscVisitEmailService {
     ) {
         if (visit.Opportunity__r != null && visit.Opportunity__r.AccountId != null) {
             for (AccountTeamMember member : membersFor(opportunityMembers, visit.Opportunity__r.AccountId)) {
-                if (member.AssignmentType__c != Label.CSC_Oracle_Assigned_Assignment_Type) {
-                    continue;
-                }
                 Integer before = recipients.size();
                 addEmail(recipients, seen, member.User.Email);
                 if (recipients.size() > before) {
@@ -303,6 +301,11 @@ public without sharing class CscVisitEmailService {
             && priorStatus != CscVisitConfirmationService.STATUS_REQUESTED
         ) {
             return CscVisitConfirmationService.STATUS_REQUESTED;
+        }
+        if (visit.Status__c == CscVisitConfirmationService.STATUS_POSTPONED
+            && priorStatus != CscVisitConfirmationService.STATUS_POSTPONED
+        ) {
+            return CscVisitConfirmationService.STATUS_POSTPONED;
         }
         if (visit.Status__c == CscVisitConfirmationService.STATUS_CANCELLED
             && priorStatus != CscVisitConfirmationService.STATUS_CANCELLED

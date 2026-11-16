@@ -644,7 +644,9 @@ public with sharing class CreateProductRequestService {
     private static List<NamedRecord> toNamedRecords(List<Schema.Address> addresses) {
         List<NamedRecord> options = new List<NamedRecord>();
         for (Schema.Address addressRecord : addresses) {
-            options.add(namedRecord(addressRecord.Id, addressLabel(addressRecord)));
+            NamedRecord option = namedRecord(addressRecord.Id, addressLabel(addressRecord));
+            option.addressID = addressRecord.AddressID__c;
+            options.add(option);
         }
         options.sort();
         return options;
@@ -723,7 +725,15 @@ public with sharing class CreateProductRequestService {
         row.quantity = quantity;
         row.requiredOnWorkOrder = requiredOnWorkOrder;
         row.substitutePart = substitutePartName(product);
+        row.oeNotes = oeNotes(product);
         return row;
+    }
+
+    private static String oeNotes(Product2 product) {
+        if (product == null || String.isBlank(product.OENotes__c)) {
+            return null;
+        }
+        return product.OENotes__c;
     }
 
     private static String substitutePartName(Product2 product) {
@@ -795,6 +805,8 @@ public with sharing class CreateProductRequestService {
         @AuraEnabled public Id recordId;
         /** @description Name shown to the technician. */
         @AuraEnabled public String name;
+        /** @description Address.AddressID__c shown beside the address name. */
+        @AuraEnabled public String addressID;
 
         /**
          * @description Sorts address and account choices by name.
@@ -839,6 +851,8 @@ public with sharing class CreateProductRequestService {
         @AuraEnabled public Boolean requiredOnWorkOrder;
         /** @description Name of Product2.SubstitutePart__c when the product has one. */
         @AuraEnabled public String substitutePart;
+        /** @description Product2.OENotes__c. Blank when the product has no OE notes. */
+        @AuraEnabled public String oeNotes;
     }
 
     /**

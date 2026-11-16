@@ -5,7 +5,7 @@
 @IsTest
 private class FieldServiceQuoteControllerTest {
     private static Id createQuote(FieldServiceQuoteTestData.Scenario scenario) {
-        return FieldServiceQuoteService.createFromWorkOrder(scenario.workOrder.Id).quoteId;
+        return FieldServiceQuoteTestData.createQuote(scenario);
     }
 
     private static FieldServiceQuoteController.LineView newLine(String lineType, Decimal quantity) {

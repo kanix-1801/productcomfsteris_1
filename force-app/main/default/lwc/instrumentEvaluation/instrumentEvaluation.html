@@ -319,6 +319,16 @@
                                         <span class="detail-row__label">Description</span>
                                         <div class="detail-row__value">{woInfoDescription}</div>
                                     </div>
+                                    <template lwc:if={showAdditionalServices}>
+                                        <div class="additional-services-requested">
+                                            <span class="detail-row__label">
+                                                Additional Services Requested
+                                            </span>
+                                            <div class="additional-services-requested__value">
+                                                {additionalServicesRequestedText}
+                                            </div>
+                                        </div>
+                                    </template>
                                 </div>
                                 <div class="slds-col slds-size_1-of-2 detail-grid__col">
                                     <div class="detail-row">
@@ -354,18 +364,6 @@
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                            <div class="additional-services-requested">
-                                <template lwc:if={workOrderId}>
-                                    <lightning-record-view-form
-                                        record-id={workOrderId}
-                                        object-api-name="WorkOrder"
-                                    >
-                                        <lightning-output-field
-                                            field-name="AdditionalServicesRequested__c"
-                                        ></lightning-output-field>
-                                    </lightning-record-view-form>
-                                </template>
                             </div>
                         </template>
                         <c-contamination-information
@@ -441,6 +439,10 @@
                             disabled={isBusy}
                             onnoteschange={handleNotesChange}
                         ></c-repair-center-eval-notes>
+                    </template>
+
+                    <template lwc:elseif={isPhotosTab}>
+                        <c-evaluation-photos work-order-id={workOrderId}></c-evaluation-photos>
                     </template>
 
                     <template lwc:elseif={isAddItemsTab}>
@@ -521,15 +523,15 @@
                                 ondone={handleAssetAddToSummary}
                             >
                                 <div slot="services">
-                                    <template lwc:if={workOrderId}>
-                                        <lightning-record-view-form
-                                            record-id={workOrderId}
-                                            object-api-name="WorkOrder"
-                                        >
-                                            <lightning-output-field
-                                                field-name="AdditionalServicesRequested__c"
-                                            ></lightning-output-field>
-                                        </lightning-record-view-form>
+                                    <template lwc:if={showAdditionalServices}>
+                                        <div class="additional-services-requested additional-services-requested_inline">
+                                            <span class="detail-row__label">
+                                                Additional Services Requested
+                                            </span>
+                                            <div class="additional-services-requested__value">
+                                                {additionalServicesRequestedText}
+                                            </div>
+                                        </div>
                                     </template>
                                 </div>
                                 <div slot="toolbar">
@@ -1253,15 +1255,15 @@
                                 ondone={handleModalSave}
                             >
                                 <div slot="services">
-                                    <template lwc:if={workOrderId}>
-                                        <lightning-record-view-form
-                                            record-id={workOrderId}
-                                            object-api-name="WorkOrder"
-                                        >
-                                            <lightning-output-field
-                                                field-name="AdditionalServicesRequested__c"
-                                            ></lightning-output-field>
-                                        </lightning-record-view-form>
+                                    <template lwc:if={showAdditionalServices}>
+                                        <div class="additional-services-requested additional-services-requested_inline">
+                                            <span class="detail-row__label">
+                                                Additional Services Requested
+                                            </span>
+                                            <div class="additional-services-requested__value">
+                                                {additionalServicesRequestedText}
+                                            </div>
+                                        </div>
                                     </template>
                                 </div>
                                 <div slot="toolbar">

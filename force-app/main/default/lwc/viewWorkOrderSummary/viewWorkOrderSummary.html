@@ -1,0 +1,467 @@
+<template>
+    <div class={rootClass}>
+        <template lwc:if={isScanScreen}>
+            <!-- RCA embed: match Assign Work Order scan-panel width/corners (no lightning-card). -->
+            <template lwc:if={showReturnToMenu}>
+                <section class="scan-panel">
+                    <div class="scan-header">
+                        <div>
+                            <h1 class="slds-text-heading_large">View Work Order Summary</h1>
+                            <p class="subtitle">Scan Work Order</p>
+                        </div>
+                        <lightning-button
+                            label="Return to Actions Menu"
+                            onclick={handleReturnToMenu}
+                            disabled={isBusy}
+                        ></lightning-button>
+                    </div>
+                    <div class="scan-field">
+                        <c-repair-center-scan-input
+                            label={scanFieldLabel}
+                            placeholder={scanFieldPlaceholder}
+                            value={workOrderInput}
+                            disabled={isBusy}
+                            onvaluechange={handleScanChange}
+                            oncontinue={handleScanContinue}
+                        ></c-repair-center-scan-input>
+                    </div>
+                    <template lwc:if={errorMessage}>
+                        <div class="message message_error" role="alert">{errorMessage}</div>
+                    </template>
+                    <template lwc:if={isBusy}>
+                        <div class="spinner-wrap">
+                            <lightning-spinner
+                                size="small"
+                                alternative-text="Loading Work Order Summary"
+                            ></lightning-spinner>
+                        </div>
+                    </template>
+                </section>
+            </template>
+            <!-- Nav menu / standalone: left-aligned card like other Repair Center scan screens. -->
+            <template lwc:else>
+                <lightning-card title="View Work Order Summary" icon-name="custom:custom62">
+                    <div class="slds-p-around_medium">
+                        <p class="slds-text-heading_small slds-m-bottom_small">Scan Work Order</p>
+                        <c-repair-center-scan-input
+                            label={scanFieldLabel}
+                            placeholder={scanFieldPlaceholder}
+                            value={workOrderInput}
+                            disabled={isBusy}
+                            onvaluechange={handleScanChange}
+                            oncontinue={handleScanContinue}
+                        ></c-repair-center-scan-input>
+                        <template lwc:if={errorMessage}>
+                            <div class="slds-text-color_error slds-m-top_small" role="alert">
+                                {errorMessage}
+                            </div>
+                        </template>
+                        <template lwc:if={isBusy}>
+                            <div class="slds-m-top_medium slds-is-relative slds-p-around_large">
+                                <lightning-spinner
+                                    size="small"
+                                    alternative-text="Loading Work Order Summary"
+                                ></lightning-spinner>
+                            </div>
+                        </template>
+                    </div>
+                </lightning-card>
+            </template>
+        </template>
+
+        <template lwc:if={isSummaryScreen}>
+            <section class="summary-panel">
+                <div class="summary-header">
+                    <div class="summary-title-row">
+                        <lightning-icon
+                            icon-name="custom:custom62"
+                            size="small"
+                            alternative-text="Work Order Summary"
+                        ></lightning-icon>
+                        <h1 class="slds-text-heading_large">{overviewTitle}</h1>
+                    </div>
+                    <div class="summary-actions">
+                        <template lwc:if={showReturnToMenu}>
+                            <lightning-button
+                                label="Return to Actions Menu"
+                                onclick={handleReturnToMenu}
+                                class="slds-m-right_small"
+                            ></lightning-button>
+                        </template>
+                        <lightning-button
+                            label="Close"
+                            variant="brand"
+                            onclick={handleClose}
+                        ></lightning-button>
+                    </div>
+                </div>
+
+                <template lwc:if={errorMessage}>
+                    <div class="message message_error" role="alert">{errorMessage}</div>
+                </template>
+
+                <ul class="slds-accordion summary-accordions">
+                    <li class="slds-accordion__list-item">
+                        <section class={parentSectionClass}>
+                            <div class="slds-accordion__summary">
+                                <h2 class="slds-accordion__summary-heading">
+                                    <button
+                                        type="button"
+                                        class="slds-button slds-button_reset slds-accordion__summary-action"
+                                        aria-expanded={parentExpanded}
+                                        onclick={handleParentToggle}
+                                    >
+                                        <lightning-icon
+                                            icon-name={parentChevronIcon}
+                                            size="x-small"
+                                            class="slds-accordion__summary-action-icon"
+                                            alternative-text=""
+                                        ></lightning-icon>
+                                        <span class="slds-accordion__summary-content"
+                                            >{parentSectionTitle}</span
+                                        >
+                                    </button>
+                                </h2>
+                            </div>
+                            <template lwc:if={parentExpanded}>
+                                <div class="slds-accordion__content" role="region">
+                                    <div class="parent-grid">
+                                        <div class="parent-fields">
+                                            <div class="parent-fields-col">
+                                                <div class="field-block">
+                                                    <span class="field-label">Return Order</span>
+                                                    <span class="field-value"
+                                                        >{workspace.returnOrderNumber}</span
+                                                    >
+                                                </div>
+                                                <div class="field-block">
+                                                    <span class="field-label"
+                                                        >Scheduled Ship Date</span
+                                                    >
+                                                    <span class="field-value"
+                                                        >{scheduledShipDateDisplay}</span
+                                                    >
+                                                </div>
+                                            </div>
+                                            <div class="parent-fields-col">
+                                                <div class="field-block">
+                                                    <span class="field-label">Ship Complete</span>
+                                                    <lightning-input
+                                                        type="checkbox"
+                                                        label="Ship Complete"
+                                                        variant="label-hidden"
+                                                        checked={workspace.shipComplete}
+                                                        disabled
+                                                    ></lightning-input>
+                                                </div>
+                                                <div class="field-block">
+                                                    <span class="field-label">Priority Repair</span>
+                                                    <lightning-input
+                                                        type="checkbox"
+                                                        label="Priority Repair"
+                                                        variant="label-hidden"
+                                                        checked={workspace.priorityRepair}
+                                                        disabled
+                                                    ></lightning-input>
+                                                </div>
+                                                <template lwc:if={showParentQuantityReceived}>
+                                                    <div class="field-block">
+                                                        <span class="field-label"
+                                                            >Quantity Received</span
+                                                        >
+                                                        <span class="field-value"
+                                                            >{quantityReceivedDisplay}</span
+                                                        >
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </div>
+                                        <div class="parent-chart">
+                                            <div class="chart-block">
+                                                <h2 class="chart-title">
+                                                    Child Work Orders by Status
+                                                </h2>
+                                                <div class="chart-row">
+                                                    <div class="chart-canvas-wrap">
+                                                        <canvas class="status-pie"></canvas>
+                                                    </div>
+                                                    <div class="chart-legend">
+                                                        <template
+                                                            for:each={statusLegend}
+                                                            for:item="item"
+                                                        >
+                                                            <div key={item.key} class="legend-row">
+                                                                <span
+                                                                    class="legend-swatch"
+                                                                    style={item.colorStyle}
+                                                                ></span>
+                                                                <span class="legend-label"
+                                                                    >{item.status}</span
+                                                                >
+                                                                <span class="legend-count"
+                                                                    >{item.count}</span
+                                                                >
+                                                            </div>
+                                                        </template>
+                                                        <p class="chart-total">{totalChildLabel}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </section>
+                    </li>
+
+                    <template for:each={childSections} for:item="child">
+                        <li key={child.sectionKey} class="slds-accordion__list-item">
+                            <section class={child.sectionClass}>
+                                <div class="slds-accordion__summary">
+                                    <h2 class="slds-accordion__summary-heading">
+                                        <button
+                                            type="button"
+                                            class="slds-button slds-button_reset slds-accordion__summary-action"
+                                            data-section-key={child.sectionKey}
+                                            aria-expanded={child.isExpanded}
+                                            onclick={handleChildToggle}
+                                        >
+                                            <lightning-icon
+                                                icon-name={child.chevronIcon}
+                                                size="x-small"
+                                                class="slds-accordion__summary-action-icon"
+                                                alternative-text=""
+                                            ></lightning-icon>
+                                            <span class="slds-accordion__summary-content"
+                                                >{child.sectionTitle}</span
+                                            >
+                                        </button>
+                                    </h2>
+                                </div>
+                                <template lwc:if={child.isExpanded}>
+                                    <div class="slds-accordion__content" role="region">
+                                        <div class="child-fields">
+                                            <div class="child-fields-col">
+                                                <div class="field-block">
+                                                    <span class="field-label">Status</span>
+                                                    <span class="field-value"
+                                                        >{child.status}</span
+                                                    >
+                                                </div>
+                                                <div class="field-block">
+                                                    <span class="field-label">Sub Status</span>
+                                                    <span class="field-value"
+                                                        >{child.subStatus}</span
+                                                    >
+                                                </div>
+                                            </div>
+                                            <div class="child-fields-col">
+                                                <div class="field-block">
+                                                    <span class="field-label"
+                                                        >Quantity Received</span
+                                                    >
+                                                    <span class="field-value"
+                                                        >{child.quantityReceivedDisplay}</span
+                                                    >
+                                                </div>
+                                                <div class="field-block">
+                                                    <span class="field-label"
+                                                        >Repair Category</span
+                                                    >
+                                                    <span class="field-value"
+                                                        >{child.repairCategory}</span
+                                                    >
+                                                </div>
+                                            </div>
+                                            <div class="child-fields-col">
+                                                <div class="field-block">
+                                                    <span class="field-label"
+                                                        >Current Technician</span
+                                                    >
+                                                    <span class="field-value"
+                                                        >{child.currentTechnician}</span
+                                                    >
+                                                </div>
+                                                <div class="field-block">
+                                                    <span class="field-label"
+                                                        >Current Location</span
+                                                    >
+                                                    <span class="field-value"
+                                                        >{child.currentLocation}</span
+                                                    >
+                                                </div>
+                                            </div>
+                                            <div class="child-fields-col">
+                                                <div class="field-block">
+                                                    <span class="field-label">Turn Time</span>
+                                                    <span class="field-value"
+                                                        >{child.turnTimeDisplay}</span
+                                                    >
+                                                </div>
+                                                <div class="field-block">
+                                                    <span class="field-label"
+                                                        >Scheduled Ship Date</span
+                                                    >
+                                                    <span class="field-value"
+                                                        >{child.scheduledShipDateDisplay}</span
+                                                    >
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <template lwc:if={child.showAssetTable}>
+                                            <h3 class="table-title">Asset Information</h3>
+                                            <table
+                                                class="slds-table slds-table_cell-buffer slds-table_bordered"
+                                            >
+                                                <thead>
+                                                    <tr class="slds-line-height_reset">
+                                                        <th scope="col">
+                                                            <div class="slds-truncate">
+                                                                Serial Number
+                                                            </div>
+                                                        </th>
+                                                        <th scope="col">
+                                                            <div class="slds-truncate">
+                                                                Item Number
+                                                            </div>
+                                                        </th>
+                                                        <th scope="col">
+                                                            <div class="slds-truncate">
+                                                                Product Line
+                                                            </div>
+                                                        </th>
+                                                        <th scope="col">
+                                                            <div class="slds-truncate">
+                                                                Sub Product Line
+                                                            </div>
+                                                        </th>
+                                                        <th scope="col">
+                                                            <div class="slds-truncate">
+                                                                Device Type
+                                                            </div>
+                                                        </th>
+                                                        <th scope="col">
+                                                            <div class="slds-truncate">Model</div>
+                                                        </th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <template
+                                                        for:each={child.assetRows}
+                                                        for:item="row"
+                                                    >
+                                                        <tr key={row.rowKey}>
+                                                            <td>
+                                                                <div class="slds-truncate">
+                                                                    {row.serialNumber}
+                                                                </div>
+                                                            </td>
+                                                            <td>
+                                                                <div class="slds-truncate">
+                                                                    {row.itemNumber}
+                                                                </div>
+                                                            </td>
+                                                            <td>
+                                                                <div class="slds-truncate">
+                                                                    {row.productLine}
+                                                                </div>
+                                                            </td>
+                                                            <td>
+                                                                <div class="slds-truncate">
+                                                                    {row.subProductLine}
+                                                                </div>
+                                                            </td>
+                                                            <td>
+                                                                <div class="slds-truncate">
+                                                                    {row.deviceType}
+                                                                </div>
+                                                            </td>
+                                                            <td>
+                                                                <div class="slds-truncate">
+                                                                    {row.model}
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    </template>
+                                                </tbody>
+                                            </table>
+                                        </template>
+                                        <template lwc:if={child.showInstrumentTable}>
+                                            <h3 class="table-title">Instrument Information</h3>
+                                            <table
+                                                class="slds-table slds-table_cell-buffer slds-table_bordered"
+                                            >
+                                                <thead>
+                                                    <tr class="slds-line-height_reset">
+                                                        <th scope="col">
+                                                            <div class="slds-truncate">
+                                                                Item Number
+                                                            </div>
+                                                        </th>
+                                                        <th scope="col">
+                                                            <div class="slds-truncate">
+                                                                Sub Product Line
+                                                            </div>
+                                                        </th>
+                                                        <th scope="col">
+                                                            <div class="slds-truncate">
+                                                                Device Type
+                                                            </div>
+                                                        </th>
+                                                        <th scope="col">
+                                                            <div class="slds-truncate">
+                                                                Quantity
+                                                            </div>
+                                                        </th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <template
+                                                        for:each={child.instrumentRows}
+                                                        for:item="row"
+                                                    >
+                                                        <tr key={row.rowKey}>
+                                                            <td>
+                                                                <div class="slds-truncate">
+                                                                    {row.itemNumber}
+                                                                </div>
+                                                            </td>
+                                                            <td>
+                                                                <div class="slds-truncate">
+                                                                    {row.subProductLine}
+                                                                </div>
+                                                            </td>
+                                                            <td>
+                                                                <div class="slds-truncate">
+                                                                    {row.deviceType}
+                                                                </div>
+                                                            </td>
+                                                            <td>
+                                                                <div class="slds-truncate">
+                                                                    {row.quantity}
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    </template>
+                                                </tbody>
+                                            </table>
+                                        </template>
+                                    </div>
+                                </template>
+                            </section>
+                        </li>
+                    </template>
+                </ul>
+
+                <div class="summary-footer">
+                    <lightning-button
+                        label="Close"
+                        variant="brand"
+                        onclick={handleClose}
+                    ></lightning-button>
+                </div>
+            </section>
+        </template>
+    </div>
+</template>

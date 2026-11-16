@@ -189,4 +189,24 @@ public with sharing class ContentVersionsSelector extends SoqlQueryBuilder {
             LIMIT 1
         ];
     }
+
+    /**
+     * @description GW-2710 - Latest version of an uploaded file, including the body.
+     *              Classic SOQL so the backoffice user can read a file they just uploaded.
+     *              VersionData is not granted through that permission set.
+     * @param contentDocumentId Salesforce Files document Id.
+     * @return Latest version, or an empty list.
+     */
+    public static List<ContentVersion> selectLatestByContentDocumentId(Id contentDocumentId) {
+        if (contentDocumentId == null) {
+            return new List<ContentVersion>();
+        }
+        return [
+            SELECT Id, Title, FileExtension, PathOnClient, VersionData, ContentDocumentId
+            FROM ContentVersion
+            WHERE ContentDocumentId = :contentDocumentId
+                AND IsLatest = TRUE
+            LIMIT 1
+        ];
+    }
 }

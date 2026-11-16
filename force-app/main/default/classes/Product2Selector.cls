@@ -171,7 +171,7 @@ public with sharing class Product2Selector extends SoqlQueryBuilder {
         Integer searchLimit = rowLimit == null || rowLimit <= 0 ? 25 : rowLimit;
         return (List<Product2>) SoqlQueryBuilder.fromObject('Product2')
             .selectFields(new List<String>{
-                'Id', 'Name', 'ProductCode', 'QuantityUnitOfMeasure', 'SubstitutePart__r.Name'
+                'Id', 'Name', 'ProductCode', 'QuantityUnitOfMeasure', 'SubstitutePart__r.Name', 'OENotes__c'
             })
             .whereEquals('IsActive', true)
             .whereEquals('ProductType__c', 'Part')

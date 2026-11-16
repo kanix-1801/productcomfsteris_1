@@ -35,6 +35,10 @@
     max-width: 56rem;
 }
 
+.receiving-root_missing-ro {
+    max-width: 56rem;
+}
+
 .scan-order-row {
     display: flex;
     align-items: flex-start;
@@ -106,8 +110,30 @@
     --sds-c-icon-color-foreground-default: #ffffff;
 }
 
+/* Match Contact Customer Care action: brand glyph, no filled inverse circle */
+.create-order-button_missing-ro .create-order-button__icon-mark {
+    background: transparent;
+    border-radius: 0;
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+.create-order-button_missing-ro .create-order-button__icon-mark lightning-icon {
+    --slds-c-icon-color-foreground-default: var(--receiving-brand);
+    --sds-c-icon-color-foreground-default: var(--receiving-brand);
+}
+
 .create-order-button:disabled .create-order-button__icon-mark {
     background: #c9c9c9;
+}
+
+.create-order-button_missing-ro:disabled .create-order-button__icon-mark {
+    background: transparent;
+}
+
+.create-order-button_missing-ro:disabled .create-order-button__icon-mark lightning-icon {
+    --slds-c-icon-color-foreground-default: #c9c9c9;
+    --sds-c-icon-color-foreground-default: #c9c9c9;
 }
 
 .create-order-button__text {
@@ -519,6 +545,28 @@
 .decision-pill_no {
     background: var(--receiving-no);
     color: #ffffff;
+}
+
+/* GW-4542 - Repair Exchange Model Sent + systematic match indicator */
+.verify-field__control_model-sent {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 1.875rem;
+}
+
+.model-sent-value {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #181818;
+}
+
+.model-match-icon_match {
+    --slds-c-icon-color-foreground-default: #2e844a;
+}
+
+.model-match-icon_mismatch {
+    --slds-c-icon-color-foreground-default: #ba0517;
 }
 
 .contamination-reason {

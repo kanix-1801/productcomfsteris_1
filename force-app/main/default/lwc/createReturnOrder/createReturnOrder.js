@@ -17,12 +17,13 @@ import getRepairCenterLocations from '@salesforce/apex/CreateReturnOrderControll
 import getAssetsForAccount from '@salesforce/apex/CreateReturnOrderController.getAssetsForAccount';
 import getAssetsByIds from '@salesforce/apex/CreateReturnOrderController.getAssetsByIds';
 import findAssetsBySerial from '@salesforce/apex/CreateReturnOrderController.findAssetsBySerial';
+import searchAssetsBySerial from '@salesforce/apex/CreateReturnOrderController.searchAssetsBySerial';
+import searchProductsByModel from '@salesforce/apex/CreateReturnOrderController.searchProductsByModel';
 import getDepartmentsForAccount from '@salesforce/apex/CreateReturnOrderController.getDepartmentsForAccount';
 import getProductDetails from '@salesforce/apex/CreateReturnOrderController.getProductDetails';
 import getProductsForReturnOrderLine from '@salesforce/apex/CreateReturnOrderController.getProductsForReturnOrderLine';
 import getDefaultProduct from '@salesforce/apex/CreateReturnOrderController.getDefaultProduct';
 import buildReturnOrderPlan from '@salesforce/apex/CreateReturnOrderController.buildReturnOrderPlan';
-import validateLineRoutingMatches from '@salesforce/apex/CreateReturnOrderController.validateLineRoutingMatches';
 import createReturnOrders from '@salesforce/apex/CreateReturnOrderController.createReturnOrders';
 import createAccountContact from '@salesforce/apex/CreateReturnOrderController.createAccountContact';
 import updateContactEmail from '@salesforce/apex/CreateReturnOrderController.updateContactEmail';
@@ -39,10 +40,12 @@ const PAGE_LINES = 'lines';
 const PAGE_SUMMARY = 'summary';
 const PAGE_ORDER_HEADERS = 'orderHeaders';
 const PAGE_CREATED = 'created';
-const BROWSER_TAB_LABEL = 'Create Return Order';
+const BROWSER_TAB_LABEL = 'Create Return Order (SRN)';
 const RETURN_ORDER_TYPE_INSTRUMENTS = 'Instruments';
 const ESTIMATE_REQUIRED_QUOTE_VALUE = 'Estimate Required';
 const REPORTED_PROBLEM_SUMMARY_MAX_LENGTH = 120;
+const MODEL_FIELD_HELP = 'Include periods and dashes (hyphens) in the Model';
+const GENERIC_MODEL_VALUES = new Set(['ANY', 'GENERIC']);
 const LINE_TYPE_SERIALIZED = 'serialized';
 const LINE_TYPE_INSTRUMENTS = 'instruments';
 const LINE_TYPE_OTHER_SERIALIZED = 'other-serialized';
@@ -89,6 +92,12 @@ const INSTRUMENT_PRODUCT_LINE = 'INSTRUMENT';
 const FLEXIBLE_SCOPE_PRODUCT_LINE = 'FLEXIBLE SCOPE';
 const SERVICE_ASSET_PRODUCT_TYPE = 'Service Asset';
 const STIRRUP_ITEM_TYPE = 'Stirrup';
+const ITEM_TYPE_CABLE_FIBER_OPTIC = 'Cable: Fiber Optic';
+const ITEM_TYPE_LIGHTED_RETRACTOR = 'Lighted Retractor';
+const NON_SERIALIZED_PRODUCT_CODES_BY_ITEM_TYPE = {
+    [ITEM_TYPE_CABLE_FIBER_OPTIC]: new Set(['VI.10853', 'VI.10347']),
+    [ITEM_TYPE_LIGHTED_RETRACTOR]: new Set(['VI.10341'])
+};
 const HEADER_SERIAL_FOCUS_SELECTOR = '[data-id="header-serial-number"]';
 const YES_NO_OPTIONS = [
     { label: 'Yes', value: 'Yes' },
@@ -96,8 +105,8 @@ const YES_NO_OPTIONS = [
 ];
 const QUANTITY_RETURNED_DEFAULT = 1;
 const CREATION_SOURCE_DEFAULT = 'Salesforce';
-const LINE_MEDIA_ACCEPT = '.png,.jpg,.jpeg,.gif,.bmp,.webp,.heic,.mp4,.mov,.avi,.wmv,.mkv,.webm,.m4v,.3gp';
-const MOD_FORM_ACCEPT = '.pdf,.png,.jpg,.jpeg,.gif,.tif,.tiff,.bmp,.webp';
+const LINE_MEDIA_ACCEPT =
+    '.png,.jpg,.jpeg,.gif,.bmp,.webp,.heic,.tif,.tiff,.pdf,.mp4,.mov,.avi,.wmv,.mkv,.webm,.m4v,.3gp';
 const INSULATION_POWDER_COATING_OPTIONS = [
     { label: 'Black', value: 'Black' },
     { label: 'Blue', value: 'Blue' },
@@ -132,7 +141,7 @@ const COLOR_DIPPING_OPTIONS = [
     { label: 'White', value: 'White' }
 ];
 const LEG_POSITIONERS_STIRRUP_OPTIONS = [
-    { label: 'Repair', value: 'Repair' },
+    { label: 'No Pad Replacement', value: 'No Pad Replacement' },
     { label: 'Replace Pads - Right', value: 'Replace Pads - Right' },
     { label: 'Replace Pads - Left', value: 'Replace Pads - Left' },
     {
@@ -162,20 +171,11 @@ function clearInstrumentAdditionalServiceFields(line) {
     line.numberOfRings = DEFAULT_NUMBER_OF_RINGS;
 }
 
-function clearNonModAdditionalServiceFields(line) {
-    line.legPositionersStirrup = [];
-    line.additionalServiceRepair = false;
-    line.laserMarking = '';
-    line.colorDipping = [];
-    line.numberOfRings = DEFAULT_NUMBER_OF_RINGS;
-}
-
 function clearSerialAdditionalServiceFields(line) {
     line.legPositionersStirrup = [];
 }
 
-function clearNoSerialAdditionalServiceFields(line) {
-    line.additionalServiceRepair = false;
+function clearNonModAdditionalServicesOnModRequest(line) {
     line.laserMarking = '';
     line.colorDipping = [];
     line.numberOfRings = DEFAULT_NUMBER_OF_RINGS;
@@ -195,6 +195,8 @@ let lineKeyCounter = 0;
 let lineNumberCounter = 0;
 const productSearchTimers = {};
 const assetSearchTimers = {};
+const serialSearchTimers = {};
+const modelSearchTimers = {};
 
 function nextLineKey() {
     lineKeyCounter += 1;
@@ -204,6 +206,16 @@ function nextLineKey() {
 function nextLineNumber() {
     lineNumberCounter += 1;
     return lineNumberCounter;
+}
+
+function resetLineCounters() {
+    lineKeyCounter = 0;
+    lineNumberCounter = 0;
+}
+
+function isGenericModelValue(model) {
+    const normalized = String(model || '').trim().toUpperCase();
+    return !normalized || GENERIC_MODEL_VALUES.has(normalized);
 }
 
 export default class CreateReturnOrder extends NavigationMixin(LightningElement) {
@@ -307,6 +319,7 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
     defaultProductId = '';
     addLineFromSummary = false;
     eligibleContactIds = [];
+    eligibleContacts = [];
     contactEmailById = {};
     shipToAddresses = [];
     contactNameById = {};
@@ -382,6 +395,7 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
     }
 
     connectedCallback() {
+        resetLineCounters();
         this.updateWorkspaceTab();
         Promise.resolve().then(() => {
             if (!this.normalizeRecordIds(this._recordIds).length && !this._recordId) {
@@ -564,6 +578,7 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
             promises.push(this.loadEligibleContacts(), this.loadShipToAddresses());
         } else {
             this.eligibleContactIds = [];
+            this.eligibleContacts = [];
             this.shipToAddresses = [];
         }
 
@@ -639,6 +654,7 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
     async loadEligibleContacts() {
         if (!this.accountId) {
             this.eligibleContactIds = [];
+            this.eligibleContacts = [];
             this.contactEmailById = {};
             this.contactNameById = {};
             return;
@@ -646,18 +662,31 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
 
         try {
             const contacts = await getContactsForAccount({ accountId: this.accountId });
-            this.eligibleContactIds = (contacts || []).map((contact) => contact.Id);
             const emailById = {};
             const nameById = {};
+            const eligibleContacts = [];
             (contacts || []).forEach((contact) => {
-                emailById[contact.Id] = contact.Email || '';
-                nameById[contact.Id] = contact.Name || '';
+                const id = contact.Id;
+                const name = contact.Name || '';
+                const email = contact.Email || '';
+                emailById[id] = email;
+                nameById[id] = name;
+                eligibleContacts.push({
+                    id,
+                    name,
+                    email,
+                    label: this.buildContactLookupLabel(name, email)
+                });
             });
+            this.eligibleContactIds = eligibleContacts.map((contact) => contact.id);
+            this.eligibleContacts = eligibleContacts;
             this.contactEmailById = emailById;
             this.contactNameById = nameById;
             this.ensureDefaultLineContactEligible();
+            this.syncContactSearchTextFromIds();
         } catch (error) {
             this.eligibleContactIds = [];
+            this.eligibleContacts = [];
             this.contactEmailById = {};
             this.contactNameById = {};
             this.showError('Failed to load contacts', error);
@@ -712,7 +741,78 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
             !this.eligibleContactIds.includes(this.defaultLineContactId)
         ) {
             this.eligibleContactIds = [...this.eligibleContactIds, this.defaultLineContactId];
+            const name = this.contactNameById[this.defaultLineContactId] || '';
+            const email = this.contactEmailById[this.defaultLineContactId] || '';
+            if (!this.eligibleContacts.some((contact) => contact.id === this.defaultLineContactId)) {
+                this.eligibleContacts = [
+                    ...this.eligibleContacts,
+                    {
+                        id: this.defaultLineContactId,
+                        name,
+                        email,
+                        label: this.buildContactLookupLabel(name, email)
+                    }
+                ];
+            }
         }
+    }
+
+    buildContactLookupLabel(name, email) {
+        const parts = [String(name || '').trim(), String(email || '').trim()].filter(Boolean);
+        return parts.join(' · ');
+    }
+
+    resolveContactName(contactId) {
+        if (!contactId) {
+            return '';
+        }
+        return this.contactNameById[contactId] || '';
+    }
+
+    filterEligibleContacts(searchTerm) {
+        const term = String(searchTerm || '').trim().toLowerCase();
+        const contacts = this.eligibleContacts || [];
+        if (!term) {
+            return contacts.slice(0, 50);
+        }
+        return contacts
+            .filter((contact) => {
+                const name = String(contact.name || '').toLowerCase();
+                const email = String(contact.email || '').toLowerCase();
+                const label = String(contact.label || '').toLowerCase();
+                return name.includes(term) || email.includes(term) || label.includes(term);
+            })
+            .slice(0, 50);
+    }
+
+    syncContactSearchTextFromIds() {
+        this.lineItems = (this.lineItems || []).map((line) => ({
+            ...line,
+            contactSearchText: line.contactId
+                ? this.resolveContactName(line.contactId) || line.contactSearchText || ''
+                : line.contactSearchText || '',
+            estimateContactSearchText: line.estimateContactId
+                ? this.resolveContactName(line.estimateContactId) ||
+                  line.estimateContactSearchText ||
+                  ''
+                : line.estimateContactSearchText || ''
+        }));
+        this.proposedReturnOrderGroups = (this.proposedReturnOrderGroups || []).map((group) => ({
+            ...group,
+            contactSearchText: group.contactId
+                ? this.resolveContactName(group.contactId) || group.contactSearchText || ''
+                : group.contactSearchText || '',
+            estimateContactSearchText: group.estimateContactId
+                ? this.resolveContactName(group.estimateContactId) ||
+                  group.estimateContactSearchText ||
+                  ''
+                : group.estimateContactSearchText || '',
+            modRequestContactSearchText: group.modRequestContactId
+                ? this.resolveContactName(group.modRequestContactId) ||
+                  group.modRequestContactSearchText ||
+                  ''
+                : group.modRequestContactSearchText || ''
+        }));
     }
 
     async loadAccountAssets() {
@@ -938,9 +1038,17 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
             return this.itemTypeOptions || [];
         }
 
-        return (this.itemTypeOptions || []).filter(
+        const filtered = (this.itemTypeOptions || []).filter(
             (option) => this.itemTypeToROCategory?.[option.value] === roCategory
         );
+        if (roCategory !== RO_CATEGORY_NON_SERIALIZED) {
+            return filtered;
+        }
+        const allowed = new Set([
+            ITEM_TYPE_CABLE_FIBER_OPTIC,
+            ITEM_TYPE_LIGHTED_RETRACTOR
+        ]);
+        return filtered.filter((option) => allowed.has(option.value));
     }
 
     buildEmptyLine(lineType = LINE_TYPE_SERIALIZED) {
@@ -957,18 +1065,33 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
             assetSearchText: '',
             showAssetResults: false,
             assetSearchDropdownStyle: '',
+            serialOptions: [],
+            showSerialResults: false,
+            serialSearchDropdownStyle: '',
             model: '',
+            modelOptions: [],
+            showModelResults: false,
+            modelSearchDropdownStyle: '',
             productLine: isInstruments ? INSTRUMENT_PRODUCT_LINE : '',
             itemDescription: '',
             departmentId: '',
             disinfected: '',
             itemType: '',
             contactId: '',
+            contactSearchText: '',
+            contactOptions: [],
+            showContactResults: false,
+            contactSearchDropdownStyle: '',
             estimateContactId: '',
+            estimateContactSearchText: '',
+            estimateContactOptions: [],
+            showEstimateContactResults: false,
+            estimateContactSearchDropdownStyle: '',
             estimateRequired: '',
             customerPo: '',
             isLoanerAsset: false,
             loanerRequested: false,
+            isRepairExchange: false,
             reportedProblem: '',
             customerReference: '',
             shipToAccountId: this.defaultShipToAccountId,
@@ -991,7 +1114,11 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
             productOptions: [],
             productSearchText: '',
             showProductResults: false,
-            productSearchDropdownStyle: ''
+            productSearchDropdownStyle: '',
+            productCode: '',
+            subProductLine: '',
+            deviceType: '',
+            manufacturer: ''
         };
     }
 
@@ -1038,6 +1165,7 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
         line.modRequest = line.additionalServices && !!line.insulationPowderCoating;
         if (this.defaultLineContactId) {
             line.contactId = this.defaultLineContactId;
+            line.contactSearchText = this.resolveContactName(this.defaultLineContactId);
         }
         return line;
     }
@@ -1074,6 +1202,7 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
         line.productSearchText = asset.productName || '';
         if (this.defaultLineContactId) {
             line.contactId = this.defaultLineContactId;
+            line.contactSearchText = this.resolveContactName(this.defaultLineContactId);
         }
         return line;
     }
@@ -1158,7 +1287,41 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
         if (this.isOrderHeadersPage) {
             return 'Instrument Return Order Details';
         }
-        return 'Create Return Order';
+        return BROWSER_TAB_LABEL;
+    }
+
+    get showProgressIndicator() {
+        return !this.isCreatedPage && !this.isHeaderPage;
+    }
+
+    get showAccountBanner() {
+        return (
+            Boolean(this.accountId) &&
+            (this.isLinesPage || this.isSummaryPage || this.isOrderHeadersPage)
+        );
+    }
+
+    get accountBannerMetaDisplay() {
+        const parts = [this.operatingUnit, this.legacyCustomerId].filter((part) =>
+            Boolean(String(part || '').trim())
+        );
+        return parts.join(' \u2022 ');
+    }
+
+    get modelFieldHelp() {
+        return MODEL_FIELD_HELP;
+    }
+
+    get showSimplifiedAddItemMenu() {
+        return this.hasLineItems && !this.showLineTypeModal;
+    }
+
+    get addItemMenuOptions() {
+        return LINE_TYPE_ADD_OPTIONS.map((option) => ({
+            key: option.key,
+            value: option.lineType,
+            label: option.typeLabel
+        }));
     }
 
     get createdReturnOrdersDisplay() {
@@ -1247,7 +1410,35 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
                     group.repairWarranty === 'Yes' &&
                     !String(group.previousReturnOrder || '').trim()
                         ? 'Required when Previous Return Order is not provided.'
-                        : ''
+                        : '',
+                contactSearchText:
+                    group.contactSearchText || this.resolveContactName(group.contactId),
+                contactOptions: group.contactOptions || [],
+                showContactResults: Boolean(group.showContactResults),
+                contactSearchLookupClass: group.showContactResults
+                    ? 'product-search-lookup slds-form-element product-search-lookup--open contact-field-row__combobox'
+                    : 'product-search-lookup slds-form-element contact-field-row__combobox',
+                contactSearchDropdownStyle: group.contactSearchDropdownStyle || '',
+                estimateContactSearchText:
+                    group.estimateContactSearchText ||
+                    this.resolveContactName(group.estimateContactId),
+                estimateContactOptions: group.estimateContactOptions || [],
+                showEstimateContactResults: Boolean(group.showEstimateContactResults),
+                estimateContactSearchLookupClass: group.showEstimateContactResults
+                    ? 'product-search-lookup slds-form-element product-search-lookup--open contact-field-row__combobox'
+                    : 'product-search-lookup slds-form-element contact-field-row__combobox',
+                estimateContactSearchDropdownStyle:
+                    group.estimateContactSearchDropdownStyle || '',
+                modRequestContactSearchText:
+                    group.modRequestContactSearchText ||
+                    this.resolveContactName(group.modRequestContactId),
+                modRequestContactOptions: group.modRequestContactOptions || [],
+                showModRequestContactResults: Boolean(group.showModRequestContactResults),
+                modRequestContactSearchLookupClass: group.showModRequestContactResults
+                    ? 'product-search-lookup slds-form-element product-search-lookup--open contact-field-row__combobox'
+                    : 'product-search-lookup slds-form-element contact-field-row__combobox',
+                modRequestContactSearchDropdownStyle:
+                    group.modRequestContactSearchDropdownStyle || ''
             };
         });
     }
@@ -1269,9 +1460,21 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
         const defaultContactId = this.defaultLineContactId || '';
         return {
             contactId: defaultContactId,
+            contactSearchText: this.resolveContactName(defaultContactId),
+            contactOptions: [],
+            showContactResults: false,
+            contactSearchDropdownStyle: '',
             estimateContactId: '',
+            estimateContactSearchText: '',
+            estimateContactOptions: [],
+            showEstimateContactResults: false,
+            estimateContactSearchDropdownStyle: '',
             estimateRequired: '',
             modRequestContactId: '',
+            modRequestContactSearchText: '',
+            modRequestContactOptions: [],
+            showModRequestContactResults: false,
+            modRequestContactSearchDropdownStyle: '',
             hasModRequest: false,
             repairWarranty: '',
             warrantyNotes: '',
@@ -1307,19 +1510,38 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
     }
 
     get summaryGroups() {
-        return (this.proposedReturnOrderGroups || []).map((group, index) => ({
-            ...group,
-            displayIndex: index + 1,
-            isInstruments: group.returnOrderType === RETURN_ORDER_TYPE_INSTRUMENTS,
-            showRepairCenterPicker: group.requiresRepairCenterSelection === true,
-            selectedRepairCenterId: group.selectedRepairCenterId || '',
-            lines: (group.lineSummaries || []).map((line, lineIndex) => ({
+        return (this.proposedReturnOrderGroups || []).map((group, index) => {
+            const isInstruments = group.returnOrderType === RETURN_ORDER_TYPE_INSTRUMENTS;
+            const isOtherSerialized =
+                group.returnOrderType === LINE_TYPE_OTHER_SERIALIZED_LABEL ||
+                group.returnOrderType === RO_CATEGORY_SERIALIZED;
+            const isOtherNonSerialized =
+                group.returnOrderType === LINE_TYPE_OTHER_NON_SERIALIZED_LABEL ||
+                group.returnOrderType === RO_CATEGORY_NON_SERIALIZED;
+            const lines = (group.lineSummaries || []).map((line, lineIndex) => ({
                 ...line,
                 rowKey: `${group.groupKey}-${line.lineKey || lineIndex}`,
                 quantityLabel:
-                    line.quantityReturned != null ? String(line.quantityReturned) : '1'
-            }))
-        }));
+                    line.quantityReturned != null ? String(line.quantityReturned) : '1',
+                isStirrupSummary: String(line.deviceType || '').trim().toUpperCase() === 'STIRRUP'
+            }));
+            const hasStirrupLine = lines.some((line) => line.isStirrupSummary);
+            return {
+                ...group,
+                displayIndex: index + 1,
+                isInstruments,
+                isOtherSerialized,
+                isOtherNonSerialized,
+                isStirrupSummaryGroup: isOtherSerialized && hasStirrupLine,
+                isSerializedSummary:
+                    !isInstruments &&
+                    !isOtherNonSerialized &&
+                    !(isOtherSerialized && hasStirrupLine),
+                showRepairCenterPicker: group.requiresRepairCenterSelection === true,
+                selectedRepairCenterId: group.selectedRepairCenterId || '',
+                lines
+            };
+        });
     }
 
     get yesNoOptions() {
@@ -1379,39 +1601,46 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
             isOther,
             isOtherSerialized,
             isOtherNonSerialized,
-            modelReadOnly: isOther,
+            modelReadOnly: isOtherNonSerialized,
             serialNumberRequired: isSerialized || isOtherSerialized,
             serialNumberPlaceholder:
-                isSerialized || isOtherSerialized ? 'Enter serial number' : '',
-            modelRequired: isSerialized,
-            showItemType: isOther,
-            showOtherSerialNumber: isOtherSerialized,
+                isSerialized || isOtherSerialized
+                    ? 'Search or enter serial number'
+                    : '',
+            modelRequired: isSerialized || isOtherSerialized,
+            // Item Type is only on Other (Non-Serialized) per GW-6614 mockups.
+            showItemType: isOtherNonSerialized,
+            showSerialAssetLookup: isSerialized || isOtherSerialized,
+            showPlainSerialNumber: line.lineType === LINE_TYPE_INSTRUMENTS,
+            showModelLookup: isSerialized || isOtherSerialized,
             itemTypeOptions: this.getItemTypeOptionsForLine(line),
-            showAssetSerialPick: isSerialized,
+            showAssetSerialPick: false,
             showItemDescription:
-                line.lineType === LINE_TYPE_INSTRUMENTS || isOther,
-            showHospitalTrayName: false,
+                line.lineType === LINE_TYPE_INSTRUMENTS || isOtherNonSerialized,
+            showCustomerInformationSection: line.lineType !== LINE_TYPE_INSTRUMENTS,
+            showHospitalTrayName: line.lineType === LINE_TYPE_INSTRUMENTS,
             showModRequest: line.lineType === LINE_TYPE_INSTRUMENTS,
-            showModFormUpload:
-                line.lineType === LINE_TYPE_INSTRUMENTS && Boolean(line.modRequest),
-            showAdditionalServicesCheckbox: line.lineType === LINE_TYPE_INSTRUMENTS,
+            showAdditionalServicesCheckbox: this.shouldShowAdditionalServices(line),
             showAdditionalServicesSection:
-                line.lineType === LINE_TYPE_INSTRUMENTS &&
-                Boolean(line.additionalServices),
+                this.shouldShowAdditionalServices(line) && Boolean(line.additionalServices),
             showInsulationPowderCoating:
                 line.lineType === LINE_TYPE_INSTRUMENTS &&
                 Boolean(line.additionalServices) &&
                 Boolean(line.modRequest),
+            showLaserMarking:
+                line.lineType === LINE_TYPE_INSTRUMENTS &&
+                Boolean(line.additionalServices) &&
+                !Boolean(line.modRequest),
+            showColorDippingAndRings:
+                line.lineType === LINE_TYPE_INSTRUMENTS &&
+                Boolean(line.additionalServices) &&
+                !Boolean(line.modRequest),
+            showInstrumentAdditionalServiceRepair:
+                line.lineType === LINE_TYPE_INSTRUMENTS && Boolean(line.additionalServices),
             showLegPositionersStirrup:
-                line.lineType === LINE_TYPE_INSTRUMENTS &&
+                isOtherSerialized &&
                 Boolean(line.additionalServices) &&
-                !Boolean(line.modRequest) &&
-                Boolean(String(line.serialNumber || '').trim()),
-            showNoSerialAdditionalServices:
-                line.lineType === LINE_TYPE_INSTRUMENTS &&
-                Boolean(line.additionalServices) &&
-                !Boolean(line.modRequest) &&
-                !String(line.serialNumber || '').trim(),
+                this.isStirrupDeviceType(line),
             showLoanerSection: isSerialized,
             showQuantity: !quantityLocked,
             quantityReadOnly: quantityLocked,
@@ -1432,8 +1661,6 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
                     : '',
             attachmentItems: line.attachments || [],
             hasAttachments: (line.attachments || []).length > 0,
-            modFormAttachmentItems: line.modFormAttachments || [],
-            hasModFormAttachments: (line.modFormAttachments || []).length > 0,
             sectionLabel: this.buildLineSectionLabel(line),
             productRecordFilter: this.buildProductRecordFilter(line),
             isProductSearchDisabled: this.isProductSearchDisabled(line),
@@ -1445,6 +1672,18 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
                 ? 'product-search-lookup slds-form-element product-search-lookup--open'
                 : 'product-search-lookup slds-form-element',
             productSearchDropdownStyle: line.productSearchDropdownStyle || '',
+            serialOptions: line.serialOptions || [],
+            showSerialResults: Boolean(line.showSerialResults),
+            serialSearchLookupClass: line.showSerialResults
+                ? 'product-search-lookup slds-form-element product-search-lookup--open'
+                : 'product-search-lookup slds-form-element',
+            serialSearchDropdownStyle: line.serialSearchDropdownStyle || '',
+            modelOptions: line.modelOptions || [],
+            showModelResults: Boolean(line.showModelResults),
+            modelSearchLookupClass: line.showModelResults
+                ? 'product-search-lookup slds-form-element product-search-lookup--open'
+                : 'product-search-lookup slds-form-element',
+            modelSearchDropdownStyle: line.modelSearchDropdownStyle || '',
             assetOptions: this.filterAccountAssets(line.assetSearchText),
             assetSearchText: line.assetSearchText || '',
             showAssetResults: Boolean(line.showAssetResults),
@@ -1453,7 +1692,24 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
             assetSearchLookupClass: line.showAssetResults
                 ? 'product-search-lookup slds-form-element product-search-lookup--open'
                 : 'product-search-lookup slds-form-element',
-            assetSearchDropdownStyle: line.assetSearchDropdownStyle || ''
+            assetSearchDropdownStyle: line.assetSearchDropdownStyle || '',
+            contactSearchText:
+                line.contactSearchText || this.resolveContactName(line.contactId),
+            contactOptions: line.contactOptions || [],
+            showContactResults: Boolean(line.showContactResults),
+            contactSearchLookupClass: line.showContactResults
+                ? 'product-search-lookup slds-form-element product-search-lookup--open contact-field-row__combobox'
+                : 'product-search-lookup slds-form-element contact-field-row__combobox',
+            contactSearchDropdownStyle: line.contactSearchDropdownStyle || '',
+            estimateContactSearchText:
+                line.estimateContactSearchText ||
+                this.resolveContactName(line.estimateContactId),
+            estimateContactOptions: line.estimateContactOptions || [],
+            showEstimateContactResults: Boolean(line.showEstimateContactResults),
+            estimateContactSearchLookupClass: line.showEstimateContactResults
+                ? 'product-search-lookup slds-form-element product-search-lookup--open contact-field-row__combobox'
+                : 'product-search-lookup slds-form-element contact-field-row__combobox',
+            estimateContactSearchDropdownStyle: line.estimateContactSearchDropdownStyle || ''
         };
         });
     }
@@ -1468,10 +1724,6 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
 
     get acceptedMediaTypes() {
         return LINE_MEDIA_ACCEPT;
-    }
-
-    get acceptedModFormTypes() {
-        return MOD_FORM_ACCEPT;
     }
 
     get productRecordFilter() {
@@ -1534,8 +1786,9 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
     }
 
     isProductSearchDisabled(line) {
+        // Other (Non-Serialized) requires Item Type first; Other (Serialized) searches freely.
         return (
-            this.isOtherLineType(line.lineType) &&
+            this.isOtherNonSerializedLineType(line.lineType) &&
             !String(line.productLine || '').trim()
         );
     }
@@ -1578,7 +1831,21 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
         return parts.length ? parts.join(' · ') : product.Name || '';
     }
 
-    applyProductFieldsToLine(lineKey, { product2Id, description, model, name, productCode }) {
+    applyProductFieldsToLine(
+        lineKey,
+        {
+            product2Id,
+            description,
+            model,
+            name,
+            productCode,
+            productLine,
+            subProductLine,
+            deviceType,
+            manufacturer,
+            skipItemDescription = false
+        }
+    ) {
         const productSearchText =
             this.formatProductOptionLabel({
                 Name: name,
@@ -1586,17 +1853,35 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
                 Model__c: model
             }) || name || '';
 
-        this.lineItems = this.lineItems.map((item) =>
-            item.key === lineKey
-                ? {
-                      ...item,
-                      product2Id: product2Id || '',
-                      itemDescription: description || '',
-                      model: this.normalizeUppercaseText(model || ''),
-                      productSearchText
-                  }
-                : item
-        );
+        this.lineItems = this.lineItems.map((item) => {
+            if (item.key !== lineKey) {
+                return item;
+            }
+            const updated = {
+                ...item,
+                product2Id: product2Id || '',
+                model: this.normalizeUppercaseText(model || ''),
+                productSearchText,
+                productCode: productCode || '',
+                subProductLine: subProductLine || item.subProductLine || '',
+                deviceType: deviceType || item.deviceType || '',
+                manufacturer: manufacturer || item.manufacturer || ''
+            };
+            if (productLine) {
+                updated.productLine = productLine;
+            }
+            if (!skipItemDescription) {
+                updated.itemDescription = description || '';
+            }
+            if (
+                this.isOtherSerializedLineType(updated.lineType) &&
+                !this.isStirrupDeviceType(updated)
+            ) {
+                updated.additionalServices = false;
+                clearSerialAdditionalServiceFields(updated);
+            }
+            return updated;
+        });
     }
 
     async applyInstrumentLineDefaults(lineKey) {
@@ -1624,12 +1909,19 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
             }
 
             this.defaultProductId = product.Id;
+            // GW-6346 / Josh feedback: Item Description must stay blank for Instruments
+            // (do not default from Default Product Description).
             this.applyProductFieldsToLine(lineKey, {
                 product2Id: product.Id,
                 description: product.Description,
                 model: product.Model__c,
                 name: product.Name,
-                productCode: product.ProductCode
+                productCode: product.ProductCode,
+                productLine: product.ProductLine__c || INSTRUMENT_PRODUCT_LINE,
+                subProductLine: product.SubProductLine__c,
+                deviceType: product.DeviceType__c,
+                manufacturer: product.Manufacturer__c,
+                skipItemDescription: true
             });
         } catch (error) {
             this.showError('Failed to load default product', error);
@@ -1663,11 +1955,13 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
             const excludeDefaultProduct =
                 line.lineType === LINE_TYPE_INSTRUMENTS &&
                 this.instrumentLineHasSerialNumber(line);
+            const allowedProductCodes = this.resolveAllowedProductCodesForLine(line);
             const productOptions = (products || [])
                 .filter(
                     (product) =>
-                        !excludeDefaultProduct ||
-                        product.value !== this.defaultProductId
+                        (!excludeDefaultProduct ||
+                            product.value !== this.defaultProductId) &&
+                        this.isProductAllowedForLine(product, allowedProductCodes)
                 )
                 .map((product) => ({
                 label: product.label,
@@ -1675,7 +1969,11 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
                 model: product.model || '',
                 name: product.name || '',
                 productCode: product.productCode || '',
-                description: product.description || ''
+                description: product.description || '',
+                productLine: product.productLine || '',
+                subProductLine: product.subProductLine || '',
+                deviceType: product.deviceType || '',
+                manufacturer: product.manufacturer || ''
             }));
             this.lineItems = this.lineItems.map((item) =>
                 item.key === lineKey
@@ -1731,6 +2029,10 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
                 product2Id: '',
                 model: '',
                 itemDescription: '',
+                productCode: '',
+                subProductLine: '',
+                deviceType: '',
+                manufacturer: '',
                 showProductResults: true
             };
 
@@ -1762,24 +2064,7 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
         }, 200);
     }
 
-    updateProductSearchDropdownPosition(lineKey) {
-        const control = this.template.querySelector(
-            `[data-product-search-control="${lineKey}"]`
-        );
-        if (!control) {
-            return;
-        }
-
-        const rect = control.getBoundingClientRect();
-        const top = Math.round(rect.bottom + 2);
-        const left = Math.round(rect.left);
-        const width = Math.max(Math.round(rect.width), 280);
-        const dropdownStyle = `top: ${top}px; left: ${left}px; width: ${width}px;`;
-
-        this.lineItems = this.lineItems.map((item) =>
-            item.key === lineKey ? { ...item, productSearchDropdownStyle: dropdownStyle } : item
-        );
-    }
+    updateProductSearchDropdownPosition() {}
 
     ensureProductSearchViewportListeners() {
         if (this.productSearchViewportListenersAttached) {
@@ -1788,16 +2073,66 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
 
         this.productSearchViewportListenersAttached = true;
         this._boundRepositionProductSearch = () => {
-            this.lineItems
-                .filter((line) => line.showProductResults)
-                .forEach((line) => this.updateProductSearchDropdownPosition(line.key));
+            this.lineItems.forEach((line) => {
+                if (line.showProductResults) {
+                    this.updateProductSearchDropdownPosition(line.key);
+                }
+                if (line.showAssetResults) {
+                    this.updateAssetSearchDropdownPosition(line.key);
+                }
+                if (line.showSerialResults) {
+                    this.updateSerialSearchDropdownPosition(line.key);
+                }
+                if (line.showModelResults) {
+                    this.updateModelSearchDropdownPosition(line.key);
+                }
+                if (line.showContactResults) {
+                    this.updateLineContactSearchDropdownPosition(line.key, 'contact');
+                }
+                if (line.showEstimateContactResults) {
+                    this.updateLineContactSearchDropdownPosition(line.key, 'estimateContact');
+                }
+            });
+            (this.proposedReturnOrderGroups || []).forEach((group) => {
+                if (group.showContactResults) {
+                    this.updateHeaderContactSearchDropdownPosition(group.groupKey, 'contact');
+                }
+                if (group.showEstimateContactResults) {
+                    this.updateHeaderContactSearchDropdownPosition(
+                        group.groupKey,
+                        'estimateContact'
+                    );
+                }
+                if (group.showModRequestContactResults) {
+                    this.updateHeaderContactSearchDropdownPosition(
+                        group.groupKey,
+                        'modRequestContact'
+                    );
+                }
+            });
         };
         window.addEventListener('scroll', this._boundRepositionProductSearch, true);
         window.addEventListener('resize', this._boundRepositionProductSearch);
     }
 
     removeProductSearchViewportListenersIfIdle() {
-        if (this.lineItems.some((line) => line.showProductResults)) {
+        const hasOpenLineDropdown = this.lineItems.some(
+            (line) =>
+                line.showProductResults ||
+                line.showAssetResults ||
+                line.showSerialResults ||
+                line.showModelResults ||
+                line.showContactResults ||
+                line.showEstimateContactResults
+        );
+        const hasOpenHeaderDropdown = (this.proposedReturnOrderGroups || []).some(
+            (group) =>
+                group.showContactResults ||
+                group.showEstimateContactResults ||
+                group.showModRequestContactResults
+        );
+        const hasOpenDropdown = hasOpenLineDropdown || hasOpenHeaderDropdown;
+        if (hasOpenDropdown) {
             return;
         }
 
@@ -1832,38 +2167,51 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
             return;
         }
 
-        this.lineItems = this.lineItems.map((item) => {
-            if (item.key !== lineKey) {
-                return item;
-            }
-
-            return {
-                ...item,
-                product2Id,
-                productSearchText: selectedOption?.label || '',
-                itemDescription: product2Id ? selectedOption?.description || '' : '',
-                model: product2Id
-                    ? this.normalizeUppercaseText(selectedOption?.model || '')
-                    : '',
-                showProductResults: false,
-                productSearchDropdownStyle: ''
-            };
+        const skipItemDescription =
+            line?.lineType === LINE_TYPE_INSTRUMENTS ||
+            this.isOtherNonSerializedLineType(line?.lineType);
+        this.applyProductFieldsToLine(lineKey, {
+            product2Id,
+            description: selectedOption?.description || '',
+            model: selectedOption?.model || '',
+            name: selectedOption?.name || selectedOption?.label || '',
+            productCode: selectedOption?.productCode || '',
+            productLine: selectedOption?.productLine || '',
+            subProductLine: selectedOption?.subProductLine || '',
+            deviceType: selectedOption?.deviceType || '',
+            manufacturer: selectedOption?.manufacturer || '',
+            skipItemDescription
         });
+        this.lineItems = this.lineItems.map((item) =>
+            item.key === lineKey
+                ? {
+                      ...item,
+                      showProductResults: false,
+                      productSearchDropdownStyle: ''
+                  }
+                : item
+        );
 
-        if (line?.lineType === LINE_TYPE_SERIALIZED && product2Id) {
+        if (product2Id) {
             try {
                 const product = await getProductDetails({
                     productId: product2Id,
-                    requireServiceAssetType: true
+                    requireServiceAssetType: line?.lineType === LINE_TYPE_SERIALIZED
                 });
-                this.lineItems = this.lineItems.map((item) =>
-                    item.key === lineKey
-                        ? {
-                              ...item,
-                              productLine: product?.ProductLine__c || item.productLine
-                          }
-                        : item
-                );
+                if (product?.Id) {
+                    this.applyProductFieldsToLine(lineKey, {
+                        product2Id: product.Id,
+                        description: product.Description,
+                        model: product.Model__c,
+                        name: product.Name,
+                        productCode: product.ProductCode,
+                        productLine: product.ProductLine__c,
+                        subProductLine: product.SubProductLine__c,
+                        deviceType: product.DeviceType__c,
+                        manufacturer: product.Manufacturer__c,
+                        skipItemDescription
+                    });
+                }
             } catch (error) {
                 this.showError('Failed to load product details', error);
             }
@@ -1875,21 +2223,87 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
     buildLineSectionLabel(line) {
         const lineNumber = line.lineNumber;
         if (line.lineType === LINE_TYPE_INSTRUMENTS) {
-            return `Item ${lineNumber}: ${LINE_TYPE_INSTRUMENTS_LABEL}`;
-        }
-        if (this.isOtherSerializedLineType(line.lineType)) {
-            return `Item ${lineNumber}: ${LINE_TYPE_OTHER_SERIALIZED_LABEL}`;
+            return `Item ${lineNumber}: INSTRUMENT`;
         }
         if (this.isOtherNonSerializedLineType(line.lineType)) {
-            return `Item ${lineNumber}: ${LINE_TYPE_OTHER_NON_SERIALIZED_LABEL}`;
+            return `Item ${lineNumber}: ${this.buildOtherNonSerializedTitle(line)}`;
+        }
+        if (
+            line.lineType === LINE_TYPE_SERIALIZED ||
+            this.isOtherSerializedLineType(line.lineType)
+        ) {
+            return `Item ${lineNumber}: ${this.buildSerializedItemTitle(line)}`;
         }
         if (this.isOtherLineType(line.lineType)) {
             return `Item ${lineNumber}: Other`;
         }
-        if (line.serialNumber) {
-            return `Item ${lineNumber}: ${this.normalizeUppercaseText(line.serialNumber)}`;
-        }
         return `Item ${lineNumber}: ${LINE_TYPE_SERIALIZED_LABEL}`;
+    }
+
+    buildSerializedItemTitle(line) {
+        const fallbackLabel = this.isOtherSerializedLineType(line.lineType)
+            ? LINE_TYPE_OTHER_SERIALIZED_LABEL
+            : LINE_TYPE_SERIALIZED_LABEL;
+        const productLine = String(line.productLine || '').trim() || fallbackLabel;
+        const serial = this.normalizeUppercaseText(line.serialNumber) || '[Serial #]';
+        if (isGenericModelValue(line.model)) {
+            return `${productLine} - Serial #${serial}`;
+        }
+        const model = this.normalizeUppercaseText(line.model);
+        return `${productLine} - Serial #${serial} | Model #${model}`;
+    }
+
+    buildOtherNonSerializedTitle(line) {
+        const productCode = String(line.productCode || '').trim().toUpperCase();
+        const productLine = String(line.productLine || '').trim().toUpperCase();
+        const subProductLine = String(line.subProductLine || '').trim().toUpperCase();
+        const deviceType = String(line.deviceType || '').trim().toUpperCase();
+        if (!productCode && !productLine && !subProductLine && !deviceType) {
+            return LINE_TYPE_OTHER_NON_SERIALIZED_LABEL;
+        }
+        const segments = [productLine, subProductLine, deviceType].filter(Boolean);
+        const suffix = segments.length ? segments.join('.') : '';
+        if (productCode && suffix) {
+            return `${productCode} - ${suffix}`;
+        }
+        return productCode || suffix || LINE_TYPE_OTHER_NON_SERIALIZED_LABEL;
+    }
+
+    isStirrupDeviceType(line) {
+        const deviceType = String(line?.deviceType || '').trim().toUpperCase();
+        const itemType = String(line?.itemType || '').trim().toUpperCase();
+        return deviceType === 'STIRRUP' || itemType === 'STIRRUP';
+    }
+
+    shouldShowAdditionalServices(line) {
+        if (!line) {
+            return false;
+        }
+        if (line.lineType === LINE_TYPE_INSTRUMENTS) {
+            return true;
+        }
+        return this.isOtherSerializedLineType(line.lineType) && this.isStirrupDeviceType(line);
+    }
+
+    resolveAllowedProductCodesForLine(line) {
+        if (!this.isOtherNonSerializedLineType(line?.lineType)) {
+            return null;
+        }
+        const itemType = String(line.itemType || '').trim();
+        return NON_SERIALIZED_PRODUCT_CODES_BY_ITEM_TYPE[itemType] || null;
+    }
+
+    isProductAllowedForLine(product, allowedProductCodes) {
+        if (!allowedProductCodes) {
+            return true;
+        }
+        const productCode = String(product?.productCode || '').trim().toUpperCase();
+        for (const allowedCode of allowedProductCodes) {
+            if (productCode === String(allowedCode).trim().toUpperCase()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     filterAccountAssets(searchTerm) {
@@ -1969,24 +2383,7 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
         }, 200);
     }
 
-    updateAssetSearchDropdownPosition(lineKey) {
-        const control = this.template.querySelector(
-            `[data-asset-search-control="${lineKey}"]`
-        );
-        if (!control) {
-            return;
-        }
-
-        const rect = control.getBoundingClientRect();
-        const top = Math.round(rect.bottom + 2);
-        const left = Math.round(rect.left);
-        const width = Math.max(Math.round(rect.width), 280);
-        const dropdownStyle = `top: ${top}px; left: ${left}px; width: ${width}px;`;
-
-        this.lineItems = this.lineItems.map((item) =>
-            item.key === lineKey ? { ...item, assetSearchDropdownStyle: dropdownStyle } : item
-        );
-    }
+    updateAssetSearchDropdownPosition() {}
 
     handleAssetOptionSelect(event) {
         event.preventDefault();
@@ -2021,24 +2418,760 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
         }
     }
 
-    get contactRecordFilter() {
-        if (!this.accountId || !this.eligibleContactIds.length) {
-            return null;
+    buildSerialLookupLabel(asset) {
+        const serial = this.normalizeUppercaseText(asset?.serialNumber || '');
+        const model = this.normalizeUppercaseText(asset?.model || '');
+        const productName = String(asset?.productName || '').trim();
+        const accountName = String(asset?.accountName || '').trim();
+        const parts = [serial, model, productName, accountName].filter(Boolean);
+        return parts.join(' · ') || serial || String(asset?.id || '');
+    }
+
+    scheduleSerialSearch(lineKey, searchTerm) {
+        if (serialSearchTimers[lineKey]) {
+            clearTimeout(serialSearchTimers[lineKey]);
+        }
+        // eslint-disable-next-line @lwc/lwc/no-async-operation
+        serialSearchTimers[lineKey] = window.setTimeout(() => {
+            this.loadSerialOptionsForLine(lineKey, searchTerm, true);
+        }, 300);
+    }
+
+    mapSerialSearchMatchesToOptions(matches) {
+        return (matches || []).map((asset) => ({
+            label: this.buildSerialLookupLabel(asset),
+            value: asset.id,
+            serialNumber: asset.serialNumber || '',
+            model: asset.model || '',
+            product2Id: asset.product2Id || '',
+            productName: asset.productName || '',
+            productCode: asset.productCode || '',
+            productLine: asset.productLine || '',
+            subProductLine: asset.subProductLine || '',
+            deviceType: asset.deviceType || '',
+            manufacturer: asset.manufacturer || '',
+            departmentId: asset.departmentId || '',
+            accountId: asset.accountId || '',
+            accountName: asset.accountName || '',
+            id: asset.id
+        }));
+    }
+
+    async loadSerialOptionsForLine(lineKey, searchTerm, showResults) {
+        const normalized = this.normalizeUppercaseText(searchTerm || '');
+
+        try {
+            // Blank: browse this account's assets. Typed: org-wide serial search.
+            const matches = await searchAssetsBySerial({
+                serialNumber: normalized,
+                accountId: normalized ? null : this.accountId || null
+            });
+            const serialOptions = this.mapSerialSearchMatchesToOptions(matches);
+            this.lineItems = this.lineItems.map((item) =>
+                item.key === lineKey
+                    ? { ...item, serialOptions, showSerialResults: showResults }
+                    : item
+            );
+            if (showResults) {
+                // eslint-disable-next-line @lwc/lwc/no-async-operation
+                window.setTimeout(() => {
+                    this.updateSerialSearchDropdownPosition(lineKey);
+                    this.ensureProductSearchViewportListeners();
+                }, 0);
+            }
+        } catch (error) {
+            this.showError('Failed to search assets by serial', error);
+        }
+    }
+
+    handleSerialSearchFocus(event) {
+        const lineKey = event.target.dataset.key;
+        const line = this.lineItems.find((item) => item.key === lineKey);
+        if (!line) {
+            return;
+        }
+        const searchTerm = line.serialNumber || '';
+        this.loadSerialOptionsForLine(lineKey, searchTerm, true);
+    }
+
+    handleSerialSearchInput(event) {
+        const lineKey = event.target.dataset.key;
+        const searchTerm = this.normalizeUppercaseText(event.target.value || '');
+
+        this.lineItems = this.lineItems.map((item) => {
+            if (item.key !== lineKey) {
+                return item;
+            }
+            return {
+                ...item,
+                serialNumber: searchTerm,
+                assetId: '',
+                assetSerialPick: '',
+                showSerialResults: true,
+                serialOptions: item.serialOptions || []
+            };
+        });
+
+        this.scheduleSerialSearch(lineKey, searchTerm);
+        // eslint-disable-next-line @lwc/lwc/no-async-operation
+        window.setTimeout(() => {
+            this.updateSerialSearchDropdownPosition(lineKey);
+            this.ensureProductSearchViewportListeners();
+        }, 0);
+    }
+
+    handleSerialSearchBlur(event) {
+        const lineKey = event.target.dataset.key;
+        // eslint-disable-next-line @lwc/lwc/no-async-operation
+        window.setTimeout(() => {
+            this.lineItems = this.lineItems.map((item) =>
+                item.key === lineKey
+                    ? {
+                          ...item,
+                          showSerialResults: false,
+                          serialSearchDropdownStyle: ''
+                      }
+                    : item
+            );
+            this.removeProductSearchViewportListenersIfIdle();
+        }, 200);
+    }
+
+    updateSerialSearchDropdownPosition() {}
+
+    async handleSerialOptionSelect(event) {
+        event.preventDefault();
+        const lineKey = event.currentTarget.dataset.key;
+        const assetId = event.currentTarget.dataset.value || '';
+        const line = this.lineItems.find((item) => item.key === lineKey);
+        const selected = (line?.serialOptions || []).find(
+            (option) => option.value === assetId || option.id === assetId
+        );
+        if (!selected) {
+            return;
         }
 
-        return {
-            criteria: [
-                {
-                    fieldPath: 'Id',
-                    operator: 'in',
-                    value: this.eligibleContactIds
+        this.lineItems = this.lineItems.map((item) => {
+            if (item.key !== lineKey) {
+                return item;
+            }
+            const updated = {
+                ...item,
+                serialNumber: this.normalizeUppercaseText(selected.serialNumber || ''),
+                showSerialResults: false,
+                serialSearchDropdownStyle: ''
+            };
+            this.applyAssetToLine(updated, selected);
+            return updated;
+        });
+
+        const updatedLine = this.lineItems.find((item) => item.key === lineKey);
+        if (updatedLine?.assetId) {
+            this.promptDuplicateReturnOrderWarning(updatedLine.assetId);
+        }
+        if (updatedLine?.departmentId) {
+            this.ensureDepartmentOptionAvailable(updatedLine.departmentId);
+        }
+        if (updatedLine?.product2Id) {
+            try {
+                const product = await getProductDetails({
+                    productId: updatedLine.product2Id,
+                    requireServiceAssetType: updatedLine.lineType === LINE_TYPE_SERIALIZED
+                });
+                if (product?.Id) {
+                    this.applyProductFieldsToLine(lineKey, {
+                        product2Id: product.Id,
+                        description: product.Description,
+                        model: product.Model__c || updatedLine.model,
+                        name: product.Name,
+                        productCode: product.ProductCode,
+                        productLine: product.ProductLine__c,
+                        subProductLine: product.SubProductLine__c,
+                        deviceType: product.DeviceType__c,
+                        manufacturer: product.Manufacturer__c,
+                        skipItemDescription: false
+                    });
                 }
-            ]
-        };
+            } catch (error) {
+                this.showError('Failed to load product details', error);
+            }
+        }
+        this.removeProductSearchViewportListenersIfIdle();
+    }
+
+    scheduleModelSearch(lineKey, searchTerm) {
+        if (modelSearchTimers[lineKey]) {
+            clearTimeout(modelSearchTimers[lineKey]);
+        }
+        // eslint-disable-next-line @lwc/lwc/no-async-operation
+        modelSearchTimers[lineKey] = window.setTimeout(() => {
+            this.loadModelOptionsForLine(lineKey, searchTerm, true);
+        }, 300);
+    }
+
+    async loadModelOptionsForLine(lineKey, searchTerm, showResults) {
+        const line = this.lineItems.find((item) => item.key === lineKey);
+        if (!line) {
+            return;
+        }
+        const normalized = this.normalizeUppercaseText(searchTerm || '');
+
+        try {
+            const requireServiceAssetType = line.lineType === LINE_TYPE_SERIALIZED;
+            const productLine = this.isOtherSerializedLineType(line.lineType)
+                ? line.productLine || null
+                : null;
+            const products = await searchProductsByModel({
+                modelSearchTerm: normalized,
+                requireServiceAssetType,
+                productLine
+            });
+            const modelOptions = (products || []).map((product) => ({
+                label: product.label,
+                value: product.value,
+                model: product.model || '',
+                name: product.name || '',
+                productCode: product.productCode || '',
+                description: product.description || '',
+                productLine: product.productLine || '',
+                subProductLine: product.subProductLine || '',
+                deviceType: product.deviceType || '',
+                manufacturer: product.manufacturer || ''
+            }));
+            this.lineItems = this.lineItems.map((item) =>
+                item.key === lineKey
+                    ? { ...item, modelOptions, showModelResults: showResults }
+                    : item
+            );
+            if (showResults) {
+                // eslint-disable-next-line @lwc/lwc/no-async-operation
+                window.setTimeout(() => {
+                    this.updateModelSearchDropdownPosition(lineKey);
+                    this.ensureProductSearchViewportListeners();
+                }, 0);
+            }
+        } catch (error) {
+            this.showError('Failed to search products by model', error);
+        }
+    }
+
+    handleModelSearchFocus(event) {
+        const lineKey = event.target.dataset.key;
+        const line = this.lineItems.find((item) => item.key === lineKey);
+        if (!line) {
+            return;
+        }
+        const searchTerm = line.model || '';
+        this.loadModelOptionsForLine(lineKey, searchTerm, true);
+    }
+
+    handleModelSearchInput(event) {
+        const lineKey = event.target.dataset.key;
+        const searchTerm = this.normalizeUppercaseText(event.target.value || '');
+
+        this.lineItems = this.lineItems.map((item) => {
+            if (item.key !== lineKey) {
+                return item;
+            }
+            const updated = {
+                ...item,
+                model: searchTerm,
+                product2Id: '',
+                productSearchText: '',
+                itemDescription: '',
+                productCode: '',
+                subProductLine: '',
+                deviceType: '',
+                manufacturer: '',
+                showModelResults: true,
+                modelOptions: item.modelOptions || []
+            };
+            if (item.lineType === LINE_TYPE_SERIALIZED) {
+                updated.productLine = '';
+            }
+            return updated;
+        });
+
+        this.scheduleModelSearch(lineKey, searchTerm);
+        // eslint-disable-next-line @lwc/lwc/no-async-operation
+        window.setTimeout(() => {
+            this.updateModelSearchDropdownPosition(lineKey);
+            this.ensureProductSearchViewportListeners();
+        }, 0);
+    }
+
+    handleModelSearchBlur(event) {
+        const lineKey = event.target.dataset.key;
+        // eslint-disable-next-line @lwc/lwc/no-async-operation
+        window.setTimeout(() => {
+            this.lineItems = this.lineItems.map((item) =>
+                item.key === lineKey
+                    ? {
+                          ...item,
+                          showModelResults: false,
+                          modelSearchDropdownStyle: ''
+                      }
+                    : item
+            );
+            this.removeProductSearchViewportListenersIfIdle();
+        }, 200);
+    }
+
+    updateModelSearchDropdownPosition() {}
+
+    async handleModelOptionSelect(event) {
+        event.preventDefault();
+        const lineKey = event.currentTarget.dataset.key;
+        const product2Id = event.currentTarget.dataset.value || '';
+        const line = this.lineItems.find((item) => item.key === lineKey);
+        const selectedOption = (line?.modelOptions || []).find(
+            (option) => option.value === product2Id
+        );
+        if (!selectedOption) {
+            return;
+        }
+
+        this.applyProductFieldsToLine(lineKey, {
+            product2Id,
+            description: selectedOption.description || '',
+            model: selectedOption.model || '',
+            name: selectedOption.name || selectedOption.label || '',
+            productCode: selectedOption.productCode || '',
+            productLine: selectedOption.productLine || '',
+            subProductLine: selectedOption.subProductLine || '',
+            deviceType: selectedOption.deviceType || '',
+            manufacturer: selectedOption.manufacturer || '',
+            skipItemDescription: false
+        });
+        this.lineItems = this.lineItems.map((item) =>
+            item.key === lineKey
+                ? {
+                      ...item,
+                      showModelResults: false,
+                      modelSearchDropdownStyle: ''
+                  }
+                : item
+        );
+
+        if (product2Id) {
+            try {
+                const product = await getProductDetails({
+                    productId: product2Id,
+                    requireServiceAssetType: line?.lineType === LINE_TYPE_SERIALIZED
+                });
+                if (product?.Id) {
+                    this.applyProductFieldsToLine(lineKey, {
+                        product2Id: product.Id,
+                        description: product.Description,
+                        model: product.Model__c,
+                        name: product.Name,
+                        productCode: product.ProductCode,
+                        productLine: product.ProductLine__c,
+                        subProductLine: product.SubProductLine__c,
+                        deviceType: product.DeviceType__c,
+                        manufacturer: product.Manufacturer__c,
+                        skipItemDescription: false
+                    });
+                }
+            } catch (error) {
+                this.showError('Failed to load product details', error);
+            }
+        }
+        this.removeProductSearchViewportListenersIfIdle();
     }
 
     get isContactSearchDisabled() {
-        return !this.accountId || !this.eligibleContactIds.length;
+        return !this.accountId || !this.eligibleContacts.length;
+    }
+
+    updateLineContactSearchDropdownPosition() {}
+
+    updateHeaderContactSearchDropdownPosition() {}
+
+    openLineContactResults(lineKey, contactField) {
+        const options = this.filterEligibleContacts('');
+        const showKey =
+            contactField === 'estimateContact' ? 'showEstimateContactResults' : 'showContactResults';
+        const optionsKey =
+            contactField === 'estimateContact' ? 'estimateContactOptions' : 'contactOptions';
+        this.lineItems = this.lineItems.map((item) =>
+            item.key === lineKey
+                ? {
+                      ...item,
+                      [optionsKey]: options,
+                      [showKey]: true
+                  }
+                : item
+        );
+        // eslint-disable-next-line @lwc/lwc/no-async-operation
+        window.setTimeout(() => {
+            this.updateLineContactSearchDropdownPosition(lineKey, contactField);
+            this.ensureProductSearchViewportListeners();
+        }, 0);
+    }
+
+    openHeaderContactResults(groupKey, contactField) {
+        const options = this.filterEligibleContacts('');
+        const showKey =
+            contactField === 'estimateContact'
+                ? 'showEstimateContactResults'
+                : contactField === 'modRequestContact'
+                  ? 'showModRequestContactResults'
+                  : 'showContactResults';
+        const optionsKey =
+            contactField === 'estimateContact'
+                ? 'estimateContactOptions'
+                : contactField === 'modRequestContact'
+                  ? 'modRequestContactOptions'
+                  : 'contactOptions';
+        this.proposedReturnOrderGroups = this.proposedReturnOrderGroups.map((group) =>
+            group.groupKey === groupKey
+                ? {
+                      ...group,
+                      [optionsKey]: options,
+                      [showKey]: true
+                  }
+                : group
+        );
+        // eslint-disable-next-line @lwc/lwc/no-async-operation
+        window.setTimeout(() => {
+            this.updateHeaderContactSearchDropdownPosition(groupKey, contactField);
+            this.ensureProductSearchViewportListeners();
+        }, 0);
+    }
+
+    handleLineContactSearchFocus(event) {
+        if (this.isContactSearchDisabled) {
+            return;
+        }
+        const lineKey = event.target.dataset.key;
+        const contactField = event.target.dataset.contactField || 'contact';
+        this.openLineContactResults(lineKey, contactField);
+    }
+
+    handleLineContactSearchInput(event) {
+        const lineKey = event.target.dataset.key;
+        const contactField = event.target.dataset.contactField || 'contact';
+        const searchTerm = event.target.value || '';
+        const options = this.filterEligibleContacts(searchTerm);
+        const isEstimate = contactField === 'estimateContact';
+
+        this.lineItems = this.lineItems.map((item) => {
+            if (item.key !== lineKey) {
+                return item;
+            }
+            if (isEstimate) {
+                return {
+                    ...item,
+                    estimateContactSearchText: searchTerm,
+                    estimateContactId: '',
+                    estimateContactOptions: options,
+                    showEstimateContactResults: true
+                };
+            }
+            return {
+                ...item,
+                contactSearchText: searchTerm,
+                contactId: '',
+                contactOptions: options,
+                showContactResults: true
+            };
+        });
+
+        // eslint-disable-next-line @lwc/lwc/no-async-operation
+        window.setTimeout(() => {
+            this.updateLineContactSearchDropdownPosition(lineKey, contactField);
+            this.ensureProductSearchViewportListeners();
+        }, 0);
+    }
+
+    handleLineContactSearchBlur(event) {
+        const lineKey = event.target.dataset.key;
+        const contactField = event.target.dataset.contactField || 'contact';
+        const isEstimate = contactField === 'estimateContact';
+        // eslint-disable-next-line @lwc/lwc/no-async-operation
+        window.setTimeout(() => {
+            this.lineItems = this.lineItems.map((item) => {
+                if (item.key !== lineKey) {
+                    return item;
+                }
+                if (isEstimate) {
+                    return {
+                        ...item,
+                        showEstimateContactResults: false,
+                        estimateContactSearchDropdownStyle: '',
+                        estimateContactSearchText:
+                            item.estimateContactId
+                                ? this.resolveContactName(item.estimateContactId)
+                                : item.estimateContactSearchText || ''
+                    };
+                }
+                return {
+                    ...item,
+                    showContactResults: false,
+                    contactSearchDropdownStyle: '',
+                    contactSearchText: item.contactId
+                        ? this.resolveContactName(item.contactId)
+                        : item.contactSearchText || ''
+                };
+            });
+            this.removeProductSearchViewportListenersIfIdle();
+        }, 150);
+    }
+
+    handleLineContactOptionSelect(event) {
+        event.preventDefault();
+        const lineKey = event.currentTarget.dataset.key;
+        const contactField = event.currentTarget.dataset.contactField || 'contact';
+        const contactId = event.currentTarget.dataset.value || '';
+        const contactName = this.resolveContactName(contactId);
+        const isEstimate = contactField === 'estimateContact';
+
+        this.lineItems = this.lineItems.map((line) => {
+            if (line.key !== lineKey) {
+                return line;
+            }
+            if (isEstimate) {
+                return {
+                    ...line,
+                    estimateContactId: contactId,
+                    estimateContactSearchText: contactName,
+                    showEstimateContactResults: false,
+                    estimateContactSearchDropdownStyle: '',
+                    contactId: line.contactId || contactId,
+                    contactSearchText: line.contactId
+                        ? line.contactSearchText || this.resolveContactName(line.contactId)
+                        : contactName
+                };
+            }
+
+            const defaultEstimateContact =
+                line.estimateRequired === ESTIMATE_REQUIRED_QUOTE_VALUE &&
+                !line.estimateContactId
+                    ? contactId
+                    : line.estimateContactId;
+
+            return {
+                ...line,
+                contactId,
+                contactSearchText: contactName,
+                showContactResults: false,
+                contactSearchDropdownStyle: '',
+                estimateContactId: defaultEstimateContact,
+                estimateContactSearchText: defaultEstimateContact
+                    ? this.resolveContactName(defaultEstimateContact)
+                    : line.estimateContactSearchText || ''
+            };
+        });
+
+        this.removeProductSearchViewportListenersIfIdle();
+        this.promptLineEstimateContactEmailIfNeeded(lineKey);
+    }
+
+    handleHeaderContactSearchFocus(event) {
+        if (this.isContactSearchDisabled) {
+            return;
+        }
+        const groupKey = event.target.dataset.groupKey;
+        const contactField = event.target.dataset.contactField || 'contact';
+        this.openHeaderContactResults(groupKey, contactField);
+    }
+
+    handleHeaderContactSearchInput(event) {
+        const groupKey = event.target.dataset.groupKey;
+        const contactField = event.target.dataset.contactField || 'contact';
+        const searchTerm = event.target.value || '';
+        const options = this.filterEligibleContacts(searchTerm);
+
+        this.proposedReturnOrderGroups = this.proposedReturnOrderGroups.map((group) => {
+            if (group.groupKey !== groupKey) {
+                return group;
+            }
+            if (contactField === 'estimateContact') {
+                return {
+                    ...group,
+                    estimateContactSearchText: searchTerm,
+                    estimateContactId: '',
+                    estimateContactOptions: options,
+                    showEstimateContactResults: true
+                };
+            }
+            if (contactField === 'modRequestContact') {
+                return {
+                    ...group,
+                    modRequestContactSearchText: searchTerm,
+                    modRequestContactId: '',
+                    modRequestContactOptions: options,
+                    showModRequestContactResults: true
+                };
+            }
+            return {
+                ...group,
+                contactSearchText: searchTerm,
+                contactId: '',
+                contactOptions: options,
+                showContactResults: true
+            };
+        });
+
+        // eslint-disable-next-line @lwc/lwc/no-async-operation
+        window.setTimeout(() => {
+            this.updateHeaderContactSearchDropdownPosition(groupKey, contactField);
+            this.ensureProductSearchViewportListeners();
+        }, 0);
+    }
+
+    handleHeaderContactSearchBlur(event) {
+        const groupKey = event.target.dataset.groupKey;
+        const contactField = event.target.dataset.contactField || 'contact';
+        // eslint-disable-next-line @lwc/lwc/no-async-operation
+        window.setTimeout(() => {
+            this.proposedReturnOrderGroups = this.proposedReturnOrderGroups.map((group) => {
+                if (group.groupKey !== groupKey) {
+                    return group;
+                }
+                if (contactField === 'estimateContact') {
+                    return {
+                        ...group,
+                        showEstimateContactResults: false,
+                        estimateContactSearchDropdownStyle: '',
+                        estimateContactSearchText: group.estimateContactId
+                            ? this.resolveContactName(group.estimateContactId)
+                            : group.estimateContactSearchText || ''
+                    };
+                }
+                if (contactField === 'modRequestContact') {
+                    return {
+                        ...group,
+                        showModRequestContactResults: false,
+                        modRequestContactSearchDropdownStyle: '',
+                        modRequestContactSearchText: group.modRequestContactId
+                            ? this.resolveContactName(group.modRequestContactId)
+                            : group.modRequestContactSearchText || ''
+                    };
+                }
+                return {
+                    ...group,
+                    showContactResults: false,
+                    contactSearchDropdownStyle: '',
+                    contactSearchText: group.contactId
+                        ? this.resolveContactName(group.contactId)
+                        : group.contactSearchText || ''
+                };
+            });
+            this.removeProductSearchViewportListenersIfIdle();
+        }, 150);
+    }
+
+    /**
+     * When one Instrument header contact is set, fill other blank applicable contacts.
+     * Estimate Contact applies when Estimate Required = Estimate Required;
+     * Mod Request Contact applies when Mod Request is true.
+     */
+    applyContactToBlankInstrumentHeaderFields(group, contactId, contactName) {
+        if (!group || !contactId) {
+            return group;
+        }
+        const name = contactName || this.resolveContactName(contactId) || '';
+        const updated = { ...group };
+
+        if (!updated.contactId) {
+            updated.contactId = contactId;
+            updated.contactSearchText = name;
+        }
+        if (
+            updated.estimateRequired === ESTIMATE_REQUIRED_QUOTE_VALUE &&
+            !updated.estimateContactId
+        ) {
+            updated.estimateContactId = contactId;
+            updated.estimateContactSearchText = name;
+        }
+        if (updated.hasModRequest && !updated.modRequestContactId) {
+            updated.modRequestContactId = contactId;
+            updated.modRequestContactSearchText = name;
+        }
+        return updated;
+    }
+
+    /**
+     * Programmatic contact fills do not clear lightning-input required errors.
+     * Re-run validity after the bound values render.
+     */
+    clearInstrumentHeaderContactFieldValidity(groupKey) {
+        if (!groupKey) {
+            return;
+        }
+        // eslint-disable-next-line @lwc/lwc/no-async-operation
+        window.setTimeout(() => {
+            const inputs = this.template.querySelectorAll(
+                `lightning-input[data-group-key="${groupKey}"][data-contact-field]`
+            );
+            inputs.forEach((input) => {
+                const value = String(input.value || '').trim();
+                if (!value) {
+                    return;
+                }
+                input.setCustomValidity('');
+                input.reportValidity();
+            });
+        }, 0);
+    }
+
+    handleHeaderContactOptionSelect(event) {
+        event.preventDefault();
+        const groupKey = event.currentTarget.dataset.groupKey;
+        const contactField = event.currentTarget.dataset.contactField || 'contact';
+        const contactId = event.currentTarget.dataset.value || '';
+        const contactName = this.resolveContactName(contactId);
+
+        this.proposedReturnOrderGroups = this.proposedReturnOrderGroups.map((group) => {
+            if (group.groupKey !== groupKey) {
+                return group;
+            }
+            let updated = { ...group };
+            if (contactField === 'estimateContact') {
+                updated = {
+                    ...updated,
+                    estimateContactId: contactId,
+                    estimateContactSearchText: contactName,
+                    showEstimateContactResults: false,
+                    estimateContactSearchDropdownStyle: ''
+                };
+            } else if (contactField === 'modRequestContact') {
+                updated = {
+                    ...updated,
+                    modRequestContactId: contactId,
+                    modRequestContactSearchText: contactName,
+                    showModRequestContactResults: false,
+                    modRequestContactSearchDropdownStyle: ''
+                };
+            } else {
+                updated = {
+                    ...updated,
+                    contactId,
+                    contactSearchText: contactName,
+                    showContactResults: false,
+                    contactSearchDropdownStyle: ''
+                };
+            }
+            return this.applyContactToBlankInstrumentHeaderFields(
+                updated,
+                contactId,
+                contactName
+            );
+        });
+
+        this.removeProductSearchViewportListenersIfIdle();
+        if (contactId) {
+            this.clearInstrumentHeaderContactFieldValidity(groupKey);
+        }
+        if (contactField === 'modRequestContact') {
+            if (contactId && this.isEstimateContactEmailMissing(contactId)) {
+                this.openUpdateContactEmailModal(contactId, { groupKey });
+            }
+            return;
+        }
+        this.promptEstimateContactEmailIfNeeded(groupKey);
     }
 
     get isNewContactEmailRequired() {
@@ -2080,6 +3213,20 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
                 ...this.contactNameById,
                 [contactId]: contactName
             };
+        }
+        if (!this.eligibleContactIds.includes(contactId)) {
+            this.eligibleContactIds = [...this.eligibleContactIds, contactId];
+        }
+        if (!this.eligibleContacts.some((contact) => contact.id === contactId)) {
+            this.eligibleContacts = [
+                ...this.eligibleContacts,
+                {
+                    id: contactId,
+                    name: contactName || '',
+                    email: contactEmail || '',
+                    label: this.buildContactLookupLabel(contactName, contactEmail)
+                }
+            ];
         }
     }
 
@@ -2408,8 +3555,16 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
                 updated.model = '';
                 updated.itemDescription = '';
                 updated.productSearchText = '';
+                updated.productCode = '';
+                updated.subProductLine = '';
+                updated.deviceType = '';
+                updated.manufacturer = '';
                 updated.showProductResults = false;
                 updated.productOptions = [];
+                if (!this.isStirrupDeviceType(updated)) {
+                    updated.additionalServices = false;
+                    clearSerialAdditionalServiceFields(updated);
+                }
             }
 
             if (field === 'serialNumber') {
@@ -2418,18 +3573,16 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
                     : '';
                 this.applyAssetToLine(updated, this.findAssetBySerial(value));
                 if (line.lineType === LINE_TYPE_INSTRUMENTS) {
-                    if (String(value || '').trim()) {
-                        clearNoSerialAdditionalServiceFields(updated);
-                        if (this.isDefaultProductSelected(updated.product2Id)) {
-                            this.clearDefaultProductFromLine(updated);
-                        }
-                    } else {
-                        clearSerialAdditionalServiceFields(updated);
+                    if (
+                        String(value || '').trim() &&
+                        this.isDefaultProductSelected(updated.product2Id)
+                    ) {
+                        this.clearDefaultProductFromLine(updated);
                     }
                 }
             }
 
-            if (field === 'additionalServices' && line.lineType === LINE_TYPE_INSTRUMENTS) {
+            if (field === 'additionalServices' && this.shouldShowAdditionalServices(line)) {
                 if (!value) {
                     clearInstrumentAdditionalServiceFields(updated);
                 }
@@ -2438,10 +3591,9 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
             if (field === 'modRequest' && line.lineType === LINE_TYPE_INSTRUMENTS) {
                 if (value) {
                     updated.insulationPowderCoating = updated.insulationPowderCoating || '';
-                    clearNonModAdditionalServiceFields(updated);
+                    clearNonModAdditionalServicesOnModRequest(updated);
                 } else {
                     updated.insulationPowderCoating = '';
-                    updated.modFormAttachments = [];
                 }
             }
 
@@ -2449,8 +3601,12 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
                 if (value === ESTIMATE_REQUIRED_QUOTE_VALUE) {
                     updated.estimateContactId =
                         updated.estimateContactId || updated.contactId || '';
+                    updated.estimateContactSearchText = updated.estimateContactId
+                        ? this.resolveContactName(updated.estimateContactId)
+                        : '';
                 } else {
                     updated.estimateContactId = '';
+                    updated.estimateContactSearchText = '';
                 }
             }
 
@@ -2501,42 +3657,6 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
             return QUANTITY_RETURNED_DEFAULT;
         }
         return parsed;
-    }
-
-    handleLineContactChange(event) {
-        const key = event.target.dataset.key;
-        const contactId = event.detail.recordId || '';
-
-        this.lineItems = this.lineItems.map((line) => {
-            if (line.key !== key) {
-                return line;
-            }
-
-            const defaultEstimateContact =
-                line.estimateRequired === ESTIMATE_REQUIRED_QUOTE_VALUE &&
-                !line.estimateContactId
-                    ? contactId
-                    : line.estimateContactId;
-
-            return {
-                ...line,
-                contactId,
-                estimateContactId: defaultEstimateContact
-            };
-        });
-
-        this.promptLineEstimateContactEmailIfNeeded(key);
-    }
-
-    handleLineEstimateContactChange(event) {
-        const key = event.target.dataset.key;
-        const estimateContactId = event.detail.recordId || '';
-
-        this.lineItems = this.lineItems.map((line) =>
-            line.key === key ? { ...line, estimateContactId } : line
-        );
-
-        this.promptLineEstimateContactEmailIfNeeded(key);
     }
 
     async handleLineProductChange(event) {
@@ -2677,35 +3797,24 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
                 result.contactName,
                 result.contactEmail || this.newContactEmail
             );
-            if (!this.eligibleContactIds.includes(result.contactId)) {
-                this.eligibleContactIds = [...this.eligibleContactIds, result.contactId];
-            }
 
             const lineKey = this.newContactLineKey;
             const groupKey = this.newContactGroupKey;
+            const createdName = result.contactName || '';
             if (this.newContactTargetType === 'orderHeader') {
                 this.proposedReturnOrderGroups = this.proposedReturnOrderGroups.map((group) => {
                     if (group.groupKey !== groupKey) {
                         return group;
                     }
-
-                    const defaultEstimateContact =
-                        group.estimateRequired === ESTIMATE_REQUIRED_QUOTE_VALUE &&
-                        !group.estimateContactId
-                            ? result.contactId
-                            : group.estimateContactId;
-
-                    const defaultModRequestContact =
-                        group.hasModRequest && !group.modRequestContactId
-                            ? result.contactId
-                            : group.modRequestContactId;
-
-                    return {
-                        ...group,
-                        contactId: result.contactId,
-                        estimateContactId: defaultEstimateContact,
-                        modRequestContactId: defaultModRequestContact
-                    };
+                    return this.applyContactToBlankInstrumentHeaderFields(
+                        {
+                            ...group,
+                            contactId: result.contactId,
+                            contactSearchText: createdName
+                        },
+                        result.contactId,
+                        createdName
+                    );
                 });
                 this.handleCloseNewContactModal();
                 this.showToast(
@@ -2713,6 +3822,7 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
                     `Contact ${result.contactName} was created and selected for this return order.`,
                     'success'
                 );
+                this.clearInstrumentHeaderContactFieldValidity(groupKey);
                 this.promptEstimateContactEmailIfNeeded(groupKey);
                 return;
             }
@@ -2720,7 +3830,15 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
             if (this.newContactTargetType === 'orderHeaderEstimateContact') {
                 this.proposedReturnOrderGroups = this.proposedReturnOrderGroups.map((group) =>
                     group.groupKey === groupKey
-                        ? { ...group, estimateContactId: result.contactId }
+                        ? this.applyContactToBlankInstrumentHeaderFields(
+                              {
+                                  ...group,
+                                  estimateContactId: result.contactId,
+                                  estimateContactSearchText: createdName
+                              },
+                              result.contactId,
+                              createdName
+                          )
                         : group
                 );
                 this.handleCloseNewContactModal();
@@ -2729,6 +3847,7 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
                     `Estimate Contact ${result.contactName} was created and selected.`,
                     'success'
                 );
+                this.clearInstrumentHeaderContactFieldValidity(groupKey);
                 this.promptEstimateContactEmailIfNeeded(groupKey);
                 return;
             }
@@ -2736,7 +3855,15 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
             if (this.newContactTargetType === 'orderHeaderModRequestContact') {
                 this.proposedReturnOrderGroups = this.proposedReturnOrderGroups.map((group) =>
                     group.groupKey === groupKey
-                        ? { ...group, modRequestContactId: result.contactId }
+                        ? this.applyContactToBlankInstrumentHeaderFields(
+                              {
+                                  ...group,
+                                  modRequestContactId: result.contactId,
+                                  modRequestContactSearchText: createdName
+                              },
+                              result.contactId,
+                              createdName
+                          )
                         : group
                 );
                 this.handleCloseNewContactModal();
@@ -2745,12 +3872,19 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
                     `Mod Request Contact ${result.contactName} was created and selected.`,
                     'success'
                 );
+                this.clearInstrumentHeaderContactFieldValidity(groupKey);
                 return;
             }
 
             if (this.newContactTargetType === 'lineEstimateContact') {
                 this.lineItems = this.lineItems.map((line) =>
-                    line.key === lineKey ? { ...line, estimateContactId: result.contactId } : line
+                    line.key === lineKey
+                        ? {
+                              ...line,
+                              estimateContactId: result.contactId,
+                              estimateContactSearchText: createdName
+                          }
+                        : line
                 );
                 this.handleCloseNewContactModal();
                 this.showToast(
@@ -2776,7 +3910,11 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
                 return {
                     ...line,
                     contactId: result.contactId,
-                    estimateContactId: defaultEstimateContact
+                    contactSearchText: createdName,
+                    estimateContactId: defaultEstimateContact,
+                    estimateContactSearchText: defaultEstimateContact
+                        ? this.resolveContactName(defaultEstimateContact)
+                        : line.estimateContactSearchText || ''
                 };
             });
 
@@ -2816,15 +3954,23 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
             if (!isInstruments) {
                 line.product2Id = '';
                 line.productSearchText = '';
+                line.productCode = '';
+                line.subProductLine = '';
+                line.deviceType = '';
+                line.manufacturer = '';
             }
             return line;
         }
 
         line.assetId = asset.id;
-        line.product2Id = asset.product2Id;
+        line.product2Id = asset.product2Id || '';
         line.model = this.normalizeUppercaseText(asset.model || '');
         line.productLine = asset.productLine || '';
         line.productSearchText = asset.productName || '';
+        line.productCode = asset.productCode || '';
+        line.subProductLine = asset.subProductLine || '';
+        line.deviceType = asset.deviceType || '';
+        line.manufacturer = asset.manufacturer || '';
         if (asset.departmentId) {
             line.departmentId = asset.departmentId;
         }
@@ -2855,6 +4001,9 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
 
     handleAddLine() {
         this.addLineFromSummary = false;
+        if (this.hasLineItems) {
+            return;
+        }
         this.showLineTypeModal = true;
     }
 
@@ -2868,15 +4017,32 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
         this.addLineFromSummary = false;
     }
 
+    async handleAddItemMenuSelect(event) {
+        const lineType = event.detail.value;
+        if (!lineType) {
+            return;
+        }
+        // Banner Add Item is shown on lines/summary/order-headers. From later steps,
+        // return to the lines page so the new item is visible (same as summary Add Item).
+        if (!this.isLinesPage) {
+            this.addLineFromSummary = true;
+        }
+        await this.addLineOfType(lineType);
+    }
+
     async handleSelectLineType(event) {
         const lineType = event.currentTarget.dataset.lineType;
         if (!lineType) {
             return;
         }
+        await this.addLineOfType(lineType);
+    }
 
+    async addLineOfType(lineType) {
         const newLine = this.buildEmptyLine(lineType);
         if (this.defaultLineContactId) {
             newLine.contactId = this.defaultLineContactId;
+            newLine.contactSearchText = this.resolveContactName(this.defaultLineContactId);
         }
         this.lineItems = [newLine, ...this.lineItems];
         this.showLineTypeModal = false;
@@ -2899,7 +4065,12 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
 
     handleRemoveLine(event) {
         const key = event.target.dataset.key;
-        this.lineItems = this.lineItems.filter((line) => line.key !== key);
+        const remaining = this.lineItems.filter((line) => line.key !== key);
+        lineNumberCounter = remaining.length;
+        this.lineItems = remaining.map((line, index) => ({
+            ...line,
+            lineNumber: index + 1
+        }));
         this.activeSections = this.activeSections.filter((section) => section !== key);
     }
 
@@ -2941,47 +4112,6 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
                 ? {
                       ...line,
                       attachments: (line.attachments || []).filter(
-                          (attachment) => attachment.contentDocumentId !== contentDocumentId
-                      )
-                  }
-                : line
-        );
-    }
-
-    handleLineModFormUploadFinished(event) {
-        const lineKey = event.target.dataset.key;
-        const uploadedFiles = event.detail.files || [];
-        if (!lineKey || uploadedFiles.length === 0) {
-            return;
-        }
-
-        const newAttachments = uploadedFiles.map((file) => ({
-            contentDocumentId: file.documentId,
-            name: file.name
-        }));
-
-        this.lineItems = this.lineItems.map((line) =>
-            line.key === lineKey
-                ? {
-                      ...line,
-                      modFormAttachments: [...(line.modFormAttachments || []), ...newAttachments]
-                  }
-                : line
-        );
-    }
-
-    handleRemoveLineModFormAttachment(event) {
-        const lineKey = event.target.dataset.key;
-        const contentDocumentId = event.target.dataset.documentId;
-        if (!lineKey || !contentDocumentId) {
-            return;
-        }
-
-        this.lineItems = this.lineItems.map((line) =>
-            line.key === lineKey
-                ? {
-                      ...line,
-                      modFormAttachments: (line.modFormAttachments || []).filter(
                           (attachment) => attachment.contentDocumentId !== contentDocumentId
                       )
                   }
@@ -3173,6 +4303,7 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
         this.warnedAssetIds = new Set();
         this.shipToAddresses = [];
         this.eligibleContactIds = [];
+        this.eligibleContacts = [];
         this.contactEmailById = {};
         this.contactNameById = {};
         this.accountAssets = [];
@@ -3181,8 +4312,7 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
         this.creationSource =
             this.resolveDefaultCreationSource(this.creationSourceOptions) ||
             CREATION_SOURCE_DEFAULT;
-        lineKeyCounter = 0;
-        lineNumberCounter = 0;
+        resetLineCounters();
         this.currentPage = PAGE_HEADER;
         this._focusHeaderSerialPending = true;
 
@@ -3235,12 +4365,14 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
             departmentId: line.departmentId,
             disinfected: line.disinfected,
             itemType: line.itemType,
+            deviceType: line.deviceType || '',
             contactId: line.contactId,
             estimateContactId: line.estimateContactId,
             estimateRequired: line.estimateRequired,
             customerPo: line.customerPo,
             isLoanerAsset: line.isLoanerAsset,
             loanerRequested: line.loanerRequested,
+            isRepairExchange: line.isRepairExchange,
             reportedProblem: line.reportedProblem,
             customerReference: line.customerReference,
             shipToAccountId: line.shipToAccountId,
@@ -3255,10 +4387,9 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
                 line.lineType === LINE_TYPE_INSTRUMENTS
                     ? Boolean(line.modRequest)
                     : false,
-            additionalServices:
-                line.lineType === LINE_TYPE_INSTRUMENTS
-                    ? Boolean(line.additionalServices)
-                    : false,
+            additionalServices: this.shouldShowAdditionalServices(line)
+                ? Boolean(line.additionalServices)
+                : false,
             insulationPowderCoating:
                 line.lineType === LINE_TYPE_INSTRUMENTS &&
                 line.additionalServices &&
@@ -3266,38 +4397,31 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
                     ? line.insulationPowderCoating || ''
                     : '',
             legPositionersStirrup:
-                line.lineType === LINE_TYPE_INSTRUMENTS &&
+                this.isOtherSerializedLineType(line.lineType) &&
                 line.additionalServices &&
-                !line.modRequest &&
-                String(line.serialNumber || '').trim()
+                this.isStirrupDeviceType(line)
                     ? formatMultiPicklistValue(line.legPositionersStirrup)
                     : '',
             additionalServiceRepair:
-                line.lineType === LINE_TYPE_INSTRUMENTS &&
-                line.additionalServices &&
-                !line.modRequest &&
-                !String(line.serialNumber || '').trim()
+                line.lineType === LINE_TYPE_INSTRUMENTS && line.additionalServices
                     ? Boolean(line.additionalServiceRepair)
                     : false,
             laserMarking:
                 line.lineType === LINE_TYPE_INSTRUMENTS &&
                 line.additionalServices &&
-                !line.modRequest &&
-                !String(line.serialNumber || '').trim()
+                !line.modRequest
                     ? line.laserMarking || ''
                     : '',
             colorDipping:
                 line.lineType === LINE_TYPE_INSTRUMENTS &&
                 line.additionalServices &&
-                !line.modRequest &&
-                !String(line.serialNumber || '').trim()
+                !line.modRequest
                     ? formatMultiPicklistValue(line.colorDipping)
                     : '',
             numberOfRings:
                 line.lineType === LINE_TYPE_INSTRUMENTS &&
                 line.additionalServices &&
-                !line.modRequest &&
-                !String(line.serialNumber || '').trim()
+                !line.modRequest
                     ? line.numberOfRings || DEFAULT_NUMBER_OF_RINGS
                     : '',
             status: line.status,
@@ -3321,6 +4445,7 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
     }
 
     closeLaunchSurface() {
+        resetLineCounters();
         if (this.embeddedMode) {
             this.dispatchEvent(new CustomEvent('exit', { bubbles: true, composed: true }));
             return;
@@ -3358,8 +4483,7 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
         this.activeSections = [];
         this.addLineFromSummary = false;
         this.warnedAssetIds = new Set();
-        lineKeyCounter = 0;
-        lineNumberCounter = 0;
+        resetLineCounters();
 
         this.accountId = '';
         this.accountName = '';
@@ -3420,7 +4544,7 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
         }
 
         const requiredInputs = this.template.querySelectorAll(
-            'lightning-input[required], lightning-combobox[required], lightning-record-picker[required], lightning-textarea[required]'
+            'lightning-input[required], lightning-combobox[required], lightning-textarea[required]'
         );
         let inputsValid = true;
 
@@ -3440,7 +4564,7 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
             const isSerialized = line.lineType === LINE_TYPE_SERIALIZED;
 
             if (!line.product2Id) {
-                this.showToast('Validation', `Product is required on Item ${lineNumber}.`, 'error');
+                this.showToast('Validation', `Item is required on Item ${lineNumber}.`, 'error');
                 return false;
             }
 
@@ -3452,6 +4576,18 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
                 this.showToast(
                     'Validation',
                     `Select a product other than Default Product on Item ${lineNumber} when Serial Number is provided.`,
+                    'error'
+                );
+                return false;
+            }
+
+            if (
+                line.lineType === LINE_TYPE_INSTRUMENTS &&
+                !String(line.itemDescription || '').trim()
+            ) {
+                this.showToast(
+                    'Validation',
+                    `Item Description is required on Item ${lineNumber}.`,
                     'error'
                 );
                 return false;
@@ -3561,7 +4697,7 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
                 if (!line.reportedProblem) {
                     this.showToast(
                         'Validation',
-                        `Reported Problem is required on Item ${lineNumber}.`,
+                        `Reported Problem / Service Notes is required on Item ${lineNumber}.`,
                         'error'
                     );
                     return false;
@@ -3580,7 +4716,8 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
                         return false;
                     }
                 }
-                if (this.isOtherLineType(line.lineType)) {
+                // Item Type is only collected for Other (Non-Serialized).
+                if (this.isOtherNonSerializedLineType(line.lineType)) {
                     if (!line.itemType) {
                         this.showToast(
                             'Validation',
@@ -3597,22 +4734,22 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
                         );
                         return false;
                     }
-                    if (
-                        this.isOtherSerializedLineType(line.lineType) &&
-                        !String(line.serialNumber || '').trim()
-                    ) {
-                        this.showToast(
-                            'Validation',
-                            `Serial Number is required on Item ${lineNumber}.`,
-                            'error'
-                        );
-                        return false;
-                    }
+                }
+                if (
+                    this.isOtherSerializedLineType(line.lineType) &&
+                    !String(line.serialNumber || '').trim()
+                ) {
+                    this.showToast(
+                        'Validation',
+                        `Serial Number is required on Item ${lineNumber}.`,
+                        'error'
+                    );
+                    return false;
                 }
                 if (!line.reportedProblem) {
                     this.showToast(
                         'Validation',
-                        `Reported Problem is required on Item ${lineNumber}.`,
+                        `Reported Problem / Service Notes is required on Item ${lineNumber}.`,
                         'error'
                     );
                     return false;
@@ -3651,30 +4788,22 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
 
         this.isSaving = true;
         try {
-            const routingValidation = await validateLineRoutingMatches({
-                headerJson: JSON.stringify(this.buildHeaderPayload()),
-                lineItemsJson: JSON.stringify(this.buildLineItemsPayload())
-            });
-
-            if (!routingValidation?.isValid) {
-                const messages = routingValidation?.messages || [];
-                this.showToast(
-                    'Routing rule required',
-                    messages.length > 0
-                        ? messages.join(' ')
-                        : 'No matching repair center was found in Routing Rules. Update the item data or routing rules before continuing.',
-                    'error'
-                );
-                return;
-            }
-
+            // Unmatched lines → UNASSIGNED + Repair Center picker on summary.
             const groups = await buildReturnOrderPlan({
                 headerJson: JSON.stringify(this.buildHeaderPayload()),
                 lineItemsJson: JSON.stringify(this.buildLineItemsPayload())
             });
 
+            const previousByGroupKey = new Map(
+                (this.proposedReturnOrderGroups || []).map((group) => [
+                    group.groupKey,
+                    group
+                ])
+            );
+
             this.proposedReturnOrderGroups = (groups || []).map((group) => {
                 const isInstruments = group.returnOrderType === RETURN_ORDER_TYPE_INSTRUMENTS;
+                const previous = previousByGroupKey.get(group.groupKey);
                 const headerFields = isInstruments
                     ? this.buildEmptyInstrumentOrderHeaderFields()
                     : {};
@@ -3685,13 +4814,28 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
                     headerFields.estimateRequired = ESTIMATE_REQUIRED_QUOTE_VALUE;
                     headerFields.estimateContactId =
                         headerFields.estimateContactId || headerFields.contactId || '';
+                    headerFields.estimateContactSearchText = headerFields.estimateContactId
+                        ? this.resolveContactName(headerFields.estimateContactId)
+                        : '';
                     headerFields.modRequestContactId =
                         headerFields.modRequestContactId || headerFields.contactId || '';
+                    headerFields.modRequestContactSearchText = headerFields.modRequestContactId
+                        ? this.resolveContactName(headerFields.modRequestContactId)
+                        : '';
                 }
+
+                const routedRepairCenterId = group.repairCenterId || '';
+                const preservedRepairCenterId =
+                    group.requiresRepairCenterSelection === true
+                        ? previous?.selectedRepairCenterId || previous?.repairCenterId || ''
+                        : '';
+                const selectedRepairCenterId =
+                    routedRepairCenterId || preservedRepairCenterId || '';
 
                 return {
                     ...group,
-                    selectedRepairCenterId: group.repairCenterId || '',
+                    selectedRepairCenterId,
+                    repairCenterId: selectedRepairCenterId || routedRepairCenterId,
                     ...headerFields,
                     hasModRequest
                 };
@@ -3842,10 +4986,16 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
     handleOrderHeaderFieldChange(event) {
         const groupKey = event.target.dataset.groupKey;
         const field = event.target.dataset.field;
-        const value = event.detail.value;
+        const value =
+            event.target.type === 'checkbox' ? event.target.checked : event.detail.value;
 
         this.proposedReturnOrderGroups = this.proposedReturnOrderGroups.map((group) => {
             if (group.groupKey !== groupKey) {
+                return group;
+            }
+
+            // Header Mod Request is read-only (driven by instrument line Mod Request).
+            if (field === 'modRequest') {
                 return group;
             }
 
@@ -3859,75 +5009,29 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
             const updated = { ...group, [field]: value };
             if (field === 'estimateRequired') {
                 if (value === ESTIMATE_REQUIRED_QUOTE_VALUE) {
-                    updated.estimateContactId =
-                        updated.estimateContactId || updated.contactId || '';
+                    const sourceContactId =
+                        updated.estimateContactId ||
+                        updated.contactId ||
+                        updated.modRequestContactId ||
+                        '';
+                    if (sourceContactId) {
+                        return this.applyContactToBlankInstrumentHeaderFields(
+                            updated,
+                            sourceContactId,
+                            this.resolveContactName(sourceContactId)
+                        );
+                    }
                 } else {
                     updated.estimateContactId = '';
+                    updated.estimateContactSearchText = '';
                 }
             }
             return updated;
         });
 
         if (field === 'estimateRequired' && value === ESTIMATE_REQUIRED_QUOTE_VALUE) {
+            this.clearInstrumentHeaderContactFieldValidity(groupKey);
             this.promptEstimateContactEmailIfNeeded(groupKey);
-        }
-    }
-
-    handleOrderHeaderContactChange(event) {
-        const groupKey = event.target.dataset.groupKey;
-        const contactId = event.detail.recordId || '';
-
-        this.proposedReturnOrderGroups = this.proposedReturnOrderGroups.map((group) => {
-            if (group.groupKey !== groupKey) {
-                return group;
-            }
-
-            const defaultEstimateContact =
-                group.estimateRequired === ESTIMATE_REQUIRED_QUOTE_VALUE &&
-                !group.estimateContactId
-                    ? contactId
-                    : group.estimateContactId;
-
-            const defaultModRequestContact =
-                group.hasModRequest && !group.modRequestContactId
-                    ? contactId
-                    : group.modRequestContactId;
-
-            return {
-                ...group,
-                contactId,
-                estimateContactId: defaultEstimateContact,
-                modRequestContactId: defaultModRequestContact
-            };
-        });
-
-        this.promptEstimateContactEmailIfNeeded(groupKey);
-    }
-
-    handleOrderHeaderEstimateContactChange(event) {
-        const groupKey = event.target.dataset.groupKey;
-        const estimateContactId = event.detail.recordId || '';
-
-        this.proposedReturnOrderGroups = this.proposedReturnOrderGroups.map((group) =>
-            group.groupKey === groupKey ? { ...group, estimateContactId } : group
-        );
-
-        this.promptEstimateContactEmailIfNeeded(groupKey);
-    }
-
-    handleOrderHeaderModRequestContactChange(event) {
-        const groupKey = event.target.dataset.groupKey;
-        const modRequestContactId = event.detail.recordId || '';
-
-        this.proposedReturnOrderGroups = this.proposedReturnOrderGroups.map((group) =>
-            group.groupKey === groupKey ? { ...group, modRequestContactId } : group
-        );
-
-        if (
-            modRequestContactId &&
-            this.isEstimateContactEmailMissing(modRequestContactId)
-        ) {
-            this.openUpdateContactEmailModal(modRequestContactId, { groupKey });
         }
     }
 
@@ -4192,12 +5296,14 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
     }
 
     showToast(title, message, variant, mode) {
+        // Default dismissible. Pass mode explicitly for sticky (e.g. Paperwork).
+        const resolvedMode = mode || 'dismissible';
         this.dispatchEvent(
             new ShowToastEvent({
                 title,
                 message,
                 variant,
-                mode: mode || (variant === 'error' ? 'sticky' : 'dismissible')
+                mode: resolvedMode
             })
         );
     }

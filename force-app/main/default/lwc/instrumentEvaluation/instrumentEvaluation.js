@@ -3,9 +3,10 @@
  */
 import { LightningElement, track, wire } from 'lwc';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
-import { getRecord } from 'lightning/uiRecordApi';
+import { getFieldValue, getRecord } from 'lightning/uiRecordApi';
 import currentUserId from '@salesforce/user/Id';
 import USER_NAME_FIELD from '@salesforce/schema/User.Name';
+import ADDITIONAL_SERVICES_FIELD from '@salesforce/schema/WorkOrder.AdditionalServicesRequested__c';
 import initializeEvaluation from '@salesforce/apex/InstrumentEvaluationController.initializeEvaluation';
 import saveWorkOrderFields from '@salesforce/apex/InstrumentEvaluationController.saveWorkOrderFields';
 import getEvalCategories from '@salesforce/apex/InstrumentEvaluationController.getEvalCategories';
@@ -73,6 +74,7 @@ const TAB_ADD_ITEMS = 'addItems';
 const TAB_REPAIR_CODES = 'repairCodes';
 const TAB_PREFERENCES = 'customerPreferences';
 const TAB_NOTES = 'evaluationNotes';
+const TAB_PHOTOS = 'photos';
 const TAB_ITEM_SUMMARY = 'itemSummary';
 const TAB_MODIFIER_CODES = 'modifierCodes';
 const TAB_WORK_PERFORMED = 'workPerformed';
@@ -114,6 +116,10 @@ export default class InstrumentEvaluation extends LightningElement {
     turnTimeInputValue = '';
     quantityReceivedInputValue = '';
     @track workspace;
+    /** GW-5677 - Work Order Additional Services Requested text. */
+    additionalServicesRequested = '';
+    /** GW-5677 - True once the field is readable for the open Work Order. */
+    additionalServicesVisible = false;
     @track draftEntries = [];
     @track warrantyRepairRows = [];
     wizardStep = WIZARD_CATEGORY;
@@ -150,6 +156,8 @@ export default class InstrumentEvaluation extends LightningElement {
     @track assetPhotos = [];
     assetError = '';
     draftsCommitted = false;
+    /** GW-3377 - New Service Code, Category Code, and Special Pricing lines waiting for pricing. */
+    pendingPriceableLineItemIds = [];
     @track repairSignatures = [];
     /** Client-only signatures for draft repair codes (no WOLI yet). Persisted on Save/Complete. */
     @track stagedRepairSignatures = [];
@@ -203,6 +211,20 @@ export default class InstrumentEvaluation extends LightningElement {
         if (data?.fields?.Name?.value) {
             this.currentUserName = data.fields.Name.value;
         }
+    }
+
+    /**
+     * GW-5677 - Loads Additional Services Requested for the one-column detail display.
+     */
+    @wire(getRecord, { recordId: '$workOrderId', fields: [ADDITIONAL_SERVICES_FIELD] })
+    wiredAdditionalServices({ data }) {
+        if (data) {
+            this.additionalServicesVisible = true;
+            this.additionalServicesRequested = getFieldValue(data, ADDITIONAL_SERVICES_FIELD) || '';
+            return;
+        }
+        this.additionalServicesVisible = false;
+        this.additionalServicesRequested = '';
     }
 
     /**
@@ -332,6 +354,18 @@ export default class InstrumentEvaluation extends LightningElement {
         return this.displayWoInfoText(this.workspace?.customerPo);
     }
 
+    /**
+     * GW-5677 - Additional Services Requested, shown as one stacked column.
+     * @return {boolean} Whether the field can be displayed
+     */
+    get showAdditionalServices() {
+        return this.additionalServicesVisible === true;
+    }
+
+    get additionalServicesRequestedText() {
+        return this.displayWoInfoText(this.additionalServicesRequested);
+    }
+
     displayWoInfoText(value) {
         return value == null || value === '' ? '' : String(value);
     }
@@ -392,6 +426,18 @@ export default class InstrumentEvaluation extends LightningElement {
             }
             this.workspace = next;
         }
+        if (
+            !Array.isArray(result) &&
+            Array.isArray(result?.newPriceableLineItemIds) &&
+            result.newPriceableLineItemIds.length
+        ) {
+            this.pendingPriceableLineItemIds = [
+                ...new Set([
+                    ...(this.pendingPriceableLineItemIds || []),
+                    ...result.newPriceableLineItemIds
+                ])
+            ];
+        }
         return productServicedIds;
     }
 
@@ -413,6 +459,10 @@ export default class InstrumentEvaluation extends LightningElement {
 
     get isNotesTab() {
         return this.selectedTab === TAB_NOTES;
+    }
+
+    get isPhotosTab() {
+        return this.selectedTab === TAB_PHOTOS;
     }
 
     get isAddItemsTab() {
@@ -455,11 +505,14 @@ export default class InstrumentEvaluation extends LightningElement {
         if (applyCompletion !== true && !this.needsRepairPricing) {
             return;
         }
+        const newPriceableLineItemIds = [...(this.pendingPriceableLineItemIds || [])];
         const priced = await finalizeInstrumentEvaluationAfterPricing({
             workOrderId: this.workspace.workOrderId,
             originalNetTotal,
-            applyCompletion: applyCompletion === true
+            applyCompletion: applyCompletion === true,
+            newPriceableLineItemIds
         });
+        this.pendingPriceableLineItemIds = [];
         this.applyDraftSaveResult(priced);
         if (priced?.requoteWarning) {
             this.dispatchEvent(
@@ -1053,6 +1106,7 @@ export default class InstrumentEvaluation extends LightningElement {
         }
         items.push({ label: 'Customer Preferences', value: TAB_PREFERENCES });
         items.push({ label: 'Evaluation Notes', value: TAB_NOTES });
+        items.push({ label: 'Photos', value: TAB_PHOTOS });
         if (this.hasAsset) {
             items.push({ label: 'Repair Codes', value: TAB_REPAIR_CODES });
         } else {

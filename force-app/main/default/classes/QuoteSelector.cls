@@ -1303,28 +1303,19 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
     }
 
     /**
-     * @description GW-5333 - Loads a Quote header for Approve/Reject Quote.
-     * @param quoteId Quote Id
-     * @return Matching Quote, or null
+     * @description GW-4378 - Quotes related to the given Work Orders.
+     * @param workOrderIds Work Order Ids stored on Quote.WorkOrder__c
+     * @return Matching Quote Ids and Work Order lookups
      */
-    public static Quote selectForApproveRejectById(Id quoteId) {
-        if (quoteId == null) {
-            return null;
+    public static List<Quote> selectByWorkOrderIds(Set<Id> workOrderIds) {
+        if (workOrderIds == null || workOrderIds.isEmpty()) {
+            return new List<Quote>();
         }
-
-        List<Quote> quotes = [
-            SELECT
-                Id,
-                Status,
-                Version__c,
-                Pricebook2Id,
-                CurrencyIsoCode,
-                WorkOrder__c
+        return [
+            SELECT Id, WorkOrder__c
             FROM Quote
-            WHERE Id = :quoteId
+            WHERE WorkOrder__c IN :workOrderIds
             WITH SYSTEM_MODE
-            LIMIT 1
         ];
-        return quotes.isEmpty() ? null : quotes[0];
     }
 }

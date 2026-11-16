@@ -330,7 +330,7 @@ private class DeviceEvaluationControllerTest {
             .pricebook2Id(standardPricebookId);
         priorShippedBuilder.set(
             WorkOrder.CompletedTimestamp__c,
-            Datetime.now().addDays(-14)
+            Datetime.now().addDays(-2)
         );
         priorShippedBuilder.set(
             WorkOrder.EvaluationNotes__c,
@@ -755,6 +755,26 @@ private class DeviceEvaluationControllerTest {
         System.assertEquals('100', updatedWorkOrder.UsageCount__c);
         System.assertEquals(Date.today(), updatedWorkOrder.UsageCountDate__c);
         System.assertEquals('Customer facing note', updatedWorkOrder.EvaluationNotes__c);
+    }
+
+    @IsTest
+    static void testFinalizeDeviceEvaluationAfterPricing_WhenNullWorkOrder_Throws() {
+        Boolean threw = false;
+        Test.startTest();
+        try {
+            DeviceEvaluationController.finalizeDeviceEvaluationAfterPricing(
+                null,
+                null,
+                false,
+                null,
+                null,
+                null
+            );
+        } catch (AuraHandledException e) {
+            threw = true;
+        }
+        Test.stopTest();
+        System.assertEquals(true, threw);
     }
 
     @IsTest
@@ -1490,7 +1510,11 @@ private class DeviceEvaluationControllerTest {
             'Image is cloudy; fluid invasion suspected',
             result.repairHistory[0].reportedProblem
         );
-        System.assertNotEquals(null, result.repairHistory[0].repairDate);
+        System.assertEquals(
+            Date.today().addDays(-14),
+            result.repairHistory[0].repairDate,
+            'Repair Date should be the Work Order Actual Ship Date.'
+        );
         System.assertEquals(true, result.repairHistory[0].isWithinLastTwelveMonths);
         System.assertEquals(
             'Leak test failed at bending section.',

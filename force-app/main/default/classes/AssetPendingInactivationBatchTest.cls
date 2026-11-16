@@ -393,6 +393,122 @@ private class AssetPendingInactivationBatchTest {
     }
 
     /**
+     * @description Calls inactivateFromFlow as a Services user with the
+     *              ServiceSupportAdministrator permission set group.
+     * @param assetId Asset to inactivate
+     * @return Flow results
+     */
+    private static List<AssetPendingInactivationService.InactivateResult> inactivateFromFlowAsServiceUser(Id assetId) {
+        AssetPendingInactivationService.InactivateRequest request =
+            new AssetPendingInactivationService.InactivateRequest();
+        request.assetId = assetId;
+        request.serviceReason = 'Scrapped';
+        List<AssetPendingInactivationService.InactivateResult> resultList;
+        System.runAs(serviceSupportAdministrator()) {
+            resultList = AssetPendingInactivationService.inactivateFromFlow(
+                new List<AssetPendingInactivationService.InactivateRequest>{ request }
+            );
+        }
+        return resultList;
+    }
+
+    /**
+     * @description Returns an active user with the ServiceSupportAdministrator permission set group,
+     *              or the running user when none exists.
+     * @return User to run as
+     */
+    private static User serviceSupportAdministrator() {
+        List<PermissionSetAssignment> assignmentList = [
+            SELECT AssigneeId
+            FROM PermissionSetAssignment
+            WHERE PermissionSetGroup.DeveloperName = 'ServiceSupportAdministrator'
+                AND Assignee.IsActive = true
+                AND Assignee.Profile.Name != 'System Administrator'
+            LIMIT 1
+        ];
+        Id userId = assignmentList.isEmpty() ? UserInfo.getUserId() : assignmentList[0].AssigneeId;
+        return [SELECT Id FROM User WHERE Id = :userId];
+    }
+
+    /**
+     * @description Then — GW-6918: The Inactivate flow action sets Service Inactive and Service Reason
+     *              for an Asset with no open dependencies.
+     */
+    @IsTest
+    static void testInactivateFromFlow_noOpenDependencies_setsServiceInactive() {
+        Asset assetRecord = insertPendingAsset('GW-6918 Flow Asset');
+
+        Test.startTest();
+        List<AssetPendingInactivationService.InactivateResult> resultList =
+            inactivateFromFlowAsServiceUser(assetRecord.Id);
+        Test.stopTest();
+
+        Asset updatedAsset = [SELECT Status, ServiceReason__c FROM Asset WHERE Id = :assetRecord.Id];
+        Assert.isTrue(resultList[0].isSuccess, 'Flow inactivation should succeed: ' + resultList[0].errorMessage);
+        Assert.areEqual(AssetPendingInactivationService.STATUS_SERVICE_INACTIVE, updatedAsset.Status);
+        Assert.areEqual('Scrapped', updatedAsset.ServiceReason__c);
+    }
+
+    /**
+     * @description Then — GW-6918: The Inactivate flow action leaves an Asset with an open
+     *              Work Order in Pending Inactivation and returns the open items message.
+     */
+    @IsTest
+    static void testInactivateFromFlow_openWorkOrder_remainsPending() {
+        Asset assetRecord = insertPendingAsset('GW-6918 Flow Open WO Asset');
+        workOrderForAsset(assetRecord, 'New', 'GW-6918 Open Work Order');
+        adb_DomainBuilder.save();
+
+        Test.startTest();
+        List<AssetPendingInactivationService.InactivateResult> resultList =
+            inactivateFromFlowAsServiceUser(assetRecord.Id);
+        Test.stopTest();
+
+        Assert.isFalse(resultList[0].isSuccess);
+        Assert.areEqual(AssetPendingInactivationService.OPEN_ITEMS_ERROR, resultList[0].errorMessage);
+        Assert.areEqual(
+            AssetPendingInactivationService.STATUS_PENDING_INACTIVATION,
+            [SELECT Status FROM Asset WHERE Id = :assetRecord.Id].Status
+        );
+    }
+
+    /**
+     * @description Then — GW-6918: The Inactivate flow action returns an error for a missing Asset Id.
+     */
+    @IsTest
+    static void testInactivateFromFlow_missingAssetId_returnsError() {
+        List<AssetPendingInactivationService.InactivateResult> resultList =
+            AssetPendingInactivationService.inactivateFromFlow(
+                new List<AssetPendingInactivationService.InactivateRequest>{
+                    new AssetPendingInactivationService.InactivateRequest()
+                }
+            );
+
+        Assert.isFalse(resultList[0].isSuccess);
+        Assert.areEqual('Asset Id is required.', resultList[0].errorMessage);
+    }
+
+    /**
+     * @description Then — GW-6918: The Inactivate flow action throws on unexpected failures.
+     */
+    @IsTest
+    static void testInactivateFromFlow_forcedException_throws() {
+        Asset assetRecord = insertPendingAsset('GW-6918 Flow Forced Error Asset');
+        AssetPendingInactivationService.forceExceptionForTest = true;
+        Boolean threwServiceException = false;
+
+        try {
+            inactivateFromFlowAsServiceUser(assetRecord.Id);
+        } catch (AssetPendingInactivationService.AssetPendingInactivationException e) {
+            threwServiceException = true;
+        } finally {
+            AssetPendingInactivationService.forceExceptionForTest = false;
+        }
+
+        Assert.isTrue(threwServiceException, 'Forced inactivation failure should throw');
+    }
+
+    /**
      * @description Then — ContractLineItemSelector is constructed for the pending-inactivation query.
      */
     @IsTest

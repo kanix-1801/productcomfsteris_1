@@ -6,6 +6,7 @@ import { LightningElement, api } from 'lwc';
 export default class RepairCenterEvalWorkspace extends LightningElement {
     /** Nav items: { label, value }. */
     @api items = [];
+    partsModalOpen = false;
     /** Currently selected nav value. */
     @api selectedValue;
     /** When true, left nav is hidden (e.g. Evaluation Summary). */
@@ -16,6 +17,18 @@ export default class RepairCenterEvalWorkspace extends LightningElement {
      */
     get showNav() {
         return this.hideNav !== true;
+    }
+
+    get shellClass() {
+        return this.partsModalOpen ? 'workspace-shell parts-modal-open' : 'workspace-shell';
+    }
+
+    /**
+     * GW-5981 - Lets the parts-request dialog cover the header.
+     * @param {CustomEvent} event modalchange from the slotted parts request
+     */
+    handlePartsModalChange(event) {
+        this.partsModalOpen = event.detail?.open === true;
     }
 
     /**

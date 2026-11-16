@@ -131,7 +131,7 @@ public with sharing class ProductRelatedMaterialsSelector {
     /**
      * @description GW-5981 - Active Part components on a product's bill of material.
      * @param parentProductId Parent Product2 Id (BOM Component.Product)
-     * @return Active Part components in component sequence
+     * @return Active Part components in Product Code order
      */
     public static List<ProductRelatedMaterial> selectActivePartComponents(Id parentProductId) {
         if (parentProductId == null) {
@@ -151,7 +151,7 @@ public with sharing class ProductRelatedMaterialsSelector {
                 AND ProductComponentId != null
                 AND ProductComponent.IsActive = true
                 AND ProductComponent.ProductType__c = 'Part'
-            ORDER BY ComponentSequence__c NULLS LAST, ProductComponent.ProductCode
+            ORDER BY ProductComponent.ProductCode NULLS LAST, Id
         ];
     }
 }

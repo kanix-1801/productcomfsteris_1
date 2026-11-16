@@ -139,10 +139,8 @@ private class QuoteSelectorTest {
     static void testSprint9Selectors_WhenNull_ReturnNull() {
         Test.startTest();
         Quote emailQuote = QuoteSelector.selectForQuoteEmailReplyById(null);
-        Quote approveQuote = QuoteSelector.selectForApproveRejectById(null);
         Test.stopTest();
         Assert.isNull(emailQuote);
-        Assert.isNull(approveQuote);
     }
 
     /**
@@ -154,7 +152,6 @@ private class QuoteSelectorTest {
 
         Test.startTest();
         Quote emailQuote = QuoteSelector.selectForQuoteEmailReplyById(quoteRecord.Id);
-        Quote approveQuote = QuoteSelector.selectForApproveRejectById(quoteRecord.Id);
         Quote byId = QuoteSelector.selectById(quoteRecord.Id);
         List<Quote> byIds = QuoteSelector.selectByIdsWithLineItems(new Set<Id>{ quoteRecord.Id });
         List<Quote> byOpportunity = QuoteSelector.selectByOpportunityIdWithLineItems(
@@ -165,13 +162,75 @@ private class QuoteSelectorTest {
 
         Assert.isNotNull(emailQuote);
         Assert.areEqual(quoteRecord.Id, emailQuote.Id);
-        Assert.isNotNull(approveQuote);
-        Assert.areEqual(quoteRecord.Id, approveQuote.Id);
         Assert.isNotNull(byId);
         Assert.areEqual(quoteRecord.Id, byId.Id);
         Assert.isFalse(byIds.isEmpty());
         Assert.isFalse(byOpportunity.isEmpty());
         Assert.isTrue(opportunityCount > 0);
+    }
+
+    /**
+     * Covers the forecast-eligible quote result loop.
+     */
+    @IsTest
+    static void testApproveRejectAndForecastEligibleLoop() {
+        Quote sourceQuote = createQuote();
+        Quote sourcePricebook = [
+            SELECT Pricebook2Id
+            FROM Quote
+            WHERE Id = :sourceQuote.Id
+            WITH USER_MODE
+        ];
+        Id hcSalesRecordTypeId = Schema.SObjectType.Quote.getRecordTypeInfosByDeveloperName()
+            .get('HCSales')
+            .getRecordTypeId();
+        Quote forecastQuote = new Quote(
+            Name = 'Forecast Eligible Selector Quote',
+            OpportunityId = sourceQuote.OpportunityId,
+            Pricebook2Id = sourcePricebook.Pricebook2Id,
+            RecordTypeId = hcSalesRecordTypeId,
+            Status = 'Open',
+            Forecast_Eligible__c = true,
+            IsForecastIneligible__c = false,
+            Quote_Total_Without_Freight__c = 1000,
+            ExpirationDate = Date.today().addDays(30),
+            QuoteType__c = 'Normal Quote'
+        );
+        TriggerHandler.bypass('QuoteTriggerHandler');
+        try {
+            Database.insert(forecastQuote, AccessLevel.SYSTEM_MODE);
+        } finally {
+            TriggerHandler.clearBypass('QuoteTriggerHandler');
+        }
+
+        Set<Id> opportunityIds = new Set<Id>{ sourceQuote.OpportunityId };
+        Test.startTest();
+        Set<Id> forecastOpportunityIds =
+            QuoteSelector.selectOpportunityIdsWithOpenForecastEligibleQuotes(opportunityIds);
+        List<Quote> openForecastQuotes =
+            QuoteSelector.selectOpenForecastEligibleQuotesByOpportunityIds(opportunityIds);
+        List<Quote> managedQuotes =
+            QuoteSelector.selectForecastManagementQuotesByOpportunityId(sourceQuote.OpportunityId);
+        List<Quote> salesConnectionQuotes =
+            QuoteSelector.selectSalesConnectionQuotesForForecastEligibleByOpportunityIds(opportunityIds);
+        Map<Id, Integer> propagateCounts =
+            QuoteSelector.countPropagatableForecastConfidenceQuotesByOpportunityIds(opportunityIds);
+        List<Quote> propagateQuotes =
+            QuoteSelector.selectPropagatableForecastConfidenceQuotesByOpportunityId(sourceQuote.OpportunityId);
+        List<Quote> openSalesQuotes =
+            QuoteSelector.selectOpenSalesConnectionQuotesByOpportunityId(sourceQuote.OpportunityId);
+        Map<Id, Integer> openSalesCounts =
+            QuoteSelector.countOpenSalesConnectionQuotesByOpportunityIds(opportunityIds);
+        Test.stopTest();
+
+        Assert.isTrue(forecastOpportunityIds.contains(sourceQuote.OpportunityId));
+        Assert.isFalse(openForecastQuotes.isEmpty());
+        Assert.isNotNull(managedQuotes);
+        Assert.isFalse(salesConnectionQuotes.isEmpty());
+        Assert.isFalse(propagateCounts.isEmpty());
+        Assert.isNotNull(propagateQuotes);
+        Assert.isFalse(openSalesQuotes.isEmpty());
+        Assert.isFalse(openSalesCounts.isEmpty());
     }
 
     private static Quote createQuote() {

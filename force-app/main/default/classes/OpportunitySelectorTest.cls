@@ -139,7 +139,6 @@ private class OpportunitySelectorTest {
         Assert.areEqual(Test.getStandardPricebookId(), result.Pricebook2Id);
         Assert.areEqual('Pipeline', result.ForecastConfidenceLevel__c);
         Assert.areEqual('Healthcare_Sales', result.RecordType.DeveloperName);
-        Assert.isTrue(result.OnHold__c);
         Assert.isNotNull(result.CurrencyIsoCode);
     }
 

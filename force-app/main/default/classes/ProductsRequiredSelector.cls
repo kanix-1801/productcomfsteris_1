@@ -31,7 +31,8 @@ public with sharing class ProductsRequiredSelector extends SoqlQueryBuilder {
                 'Product2.Name',
                 'Product2.ProductCode',
                 'Product2.QuantityUnitOfMeasure',
-                'Product2.SubstitutePart__r.Name'
+                'Product2.SubstitutePart__r.Name',
+                'Product2.OENotes__c'
             })
             .whereEquals('ParentRecordId', parentRecordId)
             .orderBy('ProductName')

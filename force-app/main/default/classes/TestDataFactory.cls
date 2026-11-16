@@ -1640,10 +1640,10 @@ public class TestDataFactory {
         Id customEntryAId = standardEntryByProductId.get(String.valueOf(customPricebook.Id) + String.valueOf(productA.Id)).Id;
 
         List<OpportunityLineItem> lineItemList = new List<OpportunityLineItem>{
-            buildLostBusinessLine(originatingOpportunity.Id, standardEntryAId, 10, 40, consumptionFrequency, 'SKU-1001'),
-            buildLostBusinessLine(originatingOpportunity.Id, standardEntryBId, 4, 15, consumptionFrequency, null),
-            buildLostBusinessLine(otherOpportunity.Id, standardEntryCId, 1, 25, null, null),
-            buildLostBusinessLine(customOpportunity.Id, customEntryAId, 2, 55, consumptionFrequency, 'SKU-CUSTOM')
+            buildLostBusinessLine(originatingOpportunity.Id, standardEntryAId, 10, 40, consumptionFrequency),
+            buildLostBusinessLine(originatingOpportunity.Id, standardEntryBId, 4, 15, consumptionFrequency),
+            buildLostBusinessLine(otherOpportunity.Id, standardEntryCId, 1, 25, null),
+            buildLostBusinessLine(customOpportunity.Id, customEntryAId, 2, 55, consumptionFrequency)
         };
         insert lineItemList;
 
@@ -1681,11 +1681,15 @@ public class TestDataFactory {
         context.unpricedOpportunityId = opportunityIdByName.get(LB_UNPRICED_OPPORTUNITY);
         context.customPricebookOpportunityId = opportunityIdByName.get(LB_CUSTOM_OPPORTUNITY);
 
+        Set<String> lostBusinessProductCodes = new Set<String>{
+            LB_PRODUCT_A_CODE, LB_PRODUCT_B_CODE, LB_PRODUCT_C_CODE,
+            LB_INACTIVE_PRODUCT_CODE, LB_UNPRICED_PRODUCT_CODE
+        };
         Map<String, Id> productIdByCode = new Map<String, Id>();
         for (Product2 product : [
             SELECT Id, ProductCode
             FROM Product2
-            WHERE ProductCode IN :lostBusinessProductCodes()
+            WHERE ProductCode IN :lostBusinessProductCodes
         ]) {
             productIdByCode.put(product.ProductCode, product.Id);
         }
@@ -1729,16 +1733,6 @@ public class TestDataFactory {
         }
 
         return context;
-    }
-
-    private static Set<String> lostBusinessProductCodes() {
-        return new Set<String>{
-            LB_PRODUCT_A_CODE,
-            LB_PRODUCT_B_CODE,
-            LB_PRODUCT_C_CODE,
-            LB_INACTIVE_PRODUCT_CODE,
-            LB_UNPRICED_PRODUCT_CODE
-        };
     }
 
     private static Opportunity buildLostBusinessOpportunity(
@@ -1785,8 +1779,7 @@ public class TestDataFactory {
         Id pricebookEntryId,
         Decimal quantity,
         Decimal unitPrice,
-        String consumptionFrequency,
-        String productSku
+        String consumptionFrequency
     ) {
         OpportunityLineItem lineItem = new OpportunityLineItem(
             OpportunityId = opportunityId,
@@ -1797,10 +1790,6 @@ public class TestDataFactory {
 
         if (String.isNotBlank(consumptionFrequency)) {
             lineItem.ConsumptionFrequency__c = consumptionFrequency;
-        }
-
-        if (String.isNotBlank(productSku)) {
-            lineItem.Product_Number_SKU__c = productSku;
         }
 
         return lineItem;

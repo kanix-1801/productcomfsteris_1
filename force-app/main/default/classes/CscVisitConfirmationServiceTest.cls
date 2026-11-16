@@ -106,6 +106,51 @@ private class CscVisitConfirmationServiceTest {
     }
 
     /**
+     * @description #GC-3650 A Salesforce Assigned account team member and that
+     *              member's manager both receive the confirmation email.
+     */
+    @IsTest
+    static void salesforceAssignedMemberAndManagerReceiveConfirmation() {
+        User manager = buildUser('CSC', 'GC3650Manager');
+        insert manager;
+        User member = buildUser('CSC', 'GC3650Member');
+        member.ManagerId = manager.Id;
+        insert member;
+
+        Account facility = [SELECT Id FROM Account WHERE Name = 'CSC Confirm Facility' LIMIT 1];
+        System.runAs(new User(Id = UserInfo.getUserId())) {
+            insert new AccountTeamMember(
+                AccountId = facility.Id,
+                UserId = member.Id,
+                TeamMemberRole = activeTeamRole(),
+                AccountAccessLevel = 'Edit',
+                OpportunityAccessLevel = 'Edit',
+                CaseAccessLevel = 'Read',
+                ContactAccessLevel = 'Read',
+                AssignmentType__c = 'Salesforce Assigned'
+            );
+        }
+
+        CscVisitConfirmationService.lastEmailsSent.clear();
+        Test.startTest();
+        confirmVisit(attendeeUser().Id);
+        Test.stopTest();
+
+        Set<String> recipients = new Set<String>();
+        for (String email : CscVisitConfirmationService.lastEmailsSent) {
+            recipients.add(email.toLowerCase());
+        }
+        System.assert(
+            recipients.contains(member.Email.toLowerCase()),
+            'Salesforce Assigned account team member is included.'
+        );
+        System.assert(
+            recipients.contains(manager.Email.toLowerCase()),
+            'Manager of a Salesforce Assigned account team member is included.'
+        );
+    }
+
+    /**
      * @description A requested visit does not send a calendar invite.
      */
     @IsTest

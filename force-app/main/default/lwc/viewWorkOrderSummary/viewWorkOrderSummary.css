@@ -1,0 +1,281 @@
+:host {
+    display: block;
+}
+
+.view-wo-summary-root {
+    position: relative;
+}
+
+/* Same centering as Repair Coordinator Actions page-shell when opened from the nav tab. */
+.view-wo-summary-root_standalone {
+    margin: 0 auto;
+    max-width: 64rem;
+    padding: 1rem;
+}
+
+/* Match Assign Technician / Device Evaluation / Quality Inspection scan card width. */
+.view-wo-summary-root_scan {
+    max-width: 40rem;
+}
+
+/* RCA embed: fill page-shell like Assign Work Order (no nested narrow card). */
+.view-wo-summary-root_embedded {
+    max-width: none;
+}
+
+.scan-panel {
+    background: #fff;
+    border-radius: 0.25rem;
+    box-shadow: 0 0.125rem 0.5rem rgb(0 0 0 / 12%);
+    padding: 1.25rem;
+}
+
+.scan-header {
+    align-items: flex-start;
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+}
+
+.subtitle {
+    color: #5c5c5c;
+    font-size: 0.875rem;
+    margin-top: 0.125rem;
+}
+
+.scan-field {
+    margin-top: 1.5rem;
+    max-width: 38rem;
+}
+
+.view-wo-summary-root_summary {
+    background: #fff;
+    border-radius: 0.25rem;
+    box-shadow: 0 0.125rem 0.5rem rgb(0 0 0 / 12%);
+    padding: 1rem 1.25rem 1.5rem;
+}
+
+.summary-panel {
+    max-width: 100%;
+    background: #fff;
+}
+
+.summary-accordions {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.summary-accordions .slds-accordion__summary-action {
+    width: 100%;
+    text-align: left;
+}
+
+.summary-accordions .slds-accordion__content,
+.summary-accordions .slds-accordion__section {
+    overflow: visible;
+}
+
+.summary-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.summary-title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.message {
+    margin-top: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.25rem;
+}
+
+.message_error {
+    background: #fddde3;
+    color: #8e030f;
+}
+
+.spinner-wrap {
+    position: relative;
+    min-height: 3rem;
+    margin-top: 1rem;
+}
+
+.parent-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.2fr);
+    gap: 1.5rem;
+    align-items: start;
+    overflow: visible;
+}
+
+.parent-chart {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    overflow: visible;
+}
+
+.chart-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: max-content;
+    max-width: 100%;
+}
+
+.parent-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem 1rem;
+}
+
+.parent-fields-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.child-fields {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem 1rem;
+}
+
+.child-fields-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+@media (max-width: 768px) {
+    .parent-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .child-fields {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .chart-row {
+        flex-wrap: wrap;
+    }
+
+    .summary-header {
+        flex-direction: column;
+    }
+}
+
+.field-block {
+    border-bottom: 1px solid #e5e5e5;
+    padding-bottom: 0.35rem;
+}
+
+.field-block lightning-input {
+    display: block;
+}
+
+.field-label {
+    display: block;
+    font-size: 0.75rem;
+    color: #706e6b;
+}
+
+.field-value {
+    display: block;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #181818;
+    min-height: 1.25rem;
+}
+
+.chart-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    margin: 0 0 0.75rem;
+    text-align: center;
+    width: 100%;
+}
+
+.chart-row {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5rem;
+    overflow: visible;
+}
+
+.chart-canvas-wrap {
+    width: 260px;
+    height: 260px;
+    flex: 0 0 260px;
+    overflow: visible;
+    box-sizing: content-box;
+    padding: 0.25rem;
+}
+
+.chart-legend {
+    flex: 0 0 auto;
+    min-width: 9rem;
+}
+
+.legend-row {
+    display: grid;
+    grid-template-columns: 0.75rem auto auto;
+    column-gap: 0.5rem;
+    align-items: center;
+    justify-content: start;
+    margin-bottom: 0.35rem;
+    width: max-content;
+    max-width: 100%;
+}
+
+.legend-swatch {
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 0.125rem;
+}
+
+.legend-label {
+    color: #181818;
+}
+
+.legend-count {
+    font-weight: 700;
+}
+
+.chart-total {
+    margin-top: 0.75rem;
+    color: #706e6b;
+}
+
+.child-fields {
+    margin-bottom: 1rem;
+}
+
+.table-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    margin: 0.5rem 0 0.5rem;
+}
+
+.summary-footer {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 1.25rem;
+}
+
+.summary-actions {
+    display: flex;
+    align-items: center;
+}

@@ -60,8 +60,13 @@ export default class RepairCenterPartsRequest extends LightningElement {
         }
     }
 
+    disconnectedCallback() {
+        this.notifyModal(false);
+    }
+
     async openModal() {
         this.isModalOpen = true;
+        this.notifyModal(true);
         this.modalError = '';
         this.scanError = '';
         this.scanValue = '';
@@ -78,6 +83,7 @@ export default class RepairCenterPartsRequest extends LightningElement {
             return;
         }
         this.isModalOpen = false;
+        this.notifyModal(false);
         this.draftParts = [];
         this.scanValue = '';
         this.scanError = '';
@@ -89,7 +95,7 @@ export default class RepairCenterPartsRequest extends LightningElement {
         this.modalError = '';
         try {
             const parts = (await getBomParts({ workOrderId: this.workOrderId })) || [];
-            this.draftParts = parts.map((part) => this.toDraft(part, false));
+            this.draftParts = this.sortByProductCode(parts.map((part) => this.toDraft(part, false)));
         } catch (error) {
             this.modalError = this.errorMessage(error, 'Unable to load the bill of material.');
         } finally {
@@ -125,7 +131,7 @@ export default class RepairCenterPartsRequest extends LightningElement {
                 this.scanError = 'This part is already on the request.';
                 return;
             }
-            this.draftParts = [...this.draftParts, this.toDraft(part, true)];
+            this.draftParts = this.sortByProductCode([...this.draftParts, this.toDraft(part, true)]);
         } catch (error) {
             this.scanError = this.errorMessage(
                 error,
@@ -228,10 +234,29 @@ export default class RepairCenterPartsRequest extends LightningElement {
     toDraft(part, selected) {
         return {
             productId: part.productId,
+            productCode: part.productCode || '',
             label: part.label,
             selected,
             quantity: ''
         };
+    }
+
+    sortByProductCode(parts) {
+        return [...parts].sort((left, right) =>
+            (left.productCode || '').localeCompare(right.productCode || '', undefined, {
+                sensitivity: 'base'
+            })
+        );
+    }
+
+    notifyModal(open) {
+        this.dispatchEvent(
+            new CustomEvent('modalchange', {
+                bubbles: true,
+                composed: true,
+                detail: { open }
+            })
+        );
     }
 
     focusScanField() {

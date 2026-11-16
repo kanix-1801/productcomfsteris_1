@@ -40,6 +40,16 @@ public class QuickActionDefaultsHandler implements QuickAction.QuickActionDefaul
 
             }
             
+            if(c.EmailType__c == 'TRADEINREMINDER') {
+                EmailAddressDefaultController.defaultSDNEmailAddresses(sendEmailDefaults, c,'Post Shipment Trade in Email');
+
+            }
+            
+            if(c.EmailType__c == 'CREDITMEMO') {
+                EmailAddressDefaultController.defaultSDNEmailAddresses(sendEmailDefaults, c,'Credit Notification Trade In');
+
+            }
+            
             if (c.EmailType__c == 'COA Project' && c.EmailLanguage__c=='English'){
                 
                 EmailTemplate template = [SELECT Id FROM EmailTemplate WHERE Name = 'COA Projects' LIMIT 1];

@@ -108,7 +108,7 @@ private class LSTemporaryAccessPendingServiceTest {
     }
 
     @IsTest
-    static void jordanRequestWithDahindeCoverageFollowsGcl102() {
+    static void approvalEmailGoesToCoverageManagerUntilStartDateRejects() {
         User approver = lifeScienceUser('aprGcl', null);
         User coverageRep = lifeScienceUser('covGcl', approver.Id);
         User requester = lifeScienceUser('reqGcl', null);
@@ -169,6 +169,33 @@ private class LSTemporaryAccessPendingServiceTest {
             'Approved',
             [SELECT Status__c FROM TemporaryAccessException__c WHERE Id = :request.Id].Status__c
         );
+    }
+
+    @IsTest
+    static void schedulableExecuteRunsTheDailyCheck() {
+        System.assertEquals(
+            false,
+            LSTemporaryAccessPendingService.isReminderDue(new TemporaryAccessException__c(), Date.today()),
+            'A request with no submission date is not due for a reminder'
+        );
+
+        Test.startTest();
+        new LSTemporaryAccessPendingService().execute(null);
+        Test.stopTest();
+    }
+
+    @IsTest
+    static void dailyJobCanBeScheduled() {
+        Test.startTest();
+        try {
+            LSTemporaryAccessPendingService.scheduleDaily();
+        } catch (Exception schedulingError) {
+            System.assert(
+                schedulingError.getMessage().contains('already scheduled'),
+                schedulingError.getMessage()
+            );
+        }
+        Test.stopTest();
     }
 
     private static TemporaryAccessException__c newRequest(Id requesterId, Id coverageRepId, Date startDate) {

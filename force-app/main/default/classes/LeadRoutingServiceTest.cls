@@ -134,6 +134,38 @@ private class LeadRoutingServiceTest {
     }
 
     /**
+     * @description A country name on the Lead matches the short code on the routing row.
+     */
+    @IsTest
+    static void countryNamesUseTheConfiguredQueue() {
+        Assert.areEqual('BE', LeadRoutingService.normalizeCountry('Belgium'));
+        Assert.areEqual('NL', LeadRoutingService.normalizeCountry('Netherlands'));
+        Assert.areEqual('LU', LeadRoutingService.normalizeCountry('Luxembourg'));
+        Assert.areEqual('MY', LeadRoutingService.normalizeCountry('Malaysia'));
+        Assert.areEqual('HK', LeadRoutingService.normalizeCountry('Hong Kong'));
+
+        String queueName = uniqueDeveloperName('Lead_Rt_BE');
+        Group beneluxQueue = insertQueue(queueName, 'Benelux Queue');
+        LeadRoutingService.testCountryRows = new List<Lead_Country_Queue__mdt>{
+            new Lead_Country_Queue__mdt(Country__c = 'BE', QueueDeveloperName__c = queueName)
+        };
+
+        Test.startTest();
+        Lead leadRecord = newLead('Benelux', 'BE');
+        leadRecord.HubSpot_Lead__c = true;
+        System.runAs(runningUser()) {
+            insert leadRecord;
+        }
+        Test.stopTest();
+
+        Assert.areEqual(
+            beneluxQueue.Id,
+            [SELECT OwnerId FROM Lead WHERE Id = :leadRecord.Id].OwnerId,
+            'Belgium should route to the Benelux queue.'
+        );
+    }
+
+    /**
      * @description A Lead inserted outside the New Lead page uses the country queue.
      */
     @IsTest

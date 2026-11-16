@@ -154,7 +154,7 @@ public with sharing class DeviceEvaluationController {
         @AuraEnabled public String recordUrl;
         @AuraEnabled public String labName;
         @AuraEnabled public String reportedProblem;
-        @AuraEnabled public Datetime repairDate;
+        @AuraEnabled public Date repairDate;
         @AuraEnabled public String evaluationNotes;
         @AuraEnabled public String internalNotes;
         @AuraEnabled public Boolean isWithinLastTwelveMonths;
@@ -284,6 +284,8 @@ public with sharing class DeviceEvaluationController {
         @AuraEnabled public Decimal newNetTotalPrice;
         /** GW-3377 - Yellow warning when a Repair save exceeds the approved cost. */
         @AuraEnabled public String requoteWarning;
+        /** GW-3377 - New Service Code, Category Code, and Special Pricing lines from this save. */
+        @AuraEnabled public List<Id> newPriceableLineItemIds;
     }
 
     /**
@@ -596,7 +598,8 @@ public with sharing class DeviceEvaluationController {
         Decimal originalNetTotal,
         Boolean applyCompletion,
         List<Id> restoreProductIds,
-        String subStatus
+        String subStatus,
+        List<Id> newPriceableLineItemIds
     ) {
         try {
             if (workOrderId == null) {
@@ -608,7 +611,8 @@ public with sharing class DeviceEvaluationController {
                     originalNetTotal,
                     applyCompletion == true,
                     restoreProductIds,
-                    subStatus
+                    subStatus,
+                    newPriceableLineItemIds
                 )
             );
         } catch (Exception e) {
@@ -1298,6 +1302,9 @@ public with sharing class DeviceEvaluationController {
         workspace.originalNetTotalPrice = context.originalNetTotalPrice;
         workspace.newNetTotalPrice = context.newNetTotalPrice;
         workspace.requoteWarning = context.requoteWarning;
+        workspace.newPriceableLineItemIds = context.newPriceableLineItemIds == null
+            ? new List<Id>()
+            : new List<Id>(context.newPriceableLineItemIds);
         workspace.subStatusOptions = getSubStatusOptions(
             workOrder.Status,
             workOrder.ProductLine_f__c,
@@ -1510,7 +1517,8 @@ public with sharing class DeviceEvaluationController {
                     ? historyWorkOrder.RepairCenter__r.Name
                     : null;
             row.reportedProblem = historyWorkOrder.Description;
-            row.repairDate = historyWorkOrder.CompletedTimestamp__c;
+            // GW-4495 - Repair Date column is the Work Order Actual Ship Date.
+            row.repairDate = historyWorkOrder.ActualShipDate__c;
             row.evaluationNotes = historyWorkOrder.EvaluationNotes__c;
             row.internalNotes = historyWorkOrder.InternalEvaluationNotes__c;
             row.isWithinLastTwelveMonths =

@@ -25,6 +25,7 @@ public without sharing class UserSelector {
     /**GCL-1: START */
     /** Lazy-loaded per transaction for Life Sciences Sales profile filtering (GCL-1). */
     private static Id lifeSciencesSalesProfileIdCache;
+    private static Id lifeSciencesOverlayProfileIdCache;
 
     @TestVisible
     private static void resetLifeSciencesSalesProfileIdCacheForTest() {
@@ -317,4 +318,84 @@ public without sharing class UserSelector {
             .execute();
     }
 
+    /**
+     * @description GW-2707: Active users of any profile whose Employee Number (HRIS ID) matches.
+     *              Used to resolve ASMs from the Tech District Alignment file.
+     * @param employeeNumbers HRIS IDs to match.
+     * @return Matching active users (Id, Name, EmployeeNumber__c); empty when the input is missing.
+     * @example
+     * UserSelector.selectActiveByEmployeeNumbers(new Set<String>{ '50708' });
+     */
+    public static List<User> selectActiveByEmployeeNumbers(Set<String> employeeNumbers) {
+        if (employeeNumbers == null || employeeNumbers.isEmpty()) {
+            return new List<User>();
+        }
+        return (List<User>) SoqlQueryBuilder.fromObject('User')
+            .selectFields(new List<String>{ 'Id', 'Name', 'EmployeeNumber__c' })
+            .whereEquals('IsActive', true)
+            .whereIn('EmployeeNumber__c', new List<String>(employeeNumbers))
+            .execute();
+    }
+
+    /**
+     * @description GCL-79 - Searches active Life Sciences Sales users by name or email.
+     *              Does not use USER_MODE: the BSA persona cannot read User.ProfileId.
+     *              The Healthcare search method is unchanged.
+     * @param searchKey User-entered search text.
+     * @return Matching active Life Sciences Sales users. Empty when the search text is blank.
+     */
+    public static List<User> selectActiveLifeSciencesSalesUsersBySearch(String searchKey) {
+        if (String.isBlank(searchKey)) {
+            return new List<User>();
+        }
+        Id lifeSciencesProfileId = getLifeSciencesSalesProfileIdForOverlay();
+        String key = '%' + searchKey.trim() + '%';
+        return [
+            SELECT Id, Name, Email, Country, UserRole.Name, Manager.Name
+            FROM User
+            WHERE IsActive = true
+            AND ProfileId = :lifeSciencesProfileId
+            AND (Name LIKE :key OR Email LIKE :key)
+            LIMIT :USER_SEARCH_LIMIT
+        ];
+    }
+
+    /**
+     * @description GCL-79 - Active Life Sciences Sales users among the submitted Ids.
+     *              Does not use USER_MODE for the same ProfileId reason as the search.
+     * @param userIds User Ids to check.
+     * @return Active Life Sciences Sales users from the given Ids.
+     */
+    public static List<User> selectActiveLifeSciencesSalesUsersByIds(Set<Id> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return new List<User>();
+        }
+        Id lifeSciencesProfileId = getLifeSciencesSalesProfileIdForOverlay();
+        return [
+            SELECT Id
+            FROM User
+            WHERE Id IN :userIds
+            AND IsActive = true
+            AND ProfileId = :lifeSciencesProfileId
+        ];
+    }
+
+    /**
+     * @description GCL-79 - Life Sciences Sales profile Id for the overlay.
+     *              Runs without USER_MODE because the BSA persona cannot read the Profile object.
+     *              getLifeSciencesSalesProfileId stays on the user-mode query builder.
+     * @return Profile Id, or null when the profile does not exist.
+     */
+    public static Id getLifeSciencesSalesProfileIdForOverlay() {
+        if (lifeSciencesOverlayProfileIdCache == null) {
+            List<Profile> profiles = [
+                SELECT Id
+                FROM Profile
+                WHERE Name = :LIFESCIENCES_SALES_PROFILE_NAME
+                LIMIT 1
+            ];
+            lifeSciencesOverlayProfileIdCache = profiles.isEmpty() ? null : profiles[0].Id;
+        }
+        return lifeSciencesOverlayProfileIdCache;
+    }
 }

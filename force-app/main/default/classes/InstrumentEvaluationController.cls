@@ -347,7 +347,7 @@ public with sharing class InstrumentEvaluationController {
         @AuraEnabled
         public String reportedProblem { get; set; }
         @AuraEnabled
-        public Datetime repairDate { get; set; }
+        public Date repairDate { get; set; }
         @AuraEnabled
         public String evaluationNotes { get; set; }
         @AuraEnabled
@@ -536,6 +536,9 @@ public with sharing class InstrumentEvaluationController {
         /** GW-3377 - Yellow warning when a Repair save exceeds the approved cost. */
         @AuraEnabled
         public String requoteWarning { get; set; }
+        /** GW-3377 - New Service Code, Category Code, and Special Pricing lines from this save. */
+        @AuraEnabled
+        public List<Id> newPriceableLineItemIds { get; set; }
     }
 
     /**
@@ -671,9 +674,13 @@ public with sharing class InstrumentEvaluationController {
         try {
             return WorkOrdersService.getVendorAddress(accountId);
         } catch (Exception e) {
-            Logger.error('InstrumentEvaluationController.getVendorAddress failed', e);
+            throw toAuraException(
+                e,
+                'InstrumentEvaluationController.getVendorAddress failed',
+                'Unable to load vendor address.'
+            );
+        } finally {
             Logger.saveLog();
-            throw buildAuraException('Unable to load vendor address.');
         }
     }
 
@@ -689,14 +696,10 @@ public with sharing class InstrumentEvaluationController {
                 throw buildAuraException('Work Order is required.');
             }
             return mapWorkspace(client().initializeInstrumentEvaluation(workOrderInput.trim()));
-        } catch (WorkOrdersService.WorkOrdersServiceException e) {
-            throw buildAuraException(e.getMessage());
-        } catch (AuraHandledException e) {
-            throw e;
         } catch (Exception e) {
-            Logger.error('InstrumentEvaluationController.initializeEvaluation: Unexpected error.', e);
+            throw toAuraException(e, 'InstrumentEvaluationController.initializeEvaluation: Unexpected error.', 'Unable to start Instrument Evaluation.');
+        } finally {
             Logger.saveLog();
-            throw buildAuraException('Unable to start Instrument Evaluation.');
         }
     }
 
@@ -747,17 +750,15 @@ public with sharing class InstrumentEvaluationController {
                     internalSpecialistEvaluationNotes
                 )
             );
-        } catch (WorkOrdersService.WorkOrdersServiceException e) {
-            Database.rollback(savePoint);
-            throw buildAuraException(e.getMessage());
-        } catch (AuraHandledException e) {
-            Database.rollback(savePoint);
-            throw e;
         } catch (Exception e) {
             Database.rollback(savePoint);
-            Logger.error('InstrumentEvaluationController.saveWorkOrderFields: Unexpected error.', e);
+            throw toAuraException(
+                e,
+                'InstrumentEvaluationController.saveWorkOrderFields: Unexpected error.',
+                'Unable to save Instrument Evaluation.'
+            );
+        } finally {
             Logger.saveLog();
-            throw buildAuraException('Unable to save Instrument Evaluation.');
         }
     }
 
@@ -773,14 +774,10 @@ public with sharing class InstrumentEvaluationController {
                 throw buildAuraException('Work Order is required.');
             }
             return mapEvalCategoryCards(client().getInstrumentEvaluationEvalCategories(workOrderId));
-        } catch (WorkOrdersService.WorkOrdersServiceException e) {
-            throw buildAuraException(e.getMessage());
-        } catch (AuraHandledException e) {
-            throw e;
         } catch (Exception e) {
-            Logger.error('InstrumentEvaluationController.getEvalCategories: Unexpected error.', e);
+            throw toAuraException(e, 'InstrumentEvaluationController.getEvalCategories: Unexpected error.', 'Unable to load evaluation categories.');
+        } finally {
             Logger.saveLog();
-            throw buildAuraException('Unable to load evaluation categories.');
         }
     }
 
@@ -802,17 +799,14 @@ public with sharing class InstrumentEvaluationController {
             return mapProductCards(
                 client().getInstrumentEvaluationProducts(workOrderId, evalCategory)
             );
-        } catch (WorkOrdersService.WorkOrdersServiceException e) {
-            throw buildAuraException(e.getMessage());
-        } catch (AuraHandledException e) {
-            throw e;
         } catch (Exception e) {
-            Logger.error(
+            throw toAuraException(
+                e,
                 'InstrumentEvaluationController.getProductsForEvalCategory: Unexpected error.',
-                e
+                'Unable to load evaluation products.'
             );
+        } finally {
             Logger.saveLog();
-            throw buildAuraException('Unable to load evaluation products.');
         }
     }
 
@@ -831,17 +825,14 @@ public with sharing class InstrumentEvaluationController {
             return mapRepairCodeWorkspace(
                 client().getInstrumentEvaluationRepairCodes(workOrderId, productId)
             );
-        } catch (WorkOrdersService.WorkOrdersServiceException e) {
-            throw buildAuraException(e.getMessage());
-        } catch (AuraHandledException e) {
-            throw e;
         } catch (Exception e) {
-            Logger.error(
+            throw toAuraException(
+                e,
                 'InstrumentEvaluationController.getRepairCodesForProduct: Unexpected error.',
-                e
+                'Unable to load repair codes.'
             );
+        } finally {
             Logger.saveLog();
-            throw buildAuraException('Unable to load repair codes.');
         }
     }
 
@@ -863,21 +854,19 @@ public with sharing class InstrumentEvaluationController {
             if (workOrderId == null) {
                 throw buildAuraException('Work Order is required.');
             }
-            return toDraftSaveResult(
-                client().saveInstrumentEvaluationDraft(
-                    workOrderId,
-                    mapDraftItemInputs(draftItems),
-                    reconcileRemovedLines == true
-                )
+            List<Id> productServicedIds = client().saveInstrumentEvaluationDraft(
+                workOrderId,
+                mapDraftItemInputs(draftItems),
+                reconcileRemovedLines == true
             );
-        } catch (WorkOrdersService.WorkOrdersServiceException e) {
-            throw buildAuraException(e.getMessage());
-        } catch (AuraHandledException e) {
-            throw e;
+            return toDraftSaveResult(
+                productServicedIds,
+                WorkOrderLineItemsService.getNewPriceableLineIds()
+            );
         } catch (Exception e) {
-            Logger.error('InstrumentEvaluationController.saveDraftItems: Unexpected error.', e);
+            throw toAuraException(e, 'InstrumentEvaluationController.saveDraftItems: Unexpected error.', 'Unable to save Instrument Evaluation items.');
+        } finally {
             Logger.saveLog();
-            throw buildAuraException('Unable to save Instrument Evaluation items.');
         }
     }
 
@@ -898,14 +887,10 @@ public with sharing class InstrumentEvaluationController {
                 workOrderId,
                 mapDraftItemInputs(draftItems)
             );
-        } catch (WorkOrdersService.WorkOrdersServiceException e) {
-            throw buildAuraException(e.getMessage());
-        } catch (AuraHandledException e) {
-            throw e;
         } catch (Exception e) {
-            Logger.error('InstrumentEvaluationController.completeDraftItems: Unexpected error.', e);
+            throw toAuraException(e, 'InstrumentEvaluationController.completeDraftItems: Unexpected error.', 'Unable to complete Instrument Evaluation items.');
+        } finally {
             Logger.saveLog();
-            throw buildAuraException('Unable to complete Instrument Evaluation items.');
         }
     }
 
@@ -916,7 +901,8 @@ public with sharing class InstrumentEvaluationController {
     public static DraftSaveResult finalizeInstrumentEvaluationAfterPricing(
         Id workOrderId,
         Decimal originalNetTotal,
-        Boolean applyCompletion
+        Boolean applyCompletion,
+        List<Id> newPriceableLineItemIds
     ) {
         try {
             if (workOrderId == null) {
@@ -925,20 +911,18 @@ public with sharing class InstrumentEvaluationController {
             WorkOrdersService.finalizeInstrumentEvaluationAfterPricing(
                 workOrderId,
                 originalNetTotal,
-                applyCompletion == true
+                applyCompletion == true,
+                newPriceableLineItemIds
             );
             return toDraftSaveResult(new List<Id>());
-        } catch (WorkOrdersService.WorkOrdersServiceException e) {
-            throw buildAuraException(e.getMessage());
-        } catch (AuraHandledException e) {
-            throw e;
         } catch (Exception e) {
-            Logger.error(
+            throw toAuraException(
+                e,
                 'InstrumentEvaluationController.finalizeInstrumentEvaluationAfterPricing failed',
-                e
+                'Unable to price Instrument Evaluation.'
             );
+        } finally {
             Logger.saveLog();
-            throw buildAuraException('Unable to price Instrument Evaluation.');
         }
     }
 
@@ -948,9 +932,23 @@ public with sharing class InstrumentEvaluationController {
      * @return Draft save result for the LWC
      */
     private static DraftSaveResult toDraftSaveResult(List<Id> productServicedIds) {
+        return toDraftSaveResult(productServicedIds, null);
+    }
+
+    /**
+     * @description GW-3377 - Copies Execute Pricing totals and new priceable lines onto the draft DTO.
+     * @param productServicedIds Persisted Product Serviced Ids
+     * @param newPriceableLineItemIds New Service Code, Category Code, and Special Pricing lines
+     * @return Draft save result for the LWC
+     */
+    private static DraftSaveResult toDraftSaveResult(
+        List<Id> productServicedIds,
+        List<Id> newPriceableLineItemIds
+    ) {
         DraftSaveResult result = new DraftSaveResult();
         result.productServicedIds =
             productServicedIds == null ? new List<Id>() : productServicedIds;
+        result.newPriceableLineItemIds = newPriceableLineItemIds;
         WorkOrderRepairPricingService.PricingTotals totals =
             WorkOrderRepairPricingService.lastTotals;
         if (totals != null) {
@@ -1029,17 +1027,14 @@ public with sharing class InstrumentEvaluationController {
                 quantity,
                 repairCodeProductIds
             );
-        } catch (WorkOrdersService.WorkOrdersServiceException e) {
-            throw buildAuraException(e.getMessage());
-        } catch (AuraHandledException e) {
-            throw e;
         } catch (Exception e) {
-            Logger.error(
+            throw toAuraException(
+                e,
                 'InstrumentEvaluationController.saveProductServicedItem: Unexpected error.',
-                e
+                'Unable to save the evaluation item.'
             );
+        } finally {
             Logger.saveLog();
-            throw buildAuraException('Unable to save the evaluation item.');
         }
     }
 
@@ -1055,14 +1050,10 @@ public with sharing class InstrumentEvaluationController {
                 throw buildAuraException('Work Order is required.');
             }
             return mapEvaluationItems(client().getInstrumentEvaluationItems(workOrderId));
-        } catch (WorkOrdersService.WorkOrdersServiceException e) {
-            throw buildAuraException(e.getMessage());
-        } catch (AuraHandledException e) {
-            throw e;
         } catch (Exception e) {
-            Logger.error('InstrumentEvaluationController.getEvaluationItems: Unexpected error.', e);
+            throw toAuraException(e, 'InstrumentEvaluationController.getEvaluationItems: Unexpected error.', 'Unable to load evaluation items.');
+        } finally {
             Logger.saveLog();
-            throw buildAuraException('Unable to load evaluation items.');
         }
     }
 
@@ -1087,17 +1078,14 @@ public with sharing class InstrumentEvaluationController {
                     productServicedId
                 )
             );
-        } catch (WorkOrdersService.WorkOrdersServiceException e) {
-            throw buildAuraException(e.getMessage());
-        } catch (AuraHandledException e) {
-            throw e;
         } catch (Exception e) {
-            Logger.error(
+            throw toAuraException(
+                e,
                 'InstrumentEvaluationController.getReturnOrderLineAssignment: Unexpected error.',
-                e
+                'Unable to load Return Order Line Items.'
             );
+        } finally {
             Logger.saveLog();
-            throw buildAuraException('Unable to load Return Order Line Items.');
         }
     }
 
@@ -1130,19 +1118,14 @@ public with sharing class InstrumentEvaluationController {
                 productServicedId,
                 contentDocumentId
             );
-        } catch (ContentDocumentLinksService.ContentDocumentLinksServiceException e) {
-            throw buildAuraException(e.getMessage());
-        } catch (ContentDocumentsService.ContentDocumentsServiceException e) {
-            throw buildAuraException(e.getMessage());
-        } catch (AuraHandledException e) {
-            throw e;
         } catch (Exception e) {
-            Logger.error(
+            throw toAuraException(
+                e,
                 'InstrumentEvaluationController.removeEvaluationPhoto: Unexpected error.',
-                e
+                'Unable to remove the photo.'
             );
+        } finally {
             Logger.saveLog();
-            throw buildAuraException('Unable to remove the photo.');
         }
     }
 
@@ -1160,14 +1143,10 @@ public with sharing class InstrumentEvaluationController {
             return mapRepairSignatures(
                 RepairCenterTeamMembersService.getWorkOrderLineSignatures(workOrderId)
             );
-        } catch (RepairCenterTeamMembersService.RepairCenterTeamMembersServiceException e) {
-            throw buildAuraException(e.getMessage());
-        } catch (AuraHandledException e) {
-            throw e;
         } catch (Exception e) {
-            Logger.error('InstrumentEvaluationController.getRepairSignatures: Unexpected error.', e);
+            throw toAuraException(e, 'InstrumentEvaluationController.getRepairSignatures: Unexpected error.', 'Unable to load repair signatures.');
+        } finally {
             Logger.saveLog();
-            throw buildAuraException('Unable to load repair signatures.');
         }
     }
 
@@ -1189,14 +1168,10 @@ public with sharing class InstrumentEvaluationController {
                     workOrderLineItemId
                 )
             );
-        } catch (RepairCenterTeamMembersService.RepairCenterTeamMembersServiceException e) {
-            throw buildAuraException(e.getMessage());
-        } catch (AuraHandledException e) {
-            throw e;
         } catch (Exception e) {
-            Logger.error('InstrumentEvaluationController.addRepairSignature: Unexpected error.', e);
+            throw toAuraException(e, 'InstrumentEvaluationController.addRepairSignature: Unexpected error.', 'Unable to sign the repair code.');
+        } finally {
             Logger.saveLog();
-            throw buildAuraException('Unable to sign the repair code.');
         }
     }
 
@@ -1218,14 +1193,10 @@ public with sharing class InstrumentEvaluationController {
                     workOrderLineItemIds
                 )
             );
-        } catch (RepairCenterTeamMembersService.RepairCenterTeamMembersServiceException e) {
-            throw buildAuraException(e.getMessage());
-        } catch (AuraHandledException e) {
-            throw e;
         } catch (Exception e) {
-            Logger.error('InstrumentEvaluationController.signAllRepairCodes: Unexpected error.', e);
+            throw toAuraException(e, 'InstrumentEvaluationController.signAllRepairCodes: Unexpected error.', 'Unable to sign repair codes.');
+        } finally {
             Logger.saveLog();
-            throw buildAuraException('Unable to sign repair codes.');
         }
     }
 
@@ -1244,17 +1215,14 @@ public with sharing class InstrumentEvaluationController {
             return mapRepairSignatures(
                 RepairCenterTeamMembersService.removeSignature(workOrderId, signatureId)
             );
-        } catch (RepairCenterTeamMembersService.RepairCenterTeamMembersServiceException e) {
-            throw buildAuraException(e.getMessage());
-        } catch (AuraHandledException e) {
-            throw e;
         } catch (Exception e) {
-            Logger.error(
+            throw toAuraException(
+                e,
                 'InstrumentEvaluationController.removeRepairSignature: Unexpected error.',
-                e
+                'Unable to remove the signature.'
             );
+        } finally {
             Logger.saveLog();
-            throw buildAuraException('Unable to remove the signature.');
         }
     }
 
@@ -1270,14 +1238,10 @@ public with sharing class InstrumentEvaluationController {
                 throw buildAuraException('Work Order is required.');
             }
             client().returnWorkOrderToEvaluation(workOrderId);
-        } catch (WorkOrdersService.WorkOrdersServiceException e) {
-            throw buildAuraException(e.getMessage());
-        } catch (AuraHandledException e) {
-            throw e;
         } catch (Exception e) {
-            Logger.error('InstrumentEvaluationController.returnToEvaluation: Unexpected error.', e);
+            throw toAuraException(e, 'InstrumentEvaluationController.returnToEvaluation: Unexpected error.', 'Unable to return Work Order to evaluation.');
+        } finally {
             Logger.saveLog();
-            throw buildAuraException('Unable to return Work Order to evaluation.');
         }
     }
 
@@ -1369,7 +1333,8 @@ public with sharing class InstrumentEvaluationController {
     }
 
     /**
-     * @description GW-3400 - Maps repair history Work Orders to LWC table rows.
+     * @description GW-3400 / GW-4495 - Maps repair history Work Orders to LWC table rows.
+     *              Repair Date is Actual Ship Date. The 12-month window stays on Completion Timestamp.
      * @param history Prior shipped Work Orders for the same Account and Asset
      * @return Repair history rows
      */
@@ -1392,7 +1357,7 @@ public with sharing class InstrumentEvaluationController {
                     ? historyWorkOrder.RepairCenter__r.Name
                     : null;
             row.reportedProblem = historyWorkOrder.Description;
-            row.repairDate = historyWorkOrder.CompletedTimestamp__c;
+            row.repairDate = historyWorkOrder.ActualShipDate__c;
             row.evaluationNotes = historyWorkOrder.EvaluationNotes__c;
             row.internalNotes = historyWorkOrder.InternalEvaluationNotes__c;
             row.isWithinLastTwelveMonths =
@@ -1679,6 +1644,24 @@ public with sharing class InstrumentEvaluationController {
         'PO Required'
     };
 
+
+    private static List<Schema.PicklistEntry> workOrderStatusPicklistEntries;
+    private static List<Schema.PicklistEntry> workOrderSubStatusPicklistEntries;
+
+    private static List<Schema.PicklistEntry> getWorkOrderStatusPicklistEntries() {
+        if (workOrderStatusPicklistEntries == null) {
+            workOrderStatusPicklistEntries = WorkOrder.Status.getDescribe().getPicklistValues();
+        }
+        return workOrderStatusPicklistEntries;
+    }
+
+    private static List<Schema.PicklistEntry> getWorkOrderSubStatusPicklistEntries() {
+        if (workOrderSubStatusPicklistEntries == null) {
+            workOrderSubStatusPicklistEntries = WorkOrder.SubStatus__c.getDescribe().getPicklistValues();
+        }
+        return workOrderSubStatusPicklistEntries;
+    }
+
     /**
      * @description GW-3400 - Returns active Sub Status values valid for the Work Order Status
      *              and Instruments record type. When Status is Evaluate & Quote, Waiting for
@@ -1695,13 +1678,13 @@ public with sharing class InstrumentEvaluationController {
         List<PlatformUtilities.PicklistOption> options =
             new List<PlatformUtilities.PicklistOption>();
         Integer controllerIndex = getPicklistValueIndex(
-            WorkOrder.Status.getDescribe().getPicklistValues(),
+            getWorkOrderStatusPicklistEntries(),
             controllingStatus
         );
         Boolean restrictEvaluateQuoteSubStatus =
             controllingStatus == 'Evaluate & Quote';
         Boolean currentIncluded = false;
-        for (Schema.PicklistEntry entry : WorkOrder.SubStatus__c.getDescribe().getPicklistValues()) {
+        for (Schema.PicklistEntry entry : getWorkOrderSubStatusPicklistEntries()) {
             if (!entry.isActive()) {
                 continue;
             }
@@ -1802,4 +1785,33 @@ public with sharing class InstrumentEvaluationController {
         ex.setMessage(message);
         return ex;
     }
+
+    /**
+     * @description Maps domain/unexpected exceptions to AuraHandledException.
+     *              Logs unexpected errors only; domain exceptions keep their message.
+     * @param e Caught exception
+     * @param logContext Nebula Logger context
+     * @param fallbackMessage Generic client message for unexpected errors
+     * @return AuraHandledException for the LWC
+     */
+    private static AuraHandledException toAuraException(
+        Exception e,
+        String logContext,
+        String fallbackMessage
+    ) {
+        if (e instanceof AuraHandledException) {
+            return (AuraHandledException) e;
+        }
+        if (
+            e instanceof WorkOrdersService.WorkOrdersServiceException ||
+            e instanceof ContentDocumentLinksService.ContentDocumentLinksServiceException ||
+            e instanceof ContentDocumentsService.ContentDocumentsServiceException ||
+            e instanceof RepairCenterTeamMembersService.RepairCenterTeamMembersServiceException
+        ) {
+            return buildAuraException(e.getMessage());
+        }
+        Logger.error(logContext, e);
+        return buildAuraException(fallbackMessage);
+    }
+
 }

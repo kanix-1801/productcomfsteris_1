@@ -1,0 +1,36 @@
+<template>
+    <template if:true={isTextLike}>
+        <lightning-input
+            data-input
+            type={inputType}
+            label={label}
+            value={value}
+            required={required}
+            field-level-help={helpText}
+            onchange={handleChange}
+            onblur={handleBlur}>
+        </lightning-input>
+    </template>
+    <template if:true={isTextarea}>
+        <lightning-textarea
+            data-input
+            label={label}
+            value={value}
+            required={required}
+            onchange={handleChange}
+            onblur={handleBlur}>
+        </lightning-textarea>
+    </template>
+    <template if:true={isPicklist}>
+        <lightning-combobox
+            data-input
+            label={label}
+            value={value}
+            options={picklistOptions}
+            required={required}
+            placeholder="Select an option"
+            onchange={handleChange}
+            onblur={handleBlur}>
+        </lightning-combobox>
+    </template>
+</template>

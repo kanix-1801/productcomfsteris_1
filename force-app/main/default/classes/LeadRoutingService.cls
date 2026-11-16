@@ -51,7 +51,17 @@ public with sharing class LeadRoutingService {
         'fr' => 'FR',
         'france' => 'FR',
         'es' => 'ES',
-        'spain' => 'ES'
+        'spain' => 'ES',
+        'be' => 'BE',
+        'belgium' => 'BE',
+        'nl' => 'NL',
+        'netherlands' => 'NL',
+        'lu' => 'LU',
+        'luxembourg' => 'LU',
+        'my' => 'MY',
+        'malaysia' => 'MY',
+        'hk' => 'HK',
+        'hong kong' => 'HK'
     };
 
     /**
@@ -61,7 +71,7 @@ public with sharing class LeadRoutingService {
      */
     public static String submit(Id leadId) {
         Lead leadRecord = [
-            SELECT Id, Country, State, PostalCode, City, Org_ID__c, Class_Code__c, OwnerId,
+            SELECT Id, Country, CountryCode, State, PostalCode, City, Org_ID__c, Class_Code__c, OwnerId,
                 HubSpot_Lead__c
             FROM Lead
             WHERE Id = :leadId
@@ -87,7 +97,7 @@ public with sharing class LeadRoutingService {
             return String.format(System.Label.LeadSubmitAssignedRepMessage, new List<String>{ ownerUser.Name });
         }
 
-        String countryCode = normalizeCountry(leadRecord.Country);
+        String countryCode = normalizeCountry(countryValue(leadRecord));
         String countryQueue = resolveCountryQueue(countryCode);
         if (String.isNotBlank(countryQueue)) {
             return assignQueue(leadRecord.Id, countryQueue, System.Label.LeadSubmitAssignedQueueMessage);
@@ -107,7 +117,7 @@ public with sharing class LeadRoutingService {
      * @return Queue developer name, or blank when the matrix does not agree.
      */
     private static String resolveMatrixQueue(Lead leadRecord, List<LeadProduct__c> products) {
-        String countryCode = normalizeCountry(leadRecord.Country);
+        String countryCode = normalizeCountry(countryValue(leadRecord));
         if (String.isBlank(countryCode) || products.isEmpty()) {
             return null;
         }
@@ -255,6 +265,10 @@ public with sharing class LeadRoutingService {
      * @param country Country on the Lead address.
      * @return Country code, or the trimmed uppercase value when it is not in the known list.
      */
+    private static String countryValue(Lead leadRecord) {
+        return String.isNotBlank(leadRecord.CountryCode) ? leadRecord.CountryCode : leadRecord.Country;
+    }
+
     @TestVisible
     private static String normalizeCountry(String country) {
         if (String.isBlank(country)) {

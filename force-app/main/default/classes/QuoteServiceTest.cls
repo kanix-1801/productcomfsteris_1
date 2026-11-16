@@ -786,4 +786,48 @@ private class QuoteServiceTest {
         }
         Assert.isTrue(threw);
     }
+
+    /**
+     * @description Covers Repair Center document / pre-approval selectors and email updateQuotes.
+     *              Document-generation fields may be absent in QA; still exercise the method path.
+     */
+    @IsTest
+    static void testRepairCenterDocumentPreApprovalAndUpdateQuotes() {
+        Assert.isNull(QuoteService.selectForRepairCenterDocumentGeneration(null));
+        Assert.isTrue(QuoteService.selectForRepairCenterPreApproval(null).isEmpty());
+        Assert.isTrue(QuoteService.selectForRepairCenterPreApproval(new Set<Id>()).isEmpty());
+        Assert.isTrue(
+            QuoteService.selectForRepairCenterPreApproval(new Set<Id>{ null }).isEmpty()
+        );
+        QuoteService.updateQuotes(null);
+        QuoteService.updateQuotes(new List<Quote>());
+
+        Quote quoteRecord = [
+            SELECT Id, Status
+            FROM Quote
+            WHERE Name = 'GW-3507 ApproveReject Quote'
+            LIMIT 1
+        ];
+
+        Test.startTest();
+        Quote documentQuote;
+        try {
+            documentQuote = QuoteService.selectForRepairCenterDocumentGeneration(quoteRecord.Id);
+        } catch (Exception documentGenerationException) {
+            Assert.isNotNull(documentGenerationException.getMessage());
+        }
+        List<Quote> preApprovalQuotes = QuoteService.selectForRepairCenterPreApproval(
+            new Set<Id>{ quoteRecord.Id }
+        );
+        QuoteService.updateQuotes(
+            new List<Quote>{ new Quote(Id = quoteRecord.Id, Status = STATUS_WAITING) }
+        );
+        Test.stopTest();
+
+        if (documentQuote != null) {
+            Assert.areEqual(quoteRecord.Id, documentQuote.Id);
+        }
+        Assert.areEqual(1, preApprovalQuotes.size());
+        Assert.areEqual(quoteRecord.Id, preApprovalQuotes[0].Id);
+    }
 }

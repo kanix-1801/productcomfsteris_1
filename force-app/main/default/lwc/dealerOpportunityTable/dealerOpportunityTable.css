@@ -71,7 +71,7 @@ td {
 }
 
 .amount-column .sort-button {
-    justify-content: flex-end;
+    justify-content: flex-start;
     width: 100%;
 }
 
@@ -80,7 +80,7 @@ td {
 }
 
 .amount-column {
-    text-align: right;
+    text-align: left;
 }
 
 .name-button {

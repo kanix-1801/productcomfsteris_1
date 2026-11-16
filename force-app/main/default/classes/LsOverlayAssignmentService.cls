@@ -6,8 +6,8 @@
  *
  * @description
  * GCL-79 - Service layer for Life Sciences Overlay Assignment across Accounts, Users, and TAS territory records.
- * GCL-79 - Territory and account search stay scoped to Life Sciences (BusinessUnit__c = Life Sciences
- * or ClassCode__c in SC / Life Science / Life Sciences). Overlay users are limited to the Life Sciences Sales profile.
+ * GCL-79 - Territory search stays scoped to Life Sciences class codes (SC / Life Science / Life Sciences).
+ * Overlay users are limited to the Life Sciences Sales profile.
  * GCL-79 - Step 1 and Step 2 show Customer accounts. GPO, IDN, and Address are not searched or shown.
  * Submit adds the overlay user to the selected Customer and to that account's child accounts.
  * When a territory is selected, TerritoryCode__c is copied from the TAS territory number and a TAS row is inserted. IDN is skipped.
@@ -20,9 +20,6 @@ public without sharing class LsOverlayAssignmentService {
 
     /** @description GCL-79 - Account Team Member.TeamMemberRole value created by this wizard. */
     public static final String TEAM_MEMBER_ROLE_SALES = 'Sales';
-
-    /** @description GCL-79 - OrderLineContact__c.BusinessUnit__c value used to scope territory search. */
-    public static final String BUSINESS_UNIT_LIFE_SCIENCES = 'Life Sciences';
 
     /** @description GCL-79 - Account access level granted to overlay users. Only Account access is extended. */
     public static final String ACCOUNT_ACCESS_EDIT = 'Edit';
@@ -44,9 +41,6 @@ public without sharing class LsOverlayAssignmentService {
 
     /** @description GCL-79 - Row cap applied to search and retrieval queries. */
     private static final Integer SEARCH_LIMIT = 200;
-
-    /** @description GCL-79 - Row cap applied to the overlay user search query. */
-    private static final Integer USER_SEARCH_LIMIT = 50;
 
     /** @description GCL-79 - Logger scenario used for every error/warning raised by this class. */
     private static final String SCENARIO = 'Life Sciences Overlay Assignment';
@@ -79,26 +73,14 @@ public without sharing class LsOverlayAssignmentService {
                 return new List<LsOverlayAssignmentController.TerritoryWrapper>();
             }
 
-            String key = '%' + searchKey.trim() + '%';
             Map<String, LsOverlayAssignmentController.TerritoryWrapper> territoryById =
                 new Map<String, LsOverlayAssignmentController.TerritoryWrapper>();
 
-            for (OrderLineContact__c orderLineContact : [
-                SELECT TerritoryID__c, TerritoryDescription__c
-                FROM OrderLineContact__c
-                WHERE TerritoryID__c != null
-                AND (
-                    TerritoryID__c LIKE :key
-                    OR TerritoryDescription__c LIKE :key
-                    OR TerritoryNumber__c LIKE :key
-                )
-                AND (
-                    BusinessUnit__c = :BUSINESS_UNIT_LIFE_SCIENCES
-                    OR ClassCode__c IN :LIFE_SCIENCES_CLASS_CODES
-                )
-                WITH USER_MODE
-                LIMIT :SEARCH_LIMIT
-            ]) {
+            for (OrderLineContact__c orderLineContact : TASSelector.selectLifeSciencesTerritoriesBySearch(
+                searchKey,
+                LIFE_SCIENCES_CLASS_CODES,
+                SEARCH_LIMIT
+            )) {
                 if (territoryById.containsKey(orderLineContact.TerritoryID__c)) {
                     continue;
                 }
@@ -202,22 +184,13 @@ public without sharing class LsOverlayAssignmentService {
                 return new List<LsOverlayAssignmentController.UserWrapper>();
             }
 
-            Id lifeSciencesProfileId = UserSelector.getLifeSciencesSalesProfileId();
-            if (lifeSciencesProfileId == null) {
+            if (UserSelector.getLifeSciencesSalesProfileIdForOverlay() == null) {
                 throw new LsOverlayAssignmentException('Life Sciences Sales profile was not found.');
             }
 
-            String key = '%' + searchKey.trim() + '%';
             List<LsOverlayAssignmentController.UserWrapper> users = new List<LsOverlayAssignmentController.UserWrapper>();
 
-            for (User userRecord : [
-                SELECT Id, Name, Email, Country, UserRole.Name, Manager.Name
-                FROM User
-                WHERE IsActive = true
-                AND ProfileId = :lifeSciencesProfileId
-                AND (Name LIKE :key OR Email LIKE :key)
-                LIMIT :USER_SEARCH_LIMIT
-            ]) {
+            for (User userRecord : UserSelector.selectActiveLifeSciencesSalesUsersBySearch(searchKey)) {
                 LsOverlayAssignmentController.UserWrapper userWrapper = new LsOverlayAssignmentController.UserWrapper();
                 userWrapper.userId = userRecord.Id;
                 userWrapper.userName = userRecord.Name;
@@ -517,19 +490,10 @@ public without sharing class LsOverlayAssignmentService {
             return territoryByAddressId;
         }
 
-        for (OrderLineContact__c orderLineContact : [
-            SELECT TerritoryID__c, TerritoryDescription__c, TerritoryNumber__c, TASAddressId__c,
-                   TAS_Sales_Category__c, SalesCategoryDescription__c,
-                   BusinessUnit__c, TASZone__c, RegionName__c
-            FROM OrderLineContact__c
-            WHERE TerritoryID__c IN :territoryIds
-            AND TASAddressId__c != null
-            AND (
-                BusinessUnit__c = :BUSINESS_UNIT_LIFE_SCIENCES
-                OR ClassCode__c IN :LIFE_SCIENCES_CLASS_CODES
-            )
-            WITH USER_MODE
-        ]) {
+        for (OrderLineContact__c orderLineContact : TASSelector.selectLifeSciencesTerritoriesByIds(
+            territoryIds,
+            LIFE_SCIENCES_CLASS_CODES
+        )) {
             String addressKey = orderLineContact.TASAddressId__c.trim();
             if (!territoryByAddressId.containsKey(addressKey)) {
                 territoryByAddressId.put(addressKey, orderLineContact);
@@ -547,14 +511,7 @@ public without sharing class LsOverlayAssignmentService {
         if (oracleAddressIds.isEmpty()) {
             return new List<Account>();
         }
-        return [
-            SELECT Id, Name, AccountNumber, Type, ParentId, Parent.Name, OracleAddressId__c,
-                   BillingStreet, BillingCity, BillingState, BillingPostalCode, BillingCountry
-            FROM Account
-            WHERE OracleAddressId__c IN :oracleAddressIds
-            WITH USER_MODE
-            LIMIT :SEARCH_LIMIT
-        ];
+        return AccountSelector.selectLifeSciencesAccountsByOracleAddress(oracleAddressIds, SEARCH_LIMIT);
     }
 
     /**
@@ -603,17 +560,11 @@ public without sharing class LsOverlayAssignmentService {
      * @return Matching Customer accounts.
      */
     private static List<Account> queryCustomersByName(String searchTerm) {
-        return [
-            SELECT Id, Name, AccountNumber, Type, ParentId, Parent.Name, OracleAddressId__c,
-                   BillingStreet, BillingCity, BillingState, BillingPostalCode, BillingCountry
-            FROM Account
-            WHERE Type = :ACCOUNT_TYPE_CUSTOMER
-            AND CustomerClassCode__c IN :LIFE_SCIENCES_CLASS_CODES
-            AND (Name LIKE :searchTerm OR AccountNumber LIKE :searchTerm)
-            WITH USER_MODE
-            ORDER BY Name
-            LIMIT :SEARCH_LIMIT
-        ];
+        return AccountSelector.selectLifeSciencesCustomersByName(
+            searchTerm,
+            LIFE_SCIENCES_CLASS_CODES,
+            SEARCH_LIMIT
+        );
     }
 
     /**
@@ -621,16 +572,7 @@ public without sharing class LsOverlayAssignmentService {
      * @return Customer accounts.
      */
     private static List<Account> queryCustomers() {
-        return [
-            SELECT Id, Name, AccountNumber, Type, ParentId, Parent.Name, OracleAddressId__c,
-                   BillingStreet, BillingCity, BillingState, BillingPostalCode, BillingCountry
-            FROM Account
-            WHERE Type = :ACCOUNT_TYPE_CUSTOMER
-            AND CustomerClassCode__c IN :LIFE_SCIENCES_CLASS_CODES
-            WITH USER_MODE
-            ORDER BY Name
-            LIMIT :SEARCH_LIMIT
-        ];
+        return AccountSelector.selectLifeSciencesCustomers(LIFE_SCIENCES_CLASS_CODES, SEARCH_LIMIT);
     }
 
     /**
@@ -642,13 +584,7 @@ public without sharing class LsOverlayAssignmentService {
         if (accountIds.isEmpty()) {
             return new List<Account>();
         }
-        return [
-            SELECT Id, Name, AccountNumber, Type, ParentId, Parent.Name, OracleAddressId__c,
-                   BillingStreet, BillingCity, BillingState, BillingPostalCode, BillingCountry
-            FROM Account
-            WHERE Id IN :accountIds
-            WITH USER_MODE
-        ];
+        return AccountSelector.selectLifeSciencesAccountsByIds(accountIds);
     }
 
     /**
@@ -852,12 +788,7 @@ public without sharing class LsOverlayAssignmentService {
         if (customerIds.isEmpty()) {
             return childIds;
         }
-        for (Account childAccount : [
-            SELECT Id, Type, OracleAddressId__c
-            FROM Account
-            WHERE ParentId IN :customerIds
-            WITH USER_MODE
-        ]) {
+        for (Account childAccount : AccountSelector.selectLifeSciencesChildAccounts(customerIds)) {
             if (childAccount.Type == ACCOUNT_TYPE_IDN) {
                 continue;
             }
@@ -1035,12 +966,10 @@ public without sharing class LsOverlayAssignmentService {
         }
 
         Set<String> existingKeys = new Set<String>();
-        for (AccountTeamMember existingMember : [
-            SELECT AccountId, UserId
-            FROM AccountTeamMember
-            WHERE AccountId IN :accountIdSet
-            AND UserId IN :userIdSet
-        ]) {
+        for (AccountTeamMember existingMember : AccountTeamMemberSelector.selectLifeSciencesByAccountsAndUsers(
+            accountIdSet,
+            userIdSet
+        )) {
             existingKeys.add(existingMember.AccountId + '-' + existingMember.UserId);
         }
 
@@ -1120,18 +1049,14 @@ public without sharing class LsOverlayAssignmentService {
      * @param userIdSet User Ids submitted from the screen.
      */
     private static void requireActiveLifeSciencesUsers(Set<Id> userIdSet) {
-        Id lifeSciencesProfileId = UserSelector.getLifeSciencesSalesProfileId();
+        Id lifeSciencesProfileId = UserSelector.getLifeSciencesSalesProfileIdForOverlay();
         if (lifeSciencesProfileId == null) {
             throw new LsOverlayAssignmentException('Life Sciences Sales profile was not found.');
         }
 
-        Set<Id> matchingUserIds = new Map<Id, User>([
-            SELECT Id
-            FROM User
-            WHERE Id IN :userIdSet
-            AND IsActive = true
-            AND ProfileId = :lifeSciencesProfileId
-        ]).keySet();
+        Set<Id> matchingUserIds = new Map<Id, User>(
+            UserSelector.selectActiveLifeSciencesSalesUsersByIds(userIdSet)
+        ).keySet();
 
         if (matchingUserIds.size() != userIdSet.size()) {
             throw new LsOverlayAssignmentException('Select active Life Sciences Sales users only.');

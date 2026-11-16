@@ -7,10 +7,17 @@ import ID_FIELD from '@salesforce/schema/Opportunity.Id';
 import NAME_FIELD from '@salesforce/schema/Opportunity.Name';
 import PROBABILITY_FIELD from '@salesforce/schema/Opportunity.Probability';
 import RECORD_TYPE_FIELD from '@salesforce/schema/Opportunity.RecordTypeId';
+import LOST_REASON_FIELD from '@salesforce/schema/Opportunity.LostReason__c';
+import CONFIDENCE_FIELD from '@salesforce/schema/Opportunity.ForecastConfidenceLevel__c';
 import STAGE_FIELD from '@salesforce/schema/Opportunity.StageName';
 
 const CLOSED_STAGE = 'Closed';
-const FIELDS = [STAGE_FIELD, RECORD_TYPE_FIELD, NAME_FIELD];
+const CLOSED_LOST = 'Closed Lost';
+const CONFIDENCE_BY_STAGE = {
+    'Closed Won': 'Won',
+    'Closed Lost': 'Lost'
+};
+const FIELDS = [STAGE_FIELD, RECORD_TYPE_FIELD, NAME_FIELD, LOST_REASON_FIELD];
 
 /**
  * #GC-3598 Path for the dealer opportunity page.
@@ -28,10 +35,20 @@ export default class DealerOpportunityPath extends LightningElement {
     closedStages = [];
     selectedKey;
     closedChoice;
+    lostReason;
+    lostReasonOptions = [];
+    editingClosedStage = false;
     syncedStage;
     isLoading = true;
     isSaving = false;
     errorMessage;
+
+    @wire(getPicklistValues, { recordTypeId: '$recordTypeId', fieldApiName: LOST_REASON_FIELD })
+    wiredLostReasons({ data }) {
+        if (data) {
+            this.lostReasonOptions = data.values;
+        }
+    }
 
     @wire(getRecord, { recordId: '$recordId', fields: FIELDS })
     wiredOpportunity({ data, error }) {
@@ -39,6 +56,7 @@ export default class DealerOpportunityPath extends LightningElement {
             this.currentStage = getFieldValue(data, STAGE_FIELD);
             this.recordTypeId = getFieldValue(data, RECORD_TYPE_FIELD);
             this.opportunityName = getFieldValue(data, NAME_FIELD);
+            this.lostReason = getFieldValue(data, LOST_REASON_FIELD);
             this.syncSelection();
             this.isLoading = !this.hasPath;
             this.errorMessage = null;
@@ -165,11 +183,21 @@ export default class DealerOpportunityPath extends LightningElement {
     }
 
     get showClosedPicker() {
-        return this.selectedKey === CLOSED_STAGE && this.closedStages.length > 0;
+        if (this.selectedKey !== CLOSED_STAGE || !this.closedStages.length) {
+            return false;
+        }
+        if (!this.currentIsClosed || this.editingClosedStage) {
+            return true;
+        }
+        return this.currentStage === CLOSED_LOST && !this.lostReason;
     }
 
     get closedOptions() {
         return this.closedStages;
+    }
+
+    get showLostReason() {
+        return this.showClosedPicker && this.closedChoice === CLOSED_LOST;
     }
 
     get actionLabel() {
@@ -187,7 +215,17 @@ export default class DealerOpportunityPath extends LightningElement {
             return true;
         }
         if (this.selectedKey === CLOSED_STAGE) {
-            return !this.closedChoice || this.closedChoice === this.currentStage;
+            const savedClosed = this.currentIsClosed
+                && !this.editingClosedStage
+                && this.closedChoice === this.currentStage
+                && (this.currentStage !== CLOSED_LOST || this.lostReason);
+            if (savedClosed) {
+                return false;
+            }
+            if (!this.closedChoice || this.closedChoice === this.currentStage) {
+                return true;
+            }
+            return this.closedChoice === CLOSED_LOST && !this.lostReason;
         }
         return false;
     }
@@ -202,11 +240,24 @@ export default class DealerOpportunityPath extends LightningElement {
         this.errorMessage = null;
     }
 
+    handleLostReasonChange(event) {
+        this.lostReason = event.detail.value;
+        this.errorMessage = null;
+    }
+
     handleAction() {
         if (this.actionDisabled) {
             return;
         }
         if (this.selectedKey === CLOSED_STAGE) {
+            const savedClosed = this.currentIsClosed
+                && !this.editingClosedStage
+                && this.closedChoice === this.currentStage
+                && (this.currentStage !== CLOSED_LOST || this.lostReason);
+            if (savedClosed) {
+                this.editingClosedStage = true;
+                return;
+            }
             this.saveStage(this.closedChoice);
             return;
         }
@@ -238,6 +289,14 @@ export default class DealerOpportunityPath extends LightningElement {
         if (detail && detail.probability !== null && detail.probability !== undefined) {
             fields[PROBABILITY_FIELD.fieldApiName] = detail.probability;
         }
+        if (stageValue === CLOSED_LOST) {
+            fields[LOST_REASON_FIELD.fieldApiName] = this.lostReason;
+        }
+        if (Object.prototype.hasOwnProperty.call(CONFIDENCE_BY_STAGE, stageValue)) {
+            fields[CONFIDENCE_FIELD.fieldApiName] = CONFIDENCE_BY_STAGE[stageValue];
+        } else if (detail && detail.closed) {
+            fields[CONFIDENCE_FIELD.fieldApiName] = null;
+        }
         this.isSaving = true;
         this.errorMessage = null;
         updateRecord({ fields })
@@ -253,6 +312,7 @@ export default class DealerOpportunityPath extends LightningElement {
             })
             .finally(() => {
                 this.isSaving = false;
+                this.editingClosedStage = false;
             });
     }
 

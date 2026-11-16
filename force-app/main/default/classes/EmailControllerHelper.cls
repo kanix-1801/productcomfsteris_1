@@ -799,7 +799,48 @@ public static List<CaseContactRole> getReceivingAndInstallContacts(Id caseId) {
             }
 		
     
-	
+	public static List<OrderItem> closedTradeInEquipmentDetails(Id caseId) {
+            try {
+                
+            List<OrderItem> result = new List<OrderItem>();
+        
+                if (caseId == null) return result;
+    
+                
+    
+                result = [
+                    SELECT id,LineNumber__c,
+                           Product2.ProductCode,
+                           Product2.Description,
+                           Quantity,
+                           ActualShipmentDate__c,
+                    	   MailSent__c, 
+                           ShipToAddressID__r.Street, ShipToAddressID__r.City, ShipToAddressID__r.State, ShipToAddressID__r.PostalCode, ShipToAddressID__r.Country
+
+                    FROM OrderItem
+                    WHERE  OrderLineType__c = 'Trade In Lines'                  
+                      AND MailSent__c = false
+                      AND Order.ParentCase__c = :caseId
+                      AND OrderLineStatus__c = 'Closed'
+                      AND orderLineNumber__C !=0 order by orderLineNumber__C ASC
+                ];
+                
+                if(result==null){
+                return new list<orderitem>();
+            }
+                throwIfTestException(caseId); 
+                
+            return result;
+                
+    
+    
+                }
+            
+        catch(exception ex){
+                     ErrorLogger.logException(ex, 'EmailControllerHelper', 'closedTradeInEquipmentDetails');
+                    throw ex;
+                }
+            }
  
     public static DateTime calculateActualShipDate(Id caseId) {
         try {

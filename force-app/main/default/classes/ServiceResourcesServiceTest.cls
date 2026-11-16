@@ -101,7 +101,7 @@ private class ServiceResourcesServiceTest {
          * SETUP
          ********************************************/
         Schema.Location repairCenter = new Schema.Location(
-            Name = 'CAPITAL EQUIPMENT REPAIR CENTER',
+            Name = 'CAPITAL EQUIPMENT REPAIR CENTER (PLY)',
             LocationType = 'Repair Center',
             IsInventoryLocation = true,
             IsMobile = true
@@ -132,7 +132,7 @@ private class ServiceResourcesServiceTest {
             /********************************************
              * THEN
              ********************************************/
-            Assert.areEqual('CAPITAL EQUIPMENT REPAIR CENTER', repairCenterName);
+            Assert.areEqual('CAPITAL EQUIPMENT REPAIR CENTER (PLY)', repairCenterName);
         }
     }
 

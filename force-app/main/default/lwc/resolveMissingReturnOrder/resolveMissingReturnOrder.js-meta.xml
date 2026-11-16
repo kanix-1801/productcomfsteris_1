@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>65.0</apiVersion>
+    <isExposed>false</isExposed>
+    <masterLabel>Resolve Missing Return Order</masterLabel>
+    <description>GW-6057 Missing Return Order form for Receiving.</description>
+</LightningComponentBundle>

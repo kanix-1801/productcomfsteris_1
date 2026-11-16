@@ -969,13 +969,16 @@ private class WorkOrdersSelectorTest {
     }
 
     /**
-     * @description GW-2891 - Verifies parent Work Order select by Id, and null returns empty.
+     * @description GW-2891 / GW-5677 - Verifies parent Work Order select by Id includes
+     *              AdditionalServicesRequested__c, and null returns empty.
      */
     @IsTest
     static void testSelectForDivideInstrumentsById_WhenValidAndNull() {
         User testUser = new User(Id = UserInfo.getUserId());
         System.runAs(testUser) {
             WorkOrder existing = [SELECT Id FROM WorkOrder LIMIT 1];
+            existing.AdditionalServicesRequested__c = '1. Line A: Repair';
+            update existing;
 
             Test.startTest();
             List<WorkOrder> found = WorkOrdersSelector.selectForDivideInstrumentsById(existing.Id);
@@ -983,6 +986,11 @@ private class WorkOrdersSelectorTest {
             Test.stopTest();
 
             Assert.areEqual(1, found.size(), 'Should return the scanned Work Order');
+            Assert.areEqual(
+                '1. Line A: Repair',
+                found[0].AdditionalServicesRequested__c,
+                'GW-5677 Divide select must query AdditionalServicesRequested__c'
+            );
             Assert.isTrue(empty.isEmpty(), 'Null Id should return empty');
         }
     }
@@ -1518,14 +1526,14 @@ private class WorkOrdersSelectorTest {
     }
 
     @IsTest
-    static void testSelectReceivingVendorWorkOrder_withRepairCenterOther() {
+    static void testSelectReceivingVendorWorkOrder_withRepairCenterVendor() {
         User testUser = new User(Id = UserInfo.getUserId());
         System.runAs(testUser) {
-            Id otherRecordTypeId = Schema.SObjectType.WorkOrder.getRecordTypeInfosByDeveloperName()
-                .get('RepairCenterOther')
+            Id vendorRecordTypeId = Schema.SObjectType.WorkOrder.getRecordTypeInfosByDeveloperName()
+                .get('RepairCenterVendor')
                 ?.getRecordTypeId();
-            if (otherRecordTypeId == null) {
-                Assert.isTrue(true, 'RepairCenterOther record type unavailable; skip');
+            if (vendorRecordTypeId == null) {
+                Assert.isTrue(true, 'RepairCenterVendor record type unavailable; skip');
                 return;
             }
 
@@ -1557,7 +1565,7 @@ private class WorkOrdersSelectorTest {
                 .status('Received')
                 .account(accountBuilder)
                 .repairCenter(repairCenterBuilder);
-            vendorWorkOrderBuilder.set(WorkOrder.RecordTypeId, otherRecordTypeId);
+            vendorWorkOrderBuilder.set(WorkOrder.RecordTypeId, vendorRecordTypeId);
             vendorWorkOrderBuilder.setParent(WorkOrder.Vendor__c, vendorBuilder);
             vendorWorkOrderBuilder.persist();
 
@@ -1578,7 +1586,7 @@ private class WorkOrdersSelectorTest {
                 WorkOrdersSelector.selectReceivingVendorWorkOrder(returnOrderBuilder.id, null);
             Test.stopTest();
 
-            Assert.isNotNull(matched, 'Should find the RepairCenterOther vendor Work Order');
+            Assert.isNotNull(matched, 'Should find the RepairCenterVendor Work Order');
             Assert.areEqual(vendorWorkOrderBuilder.id, matched.Id);
             Assert.areEqual(vendorBuilder.id, matched.Vendor__c);
             Assert.isNull(nullReturnOrder);

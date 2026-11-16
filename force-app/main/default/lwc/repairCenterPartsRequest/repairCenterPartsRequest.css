@@ -1,3 +1,11 @@
+.parts-modal {
+    z-index: 9001;
+}
+
+.parts-modal-backdrop {
+    z-index: 9000;
+}
+
 .parts-list {
     max-height: 24rem;
     overflow: auto;

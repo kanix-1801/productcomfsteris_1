@@ -55,4 +55,48 @@ public with sharing class ServiceTerritoryMembersSelector extends SoqlQueryBuild
             .whereIn('TerritoryType', territoryTypes)
             .execute();
     }
+
+    /**
+     * @description GW-2707 - Memberships of the given resources in the given territories that have not ended
+     *              before a point in time, newest start first. Runs in USER_MODE; record access comes from the
+     *              FieldServiceBackofficeTool permission set.
+     * @param resourceIds Service Resource Ids
+     * @param territoryIds Service Territory Ids
+     * @param endedBefore Memberships that ended before this time are excluded
+     * @return Matching members (empty when an input is missing)
+     */
+    public static List<ServiceTerritoryMember> selectOpenByResourcesAndTerritories(
+        Set<Id> resourceIds,
+        Set<Id> territoryIds,
+        Datetime endedBefore
+    ) {
+        if (
+            resourceIds == null ||
+            resourceIds.isEmpty() ||
+            territoryIds == null ||
+            territoryIds.isEmpty() ||
+            endedBefore == null
+        ) {
+            return new List<ServiceTerritoryMember>();
+        }
+        return (List<ServiceTerritoryMember>) new ServiceTerritoryMembersSelector()
+            .selectFields(
+                new List<String>{
+                    'Id',
+                    'ServiceResourceId',
+                    'ServiceTerritoryId',
+                    'TerritoryType',
+                    'OperatingHoursId',
+                    'EffectiveStartDate',
+                    'EffectiveEndDate'
+                }
+            )
+            .whereIn('ServiceResourceId', new List<Id>(resourceIds))
+            .whereIn('ServiceTerritoryId', new List<Id>(territoryIds))
+            .whereEquals('EffectiveEndDate', null)
+            .whereField('EffectiveEndDate', '>=', endedBefore)
+            .withFilterLogic('1 AND 2 AND (3 OR 4)')
+            .orderByDesc('EffectiveStartDate')
+            .execute();
+    }
 }

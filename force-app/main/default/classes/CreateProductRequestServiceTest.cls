@@ -64,12 +64,66 @@ private class CreateProductRequestServiceTest {
             System.assertEquals(fixture.addressId, context.defaultAddressId, 'The visitor address is the default.');
             System.assertEquals(1, context.addresses.size(), 'The location address is returned.');
             System.assertEquals(fixture.addressName, context.addresses[0].name, 'The address name is shown.');
+            System.assertEquals('ADDR-14', context.addresses[0].addressID, 'The Address ID is shown.');
+            System.assertEquals(
+                'ADDR-14',
+                addresses.addresses[0].addressID,
+                'Reloaded addresses include the Address ID.'
+            );
             System.assert(
                 context.addresses[0].name.contains('14 Service Road'),
                 'The address street is shown with the name.'
             );
             System.assertEquals(0, context.shipToAccounts.size(), 'Customer ship-to is omitted.');
             System.assertEquals(0, context.requiredParts.size(), 'Required parts are omitted.');
+        }
+    }
+
+    /**
+     * @description My Location omits addresses whose Ship To value is Inactive.
+     */
+    @IsTest
+    static void testGetAddressesOmitsInactiveShipTo() {
+        User technician = createTechnician();
+        System.runAs(technician) {
+            // SETUP
+            Fixture fixture = insertFixture(technician, false);
+            Schema.Address inactiveAddress = new Schema.Address(
+                ParentId = fixture.locationId,
+                LocationType = 'Technician Vehicle',
+                AddressType = 'Shipping',
+                Street = '99 Closed Road',
+                City = 'Mentor',
+                StateCode = 'OH',
+                PostalCode = '44060',
+                CountryCode = 'US',
+                AddressID__c = 'ADDR-99',
+                ShipTo__c = 'I'
+            );
+            insert inactiveAddress;
+
+            // GIVEN
+            System.assertNotEquals(null, inactiveAddress.Id, 'The inactive address was saved.');
+
+            // WHEN
+            CreateProductRequestService.AddressResult addresses = CreateProductRequestController.getAddresses(
+                fixture.serviceResourceId,
+                technician.Id,
+                null
+            );
+
+            // THEN
+            System.assertEquals(1, addresses.addresses.size(), 'Inactive ship-to addresses are omitted.');
+            System.assertEquals(
+                fixture.addressId,
+                addresses.addresses[0].recordId,
+                'The address with a blank Ship To remains.'
+            );
+            System.assertEquals(
+                fixture.addressId,
+                addresses.defaultAddressId,
+                'The visitor address stays the default.'
+            );
         }
     }
 
@@ -812,6 +866,7 @@ private class CreateProductRequestServiceTest {
             Product2 substitute = insertProduct('Seal substitute', 'PC-SUB', 'Part', true);
             Product2 part = insertProduct('Seal kit', 'PC-4471', 'Part', true);
             part.SubstitutePart__c = substitute.Id;
+            part.OENotes__c = 'Check the seal before install.';
             update part;
             insertProduct('Finished unit', 'PC-4471-FG', 'Finished Good', true);
             insertProduct('Inactive seal', 'PC-4471-OLD', 'Part', false);
@@ -831,6 +886,15 @@ private class CreateProductRequestServiceTest {
                 matches[0].substitutePart,
                 'The substitute part name is returned.'
             );
+            System.assertEquals(
+                'Check the seal before install.',
+                matches[0].oeNotes,
+                'OE notes are returned with the part.'
+            );
+            List<CreateProductRequestService.PartRow> withoutNotes =
+                CreateProductRequestController.searchParts('PC-SUB');
+            System.assertEquals(1, withoutNotes.size(), 'The substitute part is returned.');
+            System.assertEquals(null, withoutNotes[0].oeNotes, 'Blank OE notes are omitted.');
         }
     }
 
@@ -1013,7 +1077,8 @@ private class CreateProductRequestServiceTest {
             City = 'Mentor',
             StateCode = 'OH',
             PostalCode = '44060',
-            CountryCode = 'US'
+            CountryCode = 'US',
+            AddressID__c = 'ADDR-14'
         );
         insert technicianAddress;
         Schema.Address storedAddress = (Schema.Address) SoqlQueryBuilder.fromObject('Address')
@@ -1162,10 +1227,13 @@ private class CreateProductRequestServiceTest {
         );
         insert fieldAccess;
         insert fieldRead(fieldAccess.Id, 'Address', 'Address.AddressShipTo__c');
+        insert fieldRead(fieldAccess.Id, 'Address', 'Address.AddressID__c');
+        insert fieldRead(fieldAccess.Id, 'Address', 'Address.ShipTo__c');
         insert fieldRead(fieldAccess.Id, 'ServiceResource', 'ServiceResource.TechnicianType__c');
         insert fieldRead(fieldAccess.Id, 'WorkOrder', 'WorkOrder.ShipToAddressAccount__c');
         insert fieldRead(fieldAccess.Id, 'Account', 'Account.ShiptoAddressStatus__c');
         insert fieldRead(fieldAccess.Id, 'Product2', 'Product2.SubstitutePart__c');
+        insert fieldRead(fieldAccess.Id, 'Product2', 'Product2.OENotes__c');
         insert fieldRead(fieldAccess.Id, 'ProductRequest', 'ProductRequest.ShipSet__c');
         insert fieldRead(fieldAccess.Id, 'ProductRequestLineItem', 'ProductRequestLineItem.ShipSet__c');
         insert new List<PermissionSetAssignment>{

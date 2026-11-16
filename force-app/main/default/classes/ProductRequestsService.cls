@@ -30,6 +30,8 @@ public with sharing class ProductRequestsService {
     /** ProductRequest.IntegrationStatus__c values for Create Sales Order. */
     private static final String INTEGRATION_SUCCESS = 'Success Create';
     private static final String INTEGRATION_FAIL = 'Fail Create';
+    /** ProductRequest.SubmissionToERP__c value written after every submit run. */
+    private static final String SUBMISSION_SUBMITTED = 'Submitted';
 
 
     /**
@@ -234,6 +236,7 @@ public with sharing class ProductRequestsService {
             }
 
             String soldToOrgId = resolveOracleAccountIdFromServiceResource(pr);
+            String shipToCustId = resolveShipToCustomerId(pr, soldToOrgId);
             String shipToAddrId = resolveShipToAddressId(pr);
             String invAddrId = resolveInvoiceAddressId(pr);
 
@@ -241,7 +244,14 @@ public with sharing class ProductRequestsService {
                 return failAndStampOracleSubmit(
                     pr,
                     result,
-                    'Missing ServiceResource.OracleAccountId__c (required for P_SOLD_TO_ORG_ID / P_SHIP_TO_CUST_ID). Set ProductRequest.ServiceResource__c.'
+                    'Missing ServiceResource.OracleAccountId__c (required for P_SOLD_TO_ORG_ID). Set ProductRequest.ServiceResource__c.'
+                );
+            }
+            if (String.isBlank(shipToCustId)) {
+                return failAndStampOracleSubmit(
+                    pr,
+                    result,
+                    'Ship-to Address Account is set but its parent Account System ID (SystemID__c) is blank (required for P_SHIP_TO_CUST_ID).'
                 );
             }
             if (String.isBlank(shipToAddrId)) {
@@ -258,6 +268,7 @@ public with sharing class ProductRequestsService {
             Map<String, Object> body = buildOracleSalesOrderHeader(
                 pr,
                 soldToOrgId,
+                shipToCustId,
                 shipToAddrId,
                 invAddrId
             );
@@ -462,10 +473,10 @@ public with sharing class ProductRequestsService {
     }
 
     /**
-     * @description GW-514: Updates Integration Status / Message / ERP Order Number.
-     *              Does not change SubmissionToERP__c. Boomi sets that to Submitted.
+     * @description GW-514: Sets Submission to ERP to Submitted and updates Integration Status /
+     *              Message / ERP Order Number after each submit run (success or fail).
      * @param productRequestId Product Request Id.
-     * @param integrationStatus Success or Fail.
+     * @param integrationStatus Success Create or Fail Create.
      * @param integrationMessage User-facing message.
      * @param erpOrderNumber Oracle order number when successful; null otherwise.
      */
@@ -476,6 +487,7 @@ public with sharing class ProductRequestsService {
         String erpOrderNumber
     ) {
         ProductRequest updatePr = new ProductRequest(Id = productRequestId);
+        updatePr.SubmissionToERP__c = SUBMISSION_SUBMITTED;
         updatePr.IntegrationStatus__c = integrationStatus;
         updatePr.IntegrationMessage__c = integrationMessage;
         if (erpOrderNumber != null) {
@@ -517,7 +529,8 @@ public with sharing class ProductRequestsService {
                 ServiceResource__r.Description,
                 ServiceResource__r.LocationId,
                 ShipToAddressAccount__c,
-                ShipToAddressAccount__r.AddressID__c,
+                ShipToAddressAccount__r.OracleAddressId__c,
+                ShipToAddressAccount__r.Parent.SystemID__c,
                 ShipToTechnicianAddress__c,
                 ShipToTechnicianAddress__r.AddressID__c
             FROM ProductRequest
@@ -565,7 +578,24 @@ public with sharing class ProductRequestsService {
     }
 
     /**
-     * @description GW-514: P_SHIP_TO_ADDR_ID from Ship-to Address Account.AddressID__c when that
+     * @description GW-514: P_SHIP_TO_CUST_ID from the Ship-to Address Account's parent Account
+     *              SystemID__c when that lookup is set; otherwise the sold-to Oracle account.
+     * @param pr Product Request header.
+     * @param soldToOrgId ServiceResource.OracleAccountId__c.
+     * @return Ship-to customer id, or null when the ship-to account parent has no System ID.
+     */
+    private static String resolveShipToCustomerId(ProductRequest pr, String soldToOrgId) {
+        if (pr.ShipToAddressAccount__c == null) {
+            return soldToOrgId;
+        }
+        String parentSystemId = pr.ShipToAddressAccount__r == null || pr.ShipToAddressAccount__r.Parent == null
+            ? null
+            : pr.ShipToAddressAccount__r.Parent.SystemID__c;
+        return String.isBlank(parentSystemId) ? null : parentSystemId.trim();
+    }
+
+    /**
+     * @description GW-514: P_SHIP_TO_ADDR_ID from Ship-to Address Account.OracleAddressId__c when that
      *              lookup is set; otherwise Ship-To Technician Address.AddressID__c.
      * @param pr Product Request header.
      * @return Address ID or null.
@@ -574,7 +604,7 @@ public with sharing class ProductRequestsService {
         if (pr.ShipToAddressAccount__c != null) {
             String accountAddressId = pr.ShipToAddressAccount__r == null
                 ? null
-                : pr.ShipToAddressAccount__r.AddressID__c;
+                : pr.ShipToAddressAccount__r.OracleAddressId__c;
             return String.isBlank(accountAddressId) ? null : accountAddressId.trim();
         }
         if (pr.ShipToTechnicianAddress__c != null) {
@@ -593,7 +623,7 @@ public with sharing class ProductRequestsService {
      */
     private static String shipToAddressFailureMessage(ProductRequest pr) {
         if (pr.ShipToAddressAccount__c != null) {
-            return 'Ship-to Address Account is set but Account.AddressID__c is blank (required for P_SHIP_TO_ADDR_ID).';
+            return 'Ship-to Address Account is set but Account.OracleAddressId__c is blank (required for P_SHIP_TO_ADDR_ID).';
         }
         if (pr.ShipToTechnicianAddress__c != null) {
             return 'Ship-To Technician Address is set but Address.AddressID__c is blank (required for P_SHIP_TO_ADDR_ID).';
@@ -675,14 +705,16 @@ public with sharing class ProductRequestsService {
     /**
      * @description GW-514: Builds Create Sales Order header map (P_* fields) from Product Request.
      * @param pr Product Request header.
-     * @param soldToOrgId ServiceResource.OracleAccountId__c for P_SOLD_TO_ORG_ID / P_SHIP_TO_CUST_ID.
-     * @param shipToAddrId Account.AddressID__c or Address.AddressID__c for P_SHIP_TO_ADDR_ID.
+     * @param soldToOrgId ServiceResource.OracleAccountId__c for P_SOLD_TO_ORG_ID.
+     * @param shipToCustId Ship-to account parent SystemID__c, or soldToOrgId, for P_SHIP_TO_CUST_ID.
+     * @param shipToAddrId Account.OracleAddressId__c or Address.AddressID__c for P_SHIP_TO_ADDR_ID.
      * @param invAddrId Primary Bill To Address.AddressID__c for P_INV_ADDR_ID.
      * @return Header field map for RESTBODY.
      */
     private static Map<String, Object> buildOracleSalesOrderHeader(
         ProductRequest pr,
         String soldToOrgId,
+        String shipToCustId,
         String shipToAddrId,
         String invAddrId
     ) {
@@ -696,7 +728,7 @@ public with sharing class ProductRequestsService {
         header.put('P_CONTACT_LAST_NAME', '');
         header.put('P_ORDER_TYPE', ORDER_TYPE);
         header.put('P_SOLD_TO_ORG_ID', soldToOrgId);
-        header.put('P_SHIP_TO_CUST_ID', soldToOrgId);
+        header.put('P_SHIP_TO_CUST_ID', shipToCustId);
         header.put('P_SHIP_TO_ADDR_ID', shipToAddrId);
         header.put('P_INV_ADDR_ID', invAddrId);
         header.put('P_PRICE_LIST_ID', PRICE_LIST_ID);

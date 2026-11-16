@@ -190,14 +190,36 @@
                                     </div>
                                 </div>
                                 <div class="part-side">
-                                    <lightning-button-icon
-                                        class="part-remove"
-                                        icon-name="utility:delete"
-                                        alternative-text={labels.removePart}
-                                        title={labels.removePart}
-                                        data-key={part.key}
-                                        onclick={handleRemovePart}>
-                                    </lightning-button-icon>
+                                    <div class="part-side-top">
+                                        <template lwc:if={part.oeNotes}>
+                                            <div class="oe-notes">
+                                                <button
+                                                    type="button"
+                                                    class="oe-notes-toggle slds-button slds-button_reset slds-text-color_error"
+                                                    aria-expanded={part.oeNotesExpanded}
+                                                    data-key={part.key}
+                                                    onclick={handleToggleOeNotes}>
+                                                    <lightning-icon
+                                                        icon-name={part.oeNotesIcon}
+                                                        size="xx-small"
+                                                        alternative-text="">
+                                                    </lightning-icon>
+                                                    {labels.oeNotes}
+                                                </button>
+                                                <template lwc:if={part.oeNotesExpanded}>
+                                                    <lightning-formatted-text class="oe-notes-body" value={part.oeNotes}></lightning-formatted-text>
+                                                </template>
+                                            </div>
+                                        </template>
+                                        <lightning-button-icon
+                                            class="part-remove"
+                                            icon-name="utility:delete"
+                                            alternative-text={labels.removePart}
+                                            title={labels.removePart}
+                                            data-key={part.key}
+                                            onclick={handleRemovePart}>
+                                        </lightning-button-icon>
+                                    </div>
                                     <div class="ship-set">
                                         <lightning-input
                                             type="checkbox"

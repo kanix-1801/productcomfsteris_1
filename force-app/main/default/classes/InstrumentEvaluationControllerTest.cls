@@ -101,7 +101,7 @@ private class InstrumentEvaluationControllerTest {
             WorkOrder historyRow = new WorkOrder(
                 Id = workOrderId,
                 Description = 'Angulation up/down is loose.',
-                ActualShipDate__c = Date.today().addDays(-10),
+                ActualShipDate__c = Date.today().addDays(-4),
                 CompletedTimestamp__c = Datetime.now().addDays(-10),
                 EvaluationNotes__c = 'Angulation wires stretched.'
             );
@@ -924,6 +924,66 @@ private class InstrumentEvaluationControllerTest {
     }
 
     /**
+     * @description GW-3377 - Finalize pricing requires a Work Order Id.
+     */
+    @IsTest
+    static void testFinalizeInstrumentEvaluationAfterPricing_WhenNullWorkOrder_Throws() {
+        Boolean threw = false;
+        Test.startTest();
+        try {
+            InstrumentEvaluationController.finalizeInstrumentEvaluationAfterPricing(
+                null,
+                null,
+                false,
+                null
+            );
+        } catch (AuraHandledException e) {
+            threw = true;
+        }
+        Test.stopTest();
+        Assert.isTrue(threw);
+    }
+
+    /**
+     * @description GW-3377 - Finalize without a requote copies the pricing totals and wraps
+     *              a missing Work Order as an Aura exception.
+     */
+    @IsTest
+    static void testFinalizeInstrumentEvaluationAfterPricing_WhenNoRequote_ReturnsTotals() {
+        WorkOrder workOrder = createInstrumentEvaluationChildWorkOrder();
+        WorkOrderRepairPricingService.PricingTotals totals =
+            new WorkOrderRepairPricingService.PricingTotals();
+        totals.originalNetTotal = 10;
+        totals.newNetTotal = 12;
+        WorkOrderRepairPricingService.lastTotals = totals;
+
+        Test.startTest();
+        InstrumentEvaluationController.DraftSaveResult result =
+            InstrumentEvaluationController.finalizeInstrumentEvaluationAfterPricing(
+                workOrder.Id,
+                10,
+                false,
+                null
+            );
+        Boolean missingWorkOrderThrew = false;
+        try {
+            InstrumentEvaluationController.finalizeInstrumentEvaluationAfterPricing(
+                UserInfo.getUserId(),
+                null,
+                false,
+                null
+            );
+        } catch (AuraHandledException e) {
+            missingWorkOrderThrew = e.getMessage() != null;
+        }
+        Test.stopTest();
+
+        Assert.areEqual(10, result.originalNetTotalPrice);
+        Assert.areEqual(12, result.newNetTotalPrice);
+        Assert.isTrue(missingWorkOrderThrew);
+    }
+
+    /**
      * @description GW-3400 - Verifies removeEvaluationPhoto unlinks and deletes the photo.
      */
     @IsTest
@@ -1135,6 +1195,11 @@ private class InstrumentEvaluationControllerTest {
             'Angulation up/down is loose.',
             workspace.repairHistory[0].reportedProblem
         );
+        Assert.areEqual(
+            Date.today().addDays(-4),
+            workspace.repairHistory[0].repairDate,
+            'Repair Date should be the Work Order Actual Ship Date.'
+        );
         Assert.areEqual(true, workspace.repairHistory[0].isWithinLastTwelveMonths);
         Assert.isTrue(workspace.repairHistoryHasMore);
         Assert.isFalse(workspace.subStatusOptions.isEmpty());
@@ -1189,6 +1254,23 @@ private class InstrumentEvaluationControllerTest {
             .status('Evaluate & Quote');
         builder.persist();
         return (WorkOrder) builder.record;
+    }
+
+    /**
+     * @description Child Instruments Work Order. Instrument Evaluation only applies to children.
+     * @return Persisted child Instruments Work Order
+     */
+    private static WorkOrder createInstrumentEvaluationChildWorkOrder() {
+        WorkOrder parent = createInstrumentEvaluationParentWorkOrder();
+        adb_WorkOrder childBuilder = new adb_WorkOrder()
+            .setRecordType('RepairCenterInstruments')
+            .status('Evaluate & Quote');
+        childBuilder.persist();
+        WorkOrder child = (WorkOrder) childBuilder.record;
+        child.AccountId = parent.AccountId;
+        child.ParentWorkOrderId = parent.Id;
+        update child;
+        return child;
     }
 
     /**

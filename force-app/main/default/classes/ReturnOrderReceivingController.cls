@@ -4882,7 +4882,7 @@ public with sharing class ReturnOrderReceivingController {
                 continue;
             }
             lines.add(
-                sequence + '. ' + buildAdditionalServiceHeading(lineItem) + ': ' + String.join(segments, ' | ')
+                sequence + '. ' + buildAdditionalServiceHeading(lineItem) + ' - ' + String.join(segments, ' | ')
             );
             sequence++;
         }
@@ -4898,7 +4898,7 @@ public with sharing class ReturnOrderReceivingController {
     /**
      * @description GW-5677 - Line number and item description that precede the service list.
      * @param lineItem Return Order line
-     * @return Heading text without the trailing colon
+     * @return Heading text without the trailing dash separator
      */
     private static String buildAdditionalServiceHeading(ReturnOrderLineItem lineItem) {
         List<String> parts = new List<String>();

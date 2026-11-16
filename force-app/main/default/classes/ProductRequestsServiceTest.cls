@@ -608,10 +608,14 @@ private class ProductRequestsServiceTest {
         Assert.areEqual(1, results.size());
         Assert.areEqual(true, results[0].success, results[0].integrationMessage);
         Assert.isNotNull(results[0].requestJson);
-        // Sold-to from SR.OracleAccountId__c. Ship-to from Account.AddressID__c.
+        // Sold-to from SR.OracleAccountId__c. Ship-to customer from the ship-to account parent SystemID__c.
+        // Ship-to address from Account.OracleAddressId__c.
         // Invoice / bill-to from the primary Bill To address on the resource location.
         Assert.isTrue(results[0].requestJson.contains('"P_SOLD_TO_ORG_ID":"3370699"'), results[0].requestJson);
-        Assert.isTrue(results[0].requestJson.contains('"P_SHIP_TO_CUST_ID":"3370699"'), results[0].requestJson);
+        Assert.isTrue(
+            results[0].requestJson.contains('"P_SHIP_TO_CUST_ID":"' + SHIP_TO_PARENT_SYSTEM_ID + '"'),
+            results[0].requestJson
+        );
         Assert.isTrue(results[0].requestJson.contains('"P_SHIP_TO_ADDR_ID":"4269123"'), results[0].requestJson);
         Assert.isTrue(results[0].requestJson.contains('"P_INV_ADDR_ID":"5551111"'), results[0].requestJson);
         Assert.isTrue(results[0].requestJson.contains('"P_BILL_TO_ADDR":"5551111"'), results[0].requestJson);
@@ -687,7 +691,7 @@ private class ProductRequestsServiceTest {
             FROM ProductRequest
             WHERE Id = :pr.Id
         ];
-        Assert.isNull(stamped.SubmissionToERP__c);
+        Assert.areEqual('Submitted', stamped.SubmissionToERP__c);
         Assert.areEqual('Success Create', stamped.IntegrationStatus__c);
         Assert.areEqual('TEST-SO-001', stamped.ERPOrderNumber__c);
     }
@@ -862,19 +866,77 @@ private class ProductRequestsServiceTest {
         Test.stopTest();
 
         Assert.areEqual(true, results[0].success, results[0].integrationMessage);
+        Assert.isTrue(results[0].requestJson.contains('"P_SHIP_TO_CUST_ID":"3370699"'), results[0].requestJson);
         Assert.isTrue(results[0].requestJson.contains('"P_SHIP_TO_ADDR_ID":"7770001"'), results[0].requestJson);
         Assert.isTrue(results[0].requestJson.contains('"P_INV_ADDR_ID":"5551111"'), results[0].requestJson);
     }
 
+    @IsTest
+    static void shouldFail_WhenShipToAccountParentSystemIdBlank() {
+        Account acct = createOracleTechAccount('4269123', 'TEST-ORACLE-NO-PARENT-ID');
+        acct.ParentId = null;
+        insert acct;
+
+        ServiceResource sr = new ServiceResource(
+            Name = 'PR Oracle No Parent SR',
+            RelatedRecordId = UserInfo.getUserId(),
+            IsActive = true,
+            ResourceType = 'T',
+            OracleAccountId__c = '3370699'
+        );
+        insert sr;
+        assignPrimaryBillToLocation(sr);
+
+        Product2 prod = new Product2(Name = 'No Parent Part', ProductCode = 'PNOPARENT1', IsActive = true);
+        insert prod;
+
+        ProductRequest pr = new ProductRequest(
+            Status = 'Draft',
+            NeedByDate = Datetime.newInstance(2026, 5, 8, 12, 0, 0),
+            ServiceResource__c = sr.Id,
+            ShipToAddressAccount__c = acct.Id
+        );
+        insert pr;
+        insert new ProductRequestLineItem(
+            ParentId = pr.Id,
+            Product2Id = prod.Id,
+            QuantityRequested = 1,
+            NeedByDate = Datetime.newInstance(2026, 5, 8, 12, 0, 0)
+        );
+
+        ProductRequestsService.OracleSubmitRequest req = new ProductRequestsService.OracleSubmitRequest();
+        req.productRequestId = pr.Id;
+        req.performCallout = false;
+
+        Test.startTest();
+        List<ProductRequestsService.OracleSubmitResult> results = ProductRequestsService.submitOracleSalesOrder(
+            new List<ProductRequestsService.OracleSubmitRequest>{ req }
+        );
+        Test.stopTest();
+
+        Assert.areEqual(false, results[0].success);
+        Assert.areEqual('Fail Create', results[0].integrationStatus);
+        Assert.isTrue(results[0].integrationMessage.contains('P_SHIP_TO_CUST_ID'), results[0].integrationMessage);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    private static final String SHIP_TO_PARENT_SYSTEM_ID = '1001234';
+
     private static Account createOracleTechAccount(String systemId, String sourceSystemId) {
+        Account parent = new Account(
+            Name = 'PR Oracle Ship-To Parent ' + systemId,
+            SystemID__c = SHIP_TO_PARENT_SYSTEM_ID
+        );
+        insert parent;
         return new Account(
             Name = 'PR Oracle Test Tech ' + systemId,
             Type = 'Address',
+            ParentId = parent.Id,
             SystemID__c = systemId,
             SourceSystemID__c = sourceSystemId,
-            AddressID__c = systemId
+            AddressID__c = systemId,
+            OracleAddressId__c = systemId
         );
     }
 

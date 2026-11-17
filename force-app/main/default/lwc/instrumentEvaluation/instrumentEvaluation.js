@@ -120,6 +120,8 @@ export default class InstrumentEvaluation extends LightningElement {
     additionalServicesRequested = '';
     /** GW-5677 - True once the field is readable for the open Work Order. */
     additionalServicesVisible = false;
+    /** GW-5677 - Quantity column width that lines services up with the modal title. */
+    servicesLead;
     @track draftEntries = [];
     @track warrantyRepairRows = [];
     wizardStep = WIZARD_CATEGORY;
@@ -234,6 +236,29 @@ export default class InstrumentEvaluation extends LightningElement {
         this.classList.toggle('is-evaluation', this.isEvaluationShellMode);
         this.syncSubStatusSelectValue();
         this.scheduleWorkspaceHeightSync();
+        this.syncAdditionalServicesAlignment();
+    }
+
+    /**
+     * GW-5677 - Starts Additional Services Requested where the section header ends.
+     */
+    syncAdditionalServicesAlignment() {
+        if (this.modalOpen !== true) {
+            return;
+        }
+        const heading = this.template.querySelector('.item-modal__heading');
+        if (!heading) {
+            return;
+        }
+        const lead = Math.ceil(heading.getBoundingClientRect().width);
+        const next = `${lead}px`;
+        const editor = this.template.querySelector('c-repair-center-item-editor');
+        if (editor) {
+            editor.style.setProperty('--services-lead', next);
+        }
+        if (this.servicesLead !== next) {
+            this.servicesLead = next;
+        }
     }
 
     /**

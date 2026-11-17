@@ -16,6 +16,18 @@ export default class RepairCenterItemEditor extends LightningElement {
     @api quantityHint = '';
     /** GW-5677 - Shows the Additional Services Requested slot beside quantity. */
     @api showServices = false;
+    /** GW-5677 - Quantity column width so services line up with the section header. */
+    _servicesLead;
+
+    @api
+    get servicesLead() {
+        return this._servicesLead;
+    }
+
+    set servicesLead(value) {
+        this._servicesLead = value;
+        this.applyServicesLead();
+    }
 
     get quantityValue() {
         return this.quantity == null ? '' : String(this.quantity);
@@ -37,6 +49,38 @@ export default class RepairCenterItemEditor extends LightningElement {
         return this.showServices === true
             ? 'item-editor__top item-editor__top_with-services'
             : 'item-editor__top';
+    }
+
+    /**
+     * GW-5677 - Shifts the services column to the end of the section header.
+     * @return {string} Grid columns for the editor header
+     */
+    get servicesGridStyle() {
+        if (this.showServices !== true || !this._servicesLead) {
+            return '';
+        }
+        const lead = Math.max(0, parseFloat(this._servicesLead) - 16);
+        return `grid-template-columns: max(${lead}px, 8.5rem) minmax(0, 1fr) auto`;
+    }
+
+    renderedCallback() {
+        this.applyServicesLead();
+    }
+
+    /**
+     * GW-5677 - Places Additional Services Requested at the end of the section header.
+     */
+    applyServicesLead() {
+        if (!this.template) {
+            return;
+        }
+        const top = this.template.querySelector('.item-editor__top_with-services');
+        if (!top || !this.servicesLead) {
+            return;
+        }
+        const gap = parseFloat(getComputedStyle(top).columnGap) || 0;
+        const lead = Math.max(0, parseFloat(this.servicesLead) - gap);
+        top.style.gridTemplateColumns = `max(${lead}px, 8.5rem) minmax(0, 1fr) auto`;
     }
 
     /**

@@ -46,6 +46,7 @@ public with sharing class ReceivingFinishService {
 	private static Id cachedDefaultPricebookId;
 	private static Map<Id, Account> billingAddressByAccountId = new Map<Id, Account>();
 	private static Map<Id, Account> primaryBillToByAccountId = new Map<Id, Account>();
+	private static Map<Id, Account> primaryBillToByParentId = new Map<Id, Account>();
 	private static Map<Id, Account> primaryShipToByAccountId = new Map<Id, Account>();
 
 	/**
@@ -56,6 +57,7 @@ public with sharing class ReceivingFinishService {
 		cachedDefaultPricebookId = null;
 		billingAddressByAccountId.clear();
 		primaryBillToByAccountId.clear();
+		primaryBillToByParentId.clear();
 		primaryShipToByAccountId.clear();
 	}
 
@@ -1467,10 +1469,10 @@ public with sharing class ReceivingFinishService {
 
 	/**
 	 * @description GW-5492 / GW-4162 - Internal Repair bills the internal account, not the
-	 *              customer primary bill-to. Bill-To Address Account only accepts an Address
-	 *              account whose parent is the Work Order account. When no allowed address
-	 *              account exists, the lookup stays blank and Bill To Address uses the
-	 *              internal account billing address (or matching AccountNumber address).
+	 *              customer primary bill-to. Bill-To Address Account must be an Address child
+	 *              of the Internal Account (lookup filter ParentId = Work Order Account).
+	 *              Resolve by ParentId — not AccountNumber — because Internal and Customer
+	 *              address rows can share the same AccountNumber (e.g. 25923 REPAIR/EXCHANGE).
 	 * @param workOrder Work Order being created or corrected
 	 * @param internalAccountId Account selected on the Internal Repair action
 	 */
@@ -1483,7 +1485,7 @@ public with sharing class ReceivingFinishService {
 		if (internalAccount != null && String.isNotBlank(internalAccount.CurrencyIsoCode)) {
 			workOrder.CurrencyIsoCode = internalAccount.CurrencyIsoCode;
 		}
-		Account addressAccount = resolvePrimaryBillToAccount(internalAccountId);
+		Account addressAccount = resolvePrimaryBillToUnderParent(internalAccountId);
 		if (isBillToAddressAccountAllowed(addressAccount, workOrder.AccountId)) {
 			workOrder.BillToAddressAccount__c = addressAccount.Id;
 			applyBillToAddress(workOrder, addressAccount);
@@ -1674,9 +1676,8 @@ public with sharing class ReceivingFinishService {
 
 	/**
 	 * @description Resolves the Primary Bill-To Address Account by customer Account Number.
-	 *              Cached per transaction — Finish Receiving applies this for parent, child,
-	 *              and post-insert restore.
-	 * @param customerAccountId RO.AccountId or Internal Account Id
+	 *              Used for standard (non-Internal Repair) Finish Receiving mapping.
+	 * @param customerAccountId RO.AccountId
 	 * @return Bill-To Account, including currency, or null
 	 */
 	private static Account resolvePrimaryBillToAccount(Id customerAccountId) {
@@ -1699,6 +1700,33 @@ public with sharing class ReceivingFinishService {
 			resolved = billToAccounts.isEmpty() ? null : billToAccounts[0];
 		}
 		primaryBillToByAccountId.put(customerAccountId, resolved);
+		return resolved;
+	}
+
+	/**
+	 * @description GW-4162 - Primary Bill-To Address Account under the Internal Account parent.
+	 *              Cached per transaction for parent/child/restore reuse.
+	 * @param parentAccountId Internal Account Id
+	 * @return Primary bill-to Address account, or null
+	 */
+	private static Account resolvePrimaryBillToUnderParent(Id parentAccountId) {
+		if (parentAccountId == null) {
+			return null;
+		}
+		if (primaryBillToByParentId.containsKey(parentAccountId)) {
+			return primaryBillToByParentId.get(parentAccountId);
+		}
+		List<Account> billToAccounts = AccountSelector.selectBillToAddressAccountsByParentId(
+			parentAccountId
+		);
+		Account resolved = null;
+		for (Account billToAccount : billToAccounts) {
+			if (billToAccount != null && billToAccount.BilltoAddressStatus__c == 'Primary') {
+				resolved = billToAccount;
+				break;
+			}
+		}
+		primaryBillToByParentId.put(parentAccountId, resolved);
 		return resolved;
 	}
 

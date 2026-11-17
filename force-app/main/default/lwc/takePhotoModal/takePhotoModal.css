@@ -1,0 +1,84 @@
+.take-photo-dropzone {
+    margin-bottom: 1rem;
+    padding: 0.75rem 1rem;
+    border: 1px dashed #c9c9c9;
+    border-radius: 0.25rem;
+    background: #fafaf9;
+}
+
+.take-photo-dropzone_active {
+    border-color: #0176d3;
+    background: #f3f9ff;
+}
+
+.take-photo-dropzone__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+}
+
+.take-photo-dropzone__hint {
+    border: 0;
+    background: transparent;
+    color: #706e6b;
+    font-size: 0.8125rem;
+    cursor: pointer;
+    padding: 0;
+    text-decoration: none;
+}
+
+.take-photo-dropzone__hint:disabled {
+    cursor: default;
+    opacity: 0.6;
+}
+
+.camera-modal {
+    z-index: 9101;
+}
+
+.camera-modal-backdrop {
+    z-index: 9100;
+}
+
+.camera-modal .slds-modal__container {
+    max-width: 40rem;
+}
+
+.camera-preview {
+    width: 100%;
+    max-width: 100%;
+    min-height: 14rem;
+    max-height: 20rem;
+    background: #080707;
+    border-radius: 0.25rem;
+    object-fit: contain;
+}
+
+.files-table__col-icon {
+    width: 3.5rem;
+}
+
+table.files-table th,
+table.files-table td {
+    text-align: left;
+}
+
+table.files-table th.files-table__col-actions,
+table.files-table td.files-table__col-actions {
+    width: 4rem;
+    text-align: center;
+}
+
+.files-table__icon-slot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.files-table__thumb {
+    width: 2.5rem;
+    height: 2.5rem;
+    object-fit: cover;
+    border-radius: 0.125rem;
+}

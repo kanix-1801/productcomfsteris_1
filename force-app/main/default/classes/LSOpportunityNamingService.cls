@@ -32,6 +32,8 @@ public with sharing class LSOpportunityNamingService {
 
     @TestVisible
     private static Set<Id> inScopeRecordTypeIds;
+    @TestVisible
+    private static Boolean throwApplyNamesTestException = false;
 
     /**
      * Assigns the LS sequence and writes Name onto Trigger.new.
@@ -41,6 +43,9 @@ public with sharing class LSOpportunityNamingService {
      */
     public static void applyNames(List<Opportunity> opportunities) {
         try {
+            if (Test.isRunningTest() && throwApplyNamesTestException) {
+                throw new QueryException('Forced test exception');
+            }
             List<Opportunity> eligible = eligibleOpportunities(
                 opportunities,
                 isUpdate(opportunities)

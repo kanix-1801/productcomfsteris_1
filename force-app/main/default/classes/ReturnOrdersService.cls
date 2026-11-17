@@ -3435,12 +3435,12 @@ public with sharing class ReturnOrdersService {
 			} else {
 				if (!(instrumentsLine && useInstrumentOrderHeader)) {
 					item.CustomerPO__c = (String) line.get('customerPo');
-					applyOptionalTrimmedField(
-						item,
-						'HospitalReferencedTrayName__c',
-						(String) line.get('hospitalReferencedTrayName')
-					);
 				}
+				applyOptionalTrimmedField(
+					item,
+					'HospitalReferencedTrayName__c',
+					(String) line.get('hospitalReferencedTrayName')
+				);
 				if (!instrumentsLine) {
 					applyOptionalTrimmedField(
 						item,

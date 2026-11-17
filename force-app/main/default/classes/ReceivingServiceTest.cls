@@ -7,7 +7,8 @@ private class ReceivingServiceTest {
 	static void setupTestData() {
 		adb_Account accountBuilder = new adb_Account()
 			.name('GW5492 Receiving Account')
-			.systemId('LEG-5492');
+			.systemId('LEG-5492')
+			.accountNumber('ACCT-5492');
 		accountBuilder.set(Account.OrgIDs__c, '82');
 		accountBuilder.set(Account.CreditStatusCode__c, 'CREDIT HOLD');
 
@@ -618,7 +619,7 @@ private class ReceivingServiceTest {
 		Assert.areEqual(returnOrder.AccountId, context.accountId);
 		Assert.areEqual('GW5492 Receiving Account', context.accountName);
 		Assert.areEqual('STERIS US', context.operatingUnit);
-		Assert.areEqual('LEG-5492', context.legacyCustomerId);
+		Assert.areEqual('ACCT-5492', context.legacyCustomerId);
 		Assert.areEqual(true, context.isCreditHold);
 		Assert.areEqual(UserInfo.getName(), context.receiverName);
 		Assert.isNotNull(context.items);

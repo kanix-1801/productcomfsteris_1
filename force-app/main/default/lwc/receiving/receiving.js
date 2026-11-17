@@ -152,7 +152,6 @@ function writeCanResolveMissingReturnOrderCache(canResolve) {
 const SCAN_FIELD_LABEL = 'Return Order / Work Order Id / Number';
 const SCAN_FIELD_PLACEHOLDER = 'Scan or enter Return Order / Work Order Id / Number';
 const MOD_FORM_ACCEPT = 'image/*,.jpg,.jpeg,.png,.heic,.webp';
-const MOD_REQUEST_PHOTO_FILE_NAME = 'Mod Request.jpg';
 const TYPE_SERIALIZED = 'Serialized';
 const TYPE_OTHER_SERIALIZED = 'Other (Serialized)';
 const TYPE_OTHER_NON_SERIALIZED = 'Other (Non-Serialized)';
@@ -426,18 +425,9 @@ export default class Receiving extends NavigationMixin(LightningElement) {
     isModFormCameraOpen = false;
     modFormCameraItemKey;
     photoModalMode = PHOTO_MODE_MOD_FORM;
-    selectedCameraId;
-    cameraOptions = [];
     cameraError;
-    isCameraStarting = false;
-    isCameraActive = false;
-    isCapturing = false;
-    mediaStream;
-    videoEl;
-    canvasEl;
     renamingDocumentIds = new Set();
     deletingDocumentIds = new Set();
-    thumbnailFallbackIds = new Set();
 
     @wire(CurrentPageReference)
     handlePageReference(pageRef) {
@@ -827,6 +817,10 @@ export default class Receiving extends NavigationMixin(LightningElement) {
         return this.photoModalMode === PHOTO_MODE_TAKE_PIC;
     }
 
+    get takePhotoModalMode() {
+        return this.isTakePicMode ? 'receiving' : 'modForm';
+    }
+
     get modFormPhotoModalTitle() {
         if (!this.isTakePicMode) {
             return 'Mod Form Photos';
@@ -849,66 +843,11 @@ export default class Receiving extends NavigationMixin(LightningElement) {
         return this.isTakePicMode ? 'No photos for this item yet.' : 'No Mod Form photos yet.';
     }
 
-    get isModFormPhotoModalBusy() {
-        return this.isModFormBusy || this.isCapturing;
-    }
-
-    get isStartCameraDisabled() {
-        return (
-            this.isCameraStarting ||
-            this.isCameraActive ||
-            !this.selectedCameraId ||
-            this.isModFormBusy
-        );
-    }
-
-    get isCaptureDisabled() {
-        return !this.isCameraActive || this.isCapturing || this.isModFormBusy;
-    }
-
-    get isStopCameraDisabled() {
-        return !this.isCameraActive || this.isCameraStarting;
-    }
-
-    get modFormModalPhotos() {
+    get sharedPhotoModalPhotos() {
         if (!this.modFormCameraItemKey) {
             return [];
         }
-        const photos = this.photosForOpenModal(this.modFormCameraItemKey);
-        return photos.map((file) => {
-            const contentDocumentId = file.contentDocumentId;
-            const editTitle = file.editTitle != null ? file.editTitle : file.title || '';
-            const savedTitle = file.title || '';
-            const isRenaming = this.renamingDocumentIds.has(contentDocumentId);
-            const isDeleting = this.deletingDocumentIds.has(contentDocumentId);
-            const isTitleDirty = editTitle.trim() !== savedTitle.trim();
-            const previewUrl = file.imageDownloadUrl || file.thumbnailUrl;
-            const showThumbnail =
-                !!previewUrl && !this.thumbnailFallbackIds.has(contentDocumentId);
-            return {
-                ...file,
-                fileExtension: file.fileExtension || '—',
-                showThumbnail,
-                thumbnailUrl: previewUrl,
-                editTitle,
-                isRenaming,
-                isDeleting,
-                isTitleDirty,
-                isSaveTitleDisabled: !isTitleDirty || isRenaming,
-                titleSaveVariant: isTitleDirty ? 'brand' : 'border-filled',
-                titleSaveTitle: isTitleDirty ? 'Save title' : 'No title changes to save',
-                titleSaveClass: isTitleDirty
-                    ? 'photo-title-save photo-title-save_dirty'
-                    : 'photo-title-save photo-title-save_clean',
-                titleInputClass: isTitleDirty
-                    ? 'photo-title-input photo-title-input_dirty'
-                    : 'photo-title-input'
-            };
-        });
-    }
-
-    get hasModFormModalPhotos() {
-        return this.modFormModalPhotos.length > 0;
+        return this.photosForOpenModal(this.modFormCameraItemKey);
     }
 
     handleScanValueChange(event) {
@@ -3965,7 +3904,11 @@ export default class Receiving extends NavigationMixin(LightningElement) {
         const itemKey =
             event.currentTarget.dataset.itemKey || this.modFormCameraItemKey;
         const contentDocumentId = event.currentTarget.dataset.documentId;
-        if (!itemKey || !contentDocumentId || !this.activeReturnOrderId) {
+        if (!itemKey || !contentDocumentId) {
+            return;
+        }
+        const fieldName = this.photoFieldForDocument(itemKey, contentDocumentId);
+        if (fieldName !== 'takePicPhotos' && !this.activeReturnOrderId) {
             return;
         }
         const deleting = new Set(this.deletingDocumentIds);
@@ -3975,7 +3918,6 @@ export default class Receiving extends NavigationMixin(LightningElement) {
         this.modFormError = undefined;
         this.cameraError = undefined;
         try {
-            const fieldName = this.photoFieldForDocument(itemKey, contentDocumentId);
             if (fieldName === 'takePicPhotos') {
                 await deleteReceivingPhoto({ contentDocumentId });
             } else {
@@ -4000,31 +3942,44 @@ export default class Receiving extends NavigationMixin(LightningElement) {
         }
     }
 
-    handleModFormPhotoTitleChange(event) {
-        const contentDocumentId = event.currentTarget.dataset.docId;
-        const value =
-            event.detail && event.detail.value != null
-                ? event.detail.value
-                : event.target.value || '';
-        if (!contentDocumentId || !this.modFormCameraItemKey) {
+    handleSharedPhotoAdded(event) {
+        const itemKey = event.detail?.contextKey || this.modFormCameraItemKey;
+        const photo = event.detail?.photo;
+        if (!itemKey || !photo?.contentDocumentId) {
             return;
         }
-        this.patchModFormPhoto(this.modFormCameraItemKey, contentDocumentId, (photo) => ({
-            ...photo,
-            editTitle: value
-        }));
+        if (this.isTakePicMode) {
+            this.addItemPhoto(itemKey, photo, 'takePicPhotos');
+            return;
+        }
+        this.addModFormPhoto(itemKey, photo);
     }
 
-    async handleSaveModFormPhotoTitle(event) {
-        const contentDocumentId = event.currentTarget.dataset.docId;
-        if (!contentDocumentId || !this.modFormCameraItemKey || !this.activeReturnOrderId) {
+    async handleSharedPhotoRemoved(event) {
+        const itemKey = event.detail?.contextKey || this.modFormCameraItemKey;
+        const contentDocumentId = event.detail?.contentDocumentId;
+        if (!itemKey || !contentDocumentId) {
             return;
         }
-        const photos = this.photosForOpenModal(this.modFormCameraItemKey);
-        const staged = photos.find((photo) => photo.contentDocumentId === contentDocumentId);
-        const newTitle = (staged?.editTitle || staged?.title || '').trim();
-        if (!newTitle) {
-            this.cameraError = 'Photo title is required.';
+        await this.handleRemoveModFormPhoto({
+            currentTarget: {
+                dataset: {
+                    itemKey,
+                    documentId: contentDocumentId
+                }
+            }
+        });
+    }
+
+    async handleSharedPhotoTitleSave(event) {
+        const itemKey = event.detail?.contextKey || this.modFormCameraItemKey;
+        const contentDocumentId = event.detail?.contentDocumentId;
+        const newTitle = String(event.detail?.newTitle || '').trim();
+        if (!itemKey || !contentDocumentId || !newTitle) {
+            return;
+        }
+        const fieldName = this.photoFieldForDocument(itemKey, contentDocumentId);
+        if (fieldName !== 'takePicPhotos' && !this.activeReturnOrderId) {
             return;
         }
 
@@ -4033,10 +3988,6 @@ export default class Receiving extends NavigationMixin(LightningElement) {
         this.renamingDocumentIds = renaming;
         this.cameraError = undefined;
         try {
-            const fieldName = this.photoFieldForDocument(
-                this.modFormCameraItemKey,
-                contentDocumentId
-            );
             const updated =
                 fieldName === 'takePicPhotos'
                     ? await renameReceivingPhoto({ contentDocumentId, newTitle })
@@ -4045,7 +3996,7 @@ export default class Receiving extends NavigationMixin(LightningElement) {
                           contentDocumentId,
                           newTitle
                       });
-            this.patchModFormPhoto(this.modFormCameraItemKey, contentDocumentId, (photo) => ({
+            this.patchModFormPhoto(itemKey, contentDocumentId, (photo) => ({
                 ...photo,
                 title: updated.title,
                 editTitle: updated.title,
@@ -4062,41 +4013,18 @@ export default class Receiving extends NavigationMixin(LightningElement) {
             );
         } catch (error) {
             this.cameraError = this.normalizeError(error);
+            this.dispatchEvent(
+                new ShowToastEvent({
+                    title: 'Unable to rename photo',
+                    message: this.cameraError,
+                    variant: 'error'
+                })
+            );
         } finally {
             const remaining = new Set(this.renamingDocumentIds);
             remaining.delete(contentDocumentId);
             this.renamingDocumentIds = remaining;
         }
-    }
-
-    handleModFormThumbnailError(event) {
-        const contentDocumentId = event.currentTarget.dataset.docId;
-        if (!contentDocumentId) {
-            return;
-        }
-        const next = new Set(this.thumbnailFallbackIds);
-        next.add(contentDocumentId);
-        this.thumbnailFallbackIds = next;
-    }
-
-    handleModFormModalChooseFiles() {
-        const input = this.template.querySelector(
-            'input[data-id="mod-form-modal-file-input"]'
-        );
-        if (input) {
-            input.click();
-        }
-    }
-
-    async handleModFormModalFileSelected(event) {
-        const itemKey = this.modFormCameraItemKey;
-        const files = Array.from(event.target.files || []);
-        event.target.value = '';
-        if (this.isTakePicMode) {
-            await this.uploadTakePicFiles(itemKey, files);
-            return;
-        }
-        await this.uploadModFormFiles(itemKey, files);
     }
 
     async openTakePic(itemKey) {
@@ -4108,11 +4036,6 @@ export default class Receiving extends NavigationMixin(LightningElement) {
         this.isModFormCameraOpen = true;
         this.cameraError = undefined;
         this.updateItemState(itemKey, { lastActionKey: ACTION_KEY_TAKE_PIC });
-        await this.refreshCameraOptions();
-        // eslint-disable-next-line @lwc/lwc/no-async-operation
-        window.setTimeout(() => {
-            this.bindCameraElements();
-        }, 0);
     }
 
     async handleOpenModFormCamera(event) {
@@ -4120,11 +4043,6 @@ export default class Receiving extends NavigationMixin(LightningElement) {
         this.modFormCameraItemKey = event.currentTarget.dataset.itemKey;
         this.isModFormCameraOpen = true;
         this.cameraError = undefined;
-        await this.refreshCameraOptions();
-        // eslint-disable-next-line @lwc/lwc/no-async-operation
-        window.setTimeout(() => {
-            this.bindCameraElements();
-        }, 0);
     }
 
     async handleCloseModFormCamera() {
@@ -4138,7 +4056,6 @@ export default class Receiving extends NavigationMixin(LightningElement) {
     }
 
     dismissPhotoModal() {
-        this.handleStopCamera();
         this.isModFormCameraOpen = false;
         this.modFormCameraItemKey = undefined;
         this.photoModalMode = PHOTO_MODE_MOD_FORM;
@@ -4200,129 +4117,6 @@ export default class Receiving extends NavigationMixin(LightningElement) {
                 })
             );
             return false;
-        }
-    }
-
-    handleCameraChange(event) {
-        this.selectedCameraId = event.detail.value;
-    }
-
-    async refreshCameraOptions() {
-        this.cameraOptions = [];
-        this.selectedCameraId = undefined;
-        if (!navigator.mediaDevices?.enumerateDevices) {
-            return;
-        }
-        try {
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            const videoInputs = devices.filter((device) => device.kind === 'videoinput');
-            this.cameraOptions = videoInputs.map((device, index) => ({
-                label: device.label || `Camera ${index + 1}`,
-                value: device.deviceId
-            }));
-            if (this.cameraOptions.length && !this.selectedCameraId) {
-                this.selectedCameraId = this.cameraOptions[0].value;
-            }
-        } catch (error) {
-            this.cameraError = this.normalizeError(error);
-        }
-    }
-
-    bindCameraElements() {
-        this.videoEl = this.template.querySelector('video.camera-preview');
-        this.canvasEl = this.template.querySelector('canvas');
-    }
-
-    async handleStartCamera() {
-        if (
-            !navigator.mediaDevices ||
-            typeof navigator.mediaDevices.getUserMedia !== 'function'
-        ) {
-            this.cameraError = 'Camera is not available in this browser.';
-            return;
-        }
-        this.cameraError = undefined;
-        this.isCameraStarting = true;
-        this.handleStopCamera();
-        try {
-            this.bindCameraElements();
-            const constraints = this.selectedCameraId
-                ? { video: { deviceId: { exact: this.selectedCameraId } }, audio: false }
-                : { video: true, audio: false };
-            this.mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
-            if (this.videoEl) {
-                this.videoEl.srcObject = this.mediaStream;
-                await this.videoEl.play();
-            }
-            this.isCameraActive = true;
-            await this.refreshCameraOptions();
-        } catch (error) {
-            this.cameraError = this.normalizeError(error);
-            this.isCameraActive = false;
-        } finally {
-            this.isCameraStarting = false;
-        }
-    }
-
-    handleStopCamera() {
-        if (this.mediaStream) {
-            this.mediaStream.getTracks().forEach((track) => track.stop());
-            this.mediaStream = undefined;
-        }
-        if (this.videoEl) {
-            this.videoEl.srcObject = null;
-        }
-        this.isCameraActive = false;
-        this.isCameraStarting = false;
-    }
-
-    async handleCaptureModFormPhoto() {
-        if (!this.isCameraActive || this.isCapturing || !this.modFormCameraItemKey) {
-            return;
-        }
-        this.isCapturing = true;
-        this.cameraError = undefined;
-        try {
-            this.bindCameraElements();
-            if (!this.videoEl || !this.canvasEl) {
-                throw new Error('Camera preview is not ready.');
-            }
-            const width = this.videoEl.videoWidth || 1280;
-            const height = this.videoEl.videoHeight || 720;
-            this.canvasEl.width = width;
-            this.canvasEl.height = height;
-            const context = this.canvasEl.getContext('2d');
-            context.drawImage(this.videoEl, 0, 0, width, height);
-            const dataUrl = this.canvasEl.toDataURL('image/jpeg', 0.92);
-            const takePic = this.isTakePicMode;
-            const photo = takePic
-                ? await stageReceivingPhoto({
-                      base64Data: dataUrl,
-                      fileName: `Receive-${Date.now()}.jpg`
-                  })
-                : await stageModFormPhoto({
-                      returnOrderId: this.activeReturnOrderId,
-                      base64Data: dataUrl,
-                      fileName: MOD_REQUEST_PHOTO_FILE_NAME
-                  });
-            this.addItemPhoto(
-                this.modFormCameraItemKey,
-                photo,
-                takePic ? 'takePicPhotos' : 'modFormPhotos'
-            );
-            this.dispatchEvent(
-                new ShowToastEvent({
-                    title: takePic ? 'Photo staged' : 'Mod Form photo saved',
-                    message: takePic
-                        ? 'Photo staged for Finish Receiving.'
-                        : 'Photo attached to the Return Order.',
-                    variant: 'success'
-                })
-            );
-        } catch (error) {
-            this.cameraError = this.normalizeError(error);
-        } finally {
-            this.isCapturing = false;
         }
     }
 

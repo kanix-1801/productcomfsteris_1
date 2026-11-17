@@ -63,7 +63,7 @@
 }
 
 .missing-ro-photo-label {
-    display: inline-flex;
+    display: flex;
     flex-direction: row;
     align-items: baseline;
     gap: 0.15rem;

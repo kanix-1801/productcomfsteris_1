@@ -395,27 +395,47 @@
                         <template lwc:if={isMobileVanSection}>
                             <div class="ca-section-head">
                                 <div>
-                                    <h3 class="ca-section-title">On Location Mobile Van</h3>
-                                    <p class="ca-section-sub">Choose the instrument service categories covered by
-                                        on-location mobile van service. Each category chosen is saved as one
-                                        adjustment on this line.</p>
+                                    <h3 class="ca-section-title">On Location - Mobile Van</h3>
+                                    <p class="ca-section-sub">Pick the Mobile Van pricing program and the Business
+                                        Group. The program's ONL categories start checked; check or uncheck any
+                                        category for this quote. Save Adjustments writes one ContractAdjustment record
+                                        (Type = ONL - Mobile Van) per checked category, so later changes to the program
+                                        don't change this quote or contract.</p>
+                                </div>
+                            </div>
+
+                            <div class="ca-onl-fields">
+                                <div>
+                                    <lightning-record-picker label="ONL Pricing Program" placeholder="Search ONL programs..."
+                                        object-api-name="PricingProgram__c" required filter={onlProgramFilter}
+                                        value={onlProgramId} onchange={handleOnlProgramChange}></lightning-record-picker>
+                                    <p class="ca-field-help">Only Active programs with Type = On Location - Mobile Van.</p>
+                                </div>
+                                <div>
+                                    <lightning-combobox label="Business Group" placeholder="Select Business Group"
+                                        options={businessGroupOptions} value={onlBusinessGroup}
+                                        required={hasOnlProgram}
+                                        onchange={handleBusinessGroupChange}></lightning-combobox>
+                                    <p class="ca-field-help">Saved on the quote line with the program.</p>
                                 </div>
                             </div>
 
                             <div class="ca-tile-toolbar">
                                 <div class="ca-tile-filter">
-                                    <lightning-input type="search" variant="label-hidden" label="Filter categories"
-                                        placeholder="Filter categories..." value={mobileVanFilter}
+                                    <lightning-input type="search" variant="label-hidden" label="Filter ONL categories"
+                                        placeholder="Filter ONL categories..." value={mobileVanFilter}
                                         onchange={handleMobileVanFilter}></lightning-input>
                                 </div>
-                                <span class="ca-count ca-tile-count" aria-live="polite">{mobileVanCountLabel}</span>
+                                <span class="ca-onl-count-pill" aria-live="polite">{mobileVanCountLabel}</span>
+                                <span class="ca-onl-summary" aria-live="polite">
+                                    {onlFromProgramCount} from program ·
+                                    <span class="ca-onl-added">{onlAddedCount} added</span> ·
+                                    <span class="ca-onl-removed">{onlRemovedCount} removed</span>
+                                </span>
                                 <div class="ca-tile-actions">
-                                    <lightning-button variant="base" label="Select all"
-                                        disabled={mobileVanSelectAllDisabled}
-                                        onclick={handleMobileVanSelectAll}></lightning-button>
-                                    <lightning-button variant="base" label="Clear"
-                                        disabled={mobileVanClearDisabled}
-                                        onclick={handleMobileVanClear}></lightning-button>
+                                    <lightning-button variant="base" label="Reset to program"
+                                        disabled={onlResetDisabled}
+                                        onclick={handleOnlResetToProgram}></lightning-button>
                                 </div>
                             </div>
 
@@ -425,6 +445,7 @@
                                         <input type="checkbox" class="ca-tile-check" checked={tile.checked}
                                             data-category={tile.value} onchange={handleMobileVanToggle} />
                                         <span class="ca-tile-label">{tile.label}</span>
+                                        <span lwc:if={tile.statusLabel} class={tile.statusClass}>{tile.statusLabel}</span>
                                     </label>
                                 </template>
                             </div>

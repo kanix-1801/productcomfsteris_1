@@ -78,7 +78,7 @@ public with sharing class ReceivingService {
 		'ParentWorkOrder.RecordType.DeveloperName',
 		'AccountId',
 		'Account.Name',
-		'Account.SystemID__c',
+		'Account.AccountNumber',
 		'Account.CreditStatusCode__c',
 		'AssignedSalesPerson__c',
 		'AssignedSalesPerson__r.Name',
@@ -159,7 +159,7 @@ public with sharing class ReceivingService {
 		'RepairWarranty__c',
 		'AccountId',
 		'Account.Name',
-		'Account.SystemID__c',
+		'Account.AccountNumber',
 		'Account.OrgIDs__c',
 		'Account.CreditStatusCode__c',
 		'SalesRep__c',
@@ -1251,7 +1251,7 @@ public with sharing class ReceivingService {
 		context.operatingUnit = resolveOperatingUnitDisplay(returnOrder);
 		context.legacyCustomerId = returnOrder.Account == null
 			? null
-			: returnOrder.Account.SystemID__c;
+			: returnOrder.Account.AccountNumber;
 		context.receiverName = UserInfo.getName();
 		context.isCio =
 			returnOrder.CaseId != null &&
@@ -1294,7 +1294,7 @@ public with sharing class ReceivingService {
 		context.operatingUnit = workOrder.OperatingUnit__c;
 		context.legacyCustomerId = workOrder.Account == null
 			? null
-			: workOrder.Account.SystemID__c;
+			: workOrder.Account.AccountNumber;
 		context.receiverName = UserInfo.getName();
 		context.isCio =
 			workOrder.CaseId != null &&

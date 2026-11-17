@@ -219,6 +219,7 @@ private class CreateReturnOrderControllerTest {
 	static void setupTestData() {
 		Account testAccount = new Account(
 			Name = 'Return Order Test Account',
+			AccountNumber = 'ACCT-1001',
 			SystemID__c = 'LEG-1001',
 			SourceSystemID__c = 'TEST-ORACLE-001',
 			OrgIDs__c = '82'
@@ -301,7 +302,7 @@ private class CreateReturnOrderControllerTest {
 		Test.stopTest();
 
 		System.assertEquals(account.Id, ctx.accountId);
-		System.assertEquals('LEG-1001', ctx.legacyCustomerId);
+		System.assertEquals('ACCT-1001', ctx.legacyCustomerId);
 		System.assertEquals('82', ctx.defaultOperatingUnit);
 		System.assertNotEquals(null, ctx.operatingUnitOptions);
 		System.assertNotEquals(null, ctx.defaultProductId);
@@ -5146,9 +5147,17 @@ private class CreateReturnOrderControllerTest {
 		);
 		insert siteVisit;
 
+		Asset tray = new Asset(
+			Name = 'Main Podiatry Tray',
+			AccountId = account.Id,
+			SerialNumber = 'SN-TRAY-1'
+		);
+		insert tray;
+
 		WorkOrder childWorkOrder = new WorkOrder(
 			AccountId = account.Id,
 			ParentWorkOrderId = siteVisit.Id,
+			AssetId = tray.Id,
 			Status = 'New',
 			Pricebook2Id = pricebookId
 		);
@@ -5194,6 +5203,7 @@ private class CreateReturnOrderControllerTest {
 		System.assertEquals(true, lines[0].additionalServices);
 		System.assertEquals('Black', lines[0].insulationPowderCoating);
 		System.assertEquals(Decimal.valueOf(2), lines[0].quantityReturned);
+		System.assertEquals('Main Podiatry Tray', lines[0].hospitalReferencedTrayName);
 	}
 
 	@IsTest

@@ -1,7 +1,6 @@
 import { LightningElement, wire } from 'lwc';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import getMissingReturnOrderItemOptions from '@salesforce/apex/ReceivingController.getMissingReturnOrderItemOptions';
-import stageReceivingPhoto from '@salesforce/apex/ReceivingController.stageReceivingPhoto';
 import deleteReceivingPhoto from '@salesforce/apex/ReceivingController.deleteReceivingPhoto';
 import submitMissingReturnOrder from '@salesforce/apex/ReceivingController.submitMissingReturnOrder';
 
@@ -18,6 +17,7 @@ export default class ResolveMissingReturnOrder extends LightningElement {
     photos = [];
     errorMessage;
     isBusy = false;
+    isPhotoModalOpen = false;
 
     @wire(getMissingReturnOrderItemOptions)
     wiredItemOptions({ data, error }) {
@@ -71,28 +71,38 @@ export default class ResolveMissingReturnOrder extends LightningElement {
         this.notes = event.target.value || '';
     }
 
-    async handleFileSelected(event) {
-        const files = Array.from(event.target.files || []);
-        event.target.value = '';
-        if (!files.length || this.isBusy) {
+    handleOpenPhotoModal() {
+        if (this.isBusy) {
             return;
         }
-        this.isBusy = true;
         this.errorMessage = undefined;
-        try {
-            for (const file of files) {
-                const base64Data = await this.readFileAsDataUrl(file);
-                const photo = await stageReceivingPhoto({
-                    base64Data,
-                    fileName: file.name
-                });
-                this.photos = [...this.photos, photo];
-            }
-        } catch (error) {
-            this.errorMessage = this.normalizeError(error);
-        } finally {
-            this.isBusy = false;
+        this.isPhotoModalOpen = true;
+    }
+
+    handleClosePhotoModal() {
+        this.isPhotoModalOpen = false;
+    }
+
+    handlePhotoAdded(event) {
+        const photo = event.detail?.photo;
+        if (!photo?.contentDocumentId) {
+            return;
         }
+        if (this.photos.some((row) => row.contentDocumentId === photo.contentDocumentId)) {
+            return;
+        }
+        this.photos = [...this.photos, photo];
+        this.errorMessage = undefined;
+    }
+
+    handlePhotoRemovedFromModal(event) {
+        const contentDocumentId = event.detail?.contentDocumentId;
+        if (!contentDocumentId) {
+            return;
+        }
+        this.photos = this.photos.filter(
+            (photo) => photo.contentDocumentId !== contentDocumentId
+        );
     }
 
     async handleRemovePhoto(event) {
@@ -166,15 +176,6 @@ export default class ResolveMissingReturnOrder extends LightningElement {
         } finally {
             this.isBusy = false;
         }
-    }
-
-    readFileAsDataUrl(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = () => reject(reader.error || new Error('Unable to read file.'));
-            reader.readAsDataURL(file);
-        });
     }
 
     normalizeError(error) {

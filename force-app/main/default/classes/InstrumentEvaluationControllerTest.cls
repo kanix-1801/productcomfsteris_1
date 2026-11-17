@@ -102,7 +102,7 @@ private class InstrumentEvaluationControllerTest {
                 Id = workOrderId,
                 Description = 'Angulation up/down is loose.',
                 ActualShipDate__c = Date.today().addDays(-4),
-                CompletedTimestamp__c = Datetime.now().addDays(-10),
+                CompletedTimestamp__c = Datetime.now().addMonths(-13),
                 EvaluationNotes__c = 'Angulation wires stretched.'
             );
             historyRow.Evaluator__r = new User(
@@ -1200,7 +1200,11 @@ private class InstrumentEvaluationControllerTest {
             workspace.repairHistory[0].repairDate,
             'Repair Date should be the Work Order Actual Ship Date.'
         );
-        Assert.areEqual(true, workspace.repairHistory[0].isWithinLastTwelveMonths);
+        Assert.areEqual(
+            true,
+            workspace.repairHistory[0].isWithinLastTwelveMonths,
+            'A recent Actual Ship Date belongs in the 12-month window when Completion Timestamp is older.'
+        );
         Assert.isTrue(workspace.repairHistoryHasMore);
         Assert.isFalse(workspace.subStatusOptions.isEmpty());
         Set<String> subStatusValues = new Set<String>();

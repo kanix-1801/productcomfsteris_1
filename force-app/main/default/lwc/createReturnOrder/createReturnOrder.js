@@ -305,10 +305,14 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
     defaultLineContactId = '';
     legacyCustomerId = '';
     operatingUnit = '';
+    operatingUnitLabel = '';
     creationSource = CREATION_SOURCE_DEFAULT;
     salesRepId = userId;
+    salesRepName = '';
     headerSerialNumber = '';
     isLookingUpHeaderSerial = false;
+    isLinePhotoModalOpen = false;
+    photoModalLineKey = '';
 
     creationSourceOptions = [];
     disinfectedOptions = [];
@@ -551,9 +555,13 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
             if (this.isTabLaunch && this.isHeaderPage) {
                 this._focusHeaderSerialPending = true;
             }
-            // Child mounts after isLoading clears; sync parent header values into shared form.
+            // Child mounts after isLoading clears; sync parent header values into shared form,
+            // then capture OU label / Sales Rep name for the account banner.
             // eslint-disable-next-line @lwc/lwc/no-async-operation
-            window.setTimeout(() => this.syncAccountInformationToChild(), 0);
+            window.setTimeout(() => {
+                this.syncAccountInformationToChild();
+                this.captureAccountInformationDisplayFields();
+            }, 0);
         }
 
         if (checkDuplicatesOnLines) {
@@ -605,6 +613,37 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
         });
     }
 
+    /**
+     * Pulls display labels from the shared Account Information form.
+     * Needed because parent loadAccountDefaults stores OU API value only, and the
+     * header form is not mounted on later wizard pages.
+     */
+    captureAccountInformationDisplayFields() {
+        const accountInfo = this.refs?.createOrderAccountInfo;
+        if (!accountInfo || typeof accountInfo.getValues !== 'function') {
+            return;
+        }
+        const values = accountInfo.getValues() || {};
+        if (values.accountId) {
+            this.accountId = values.accountId;
+        }
+        if (values.accountName) {
+            this.accountName = values.accountName;
+        }
+        if (values.legacyCustomerId) {
+            this.legacyCustomerId = values.legacyCustomerId;
+        }
+        if (values.operatingUnit) {
+            this.operatingUnit = values.operatingUnit;
+        }
+        this.operatingUnitLabel =
+            values.operatingUnitLabel || this.operatingUnitLabel || '';
+        if (values.salesRepId) {
+            this.salesRepId = values.salesRepId;
+        }
+        this.salesRepName = values.salesRepName || this.salesRepName || '';
+    }
+
     resolveOperatingUnitFromAccount(account) {
         if (!account) {
             return '';
@@ -625,11 +664,12 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
             }
             if (account) {
                 this.accountName = account.Name || this.accountName;
-                this.legacyCustomerId = account.SystemID__c || this.legacyCustomerId;
+                this.legacyCustomerId = account.AccountNumber || this.legacyCustomerId;
                 const accountOperatingUnit = this.resolveOperatingUnitFromAccount(account);
                 if (accountOperatingUnit) {
                     this.operatingUnit = accountOperatingUnit;
                 }
+                this.captureAccountInformationDisplayFields();
             }
         } catch (error) {
             if (this.accountId !== requestedAccountId) {
@@ -1163,6 +1203,7 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
         line.additionalServices = row?.additionalServices === true;
         line.insulationPowderCoating = line.additionalServices ? insulation : '';
         line.modRequest = line.additionalServices && !!line.insulationPowderCoating;
+        line.hospitalReferencedTrayName = row?.hospitalReferencedTrayName || '';
         if (this.defaultLineContactId) {
             line.contactId = this.defaultLineContactId;
             line.contactSearchText = this.resolveContactName(this.defaultLineContactId);
@@ -1302,9 +1343,11 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
     }
 
     get accountBannerMetaDisplay() {
-        const parts = [this.operatingUnit, this.legacyCustomerId].filter((part) =>
-            Boolean(String(part || '').trim())
-        );
+        const parts = [
+            this.salesRepName,
+            this.operatingUnitLabel || this.operatingUnit,
+            this.legacyCustomerId
+        ].filter((part) => Boolean(String(part || '').trim()));
         return parts.join(' \u2022 ');
     }
 
@@ -1724,6 +1767,22 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
 
     get acceptedMediaTypes() {
         return LINE_MEDIA_ACCEPT;
+    }
+
+    get linePhotoModalSubtitle() {
+        return 'Capture with the camera or upload files. Photos are attached to the Return Order line when saved.';
+    }
+
+    get photoModalPhotos() {
+        const line = (this.lineItems || []).find((item) => item.key === this.photoModalLineKey);
+        return (line?.attachments || []).map((attachment) => ({
+            contentDocumentId: attachment.contentDocumentId,
+            name: attachment.name,
+            title: attachment.name,
+            thumbnailUrl: attachment.thumbnailUrl,
+            imageDownloadUrl: attachment.imageDownloadUrl,
+            fileExtension: attachment.fileExtension
+        }));
     }
 
     get productRecordFilter() {
@@ -3451,6 +3510,7 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
         if (source === 'init') {
             this.syncAccountInformationToChild();
             await this.ensureAccountOperatingUnit();
+            this.captureAccountInformationDisplayFields();
             return;
         }
 
@@ -3459,7 +3519,9 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
         this.accountName = values.accountName || '';
         this.legacyCustomerId = values.legacyCustomerId || '';
         this.operatingUnit = values.operatingUnit || '';
+        this.operatingUnitLabel = values.operatingUnitLabel || '';
         this.salesRepId = values.salesRepId || this.salesRepId;
+        this.salesRepName = values.salesRepName || '';
 
         if (source === 'reset') {
             return;
@@ -3500,11 +3562,13 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
      */
     async ensureAccountOperatingUnit() {
         if (!this.accountId || this.operatingUnit) {
+            this.captureAccountInformationDisplayFields();
             return;
         }
         await this.loadAccountDefaults();
         if (this.operatingUnit) {
             this.syncAccountInformationToChild();
+            this.captureAccountInformationDisplayFields();
         }
     }
 
@@ -3512,6 +3576,7 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
         if (!this._assetLaunchAwaitingHeader || !this.isHeaderPage) {
             return;
         }
+        this.captureAccountInformationDisplayFields();
         if (!this.validateHeader()) {
             return;
         }
@@ -4078,23 +4143,61 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
         this.activeSections = event.detail.openSections;
     }
 
-    handleLineFileUploadFinished(event) {
-        const lineKey = event.target.dataset.key;
-        const uploadedFiles = event.detail.files || [];
-        if (!lineKey || uploadedFiles.length === 0) {
+    handleOpenLinePhotoModal(event) {
+        const lineKey = event.currentTarget.dataset.key;
+        if (!lineKey) {
             return;
         }
+        this.photoModalLineKey = lineKey;
+        this.isLinePhotoModalOpen = true;
+    }
 
-        const newAttachments = uploadedFiles.map((file) => ({
-            contentDocumentId: file.documentId,
-            name: file.name
-        }));
+    handleCloseLinePhotoModal() {
+        this.isLinePhotoModalOpen = false;
+        this.photoModalLineKey = '';
+    }
 
+    handleLinePhotoAdded(event) {
+        const lineKey = event.detail?.contextKey || this.photoModalLineKey;
+        const photo = event.detail?.photo;
+        if (!lineKey || !photo?.contentDocumentId) {
+            return;
+        }
+        const attachment = {
+            contentDocumentId: photo.contentDocumentId,
+            name: photo.title || photo.name || photo.contentDocumentId,
+            thumbnailUrl: photo.thumbnailUrl,
+            imageDownloadUrl: photo.imageDownloadUrl,
+            fileExtension: photo.fileExtension
+        };
+        this.lineItems = this.lineItems.map((line) => {
+            if (line.key !== lineKey) {
+                return line;
+            }
+            const existing = line.attachments || [];
+            if (existing.some((row) => row.contentDocumentId === attachment.contentDocumentId)) {
+                return line;
+            }
+            return {
+                ...line,
+                attachments: [...existing, attachment]
+            };
+        });
+    }
+
+    handleLinePhotoRemoved(event) {
+        const lineKey = event.detail?.contextKey || this.photoModalLineKey;
+        const contentDocumentId = event.detail?.contentDocumentId;
+        if (!lineKey || !contentDocumentId) {
+            return;
+        }
         this.lineItems = this.lineItems.map((line) =>
             line.key === lineKey
                 ? {
                       ...line,
-                      attachments: [...(line.attachments || []), ...newAttachments]
+                      attachments: (line.attachments || []).filter(
+                          (attachment) => attachment.contentDocumentId !== contentDocumentId
+                      )
                   }
                 : line
         );
@@ -4132,6 +4235,7 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
     }
 
     async handleNext() {
+        this.captureAccountInformationDisplayFields();
         if (!this.validateHeader()) {
             return;
         }
@@ -4290,6 +4394,7 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
         this.accountName = '';
         this.legacyCustomerId = '';
         this.operatingUnit = '';
+        this.operatingUnitLabel = '';
         this.lockAccount = false;
         this.lineItems = [];
         this.proposedReturnOrderGroups = [];
@@ -4309,6 +4414,7 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
         this.accountAssets = [];
         this.departmentOptions = [];
         this.salesRepId = userId;
+        this.salesRepName = '';
         this.creationSource =
             this.resolveDefaultCreationSource(this.creationSourceOptions) ||
             CREATION_SOURCE_DEFAULT;
@@ -4497,6 +4603,8 @@ export default class CreateReturnOrder extends NavigationMixin(LightningElement)
         this.defaultLineContactId = '';
         this.legacyCustomerId = '';
         this.operatingUnit = '';
+        this.operatingUnitLabel = '';
+        this.salesRepName = '';
         this._recordId = undefined;
         this._objectApiName = undefined;
         this._recordIds = undefined;

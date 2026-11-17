@@ -3811,6 +3811,22 @@ export default class WoDebrief extends LightningElement {
 	}
 
 	/**
+	 * @description Set Product Serviced line status on every staged or open line, as Close does,
+	 *              so a line saved while its edit form is still open is not left New.
+	 */
+	_applyProductServicedCloseBeforeSave() {
+		const ids = new Set(Object.keys(this.editStateMap || {})
+			.filter(id => this.editStateMap[id]?.isEditing));
+		Object.entries(this._pendingEdits).forEach(([id, edit]) => {
+			if (edit?._schema === 'productServiced') ids.add(id);
+		});
+		this._pendingAdds.forEach(add => {
+			if (add._schema === 'productServiced') ids.add(add._tempId);
+		});
+		ids.forEach(id => this._applyProductServicedClose(id));
+	}
+
+	/**
 	 * @description Handle Add Cancel.
 	 */
 	handleAddCancel(e) {
@@ -4330,6 +4346,7 @@ export default class WoDebrief extends LightningElement {
 		if (!confirmed) return;
 
 		let hasValidationError = this._commitOpenAddFormsBeforeSave();
+		this._applyProductServicedCloseBeforeSave();
 
 		// Validate staged edits — route validator by schema
 		for (const [id, edit] of Object.entries(this._pendingEdits)) {
@@ -5405,8 +5422,8 @@ export default class WoDebrief extends LightningElement {
 
 	/**
 	 * @description Card color for a Product Serviced line. Text stays dark.
-	 *              Red Canceled, green Completed, orange when the line has no picture
-	 *              or Billing Type is Warranty, SVC Warranty, or Courtesy, yellow In Progress,
+	 *              Red Canceled, orange when the line has no picture or Billing Type is
+	 *              Warranty, SVC Warranty, or Courtesy, green Completed, yellow In Progress,
 	 *              blue New.
 	 * @param {Object} line Line view model
 	 * @return {string}
@@ -5414,8 +5431,8 @@ export default class WoDebrief extends LightningElement {
 	_productServicedCardClass(line) {
 		const status = line?.lineStatus;
 		if (status === LINE_STATUS_CANCELED) return 'woli-card woli-card_canceled';
-		if (status === LINE_STATUS_COMPLETED) return 'woli-card woli-card_completed';
 		if (this._productServicedNeedsOrange(line)) return 'woli-card woli-card_billing';
+		if (status === LINE_STATUS_COMPLETED) return 'woli-card woli-card_completed';
 		if (status === LINE_STATUS_IN_PROGRESS) return 'woli-card woli-card_pending-outcome';
 		if (status === LINE_STATUS_NEW) return 'woli-card woli-card_new';
 		return 'woli-card';

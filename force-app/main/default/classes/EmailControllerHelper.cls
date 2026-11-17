@@ -1092,4 +1092,42 @@ public static List<CaseContactRole> getReceivingAndInstallContacts(Id caseId) {
         }
     }
 
+    /**
+    * @description Determines whether the Canadian Order associated with the Case
+    *              contains at least one open Trade-In line.
+    *
+    * @param caseId Id of the Case used to identify the related Order.
+    * @return True when the Order is Canadian and contains at least one open
+    *         Trade-In line; otherwise false.
+    */
+    public static Boolean hasOpenTradeInLines(Id caseId) {
+        try {
+            if (caseId == null) {
+                return false;
+            }
+
+            throwIfTestException(caseId);
+
+            List<Order> orderList = OrderSelector.orderRecord(caseId);
+
+            if (orderList == null || orderList.isEmpty()) {
+                return false;
+            }
+
+            Order orderRecord = orderList[0];
+
+            return orderRecord.Country__c == 'Canada'
+                && orderRecord.IsTradInLineOpen__c != null
+                && orderRecord.IsTradInLineOpen__c > 0;
+
+        } catch (Exception ex) {
+            ErrorLogger.logException(
+                ex,
+                'EmailControllerHelper',
+                'hasOpenTradeInLines'
+            );
+            throw ex;
+        }
+    }
+
 }

@@ -151,6 +151,34 @@ private class LSOpportunityOwnerServiceTest {
 
     /**
      * @description
+     * GCL-73 - A previous owner with no role is blocked. The running user is
+     * not above an empty role.
+     */
+    @IsTest
+    static void ownerWithNoRoleIsBlocked() {
+        User noRoleUser = newUser('GCL73 NoRole', 'Life Sciences Sales', null, uniqueToken());
+        insert noRoleUser;
+
+        Opportunity updatedOpportunity = lifeSciencesOwnerChange('000000000003');
+        Opportunity previousOpportunity = updatedOpportunity.clone(true, true, false, false);
+        previousOpportunity.OwnerId = noRoleUser.Id;
+        updatedOpportunity.OwnerId = userByLastName(NEW_OWNER_LAST_NAME).Id;
+
+        System.runAs(userByLastName(PEER_LAST_NAME)) {
+            LSOpportunityService.validateOwnerChange(
+                new List<Opportunity>{ updatedOpportunity },
+                new Map<Id, Opportunity>{ updatedOpportunity.Id => previousOpportunity }
+            );
+        }
+
+        System.assert(
+            hasOwnerChangeError(updatedOpportunity),
+            'An owner with no role should be blocked'
+        );
+    }
+
+    /**
+     * @description
      * GCL-73 - The current owner can assign a new owner.
      */
     @IsTest
@@ -385,6 +413,16 @@ private class LSOpportunityOwnerServiceTest {
             OpportunityAccessLevel = 'Edit',
             RowCause = Schema.OpportunityShare.RowCause.Manual
         );
+    }
+
+    private static Boolean hasOwnerChangeError(Opportunity opportunityRecord) {
+        for (Database.Error errorRecord : opportunityRecord.getErrors()) {
+            if (errorRecord.getMessage() != null
+                && errorRecord.getMessage().contains(LSOpportunityService.OWNER_CHANGE_ERROR)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static Id refreshedOwnerId(Id opportunityId) {

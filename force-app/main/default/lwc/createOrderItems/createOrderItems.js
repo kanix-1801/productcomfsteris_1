@@ -92,6 +92,8 @@ export default class CreateOrderItems extends LightningElement {
     newContactPhone = '';
     newContactTitle = '';
     isCreatingContact = false;
+    isPhotoModalOpen = false;
+    photoModalItemKey = '';
 
     @api accountName = '';
 
@@ -1162,23 +1164,73 @@ export default class CreateOrderItems extends LightningElement {
         }
     }
 
-    handleFileUploadFinished(event) {
-        const itemKey = event.target.dataset.key;
-        const uploadedFiles = event.detail.files || [];
-        if (!itemKey || uploadedFiles.length === 0) {
+    get photoModalPhotos() {
+        const item = (this.items || []).find((row) => row.key === this.photoModalItemKey);
+        return (item?.attachments || []).map((attachment) => ({
+            contentDocumentId: attachment.contentDocumentId,
+            name: attachment.name,
+            title: attachment.name,
+            thumbnailUrl: attachment.thumbnailUrl,
+            imageDownloadUrl: attachment.imageDownloadUrl,
+            fileExtension: attachment.fileExtension
+        }));
+    }
+
+    handleOpenPhotoModal(event) {
+        const itemKey = event.currentTarget.dataset.key;
+        if (!itemKey) {
             return;
         }
+        this.photoModalItemKey = itemKey;
+        this.isPhotoModalOpen = true;
+    }
 
-        const newAttachments = uploadedFiles.map((file) => ({
-            contentDocumentId: file.documentId,
-            name: file.name
-        }));
+    handleClosePhotoModal() {
+        this.isPhotoModalOpen = false;
+        this.photoModalItemKey = '';
+    }
 
+    handlePhotoAdded(event) {
+        const itemKey = event.detail?.contextKey || this.photoModalItemKey;
+        const photo = event.detail?.photo;
+        if (!itemKey || !photo?.contentDocumentId) {
+            return;
+        }
+        const attachment = {
+            contentDocumentId: photo.contentDocumentId,
+            name: photo.title || photo.name || photo.contentDocumentId,
+            thumbnailUrl: photo.thumbnailUrl,
+            imageDownloadUrl: photo.imageDownloadUrl,
+            fileExtension: photo.fileExtension
+        };
+        this.items = (this.items || []).map((item) => {
+            if (item.key !== itemKey) {
+                return item;
+            }
+            const existing = item.attachments || [];
+            if (existing.some((row) => row.contentDocumentId === attachment.contentDocumentId)) {
+                return item;
+            }
+            return {
+                ...item,
+                attachments: [...existing, attachment]
+            };
+        });
+    }
+
+    handlePhotoRemoved(event) {
+        const itemKey = event.detail?.contextKey || this.photoModalItemKey;
+        const contentDocumentId = event.detail?.contentDocumentId;
+        if (!itemKey || !contentDocumentId) {
+            return;
+        }
         this.items = (this.items || []).map((item) =>
             item.key === itemKey
                 ? {
                       ...item,
-                      attachments: [...(item.attachments || []), ...newAttachments]
+                      attachments: (item.attachments || []).filter(
+                          (attachment) => attachment.contentDocumentId !== contentDocumentId
+                      )
                   }
                 : item
         );

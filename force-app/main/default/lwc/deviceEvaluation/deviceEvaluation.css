@@ -264,10 +264,18 @@
     justify-content: flex-start;
 }
 
+/* GW-3377 - Pin Next to the right; keep repair costs on one line just left of it. */
+.workspace-header-actions_end {
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
 .repair-cost-header {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: baseline;
+    white-space: nowrap;
     gap: 0.25rem 0.75rem;
     font-size: 0.8125rem;
 }

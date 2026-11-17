@@ -833,6 +833,7 @@ export default class GenerateQuote extends LightningElement {
                 quoteForecastConfidence: '',
                 forecastConfidenceSelectKey: `${quote.id}-forecast-hidden`,
                 forecastConfidenceSelectOptions: [],
+                forecastConfidenceSelectInstances: [],
                 forecastConfidenceDirty: false,
                 saveForecastConfidenceDisabled: true,
                 cancelForecastConfidenceDisabled: true
@@ -854,7 +855,12 @@ export default class GenerateQuote extends LightningElement {
             quoteForecastConfidence: displayValue,
             savedQuoteForecastConfidence: storedValue,
             forecastConfidenceSelectKey: `${quote.id}-${displayValue}-${optionsLength}-${selectRevision}`,
-            forecastConfidenceSelectOptions: this.buildForecastConfidenceSelectOptions(displayValue)
+            forecastConfidenceSelectOptions: this.buildForecastConfidenceSelectOptions(displayValue),
+            forecastConfidenceSelectInstances: [
+                {
+                    key: `${quote.id}-forecast-${selectRevision}`
+                }
+            ]
         };
     }
 

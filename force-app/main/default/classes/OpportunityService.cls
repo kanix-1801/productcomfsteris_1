@@ -322,7 +322,8 @@ public inherited sharing class OpportunityService {
     /**
      * Blocks closure of Opportunities transitioning to Closed Won
      * when any associated Forecast Eligible Quote is not yet Closed.
-     * GC-3188
+     * GC-3188. GC-3587 allows the close when a Quote Line Item on the
+     * Opportunity has received Order_Number__c.
      *
      * @param newOpportunities Trigger.new Opportunity list.
      * @param oldOpportunityMap Trigger.oldMap of prior Opportunity values.
@@ -374,6 +375,14 @@ public inherited sharing class OpportunityService {
                 return;
             }
 
+            opportunityIdsWithOpenQuotes.removeAll(
+                selectOpportunityIdsWithReceivedOrderNumber(opportunityIdsWithOpenQuotes)
+            );
+
+            if (opportunityIdsWithOpenQuotes.isEmpty()) {
+                return;
+            }
+
             for (Opportunity opp : newOpportunities) {
                 if (opportunityIdsWithOpenQuotes.contains(opp.Id)) {
                     opp.addError(Label.Opp_Closure_Blocked_Forecast_Eligible_Quotes);
@@ -392,6 +401,38 @@ public inherited sharing class OpportunityService {
         } finally {
             Logger.saveLog();
         }
+    }
+
+    /**
+     * @description GC-3587 - Opportunities whose Quote Line Item has a received order number
+     *              may close even when a Forecast Eligible quote is still open.
+     * @param opportunityIds Opportunities that would otherwise be blocked.
+     * @return Opportunity Ids that have a non-blank QuoteLineItem.Order_Number__c.
+     */
+    private static Set<Id> selectOpportunityIdsWithReceivedOrderNumber(Set<Id> opportunityIds) {
+        Set<Id> opportunityIdsWithOrderNumber = new Set<Id>();
+        if (
+            opportunityIds == null ||
+            opportunityIds.isEmpty() ||
+            !Schema.SObjectType.QuoteLineItem.fields.getMap().containsKey('Order_Number__c')
+        ) {
+            return opportunityIdsWithOrderNumber;
+        }
+
+        for (QuoteLineItem lineItem : [
+            SELECT Quote.OpportunityId, Order_Number__c
+            FROM QuoteLineItem
+            WHERE Quote.OpportunityId IN :opportunityIds
+              AND Order_Number__c != NULL
+            WITH SYSTEM_MODE
+        ]) {
+            if (String.isBlank(lineItem.Order_Number__c) || lineItem.Quote == null) {
+                continue;
+            }
+            opportunityIdsWithOrderNumber.add(lineItem.Quote.OpportunityId);
+        }
+
+        return opportunityIdsWithOrderNumber;
     }
 
     /**

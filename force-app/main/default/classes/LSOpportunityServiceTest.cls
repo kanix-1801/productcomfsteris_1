@@ -61,6 +61,45 @@ private class LSOpportunityServiceTest {
         }
     }
 
+    /**
+     * @description GCL-23 - A Life Sciences clone clears bypass and the Sales Connection quote link.
+     *              Apex cannot create a real clone, so the test flag stands in for isClone.
+     *              getCloneSourceId stays null until the standard Clone button runs.
+     */
+    @IsTest
+    static void stampClonedFromStampsLifeSciencesClone() {
+        Opportunity clonedOpportunity = buildOpportunity(lifeSciencesRecordTypeId());
+        clonedOpportunity.BypassValidations__c = true;
+        clonedOpportunity.QuoteLinkageToSalesConnection__c = QUOTE_LINK;
+        LSOpportunityService.treatAsCloneForTest = true;
+
+        Test.startTest();
+        LSOpportunityService.stampClonedFrom(new List<Opportunity>{ clonedOpportunity, null });
+        Test.stopTest();
+
+        System.assertEquals(null, clonedOpportunity.ClonedFrom__c, 'Clone source Id is only available from the Clone button');
+        System.assertEquals(false, clonedOpportunity.BypassValidations__c, 'Bypass must be cleared on a clone');
+        System.assertEquals(null, clonedOpportunity.QuoteLinkageToSalesConnection__c, 'Quote link must be cleared on a clone');
+    }
+
+    /**
+     * @description GCL-23 - A clone of another record type is not stamped.
+     */
+    @IsTest
+    static void stampClonedFromSkipsOtherRecordTypes() {
+        Opportunity otherOpportunity = buildOpportunity(otherRecordTypeId());
+        otherOpportunity.BypassValidations__c = true;
+        otherOpportunity.QuoteLinkageToSalesConnection__c = QUOTE_LINK;
+        LSOpportunityService.treatAsCloneForTest = true;
+
+        Test.startTest();
+        LSOpportunityService.stampClonedFrom(new List<Opportunity>{ otherOpportunity });
+        Test.stopTest();
+
+        System.assertEquals(true, otherOpportunity.BypassValidations__c, 'Bypass must stay on a non Life Sciences clone');
+        System.assertEquals(QUOTE_LINK, otherOpportunity.QuoteLinkageToSalesConnection__c, 'Quote link must stay on a non Life Sciences clone');
+    }
+
     private static Opportunity buildOpportunity(Id recordTypeId) {
         return new Opportunity(
             Name = 'GCL23 Test Opportunity',
@@ -75,5 +114,16 @@ private class LSOpportunityServiceTest {
             .getRecordTypeInfosByDeveloperName()
             .get('LSEquipmentService');
         return info == null ? null : info.getRecordTypeId();
+    }
+
+    private static Id otherRecordTypeId() {
+        for (Schema.RecordTypeInfo info : Opportunity.SObjectType.getDescribe().getRecordTypeInfos()) {
+            if (info.getDeveloperName() != 'LSEquipmentService'
+                && info.getDeveloperName() != 'LSSalesConsumables'
+                && info.getDeveloperName() != 'Master') {
+                return info.getRecordTypeId();
+            }
+        }
+        return null;
     }
 }

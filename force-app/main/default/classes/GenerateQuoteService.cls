@@ -29,6 +29,10 @@ public with sharing class GenerateQuoteService {
     @TestVisible
     private static Boolean testHasEditAccessOverride;
 
+    public static final String QUOTE_RECORD_TYPE_DEVELOPER_NAME_LS = 'LSSales';     //GCL-66
+    public static final String QUOTE_ACCESS_DENIED_MESSAGE_LS = 'You can\'t perform this operation because you don\'t have edit access to this Opportunity. Reach out to an Opportunity Team member to request access.';    //GCL-66
+    
+
 /**
 * @description
 * GC-2642 - get the Quote and Quote Line Item Wrapper Items.
@@ -529,7 +533,13 @@ public with sharing class GenerateQuoteService {
         }
 
         if (!resolveCurrentUserHasEditAccess(opportunityId)) {
-            throw new AuraHandledException(QUOTE_ACCESS_DENIED_MESSAGE);
+            //GCL-66: START
+            if(GeneralUtility.currentBusinessLine == GeneralUtility.HC_STR) {
+                throw new AuraHandledException(QUOTE_ACCESS_DENIED_MESSAGE);
+            } else {
+                throw new AuraHandledException(QUOTE_ACCESS_DENIED_MESSAGE_LS);
+            }
+            //GCL-66: END
         }
     }
 
@@ -576,10 +586,13 @@ public with sharing class GenerateQuoteService {
             newQuote.Sample__c = sampleId;
         }
 
-        Id quoteRecordTypeId = resolveQuoteRecordTypeId();
-        if (quoteRecordTypeId != null) {
-            newQuote.RecordTypeId = quoteRecordTypeId;
+        //GCL-66: START
+        if(GeneralUtility.currentBusinessLine == GeneralUtility.HC_STR) {
+            newQuote.RecordTypeId = resolveQuoteRecordTypeId();
+        } else {
+            newQuote.RecordTypeId = resolveLSQuoteRecordTypeId();
         }
+        //GCL-66: END
 
         applyQuoteCurrencyFromOpportunity(newQuote, opportunityRecord);
 
@@ -681,6 +694,18 @@ public with sharing class GenerateQuoteService {
             recordTypesByDeveloperName.get(QUOTE_RECORD_TYPE_DEVELOPER_NAME);
         return recordTypeInfo.isAvailable() ? recordTypeInfo.getRecordTypeId() : null;
     }
+
+    /*****************************************************************************
+     * Method Name       : resolveLSSalesQuoteRecordTypeId
+     * Author           : Sarthak Pani
+     * Date of Dev      : 16th November 2026
+     * Last Modified Date   : 16th November 2026
+     * Description          : [GCL-66] get the LS_Sales record type Id
+    *****************************************************************************/
+    public static Id resolveLSQuoteRecordTypeId() {
+        return Schema.SObjectType.Quote.getRecordTypeInfosByDeveloperName().get(QUOTE_RECORD_TYPE_DEVELOPER_NAME_LS).getRecordTypeId();
+    }
+
 
     /**
      * @description Resolves the Sales Connection quote number for UI and logging.

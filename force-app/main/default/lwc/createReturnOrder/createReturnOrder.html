@@ -280,14 +280,17 @@
                                                         </lightning-input>
                                                     </template>
                                                     <div class="line-item-attachments slds-m-bottom_medium">
-                                                        <lightning-file-upload
-                                                            label="Add Picture, Video, or Mod Request Form"
-                                                            name={line.key}
-                                                            accept={acceptedMediaTypes}
-                                                            multiple
-                                                            data-key={line.key}
-                                                            onuploadfinished={handleLineFileUploadFinished}>
-                                                        </lightning-file-upload>
+                                                        <div class="slds-form-element">
+                                                            <label class="slds-form-element__label">Add Picture, Video, or Mod Request Form</label>
+                                                            <div class="slds-form-element__control">
+                                                                <lightning-button
+                                                                    label="Upload or Capture"
+                                                                    icon-name="utility:photo"
+                                                                    data-key={line.key}
+                                                                    onclick={handleOpenLinePhotoModal}>
+                                                                </lightning-button>
+                                                            </div>
+                                                        </div>
                                                         <template if:true={line.hasAttachments}>
                                                             <ul class="line-item-attachment-list slds-m-top_x-small">
                                                                 <template for:each={line.attachmentItems} for:item="attachment">
@@ -815,14 +818,17 @@
                                                 </div>
                                                 <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
                                                     <div class="line-item-attachments slds-m-bottom_medium">
-                                                        <lightning-file-upload
-                                                            label="Add Picture or Video"
-                                                            name={line.key}
-                                                            accept={acceptedMediaTypes}
-                                                            multiple
-                                                            data-key={line.key}
-                                                            onuploadfinished={handleLineFileUploadFinished}>
-                                                        </lightning-file-upload>
+                                                        <div class="slds-form-element">
+                                                            <label class="slds-form-element__label">Add Picture or Video</label>
+                                                            <div class="slds-form-element__control">
+                                                                <lightning-button
+                                                                    label="Upload or Capture"
+                                                                    icon-name="utility:photo"
+                                                                    data-key={line.key}
+                                                                    onclick={handleOpenLinePhotoModal}>
+                                                                </lightning-button>
+                                                            </div>
+                                                        </div>
                                                         <template if:true={line.hasAttachments}>
                                                             <ul class="line-item-attachment-list slds-m-top_x-small">
                                                                 <template for:each={line.attachmentItems} for:item="attachment">
@@ -1072,14 +1078,17 @@
                                                 </div>
                                                 <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
                                                     <div class="line-item-attachments slds-m-bottom_medium">
-                                                        <lightning-file-upload
-                                                            label="Add Picture or Video"
-                                                            name={line.key}
-                                                            accept={acceptedMediaTypes}
-                                                            multiple
-                                                            data-key={line.key}
-                                                            onuploadfinished={handleLineFileUploadFinished}>
-                                                        </lightning-file-upload>
+                                                        <div class="slds-form-element">
+                                                            <label class="slds-form-element__label">Add Picture or Video</label>
+                                                            <div class="slds-form-element__control">
+                                                                <lightning-button
+                                                                    label="Upload or Capture"
+                                                                    icon-name="utility:photo"
+                                                                    data-key={line.key}
+                                                                    onclick={handleOpenLinePhotoModal}>
+                                                                </lightning-button>
+                                                            </div>
+                                                        </div>
                                                         <template if:true={line.hasAttachments}>
                                                             <ul class="line-item-attachment-list slds-m-top_x-small">
                                                                 <template for:each={line.attachmentItems} for:item="attachment">
@@ -2332,4 +2341,16 @@
             <lightning-spinner alternative-text="Updating contact email" size="medium"></lightning-spinner>
         </template>
     </template>
+
+    <c-take-photo-modal
+        is-open={isLinePhotoModalOpen}
+        context-key={photoModalLineKey}
+        title="Upload or Capture"
+        subtitle={linePhotoModalSubtitle}
+        accept={acceptedMediaTypes}
+        photos={photoModalPhotos}
+        onphotoadded={handleLinePhotoAdded}
+        onphotoremoved={handleLinePhotoRemoved}
+        onclose={handleCloseLinePhotoModal}>
+    </c-take-photo-modal>
 </template>

@@ -202,22 +202,27 @@
                                             <div class="forecast-confidence-placeholder" aria-hidden="true">—</div>
                                         </template>
                                         <template if:false={quote.hideQuoteForecastConfidence}>
-                                            <select
-                                                key={quote.forecastConfidenceSelectKey}
-                                                class="slds-select forecast-confidence-select"
-                                                data-id={quote.id}
-                                                onchange={handleForecastConfidenceChange}
-                                                aria-label="Quote Forecast Confidence">
-                                                <option value="">Select confidence</option>
-                                                <template for:each={quote.forecastConfidenceSelectOptions} for:item="option">
-                                                    <option
-                                                        key={option.value}
-                                                        value={option.value}
-                                                        selected={option.isSelected}>
-                                                        {option.label}
-                                                    </option>
-                                                </template>
-                                            </select>
+                                            <template
+                                                for:each={quote.forecastConfidenceSelectInstances}
+                                                for:item="selectInstance">
+                                                <select
+                                                    key={selectInstance.key}
+                                                    class="slds-select forecast-confidence-select"
+                                                    data-id={quote.id}
+                                                    onchange={handleForecastConfidenceChange}
+                                                    aria-label="Quote Forecast Confidence">
+                                                    <template
+                                                        for:each={quote.forecastConfidenceSelectOptions}
+                                                        for:item="option">
+                                                        <option
+                                                            key={option.value}
+                                                            value={option.value}
+                                                            selected={option.isSelected}>
+                                                            {option.label}
+                                                        </option>
+                                                    </template>
+                                                </select>
+                                            </template>
                                         </template>
                                     </td>
                                     </template>

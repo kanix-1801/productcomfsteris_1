@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>65.0</apiVersion>
+    <isExposed>false</isExposed>
+    <masterLabel>Take Photo Modal</masterLabel>
+    <description
+    >Shared camera + file upload modal for Create Return Order and Receiving flows.</description>
+</LightningComponentBundle>

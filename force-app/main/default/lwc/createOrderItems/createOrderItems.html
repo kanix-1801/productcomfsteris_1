@@ -258,14 +258,17 @@
                             </lightning-textarea>
                         </div>
                         <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
-                            <lightning-file-upload
-                                label="Add Picture or Video"
-                                name={item.key}
-                                accept={mediaAccept}
-                                multiple
-                                data-key={item.key}
-                                onuploadfinished={handleFileUploadFinished}>
-                            </lightning-file-upload>
+                            <div class="slds-form-element">
+                                <label class="slds-form-element__label">Add Picture or Video</label>
+                                <div class="slds-form-element__control">
+                                    <lightning-button
+                                        label="Upload or Capture"
+                                        icon-name="utility:photo"
+                                        data-key={item.key}
+                                        onclick={handleOpenPhotoModal}>
+                                    </lightning-button>
+                                </div>
+                            </div>
                             <template if:true={item.hasAttachments}>
                                 <ul class="line-item-attachment-list slds-m-top_x-small">
                                     <template for:each={item.attachmentItems} for:item="attachment">
@@ -489,4 +492,16 @@
         </section>
         <div class="slds-backdrop slds-backdrop_open"></div>
     </template>
+
+    <c-take-photo-modal
+        is-open={isPhotoModalOpen}
+        context-key={photoModalItemKey}
+        title="Upload or Capture"
+        subtitle="Capture with the camera or upload files. Photos are attached when the order is saved."
+        accept={mediaAccept}
+        photos={photoModalPhotos}
+        onphotoadded={handlePhotoAdded}
+        onphotoremoved={handlePhotoRemoved}
+        onclose={handleClosePhotoModal}>
+    </c-take-photo-modal>
 </template>

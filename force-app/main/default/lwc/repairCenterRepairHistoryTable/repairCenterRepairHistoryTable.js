@@ -30,7 +30,8 @@ export default class RepairCenterRepairHistoryTable extends LightningElement {
         const source = this.showAll
             ? this.allRows
             : this.allRows.filter((row) => row.isWithinLastTwelveMonths === true);
-        return source.map((row) => {
+        const ordered = [...source].sort((left, right) => this.compareShipDateDesc(left, right));
+        return ordered.map((row) => {
             const repairCodeLines = row.repairCodeLines || [];
             return {
                 ...row,
@@ -80,10 +81,28 @@ export default class RepairCenterRepairHistoryTable extends LightningElement {
     }
 
     /**
-     * GW-4495 - Collapses the table to Completion Timestamp within the past 12 months.
+     * GW-4495 - Collapses the table to Actual Ship Date within the past 12 months.
      */
     handleShowLess() {
         this.showAll = false;
+    }
+
+    /**
+     * GW-4495 - Newest Actual Ship Date first. Rows with no ship date stay at the bottom.
+     */
+    compareShipDateDesc(left, right) {
+        const leftDate = left?.repairDate || '';
+        const rightDate = right?.repairDate || '';
+        if (leftDate === rightDate) {
+            return 0;
+        }
+        if (!leftDate) {
+            return 1;
+        }
+        if (!rightDate) {
+            return -1;
+        }
+        return leftDate < rightDate ? 1 : -1;
     }
 
     displayText(value) {

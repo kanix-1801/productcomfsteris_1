@@ -209,7 +209,7 @@ export default class CreateOrderAccountInformation extends LightningElement {
             }
             if (account) {
                 this.accountName = account.Name || '';
-                this.legacyCustomerId = account.SystemID__c || '';
+                this.legacyCustomerId = account.AccountNumber || '';
                 const accountOperatingUnit = account.OrgIDs__c
                     ? String(account.OrgIDs__c).trim()
                     : '';

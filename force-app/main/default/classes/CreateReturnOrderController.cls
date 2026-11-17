@@ -141,6 +141,7 @@ public with sharing class CreateReturnOrderController {
 		@AuraEnabled public Boolean additionalServices;
 		@AuraEnabled public String insulationPowderCoating;
 		@AuraEnabled public Decimal quantityReturned;
+		@AuraEnabled public String hospitalReferencedTrayName;
 	}
 
 	/**
@@ -1396,7 +1397,7 @@ public with sharing class CreateReturnOrderController {
 		}
 
 		ctx.accountName = account.Name;
-		ctx.legacyCustomerId = account.SystemID__c;
+		ctx.legacyCustomerId = account.AccountNumber;
 		ctx.defaultOperatingUnit = readAccountOperatingUnit(account);
 	}
 
@@ -2841,6 +2842,7 @@ public with sharing class CreateReturnOrderController {
 		line.quantityReturned = lineItem.Quantity != null && lineItem.Quantity > 0
 			? lineItem.Quantity
 			: QUANTITY_RETURNED_DEFAULT;
+		line.hospitalReferencedTrayName = lineItem.WorkOrder?.Asset?.Name;
 		return line;
 	}
 

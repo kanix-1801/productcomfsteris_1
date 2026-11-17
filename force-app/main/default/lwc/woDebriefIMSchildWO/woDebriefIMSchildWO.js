@@ -194,6 +194,23 @@ const PRODUCT_BY_CODE_TYPE_QUERY = gql`
 	}
 `;
 
+const PRODUCT_CODE_BY_ID_QUERY = gql`
+	query GetProductCodeById($product2Id: ID) {
+		uiapi {
+			query {
+				Product2(where: { Id: { eq: $product2Id } }, first: 1) {
+					edges {
+						node {
+							Id
+							ProductCode { value }
+						}
+					}
+				}
+			}
+		}
+	}
+`;
+
 const PART_PRODUCT_BY_CODE_QUERY = gql`
 	query FindPartProductByCode($productCode: String) {
 		uiapi {
@@ -5376,8 +5393,6 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 	 */
 	_validateInstrument(payload) {
 		if (payload?.canceled || payload?.status === WOLI_STATUS_CANCELED) return null;
-		const tone = this._instrumentTone(payload);
-		if (tone === 'partial') return null;
 		if (!payload.deviceTypeId) return 'Device Type is required.';
 		if (!payload.serviceCodeId && !String(payload.repairLevel || '').trim()) {
 			return 'Service Code is required.';
@@ -6604,7 +6619,33 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 			throw new Error('No pricebook entry found for the selected Device Type.');
 		}
 		fields[WOLI_PRICEBOOK_ENTRY.fieldApiName] = pricebookEntryId;
+		const deviceType = await this._resolveDeviceTypeCode(instrument);
+		if (!deviceType) {
+			throw new Error('Device Type code could not be loaded. Please try again.');
+		}
+		fields[WOLI_DEVICE_TYPE.fieldApiName] = deviceType;
 		return fields;
+	}
+
+	/**
+	 * @description Device Type Product Code for a staged line. The lookup wire is shared with
+	 *              other pickers and can be replaced before it loads, so query when not cached.
+	 * @param {{ deviceTypeId: string, deviceType: string }} instrument Staged instrument line
+	 * @return {Promise<string>} Product Code, or empty when none was found
+	 */
+	async _resolveDeviceTypeCode(instrument) {
+		const deviceTypeId = instrument?.deviceTypeId;
+		const known = instrument?.deviceType || this._productCodeByProduct2Id[deviceTypeId];
+		if (known || !deviceTypeId) return known || '';
+		const result = await graphql(this, {
+			query: PRODUCT_CODE_BY_ID_QUERY,
+			variables: { product2Id: deviceTypeId }
+		});
+		const code = result?.data?.uiapi?.query?.Product2?.edges?.[0]?.node?.ProductCode?.value ?? '';
+		if (code) {
+			this._productCodeByProduct2Id = { ...this._productCodeByProduct2Id, [deviceTypeId]: code };
+		}
+		return code;
 	}
 
 	/**

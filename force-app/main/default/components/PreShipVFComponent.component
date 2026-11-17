@@ -27,6 +27,16 @@
         
         To allow us to release the LC hold, please confirm that the information below is correct and advise whether a guaranteed delivery date is required.
     </p>
+    
+    <!-- CBM-1480: Trade-In pickup message -->
+	<apex:outputPanel rendered="{!hasOpenTradeInLines}"
+    	layout="block">
+
+    	<p style="font-family:Arial; font-size:14px; max-width:982px;">
+        	Also, please advise if trade-in equipment will be available
+        	for pick-up at the time of delivery.
+    	</p>
+	</apex:outputPanel>
         
         <table width="982" style="border-collapse: collapse; font-family: Arial, sans-serif;">
             <tr style="background-color: #4F81BD; color: white; font-weight: bold;">

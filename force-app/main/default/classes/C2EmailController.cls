@@ -249,5 +249,20 @@ public with sharing class C2EmailController {
     public dateTime getNonPreInstallScheduleDate() {
         return EmailControllerHelper.firstNonPreInstallScheduleDate(caseId);
     }
+
+    /**
+    * @description Determines whether the Trade-In pickup message should
+    *              be displayed in the Canadian Pre-Shipment email.
+    *
+    * @return True when the related Order contains an open Trade-In line;
+    *         otherwise false.
+    */
+    public Boolean getHasOpenTradeInLines() {
+        if (String.isBlank(caseId)) {
+            return false;
+        }
+
+        return EmailControllerHelper.hasOpenTradeInLines(caseId);
+    }
     
 }

@@ -24,6 +24,8 @@ public with sharing class LSOpportunityService {
     @TestVisible
     private static Boolean throwOwnerChangeTestException = false;
     @TestVisible
+    private static Boolean treatAsCloneForTest = false;
+    @TestVisible
     private static Set<Id> lifeSciencesRecordTypeIds;
 
     /**
@@ -46,7 +48,7 @@ public with sharing class LSOpportunityService {
         Set<Id> recordTypeIds = lifeSciencesRecordTypeIds();
         for (Opportunity opportunity : opportunities) {
             if (opportunity == null
-                || !opportunity.isClone()
+                || !isStandardClone(opportunity)
                 || !recordTypeIds.contains(opportunity.RecordTypeId)) {
                 continue;
             }
@@ -54,6 +56,16 @@ public with sharing class LSOpportunityService {
             opportunity.BypassValidations__c = false;
             opportunity.QuoteLinkageToSalesConnection__c = null;
         }
+    }
+
+    /**
+     * @description
+     * GCL-23 - The standard Clone button sets isClone. Apex tests cannot
+     * create that state, so the test flag covers the stamp lines.
+     * A real save still uses Opportunity.isClone only.
+     */
+    private static Boolean isStandardClone(Opportunity opportunity) {
+        return treatAsCloneForTest || opportunity.isClone();
     }
 
     /**

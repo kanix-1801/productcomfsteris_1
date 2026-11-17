@@ -200,6 +200,67 @@ private class LSOpportunityNamingServiceTest {
     static void handlesNullInputs() {
         LSOpportunityNamingService.applyNames(null);
         Assert.areEqual('', LSOpportunityNamingService.buildName(null, null, null));
+        Assert.isNull(LSOpportunityNamingService.formatNumber(null));
+    }
+
+    @IsTest
+    static void keepsTheNumberWhenTheAccountCannotFit() {
+        String longNumber = 'LS-' + '9'.repeat(120);
+        String result = LSOpportunityNamingService.buildName(longNumber, 'Account Name', 'Washer');
+
+        Assert.areEqual(120, result.length());
+        Assert.areEqual(longNumber.left(120), result);
+    }
+
+    @IsTest
+    static void unexpectedErrorIsLoggedAndRethrown() {
+        LSOpportunityNamingService.throwApplyNamesTestException = true;
+        try {
+            LSOpportunityNamingService.applyNames(new List<Opportunity>());
+            Assert.fail('A forced failure should be rethrown');
+        } catch (QueryException exceptionValue) {
+            Assert.areEqual('Forced test exception', exceptionValue.getMessage());
+        }
+    }
+
+    @IsTest
+    static void nextNumberUsesTheSavedMaximum() {
+        if (recordTypeId('LSSalesConsumables') == null) {
+            return;
+        }
+
+        Account account = new Account(Name = 'LS Naming Sequence');
+        insert account;
+        Contact contact = new Contact(LastName = 'LS Naming Sequence');
+        insert contact;
+
+        Opportunity firstSaved = new Opportunity(
+            Name = 'First saved',
+            StageName = 'Discovery',
+            PositionInFunnel__c = 'Above Funnel',
+            CloseDate = Date.today().addDays(30),
+            RecordTypeId = recordTypeId('LSSalesConsumables'),
+            AccountId = account.Id,
+            PrimaryContact__c = contact.Id
+        );
+        insert firstSaved;
+        firstSaved = [
+            SELECT LSOpportunityNumber__c
+            FROM Opportunity
+            WHERE Id = :firstSaved.Id
+        ];
+
+        Opportunity second = new Opportunity(
+            RecordTypeId = recordTypeId('LSSalesConsumables'),
+            Name = 'Second',
+            StageName = 'Prospecting'
+        );
+        LSOpportunityNamingService.inScopeRecordTypeIds = new Set<Id>{
+            recordTypeId('LSSalesConsumables')
+        };
+        LSOpportunityNamingService.applyNames(new List<Opportunity>{ second });
+
+        Assert.areEqual(firstSaved.LSOpportunityNumber__c + 1, second.LSOpportunityNumber__c);
     }
 
     // ------------------------------------------------------------------

@@ -1,0 +1,206 @@
+<template>
+    <template lwc:if={isOpen}>
+        <section
+            role="dialog"
+            tabindex="-1"
+            aria-modal="true"
+            aria-labelledby="take-photo-modal-title"
+            class="slds-modal slds-fade-in-open camera-modal"
+        >
+            <div class="slds-modal__container">
+                <header class="slds-modal__header">
+                    <lightning-button-icon
+                        icon-name="utility:close"
+                        alternative-text="Close"
+                        title="Close"
+                        class="slds-modal__close"
+                        onclick={handleClose}
+                    ></lightning-button-icon>
+                    <h2 id="take-photo-modal-title" class="slds-modal__title slds-hyphenate">
+                        {resolvedTitle}
+                    </h2>
+                    <p class="slds-text-body_small slds-text-color_weak slds-m-top_xx-small">
+                        {resolvedSubtitle}
+                    </p>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium">
+                    <div
+                        class={dropzoneClass}
+                        ondragover={handleDragOver}
+                        ondragleave={handleDragLeave}
+                        ondrop={handleDrop}
+                    >
+                        <input
+                            type="file"
+                            class="slds-hide"
+                            data-id="take-photo-file-input"
+                            accept={accept}
+                            multiple
+                            onchange={handleFileSelected}
+                        />
+                        <div class="take-photo-dropzone__actions">
+                            <lightning-button
+                                label="Upload files"
+                                icon-name="utility:upload"
+                                onclick={handleChooseFiles}
+                                disabled={isBusy}
+                                class="slds-m-right_small"
+                            ></lightning-button>
+                            <button
+                                type="button"
+                                class="take-photo-dropzone__hint"
+                                onclick={handleChooseFiles}
+                                disabled={isBusy}
+                            >
+                                Or drop files
+                            </button>
+                        </div>
+                    </div>
+
+                    <h3 class="slds-text-heading_small slds-m-bottom_x-small">Camera</h3>
+                    <div class="slds-m-bottom_small">
+                        <lightning-combobox
+                            label="Camera"
+                            value={selectedCameraId}
+                            options={cameraOptions}
+                            onchange={handleCameraChange}
+                            disabled={isCameraStarting}
+                            placeholder="Select a camera"
+                        ></lightning-combobox>
+                    </div>
+                    <div class="slds-m-bottom_small">
+                        <lightning-button
+                            label="Start camera"
+                            onclick={handleStartCamera}
+                            disabled={isStartCameraDisabled}
+                            class="slds-m-right_small"
+                        ></lightning-button>
+                        <lightning-button
+                            label="Capture photo"
+                            variant="brand"
+                            onclick={handleCapturePhoto}
+                            disabled={isCaptureDisabled}
+                            class="slds-m-right_small"
+                        ></lightning-button>
+                        <lightning-button
+                            label="Stop camera"
+                            onclick={handleStopCamera}
+                            disabled={isStopCameraDisabled}
+                        ></lightning-button>
+                    </div>
+                    <template lwc:if={cameraError}>
+                        <div class="slds-text-color_error slds-m-bottom_small" role="alert">
+                            {cameraError}
+                        </div>
+                    </template>
+                    <video
+                        class="camera-preview"
+                        autoplay
+                        playsinline
+                        muted
+                        lwc:dom="manual"
+                    ></video>
+                    <canvas class="slds-hide" lwc:dom="manual"></canvas>
+
+                    <h3 class="slds-text-heading_small slds-m-top_medium slds-m-bottom_x-small">
+                        Photos
+                    </h3>
+                    <template lwc:if={hasPhotos}>
+                        <table
+                            class="slds-table slds-table_cell-buffer slds-table_bordered files-table"
+                        >
+                            <thead>
+                                <tr>
+                                    <th scope="col" class="files-table__col-icon"></th>
+                                    <th scope="col">Title</th>
+                                    <th scope="col">Type</th>
+                                    <th scope="col" class="files-table__col-actions">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template for:each={photoRows} for:item="file">
+                                    <tr key={file.contentDocumentId}>
+                                        <td class="files-table__col-icon">
+                                            <template lwc:if={file.showThumbnail}>
+                                                <img
+                                                    src={file.thumbnailUrl}
+                                                    alt=""
+                                                    class="files-table__thumb"
+                                                    data-doc-id={file.contentDocumentId}
+                                                    onerror={handleThumbnailError}
+                                                />
+                                            </template>
+                                            <template lwc:else>
+                                                <div class="files-table__icon-slot">
+                                                    <lightning-icon
+                                                        icon-name="doctype:image"
+                                                        size="small"
+                                                        alternative-text={file.fileExtension}
+                                                    ></lightning-icon>
+                                                </div>
+                                            </template>
+                                        </td>
+                                        <td>
+                                            <template lwc:if={showTitleEdit}>
+                                                <div class="slds-grid slds-grid_vertical-align-center">
+                                                    <div class="slds-col slds-grow">
+                                                        <lightning-input
+                                                            variant="label-hidden"
+                                                            label="Photo title"
+                                                            value={file.editTitle}
+                                                            data-doc-id={file.contentDocumentId}
+                                                            onchange={handlePhotoTitleChange}
+                                                            onkeyup={handlePhotoTitleChange}
+                                                            disabled={file.isRenaming}
+                                                            class={file.titleInputClass}
+                                                        ></lightning-input>
+                                                    </div>
+                                                    <div class="slds-col slds-no-flex slds-m-left_xx-small">
+                                                        <lightning-button-icon
+                                                            icon-name="utility:check"
+                                                            alternative-text="Save title"
+                                                            title={file.titleSaveTitle}
+                                                            variant={file.titleSaveVariant}
+                                                            data-doc-id={file.contentDocumentId}
+                                                            onclick={handleSavePhotoTitle}
+                                                            disabled={file.isSaveTitleDisabled}
+                                                        ></lightning-button-icon>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                            <template lwc:else>
+                                                {file.displayTitle}
+                                            </template>
+                                        </td>
+                                        <td>{file.fileExtension}</td>
+                                        <td class="files-table__col-actions">
+                                            <lightning-button-icon
+                                                icon-name="utility:delete"
+                                                alternative-text="Delete photo"
+                                                title="Delete photo"
+                                                data-document-id={file.contentDocumentId}
+                                                onclick={handleRemovePhoto}
+                                                disabled={isBusy}
+                                            ></lightning-button-icon>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </template>
+                    <template lwc:else>
+                        <p class="slds-text-body_regular">{emptyMessage}</p>
+                    </template>
+                </div>
+                <footer class="slds-modal__footer">
+                    <lightning-button
+                        label="Done"
+                        variant="brand"
+                        onclick={handleClose}
+                    ></lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open camera-modal-backdrop"></div>
+    </template>
+</template>

@@ -620,6 +620,25 @@ private class ReceivingFinishServiceTest {
 		internalBuilder.set(Account.BillingCountryCode, 'US');
 		Account internalAccount = (Account) internalBuilder.persist();
 
+		// Competing Primary Bill-To with the same AccountNumber under a different parent
+		// (mirrors REPAIR/EXCHANGE 25923 Customer vs Type I). Must not win Internal mapping.
+		Account otherParent = (Account) new adb_Account()
+			.name('GW4162 Other Parent')
+			.systemId('LEG4162OTH')
+			.persist();
+		Account competingBillTo = new Account(
+			Name = 'GW4162 Competing Bill To',
+			AccountNumber = 'INT4162-FIN',
+			ParentId = otherParent.Id,
+			Type = 'Address',
+			BilltoAddressStatus__c = 'Primary',
+			CurrencyIsoCode = 'USD',
+			BillingStreet = '999 Wrong Bill St',
+			BillingCity = 'Akron',
+			BillingStateCode = 'OH',
+			BillingPostalCode = '44301',
+			BillingCountryCode = 'US'
+		);
 		Account billToAddress = new Account(
 			Name = 'GW4162 Internal Bill To',
 			AccountNumber = 'INT4162-FIN',
@@ -644,7 +663,7 @@ private class ReceivingFinishServiceTest {
 			BillingPostalCode = '44101',
 			BillingCountryCode = 'US'
 		);
-		insert new List<Account>{ billToAddress, shipToAddress };
+		insert new List<Account>{ competingBillTo, billToAddress, shipToAddress };
 
 		ReturnOrder returnOrder = [SELECT Id, AccountId FROM ReturnOrder LIMIT 1];
 		ReturnOrderLineItem lineItem = [

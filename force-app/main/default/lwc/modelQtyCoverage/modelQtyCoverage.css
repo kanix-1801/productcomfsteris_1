@@ -575,8 +575,79 @@
 }
 
 .ca-tile-label {
+    flex: 1;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+/* On Location - Mobile Van: program + Business Group row */
+.ca-onl-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.ca-field-help {
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: #706e6b;
+}
+
+/* Change summary */
+.ca-onl-count-pill {
+    padding: 0.125rem 0.625rem;
+    border-radius: 1rem;
+    background: #e5f0fb;
+    color: #0b5cab;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.ca-onl-summary {
+    font-size: 0.75rem;
+    color: #444;
+    white-space: nowrap;
+}
+
+.ca-onl-added {
+    color: #2e844a;
+    font-weight: 700;
+}
+
+.ca-onl-removed {
+    color: #ba0517;
+    font-weight: 700;
+}
+
+/* Tile status tags */
+.ca-tile-tag {
+    flex: 0 0 auto;
+    margin-left: auto;
+    padding: 0.0625rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+}
+
+.ca-tile-tag_program {
+    background: #f3f3f3;
+    color: #444;
+}
+
+.ca-tile-tag_added {
+    background: #ebf7e6;
+    color: #2e844a;
+}
+
+.ca-tile-tag_removed {
+    background: #fde8e8;
+    color: #ba0517;
+}
+
+.ca-tile_removed {
+    background: #fff;
+    border: 1px dashed #ba0517;
 }

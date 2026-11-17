@@ -16,22 +16,25 @@ import {
 import GENERATE_QUOTE_REFRESH from '@salesforce/messageChannel/generateQuoteRefresh__c';
 import getQuotes from '@salesforce/apex/GenerateQuoteController.getQuotes';
 import refreshQuotes from '@salesforce/apex/GenerateQuoteController.refreshQuotes';
-import createQuote from '@salesforce/apex/LSGenerateQuoteController.createQuote';   //GCL-66
-import copyQuote from '@salesforce/apex/LSGenerateQuoteController.copyQuote';
-import mergeQuote from '@salesforce/apex/LSGenerateQuoteController.mergeQuote';
-import validateQuoteAccess from '@salesforce/apex/LSGenerateQuoteController.validateQuoteAccess';
+import createQuote from '@salesforce/apex/LSGenerateQuoteController.createQuote';
+import copyQuote from '@salesforce/apex/GenerateQuoteController.copyQuote';
+import mergeQuote from '@salesforce/apex/GenerateQuoteController.mergeQuote';
+import validateQuoteAccess from '@salesforce/apex/GenerateQuoteController.validateQuoteAccess';
 import getSalesConnectionQuoteUrl from '@salesforce/apex/GenerateQuoteController.getSalesConnectionQuoteUrl';
 import syncQuoteForecastConfidence from '@salesforce/apex/GenerateQuoteController.syncQuoteForecastConfidence';
 import getQuoteForecastConfidenceOptions from '@salesforce/apex/QuoteForecastConfidenceService.getActiveOptions';
 import QUOTE_NUMBER_HELP_TEXT from '@salesforce/label/c.Quote_Number_Helptext';
 import QUOTE_FORECAST_INELIGIBLE_HELP_TEXT from '@salesforce/label/c.QuoteForecastIneligibleHelptext';
 import REFRESH_QUOTE_SUCCESS_MESSAGE from '@salesforce/label/c.RefreshQuoteSuccessMessage';
-import isOpportunityOnHold from '@salesforce/apex/LSGenerateQuoteController.isOpportunityOnHold';   //GCL-66
 import LS_OPPORTUNITY_ON_HOLD_MESSAGE from '@salesforce/label/c.LSOpportunityOnHold';  //GCL-66
+import OPPORTUNITY_ON_HOLD from '@salesforce/schema/Opportunity.OnHold__c'; //GCL-66
 
 const QUOTES_PAGE_SIZE = 5;
 const OPPORTUNITY_RECORD_TYPE_GOODWILL = 'HC_Sales_Customer_Goodwill_Support';
 const QUOTE_TYPE_GOODWILL = 'Goodwill Quote';
+
+const FIELDS = [OPPORTUNITY_ON_HOLD];   //GCL-66
+
 
 export default class LsGenerateQuote extends LightningElement {
     @api recordId;
@@ -94,6 +97,13 @@ export default class LsGenerateQuote extends LightningElement {
     })
     wiredOpportunityRecord(result) {
         this.wiredOpportunity = result;
+    }
+
+    @wire(getRecord, { recordId: '$recordId', fields: FIELDS })
+    opportunityRecord;
+
+    get opportunityOnHold() {
+        return getFieldValue(this.opportunityRecord.data, OPPORTUNITY_ON_HOLD);
     }
 
     @wire(MessageContext)
@@ -1330,34 +1340,17 @@ export default class LsGenerateQuote extends LightningElement {
     async ensureOpportunityOnHold() {
         debugger;
         this.hasOpportunityOnHold = false;
+        console.log('this.opportunityIdForQuoteOperations', this.opportunityIdForQuoteOperations);
+        console.log('this.wiredOpportunity', this.wiredOpportunity);
+        console.log('this.opportunityOnHold', this.opportunityOnHold);
 
-        if (!this.opportunityIdForQuoteOperations) {
+        if (this.opportunityOnHold) {
+            this.showToast('Error', this.lsOpportunityOnHoldMessage, 'error');
             if (this.isQuickAction) {
                 this.closeQuickActionPanel(false);
             }
-            return false;
         }
-
-        await isOpportunityOnHold({ opportunityId: this.opportunityIdForQuoteOperations }).then((result) => {
-            debugger;
-            this.hasOpportunityOnHold = result;
-            
-            if (this.hasOpportunityOnHold) {
-                this.showToast('Error', this.lsOpportunityOnHoldMessage, 'error');
-                if (this.isQuickAction) {
-                    this.closeQuickActionPanel(false);
-                }
-            }
-            return this.hasOpportunityOnHold;
-            
-        }).catch((error) => {
-            this.showToast('Error', this.reduceError(error), 'error');
-            if (this.isQuickAction) {
-                this.closeQuickActionPanel(false);
-            }
-            return this.hasOpportunityOnHold;
-        });
-        
+        return this.opportunityOnHold;
     }
     //GCL-66: END
 

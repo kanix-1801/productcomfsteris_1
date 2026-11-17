@@ -4,7 +4,7 @@
  * @description Shared Product2 query helpers for return order create, receive, and line correction flows.
  * @group Return Order Process
  * @see CreateReturnOrderController
- * @see ReturnOrderReceivingController
+ * @see ReceivingService
  */
 public with sharing class Product2QueryUtil {
     /** @description ProductType__c value for serialized/service asset products used on return lines. */

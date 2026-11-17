@@ -47,9 +47,8 @@ table thead th {
 }
 
 .history-table.slds-table td.notes-cell {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    overflow-wrap: break-word;
 }
 
 .history-table.slds-table td.repair-codes-cell {

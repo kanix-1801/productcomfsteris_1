@@ -330,7 +330,7 @@ private class DeviceEvaluationControllerTest {
             .pricebook2Id(standardPricebookId);
         priorShippedBuilder.set(
             WorkOrder.CompletedTimestamp__c,
-            Datetime.now().addDays(-2)
+            Datetime.now().addMonths(-13)
         );
         priorShippedBuilder.set(
             WorkOrder.EvaluationNotes__c,
@@ -1515,7 +1515,11 @@ private class DeviceEvaluationControllerTest {
             result.repairHistory[0].repairDate,
             'Repair Date should be the Work Order Actual Ship Date.'
         );
-        System.assertEquals(true, result.repairHistory[0].isWithinLastTwelveMonths);
+        System.assertEquals(
+            true,
+            result.repairHistory[0].isWithinLastTwelveMonths,
+            'A recent Actual Ship Date belongs in the 12-month window when Completion Timestamp is older.'
+        );
         System.assertEquals(
             'Leak test failed at bending section.',
             result.repairHistory[0].evaluationNotes

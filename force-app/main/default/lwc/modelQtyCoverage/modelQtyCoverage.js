@@ -141,6 +141,11 @@ export default class ModelQtyCoverage extends LightningElement {
     mobileVanCategories = [];
     mobileVanCategoriesLoaded = false;
     mobileVanError;
+    // ONL pricing program and Business Group picked in the Mobile Van tab (UI only for now: not saved yet)
+    onlProgramId = null;
+    onlBusinessGroup = null;
+    // Categories that come from the program's lines (ONL_Category__c). Empty until those lines are loaded.
+    onlProgramCategories = [];
 
     productLineValues = [];
     subProductLineValues = [];
@@ -498,6 +503,9 @@ export default class ModelQtyCoverage extends LightningElement {
     }
 
     get footerSummary() {
+        if (this.isMobileVanSection) {
+            return 'On save: program + Business Group on the quote line - one ContractAdjustment (Type = ONL - Mobile Van) per checked category';
+        }
         const total = this.navItems.reduce((n, item) => n + item.count, 0);
         const noun = total === 1 ? 'adjustment' : 'adjustments';
         return `${total} ${noun} across ${this.navItems.length} types · changes are saved with the configuration`;
@@ -959,10 +967,27 @@ export default class ModelQtyCoverage extends LightningElement {
             : this.mobileVanCategories;
     }
 
+    // Each tile shows where its state comes from: Program (from the program, still checked),
+    // Added (checked by the rep, not in the program) or Removed (in the program, unchecked by the rep)
     get mobileVanTiles() {
         return this.visibleMobileVanCategories.map(({ label, value }) => {
             const checked = this.mobileVanSelected.includes(value);
-            return { key: value, label, value, checked, tileClass: `ca-tile${checked ? ' ca-tile_checked' : ''}` };
+            const inProgram = this.onlProgramCategories.includes(value);
+            let status = null;
+            if (inProgram) status = checked ? 'Program' : 'Removed';
+            else if (checked) status = 'Added';
+            let tileClass = 'ca-tile';
+            if (checked) tileClass += ' ca-tile_checked';
+            if (status === 'Removed') tileClass += ' ca-tile_removed';
+            return {
+                key: value,
+                label,
+                value,
+                checked,
+                tileClass,
+                statusLabel: status,
+                statusClass: status ? `ca-tile-tag ca-tile-tag_${status.toLowerCase()}` : ''
+            };
         });
     }
 
@@ -985,12 +1010,58 @@ export default class ModelQtyCoverage extends LightningElement {
         return this.visibleMobileVanCategories.length === 0;
     }
 
-    get mobileVanSelectAllDisabled() {
-        return this.visibleMobileVanSelectedCount === this.visibleMobileVanCategories.length;
+    get hasOnlProgram() {
+        return !!this.onlProgramId;
     }
 
-    get mobileVanClearDisabled() {
-        return this.visibleMobileVanSelectedCount === 0;
+    // Record picker filter: only Active programs with Type = On Location - Mobile Van.
+    // TODO: confirm the PricingProgram__c field API names (Status__c / Type__c) in the org.
+    get onlProgramFilter() {
+        return {
+            criteria: [
+                { fieldPath: 'Status__c', operator: 'eq', value: 'Active' },
+                { fieldPath: 'Type__c', operator: 'eq', value: 'On Location - Mobile Van' }
+            ]
+        };
+    }
+
+    // TODO: replace with the quote line Business Group picklist values once that field exists
+    get businessGroupOptions() {
+        return [
+            { label: 'Onlocation Only', value: 'Onlocation Only' },
+            { label: 'Repair and Onlocation', value: 'Repair and Onlocation' },
+            { label: 'Repair Only', value: 'Repair Only' }
+        ];
+    }
+
+    get onlFromProgramCount() {
+        return this.onlProgramCategories.length;
+    }
+
+    get onlAddedCount() {
+        return this.mobileVanSelected.filter((c) => !this.onlProgramCategories.includes(c)).length;
+    }
+
+    get onlRemovedCount() {
+        return this.onlProgramCategories.filter((c) => !this.mobileVanSelected.includes(c)).length;
+    }
+
+    get onlResetDisabled() {
+        return !this.hasOnlProgram || (this.onlAddedCount === 0 && this.onlRemovedCount === 0);
+    }
+
+    handleOnlProgramChange(event) {
+        this.onlProgramId = event.detail.recordId || null;
+        if (!this.onlProgramId) this.onlBusinessGroup = null;
+        // Functional pass: load the program's ONL_Category__c lines into onlProgramCategories and check them
+    }
+
+    handleBusinessGroupChange(event) {
+        this.onlBusinessGroup = event.detail.value;
+    }
+
+    handleOnlResetToProgram() {
+        this.mobileVanSelected = [...this.onlProgramCategories];
     }
 
     handleMobileVanFilter(event) {
@@ -1003,15 +1074,6 @@ export default class ModelQtyCoverage extends LightningElement {
         this.mobileVanSelected = event.target.checked ? [...others, category] : others;
     }
 
-    handleMobileVanSelectAll() {
-        const visible = this.visibleMobileVanCategories.map((c) => c.value);
-        this.mobileVanSelected = [...new Set([...this.mobileVanSelected, ...visible])];
-    }
-
-    handleMobileVanClear() {
-        const visible = new Set(this.visibleMobileVanCategories.map((c) => c.value));
-        this.mobileVanSelected = this.mobileVanSelected.filter((c) => !visible.has(c));
-    }
 
     /* =====================  SAVE (commit)  ===================== */
 

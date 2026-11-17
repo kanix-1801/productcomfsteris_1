@@ -861,7 +861,8 @@ public with sharing class WorkOrderLineItemsSelector extends SoqlQueryBuilder {
                 Department__c,
                 ReportedProblem__c,
                 AdditionalServices__c,
-                InsulationPowderCoating__c
+                InsulationPowderCoating__c,
+                WorkOrder.Asset.Name
             FROM WorkOrderLineItem
             WHERE WorkOrder.ParentWorkOrderId = :parentWorkOrderId
                 AND SendToRepairCenter__c = TRUE

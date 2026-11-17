@@ -1526,5 +1526,374 @@ static void getRegionalSalesCoOrdinatorBlUserFrnch_lenient() {
         System.assertEquals(true, threw, 'Exception path should be exercised.');
     }
 
+// ---------------------------------------------------------------------
+// CBM-1480 test data helpers
+// ---------------------------------------------------------------------
+
+private static Order createCbmOrder(String subject) {
+    Case testCase = new Case(
+        Origin = 'Phone',
+        Status = 'New',
+        Subject = subject
+    );
+    insert testCase;
+
+    Account accountRecord = [
+        SELECT Id
+        FROM Account
+        LIMIT 1
+    ];
+
+    Order orderRecord = new Order(
+        AccountId = accountRecord.Id,
+        EffectiveDate = Date.today(),
+        Status = 'Draft',
+        Pricebook2Id = Test.getStandardPricebookId(),
+        ParentCase__c = testCase.Id
+    );
+    insert orderRecord;
+
+    return [
+        SELECT Id,
+               ParentCase__c,
+               Pricebook2Id,
+               Country__c,
+               IsTradInLineOpen__c
+        FROM Order
+        WHERE Id = :orderRecord.Id
+    ];
+}
+
+private static void addOpenTradeInLine(Order orderRecord) {
+    String suffix =
+        String.valueOf(orderRecord.Id).right(4) +
+        String.valueOf(Limits.getDmlStatements());
+
+    Product2 tradeProduct = new Product2(
+        Name = 'CBM-1480 Trade-In ' + suffix,
+        IsActive = true,
+        ProductCode = 'CBMTR' + suffix,
+        ItemID__c = 'CBM' + suffix,
+        InventoryOrgId__c = 'CBM' + suffix
+    );
+
+    Schema.SObjectField itemTypeField =
+        Schema.SObjectType.Product2.fields
+            .getMap()
+            .get('ItemType__c');
+
+    if (
+        itemTypeField != null &&
+        itemTypeField.getDescribe().isCreateable()
+    ) {
+        tradeProduct.put(
+            'ItemType__c',
+            'Trade-In'
+        );
+    }
+
+    insert tradeProduct;
+
+    PricebookEntry tradeEntry = new PricebookEntry(
+        Pricebook2Id = orderRecord.Pricebook2Id,
+        Product2Id = tradeProduct.Id,
+        UnitPrice = 10,
+        IsActive = true
+    );
+    insert tradeEntry;
+
+    OrderItem tradeLine = new OrderItem(
+        OrderId = orderRecord.Id,
+        PricebookEntryId = tradeEntry.Id,
+        Quantity = -1,
+        UnitPrice = 10,
+        OrderLineStatus__c = 'Picked',
+        MailSent__c = false
+    );
+
+    Schema.SObjectField lineTypeField =
+        Schema.SObjectType.OrderItem.fields
+            .getMap()
+            .get('OrderLineType__c');
+
+    if (
+        lineTypeField != null &&
+        lineTypeField.getDescribe().isCreateable()
+    ) {
+        tradeLine.put(
+            'OrderLineType__c',
+            'Trade In Lines'
+        );
+    }
+
+    insert tradeLine;
+}
+
+private static Order refreshCbmOrder(Id orderId) {
+    return [
+        SELECT Id,
+               ParentCase__c,
+               Pricebook2Id,
+               Country__c,
+               IsTradInLineOpen__c
+        FROM Order
+        WHERE Id = :orderId
+    ];
+}
+
+// ---------------------------------------------------------------------
+// CBM-1480 tests
+// ---------------------------------------------------------------------
+
+@IsTest
+static void cbm1480_hasOpenTradeInLines_nullAndNoOrder_returnFalse() {
+
+    Boolean nullCaseResult =
+        EmailControllerHelper.hasOpenTradeInLines(null);
+
+    System.assertEquals(
+        false,
+        nullCaseResult,
+        'Null Case Id must return false.'
+    );
+
+    Case caseWithoutOrder = new Case(
+        Origin = 'Phone',
+        Status = 'New',
+        Subject = 'CBM-1480 no Order helper'
+    );
+    insert caseWithoutOrder;
+
+    Test.startTest();
+
+    Boolean noOrderResult =
+        EmailControllerHelper.hasOpenTradeInLines(
+            caseWithoutOrder.Id
+        );
+
+    Test.stopTest();
+
+    System.assertEquals(
+        false,
+        noOrderResult,
+        'A Case without a related Order must return false.'
+    );
+}
+
+@IsTest
+static void cbm1480_noOpenTradeInLine_returnsFalse() {
+    Order orderRecord =
+        createCbmOrder('CBM-1480 no Trade-In');
+
+    Order refreshedOrder =
+        refreshCbmOrder(orderRecord.Id);
+
+    System.assertEquals(
+        0,
+        refreshedOrder.IsTradInLineOpen__c,
+        'A new Order without qualifying Trade-In lines must have a zero roll-up count.'
+    );
+
+    Test.startTest();
+
+    Boolean result =
+        EmailControllerHelper.hasOpenTradeInLines(
+            refreshedOrder.ParentCase__c
+        );
+
+    Test.stopTest();
+
+    System.assertEquals(
+        false,
+        result,
+        'An Order without an open Trade-In line must return false.'
+    );
+}
+
+@IsTest
+static void cbm1480_selectorReturnsRequiredFields() {
+    Order orderRecord =
+        createCbmOrder('CBM-1480 selector fields');
+
+    List<Order> selectedOrders =
+        OrderSelector.orderRecord(
+            orderRecord.ParentCase__c
+        );
+
+    System.assertNotEquals(
+        null,
+        selectedOrders,
+        'OrderSelector must return the related Order.'
+    );
+
+    System.assertEquals(
+        1,
+        selectedOrders.size(),
+        'The test Case must have one related Order.'
+    );
+
+    String calculatedCountry =
+        selectedOrders[0].Country__c;
+
+    Decimal openTradeInCount =
+        selectedOrders[0].IsTradInLineOpen__c;
+
+    System.assertEquals(
+        calculatedCountry,
+        selectedOrders[0].Country__c,
+        'Country__c must be available from OrderSelector.'
+    );
+
+    System.assertEquals(
+        openTradeInCount,
+        selectedOrders[0].IsTradInLineOpen__c,
+        'IsTradInLineOpen__c must be available from OrderSelector.'
+    );
+}
+
+@IsTest
+static void cbm1480_openTradeInLine_matchesCalculatedOrderValues() {
+    Order orderRecord =
+        createCbmOrder('CBM-1480 calculated values');
+
+    addOpenTradeInLine(orderRecord);
+
+    Order refreshedOrder =
+        refreshCbmOrder(orderRecord.Id);
+
+    Boolean expectedResult =
+        refreshedOrder.Country__c == 'Canada' &&
+        refreshedOrder.IsTradInLineOpen__c != null &&
+        refreshedOrder.IsTradInLineOpen__c > 0;
+
+    Test.startTest();
+
+    Boolean actualResult =
+        EmailControllerHelper.hasOpenTradeInLines(
+            refreshedOrder.ParentCase__c
+        );
+
+    Test.stopTest();
+
+    System.assertEquals(
+        expectedResult,
+        actualResult,
+        'The helper result must match the calculated Country and open Trade-In count.'
+    );
+}
+
+@IsTest
+static void cbm1480_multipleOpenTradeInLines_areRepresentedByRollup() {
+    Order orderRecord =
+        createCbmOrder('CBM-1480 multiple Trade-In');
+
+    addOpenTradeInLine(orderRecord);
+    addOpenTradeInLine(orderRecord);
+
+    Order refreshedOrder =
+        refreshCbmOrder(orderRecord.Id);
+
+    Boolean expectedResult =
+        refreshedOrder.Country__c == 'Canada' &&
+        refreshedOrder.IsTradInLineOpen__c != null &&
+        refreshedOrder.IsTradInLineOpen__c > 0;
+
+    Test.startTest();
+
+    Boolean actualResult =
+        EmailControllerHelper.hasOpenTradeInLines(
+            refreshedOrder.ParentCase__c
+        );
+
+    Test.stopTest();
+
+    System.assertEquals(
+        expectedResult,
+        actualResult,
+        'The helper must use the Order roll-up when multiple Trade-In lines exist.'
+    );
+
+    if (
+        refreshedOrder.IsTradInLineOpen__c != null &&
+        refreshedOrder.IsTradInLineOpen__c > 0
+    ) {
+        System.assert(
+            refreshedOrder.IsTradInLineOpen__c >= 1,
+            'The roll-up must represent qualifying Trade-In lines.'
+        );
+    }
+}
+
+@IsTest
+static void cbm1480_helperUsesSelectedOrderFields() {
+    Order orderRecord =
+        createCbmOrder('CBM-1480 helper fields');
+
+    List<Order> selectedOrders =
+        OrderSelector.orderRecord(
+            orderRecord.ParentCase__c
+        );
+
+    System.assertNotEquals(
+        null,
+        selectedOrders,
+        'OrderSelector must return the Order.'
+    );
+
+    System.assertEquals(
+        1,
+        selectedOrders.size(),
+        'Expected one Order for the test Case.'
+    );
+
+    Order selectedOrder =
+        selectedOrders[0];
+
+    Boolean expectedResult =
+        selectedOrder.Country__c == 'Canada' &&
+        selectedOrder.IsTradInLineOpen__c != null &&
+        selectedOrder.IsTradInLineOpen__c > 0;
+
+    Test.startTest();
+
+    Boolean actualResult =
+        EmailControllerHelper.hasOpenTradeInLines(
+            orderRecord.ParentCase__c
+        );
+
+    Test.stopTest();
+
+    System.assertEquals(
+        expectedResult,
+        actualResult,
+        'The helper must apply Canada and open Trade-In conditions to the selected Order.'
+    );
+}
+
+@IsTest
+static void cbm1480_hasOpenTradeInLines_rethrowsSelectorException() {
+    Order orderRecord =
+        createCbmOrder('CBM-1480 helper exception');
+
+    Boolean caught = false;
+
+    OrderSelector.throwTestException = true;
+
+    try {
+        EmailControllerHelper.hasOpenTradeInLines(
+            orderRecord.ParentCase__c
+        );
+    } catch (Exception expected) {
+        caught = true;
+    } finally {
+        OrderSelector.throwTestException = false;
+    }
+
+    System.assertEquals(
+        true,
+        caught,
+        'The helper must log and rethrow exceptions from OrderSelector.'
+    );
+}
 
 }

@@ -51,19 +51,20 @@
                 ></lightning-textarea>
             </div>
             <div class="missing-ro-grid__cell">
-                <label class="slds-form-element__label missing-ro-photo-label">
-                    <span class="slds-required missing-ro-required" title="required">*</span>
-                    <span>Picture of Shipping Label</span>
-                </label>
-                <lightning-input
-                    type="file"
-                    label="Upload shipping label picture"
-                    variant="label-hidden"
-                    accept="image/*"
-                    multiple
-                    disabled={isBusy}
-                    onchange={handleFileSelected}
-                ></lightning-input>
+                <div class="slds-form-element">
+                    <label class="slds-form-element__label missing-ro-photo-label">
+                        <span class="slds-required missing-ro-required" title="required">*</span>
+                        <span>Picture of Shipping Label</span>
+                    </label>
+                    <div class="slds-form-element__control">
+                        <lightning-button
+                            label="Upload or Capture"
+                            icon-name="utility:photo"
+                            disabled={isBusy}
+                            onclick={handleOpenPhotoModal}
+                        ></lightning-button>
+                    </div>
+                </div>
                 <template lwc:if={hasPhotos}>
                     <div class="missing-ro-photos slds-m-top_small">
                         <template for:each={photos} for:item="photo">
@@ -117,4 +118,17 @@
             </div>
         </template>
     </div>
+
+    <c-take-photo-modal
+        is-open={isPhotoModalOpen}
+        title="Upload or Capture"
+        subtitle="Capture or upload a picture of the shipping label."
+        accept="image/*"
+        mode="receiving"
+        photos={photos}
+        empty-message="No shipping label photos yet."
+        onphotoadded={handlePhotoAdded}
+        onphotoremoved={handlePhotoRemovedFromModal}
+        onclose={handleClosePhotoModal}
+    ></c-take-photo-modal>
 </template>

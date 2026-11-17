@@ -1,7 +1,13 @@
+:host {
+    display: block;
+    width: 100%;
+}
+
 .item-editor {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+    width: 100%;
 }
 
 .item-editor__top {
@@ -19,7 +25,7 @@
 
 /* GW-5677 - Quantity and actions stay on the outside; services fill the middle. */
 .item-editor__top_with-services {
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: max(calc(var(--services-lead, 0px) - 1rem), 8.5rem) minmax(0, 1fr) auto;
     grid-template-areas:
         'quantity services actions'
         'toolbar services actions';
@@ -30,10 +36,12 @@
 .item-editor__quantity {
     grid-area: quantity;
     max-width: 7.5rem;
+    min-width: 0;
 }
 
 .item-editor__toolbar {
     grid-area: toolbar;
+    min-width: 0;
 }
 
 .item-editor__services {

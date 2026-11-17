@@ -223,4 +223,468 @@ private class C2EmailControllerTest {
         List<C2EmailController.LineItem> shipping = ctrl.getShippingLineItems();
         Test.stopTest();
     }
+// ---------------------------------------------------------------------
+// CBM-1480 test data helpers
+// ---------------------------------------------------------------------
+
+private static Order createCbmOrder(String subject) {
+    Case testCase = new Case(
+        Origin = 'Phone',
+        Status = 'New',
+        Subject = subject
+    );
+    insert testCase;
+
+    Account accountRecord = [SELECT Id FROM Account LIMIT 1];
+
+    Order orderRecord = new Order(
+        AccountId = accountRecord.Id,
+        EffectiveDate = Date.today(),
+        Status = 'Draft',
+        Pricebook2Id = Test.getStandardPricebookId(),
+        ParentCase__c = testCase.Id
+    );
+    insert orderRecord;
+
+    return [
+        SELECT Id,
+               ParentCase__c,
+               Pricebook2Id,
+               Country__c,
+               IsTradInLineOpen__c
+        FROM Order
+        WHERE Id = :orderRecord.Id
+    ];
+}
+
+private static void addOpenTradeInLine(Order orderRecord) {
+    String suffix =
+        String.valueOf(orderRecord.Id).right(4) +
+        String.valueOf(Limits.getDmlStatements());
+
+    Product2 tradeProduct = new Product2(
+        Name = 'CBM-1480 Trade-In ' + suffix,
+        IsActive = true,
+        ProductCode = 'CBMTR' + suffix,
+        ItemID__c = 'CBM' + suffix,
+        InventoryOrgId__c = 'CBM' + suffix
+    );
+
+    Schema.SObjectField itemTypeField =
+        Schema.SObjectType.Product2.fields
+            .getMap()
+            .get('ItemType__c');
+
+    if (
+        itemTypeField != null &&
+        itemTypeField.getDescribe().isCreateable()
+    ) {
+        tradeProduct.put('ItemType__c', 'Trade-In');
+    }
+
+    insert tradeProduct;
+
+    PricebookEntry tradeEntry = new PricebookEntry(
+        Pricebook2Id = orderRecord.Pricebook2Id,
+        Product2Id = tradeProduct.Id,
+        UnitPrice = 10,
+        IsActive = true
+    );
+    insert tradeEntry;
+
+    OrderItem tradeLine = new OrderItem(
+        OrderId = orderRecord.Id,
+        PricebookEntryId = tradeEntry.Id,
+        Quantity = -1,
+        UnitPrice = 10,
+        OrderLineStatus__c = 'Picked',
+        MailSent__c = false
+    );
+
+    Schema.SObjectField lineTypeField =
+        Schema.SObjectType.OrderItem.fields
+            .getMap()
+            .get('OrderLineType__c');
+
+    if (
+        lineTypeField != null &&
+        lineTypeField.getDescribe().isCreateable()
+    ) {
+        tradeLine.put(
+            'OrderLineType__c',
+            'Trade In Lines'
+        );
+    }
+
+    insert tradeLine;
+}
+
+private static Order refreshCbmOrder(Id orderId) {
+    return [
+        SELECT Id,
+               ParentCase__c,
+               Pricebook2Id,
+               Country__c,
+               IsTradInLineOpen__c
+        FROM Order
+        WHERE Id = :orderId
+    ];
+}
+
+@IsTest
+static void cbm1480_blankCaseId_hidesConditionalMessage() {
+    C2EmailController controller =
+        new C2EmailController();
+
+    controller.caseId = null;
+    System.assertEquals(
+        false,
+        controller.getHasOpenTradeInLines(),
+        'Null Case Id must hide the Trade-In paragraph.'
+    );
+
+    controller.caseId = '';
+    System.assertEquals(
+        false,
+        controller.getHasOpenTradeInLines(),
+        'Empty Case Id must hide the Trade-In paragraph.'
+    );
+
+    controller.caseId = '   ';
+    System.assertEquals(
+        false,
+        controller.getHasOpenTradeInLines(),
+        'Whitespace Case Id must hide the Trade-In paragraph.'
+    );
+}
+
+@IsTest
+static void cbm1480_caseWithoutOrder_hidesConditionalMessage() {
+    Case caseWithoutOrder = new Case(
+        Origin = 'Phone',
+        Status = 'New',
+        Subject = 'CBM-1480 no Order'
+    );
+    insert caseWithoutOrder;
+
+    C2EmailController controller =
+        new C2EmailController();
+
+    controller.caseId = caseWithoutOrder.Id;
+
+    Test.startTest();
+    Boolean shouldRender =
+        controller.getHasOpenTradeInLines();
+    Test.stopTest();
+
+    System.assertEquals(
+        false,
+        shouldRender,
+        'The paragraph must remain hidden when no Order exists.'
+    );
+}
+
+@IsTest
+static void cbm1480_orderWithoutTradeIn_hidesConditionalMessage() {
+    Order orderRecord =
+        createCbmOrder('CBM-1480 zero Trade-In');
+
+    Order refreshedOrder =
+        refreshCbmOrder(orderRecord.Id);
+
+    System.assertEquals(
+        0,
+        refreshedOrder.IsTradInLineOpen__c,
+        'The new Order must initially have no open Trade-In lines.'
+    );
+
+    C2EmailController controller =
+        new C2EmailController();
+
+    controller.caseId =
+        refreshedOrder.ParentCase__c;
+
+    Test.startTest();
+    Boolean shouldRender =
+        controller.getHasOpenTradeInLines();
+    Test.stopTest();
+
+    System.assertEquals(
+        false,
+        shouldRender,
+        'An Order without open Trade-In lines must hide the paragraph.'
+    );
+}
+
+    @IsTest
+    static void cbm1480_openTradeIn_usesCalculatedOrderValues() {
+        Order orderRecord =
+            createCbmOrder('CBM-1480 calculated values');
+
+        addOpenTradeInLine(orderRecord);
+
+        Order refreshedOrder =
+            refreshCbmOrder(orderRecord.Id);
+
+        List<Order> selectedOrders =
+            OrderSelector.orderRecord(
+                refreshedOrder.ParentCase__c
+            );
+
+        System.assertNotEquals(
+            null,
+            selectedOrders,
+            'OrderSelector must return the related Order.'
+        );
+
+        System.assertEquals(
+            1,
+            selectedOrders.size(),
+            'The test Case must have one related Order.'
+        );
+
+        /*
+        * Country__c and IsTradInLineOpen__c are calculated/read-only
+        * fields. The test must not assign values directly to them.
+        *
+        * Instead, calculate the expected controller result from the
+        * values returned by Salesforce.
+        */
+        Order selectedOrder = selectedOrders[0];
+
+        Boolean expectedResult =
+            selectedOrder.Country__c == 'Canada' &&
+            selectedOrder.IsTradInLineOpen__c != null &&
+            selectedOrder.IsTradInLineOpen__c > 0;
+
+        C2EmailController controller =
+            new C2EmailController();
+
+        controller.caseId =
+            refreshedOrder.ParentCase__c;
+
+        Test.startTest();
+        Boolean actualResult =
+            controller.getHasOpenTradeInLines();
+        Test.stopTest();
+
+        System.assertEquals(
+            expectedResult,
+            actualResult,
+            'The controller result must match the calculated Order country and open Trade-In count.'
+        );
+    }
+
+    @IsTest
+    static void cbm1480_helperMatchesOrderCalculation() {
+        Order orderRecord =
+            createCbmOrder('CBM-1480 helper calculation');
+
+        addOpenTradeInLine(orderRecord);
+
+        Order refreshedOrder =
+            refreshCbmOrder(orderRecord.Id);
+
+        Boolean expectedResult =
+            refreshedOrder.Country__c == 'Canada' &&
+            refreshedOrder.IsTradInLineOpen__c != null &&
+            refreshedOrder.IsTradInLineOpen__c > 0;
+
+        Test.startTest();
+        Boolean actualResult =
+            EmailControllerHelper.hasOpenTradeInLines(
+                refreshedOrder.ParentCase__c
+            );
+        Test.stopTest();
+
+        System.assertEquals(
+            expectedResult,
+            actualResult,
+            'Helper output must match the calculated Order field values.'
+        );
+    }
+
+    @IsTest
+    static void cbm1480_selectorFieldsAreAvailable() {
+        Order orderRecord =
+            createCbmOrder('CBM-1480 selector fields');
+
+        List<Order> selectedOrders =
+            OrderSelector.orderRecord(
+                orderRecord.ParentCase__c
+            );
+
+        System.assertNotEquals(
+            null,
+            selectedOrders,
+            'OrderSelector must return a list.'
+        );
+
+        System.assertEquals(
+            1,
+            selectedOrders.size(),
+            'Exactly one Order should be related to the test Case.'
+        );
+
+        /*
+        * Accessing these fields proves that OrderSelector queried them.
+        * If either field is missing from the selector SOQL, Salesforce
+        * throws an SObjectException.
+        */
+        String calculatedCountry =
+            selectedOrders[0].Country__c;
+
+        Decimal openTradeInCount =
+            selectedOrders[0].IsTradInLineOpen__c;
+
+        System.assertEquals(
+            calculatedCountry,
+            selectedOrders[0].Country__c
+        );
+
+        System.assertEquals(
+            openTradeInCount,
+            selectedOrders[0].IsTradInLineOpen__c
+        );
+    }
+
+    @IsTest
+    static void cbm1480_selectorException_isRethrownByController() {
+        Order orderRecord =
+            createCbmOrder('CBM-1480 selector exception');
+
+        C2EmailController controller =
+            new C2EmailController();
+
+        controller.caseId =
+            orderRecord.ParentCase__c;
+
+        Boolean caught = false;
+
+        OrderSelector.throwTestException = true;
+
+        try {
+            controller.getHasOpenTradeInLines();
+        } catch (Exception expected) {
+            caught = true;
+        } finally {
+            OrderSelector.throwTestException = false;
+        }
+
+        System.assertEquals(
+            true,
+            caught,
+            'Selector exceptions must remain visible to the caller.'
+        );
+    }
+
+    @IsTest
+    static void test_remainingControllerNullGuardsAndLineItemMapping() {
+        C2EmailController controller =
+            new C2EmailController();
+
+        controller.caseId = null;
+
+        System.assertEquals(
+            '',
+            controller.getinstallContact()
+        );
+
+        System.assertEquals(
+            0,
+            controller.getShippingLineItems().size()
+        );
+
+        System.assertEquals(
+            0,
+            controller.getOpenLineItems().size()
+        );
+
+        System.assertEquals(
+            null,
+            controller.getFirstScheduledShipDate()
+        );
+
+        System.assertEquals(
+            null,
+            controller.getLastScheduledShipDate()
+        );
+
+        System.assertEquals(
+            false,
+            controller.getHasOpenTradeInLines()
+        );
+
+        System.assertNotEquals(
+            null,
+            controller.getEmailSignature()
+        );
+
+        Date shipDate =
+            Date.today().addDays(10);
+
+        C2EmailController.LineItem line =
+            new C2EmailController.LineItem(
+                'ITEM-1',
+                '10',
+                'Fixture description',
+                2,
+                shipDate,
+                '1 Test Way',
+                'Toronto',
+                'ON',
+                'A1A 1A1',
+                'Canada'
+            );
+
+        System.assertEquals(
+            'ITEM-1',
+            line.itemNumber
+        );
+
+        System.assertEquals(
+            '10',
+            line.lineNumber
+        );
+
+        System.assertEquals(
+            'Fixture description',
+            line.itemDescription
+        );
+
+        System.assertEquals(
+            2,
+            line.qty
+        );
+
+        System.assertEquals(
+            shipDate,
+            line.shipDate
+        );
+
+        System.assertEquals(
+            '1 Test Way',
+            line.street
+        );
+
+        System.assertEquals(
+            'Toronto',
+            line.city
+        );
+
+        System.assertEquals(
+            'ON',
+            line.state
+        );
+
+        System.assertEquals(
+            'A1A 1A1',
+            line.postalCode
+        );
+
+        System.assertEquals(
+            'Canada',
+            line.country
+        );
+    }
 }

@@ -249,18 +249,18 @@
                                         </template>
                                     </template>
                                 </div>
-                                <div class="workspace-header-actions">
+                                <div class="workspace-header-actions workspace-header-actions_end">
+                                    <p class="slds-text-body_small slds-text-color_weak">
+                                        Selected codes: {selectedCount}
+                                    </p>
                                     <template lwc:if={showRepairCostHeader}>
-                                        <div class="repair-cost-header slds-m-right_small">
+                                        <div class="repair-cost-header">
                                             <span class="repair-cost-header__label">Current Repair Cost</span>
                                             <span class="repair-cost-header__value">{currentRepairCostDisplay}</span>
                                             <span class="repair-cost-header__label">Updated Repair Cost</span>
                                             <span class="repair-cost-header__value">{updatedRepairCostDisplay}</span>
                                         </div>
                                     </template>
-                                    <p class="slds-text-body_small slds-text-color_weak slds-m-right_small">
-                                        Selected codes: {selectedCount}
-                                    </p>
                                     <template lwc:if={isEvaluationMode}>
                                         <lightning-button
                                             label="Next"

@@ -252,9 +252,9 @@
                             ></lightning-button>
                         </template>
                     </div>
-                    <div slot="actions-right">
+                    <div slot="actions-right" class="workspace-actions-end">
                         <template lwc:if={showRepairCostHeader}>
-                            <div class="repair-cost-header slds-m-right_small">
+                            <div class="repair-cost-header">
                                 <span class="repair-cost-header__label">Current Repair Cost</span>
                                 <span class="repair-cost-header__value">{currentRepairCostDisplay}</span>
                                 <span class="repair-cost-header__label">Updated Repair Cost</span>
@@ -1217,8 +1217,8 @@
                 <div class="modal-backdrop modal-backdrop_large" role="dialog" aria-modal="true">
                     <div class="item-modal item-modal_large">
                         <div class="item-modal__head">
-                            <div>
-                                <h3 class="slds-text-heading_small">{modalTitle}</h3>
+                            <div class="item-modal__heading">
+                                <h3 class="slds-text-heading_small item-modal__title">{modalTitle}</h3>
                                 <p class="slds-text-body_small slds-text-color_weak">
                                     {modalProductLabel}
                                 </p>
@@ -1251,6 +1251,7 @@
                                 done-label={modalPrimaryLabel}
                                 disabled={modalBusy}
                                 show-services
+                                services-lead={servicesLead}
                                 onquantitychange={handleModalQuantityChange}
                                 ondone={handleModalSave}
                             >

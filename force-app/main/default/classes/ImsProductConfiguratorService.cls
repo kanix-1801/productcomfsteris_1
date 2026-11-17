@@ -122,6 +122,11 @@ public with sharing class ImsProductConfiguratorService {
 	}
 
 	/**
+	 * @description Business rule failure in the configurator service (e.g. an inactive ONL pricing program).
+	 */
+	public class ImsProductConfiguratorException extends Exception {}
+
+	/**
 	 * @description One CT code of a pricing program (a PricingProgramLines__c record), as stored in the JSON.
 	 */
 	public class PricingProgramCtCode {
@@ -499,6 +504,44 @@ public with sharing class ImsProductConfiguratorService {
 			return new List<PricingProgramOption>();
 		}
 		return toPricingProgramOptions(selectPricingPrograms(toLikeTerm(term), null, Date.today()));
+	}
+
+	/**
+	 * @description GW-6468 - Active, in-date pricing programs for the ONL Pricing Program search bar
+	 *              (On Location - Mobile Van tab). Same Active + date-window rule as the Pricing Programs search.
+	 *              When PricingProgram__c gets a program type field, the ONL-only filter belongs here, not in the LWC.
+	 * @param searchTerm Text typed in the LWC (3 characters minimum)
+	 * @return Matching programs sorted by name (at most 50); empty for a blank or too-short term
+	 */
+	public static List<PricingProgramOption> searchOnlPricingPrograms(String searchTerm) {
+		return searchPricingPrograms(searchTerm);
+	}
+
+	/**
+	 * @description GW-6468 - Throws when the ONL pricing program is missing, not readable by the user, not Active,
+	 *              or outside its start/end dates on asOf. Call before writing the ONL adjustments: the LWC search
+	 *              only offers Active programs, but the server must not trust the Id it receives.
+	 * @param programId PricingProgram__c Id picked in the ONL search bar
+	 * @param asOf Date the program must be valid on (today when null)
+	 */
+	public static void assertActivePricingProgram(Id programId, Date asOf) {
+		if (programId == null || programId.getSobjectType() != PricingProgram__c.SObjectType) {
+			throw new ImsProductConfiguratorException('A valid Pricing Program is required.');
+		}
+		Date validOn = asOf == null ? Date.today() : asOf;
+		String status = ContractAdjustmentSelector.PRICING_PROGRAM_STATUS_ACTIVE;
+		List<PricingProgram__c> programList = [
+			SELECT Id FROM PricingProgram__c
+			WHERE Id = :programId
+			AND Status__c = :status
+			AND (StartDate__c = null OR StartDate__c <= :validOn)
+			AND (EndDate__c = null OR EndDate__c >= :validOn)
+			WITH USER_MODE
+			LIMIT 1
+		];
+		if (programList.isEmpty()) {
+			throw new ImsProductConfiguratorException('The selected Pricing Program is not active.');
+		}
 	}
 
 	/**

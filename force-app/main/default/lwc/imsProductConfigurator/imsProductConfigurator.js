@@ -22,6 +22,7 @@ import getSubProductLines from '@salesforce/apex/ImsProductConfiguratorControlle
 import getAssetCatalog from '@salesforce/apex/ImsProductConfiguratorController.getAssetCatalog';
 import searchPricingPrograms from '@salesforce/apex/ImsProductConfiguratorController.searchPricingPrograms';
 import getPricingProgramsByNames from '@salesforce/apex/ImsProductConfiguratorController.getPricingProgramsByNames';
+import searchOnlPricingPrograms from '@salesforce/apex/ImsProductConfiguratorController.searchOnlPricingPrograms';
 
 const COVERAGE_FIELD = 'ModelQtyCoverage__c';
 const MODEL_MAX_LENGTH = 50; // ContractAdjustment__c.Model__c
@@ -152,7 +153,14 @@ export default class ImsProductConfigurator extends LightningElement {
     mobileVanError;
     // ONL pricing program and Business Group picked in the Mobile Van tab (UI only for now: not saved yet)
     onlProgramId = null;
+    onlProgramLabel = null; // shown in the pill once a program is picked
     onlBusinessGroup = null;
+    // ONL program search (Apex: Active, in-date programs only)
+    onlSearchTerm = '';
+    onlSearchData = [];
+    onlSearching = false;
+    onlSearchError;
+    _onlSearchTimer;
     // Categories that come from the program's lines (ONL_Category__c). Empty until those lines are loaded.
     onlProgramCategories = [];
 
@@ -240,6 +248,7 @@ export default class ImsProductConfigurator extends LightningElement {
         unsubscribe(this.subscription);
         this.subscription = null;
         clearTimeout(this._programSearchTimer);
+        clearTimeout(this._onlSearchTimer);
     }
 
     handleMessage(message) {
@@ -1028,15 +1037,76 @@ export default class ImsProductConfigurator extends LightningElement {
         return !!this.onlProgramId;
     }
 
-    // Record picker filter: only Active programs with Type = On Location - Mobile Van.
-    // TODO: confirm the PricingProgram__c field API names (Status__c / Type__c) in the org.
-    get onlProgramFilter() {
-        return {
-            criteria: [
-                { fieldPath: 'Status__c', operator: 'eq', value: 'Active' },
-                { fieldPath: 'Type__c', operator: 'eq', value: 'On Location - Mobile Van' }
-            ]
-        };
+    /* ---------- ONL pricing program: search + pick ---------- */
+    // Once 3+ characters are typed (and the user pauses), Apex returns the Active, in-date programs
+    // (ImsProductConfiguratorService.searchOnlPricingPrograms). The Active rule lives only in Apex.
+
+    get onlSearchTooShort() {
+        const len = this.onlSearchTerm.length;
+        return len > 0 && len < MIN_PROGRAM_SEARCH_LENGTH;
+    }
+
+    get isOnlSearchActive() {
+        return this.onlSearchTerm.length >= MIN_PROGRAM_SEARCH_LENGTH;
+    }
+
+    get onlSearchResults() {
+        if (!this.isOnlSearchActive) return [];
+        return this.onlSearchData.map((p) => ({
+            programId: p.programId,
+            program: p.program,
+            description: p.description || '—',
+            label: `${p.program} - ${p.description || ''}`
+        }));
+    }
+
+    get hasOnlSearchResults() {
+        return this.onlSearchResults.length > 0;
+    }
+
+    get noOnlSearchResults() {
+        return this.isOnlSearchActive && !this.onlSearching && !this.onlSearchError && !this.hasOnlSearchResults;
+    }
+
+    get showOnlSearchSpinner() {
+        return this.isOnlSearchActive && this.onlSearching;
+    }
+
+    handleOnlProgramSearch(event) {
+        this.onlSearchTerm = clean(event.detail.value);
+        this.onlSearchError = null;
+        clearTimeout(this._onlSearchTimer);
+        if (!this.isOnlSearchActive) {
+            this.onlSearchData = [];
+            this.onlSearching = false;
+            return;
+        }
+        this.onlSearching = true;
+        const searchTerm = this.onlSearchTerm;
+        // eslint-disable-next-line @lwc/lwc/no-async-operation
+        this._onlSearchTimer = setTimeout(() => this.runOnlProgramSearch(searchTerm), PROGRAM_SEARCH_DELAY_MS);
+    }
+
+    async runOnlProgramSearch(searchTerm) {
+        try {
+            const programs = await searchOnlPricingPrograms({ searchTerm });
+            if (searchTerm !== this.onlSearchTerm) return; // the user typed on: a newer search is coming
+            this.onlSearchData = programs || [];
+        } catch (e) {
+            if (searchTerm !== this.onlSearchTerm) return;
+            this.onlSearchData = [];
+            this.onlSearchError = reduceError(e);
+        } finally {
+            if (searchTerm === this.onlSearchTerm) this.onlSearching = false;
+        }
+    }
+
+    resetOnlSearch() {
+        clearTimeout(this._onlSearchTimer);
+        this.onlSearchTerm = '';
+        this.onlSearchData = [];
+        this.onlSearching = false;
+        this.onlSearchError = null;
     }
 
     // TODO: replace with the quote line Business Group picklist values once that field exists
@@ -1064,10 +1134,27 @@ export default class ImsProductConfigurator extends LightningElement {
         return !this.hasOnlProgram || (this.onlAddedCount === 0 && this.onlRemovedCount === 0);
     }
 
-    handleOnlProgramChange(event) {
-        this.onlProgramId = event.detail.recordId || null;
-        if (!this.onlProgramId) this.onlBusinessGroup = null;
+    handleOnlProgramPick(event) {
+        const { id } = event.currentTarget.dataset;
+        const program = this.onlSearchResults.find((p) => p.programId === id);
+        if (!program) return;
+        this.onlProgramId = program.programId;
+        this.onlProgramLabel = program.label;
+        this.resetOnlSearch();
         // Functional pass: load the program's ONL_Category__c lines into onlProgramCategories and check them
+    }
+
+    handleOnlProgramKeydown(event) {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            this.handleOnlProgramPick(event);
+        }
+    }
+
+    handleOnlProgramClear() {
+        this.onlProgramId = null;
+        this.onlProgramLabel = null;
+        this.onlBusinessGroup = null;
     }
 
     handleBusinessGroupChange(event) {

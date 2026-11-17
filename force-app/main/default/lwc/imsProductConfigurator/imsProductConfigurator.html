@@ -406,10 +406,53 @@
 
                             <div class="ca-onl-fields">
                                 <div>
-                                    <lightning-record-picker label="ONL Pricing Program" placeholder="Search ONL programs..."
-                                        object-api-name="PricingProgram__c" required filter={onlProgramFilter}
-                                        value={onlProgramId} onchange={handleOnlProgramChange}></lightning-record-picker>
-                                    <p class="ca-field-help">Only Active programs with Type = On Location - Mobile Van.</p>
+                                    <template lwc:if={hasOnlProgram}>
+                                        <div class="slds-form-element">
+                                            <span class="slds-form-element__label">
+                                                <abbr class="slds-required" title="required">*</abbr>ONL Pricing Program
+                                            </span>
+                                            <div class="slds-form-element__control">
+                                                <lightning-pill label={onlProgramLabel}
+                                                    onremove={handleOnlProgramClear}></lightning-pill>
+                                            </div>
+                                        </div>
+                                    </template>
+                                    <template lwc:else>
+                                        <lightning-input type="search" label="ONL Pricing Program" required
+                                            placeholder="Search active programs..."
+                                            value={onlSearchTerm}
+                                            onchange={handleOnlProgramSearch}></lightning-input>
+
+                                        <p lwc:if={onlSearchTooShort} class="ca-search-hint" aria-live="polite">
+                                            Type at least 3 characters to search.
+                                        </p>
+                                        <div lwc:if={showOnlSearchSpinner} class="ca-search-hint" aria-live="polite">
+                                            <lightning-spinner alternative-text="Searching ONL pricing programs" size="small"
+                                                variant="brand" class="slds-is-relative"></lightning-spinner>
+                                        </div>
+                                        <p lwc:if={onlSearchError} class="ca-search-hint slds-text-color_error" role="alert">
+                                            {onlSearchError}
+                                        </p>
+
+                                        <ul lwc:if={hasOnlSearchResults} class="ca-search-results slds-listbox slds-listbox_vertical"
+                                            role="listbox" aria-label="Active ONL pricing programs">
+                                            <template for:each={onlSearchResults} for:item="result">
+                                                <li key={result.programId} role="option" tabindex="0"
+                                                    class="slds-listbox__item slds-listbox__option slds-listbox__option_plain slds-media_small"
+                                                    data-id={result.programId}
+                                                    onclick={handleOnlProgramPick} onkeydown={handleOnlProgramKeydown}>
+                                                    <span class="slds-truncate" title={result.label}>
+                                                        <strong>{result.program}</strong> - {result.description}
+                                                    </span>
+                                                </li>
+                                            </template>
+                                        </ul>
+
+                                        <p lwc:if={noOnlSearchResults} class="ca-search-hint">
+                                            No active programs match "{onlSearchTerm}".
+                                        </p>
+                                    </template>
+                                    <p class="ca-field-help">Only Active programs within their start/end dates.</p>
                                 </div>
                                 <div>
                                     <lightning-combobox label="Business Group" placeholder="Select Business Group"

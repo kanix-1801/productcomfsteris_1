@@ -109,6 +109,24 @@ public with sharing class ImsProductConfiguratorController {
     }
 
     /**
+     * @description GW-6468 - Active, in-date pricing programs for the ONL Pricing Program search bar
+     *              (On Location - Mobile Van tab).
+     * @param searchTerm Text typed in the ONL search bar (3 characters minimum)
+     * @return Matching programs; empty for a blank or too-short term
+     */
+    @AuraEnabled(cacheable=true)
+    public static List<ImsProductConfiguratorService.PricingProgramOption> searchOnlPricingPrograms(String searchTerm) {
+        try {
+            return ImsProductConfiguratorService.searchOnlPricingPrograms(searchTerm);
+        } catch (Exception e) {
+            throw toAuraException('searchOnlPricingPrograms: search failed for ' + searchTerm, null, e,
+                                  'Unable to load the ONL Pricing Programs.');
+        } finally {
+            Logger.saveLog();
+        }
+    }
+
+    /**
      * @description Pricing programs by name with their current CT codes, to refresh the programs saved on a line.
      * @param programNames PricingProgram__c names, e.g. PP-0009
      * @return The programs found

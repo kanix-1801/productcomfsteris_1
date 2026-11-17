@@ -164,13 +164,20 @@ private class ImsProductConfiguratorControllerTest {
             } catch (AuraHandledException e) {
                 thrownCount++;
             }
+            try {
+                ImsProductConfiguratorController.searchOnlPricingPrograms('ZZPP');
+            } catch (AuraHandledException e) {
+                Assert.areEqual('Unable to load the ONL Pricing Programs.', e.getMessage(),
+                                'Generic message for the ONL search');
+                thrownCount++;
+            }
         }
         Test.stopTest();
 
         /********************************************
         * THEN
         ********************************************/
-        Assert.areEqual(6, thrownCount, 'Each method should throw an AuraHandledException');
+        Assert.areEqual(7, thrownCount, 'Each method should throw an AuraHandledException');
     }
 
     /**
@@ -214,6 +221,45 @@ private class ImsProductConfiguratorControllerTest {
         Assert.areEqual(programRecord.Name, searchList[0].program, 'Program name');
         Assert.areEqual('CT.ZZC01', searchList[0].ctCodes[0].code, 'CT code of the program');
         Assert.areEqual(1, byNameList.size(), 'The program is found by its name');
+    }
+
+    /**
+     * @description GW-6468 - The ONL Pricing Program search returns only Active, in-date programs.
+     */
+    @IsTest
+    static void testSearchOnlPricingPrograms() {
+        /********************************************
+        * SETUP
+        ********************************************/
+        ImsProductConfiguratorTestDataFactory.grantPricingProgramAccess();
+        User contextUser = new User(Id = UserInfo.getUserId());
+        PricingProgram__c activeProgram = ImsProductConfiguratorTestDataFactory.createPricingProgram(
+            'ZZPP Onl Active', 'Active', Date.today(), null, new List<String>{ 'CT.ZZO01' }
+        );
+        ImsProductConfiguratorTestDataFactory.createPricingProgram(
+            'ZZPP Onl Draft', 'Draft', Date.today(), null, new List<String>{ 'CT.ZZO02' }
+        );
+
+        /********************************************
+        * GIVEN
+        ********************************************/
+        Assert.areEqual(2, [SELECT COUNT() FROM PricingProgram__c], 'Two programs created');
+
+        /********************************************
+        * WHEN
+        ********************************************/
+        List<ImsProductConfiguratorService.PricingProgramOption> searchList;
+        Test.startTest();
+        System.runAs(contextUser) {
+            searchList = ImsProductConfiguratorController.searchOnlPricingPrograms('ZZPP Onl');
+        }
+        Test.stopTest();
+
+        /********************************************
+        * THEN
+        ********************************************/
+        Assert.areEqual(1, searchList.size(), 'Only the Active program is found');
+        Assert.areEqual(activeProgram.Id, searchList[0].programId, 'The Active program');
     }
 
     /**

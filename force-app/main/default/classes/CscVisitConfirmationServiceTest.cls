@@ -424,6 +424,145 @@ private class CscVisitConfirmationServiceTest {
     }
 
     /**
+     * @description Covers the visit status emails and the extra confirmation recipients.
+     */
+    @IsTest
+    static void emailServiceCoversStatusAndConfirmationRecipients() {
+        String stamp = String.valueOf(Math.abs(Crypto.getRandomInteger()));
+        User orcUser = buildUser('CSC', 'ORC' + stamp);
+        User imsUser = buildUser('CSC', 'IMS' + stamp);
+        User osvUser = buildUser('CSC', 'OSV' + stamp);
+        User pdmUser = buildUser('CSC', 'PDM' + stamp);
+        insert new List<User>{ orcUser, imsUser, osvUser, pdmUser };
+
+        Account facility = [SELECT Id FROM Account WHERE Name = 'CSC Confirm Facility' LIMIT 1];
+        List<CSC_Visit_Request__c> visits = new List<CSC_Visit_Request__c>{
+            nonCscVisit(facility.Id, CscVisitRequestSelector.REQUEST_ORC),
+            nonCscVisit(facility.Id, CscVisitRequestSelector.REQUEST_IMS),
+            nonCscVisit(facility.Id, CscVisitRequestSelector.REQUEST_OSV),
+            new CSC_Visit_Request__c(
+                AccountFacility__c = facility.Id,
+                VisitType__c = CscVisitRequestSelector.REQUEST_CSC,
+                Status__c = CscVisitRequestSelector.STATUS_APPROVED,
+                PlanningDesignRequired__c = 'No',
+                VisitLocation__c = LOCATION,
+                Primary_Requested_Date__c = Date.today().addDays(10),
+                Backup_Requested_Date__c = Date.today().addDays(11),
+                Visit_Purpose__c = 'Product Evaluation',
+                PrimaryObjective__c = 'Review the installed equipment',
+                VisitAgendaDuration__c = 'One Day',
+                VisitRequestor__c = UserInfo.getUserId()
+            )
+        };
+        System.runAs(new User(Id = UserInfo.getUserId())) {
+            Account pdmAccount = new Account(
+                Name = 'CSC PDM Account ' + stamp,
+                SourceSystemID__c = 'CSC3650' + stamp
+            );
+            insert pdmAccount;
+            Opportunity pdmOpportunity = new Opportunity(
+                Name = 'CSC PDM Opportunity ' + stamp,
+                AccountId = pdmAccount.Id,
+                StageName = 'Discovery',
+                CloseDate = Date.today().addDays(30),
+                Pricebook2Id = Test.getStandardPricebookId()
+            );
+            Schema.RecordTypeInfo healthcareRecordType = Schema.SObjectType.Opportunity
+                .getRecordTypeInfosByDeveloperName()
+                .get('Healthcare_Sales');
+            if (healthcareRecordType != null) {
+                pdmOpportunity.RecordTypeId = healthcareRecordType.getRecordTypeId();
+            }
+            insert pdmOpportunity;
+            visits[3].Opportunity__c = pdmOpportunity.Id;
+            insert visits;
+            insert new List<TeamMember__c>{
+                teamMember(visits[0].Id, orcUser.Id),
+                teamMember(visits[1].Id, imsUser.Id),
+                teamMember(visits[2].Id, osvUser.Id)
+            };
+            insert new AccountTeamMember(
+                AccountId = pdmAccount.Id,
+                UserId = pdmUser.Id,
+                TeamMemberRole = activeTeamRole(),
+                AccountAccessLevel = 'Edit',
+                OpportunityAccessLevel = 'Edit',
+                CaseAccessLevel = 'Read',
+                ContactAccessLevel = 'Read',
+                AssignmentType__c = 'Salesforce Assigned',
+                TerritoryCode__c = Label.CSC_PDM_Territory_Code,
+                SalesCategoryCode__c = 'SURG SPT'
+            );
+        }
+
+        CscVisitEmailService.lastTeamRecipientIds.clear();
+        Test.startTest();
+        CscVisitEmailService.notifyAfterSave(null, null);
+        CscVisitEmailService.notifyAfterSave(new List<CSC_Visit_Request__c>(), null);
+        CscVisitEmailService.notifyAfterSave(new List<CSC_Visit_Request__c>{ null }, null);
+        CscVisitEmailService.notifyAfterSave(
+            changedVisits(visits, CscVisitRequestSelector.STATUS_REQUESTED, 'No'),
+            priorVisits(visits, CscVisitRequestSelector.STATUS_DRAFT, 'No')
+        );
+
+        CscVisitEmailService.notifyAfterSave(
+            changedVisits(visits, CscVisitRequestSelector.STATUS_POSTPONED, 'No'),
+            priorVisits(visits, CscVisitRequestSelector.STATUS_REQUESTED, 'No')
+        );
+        CscVisitEmailService.notifyAfterSave(
+            changedVisits(visits, CscVisitRequestSelector.STATUS_CANCELLED, 'No'),
+            priorVisits(visits, CscVisitRequestSelector.STATUS_REQUESTED, 'No')
+        );
+
+        Schema.RecordTypeInfo blockType = Schema.SObjectType.CSC_Visit_Request__c
+            .getRecordTypeInfosByDeveloperName()
+            .get(CscVisitRequestSelector.RECORD_TYPE_BLOCK);
+        if (blockType != null) {
+            CSC_Visit_Request__c blocked = visits[0].clone(true, true, true, true);
+            blocked.RecordTypeId = blockType.getRecordTypeId();
+            blocked.Status__c = CscVisitRequestSelector.STATUS_REQUESTED;
+            CscVisitEmailService.notifyAfterSave(
+                new List<CSC_Visit_Request__c>{ blocked },
+                priorVisits(new List<CSC_Visit_Request__c>{ visits[0] }, CscVisitRequestSelector.STATUS_DRAFT, 'No')
+            );
+        }
+
+        CscVisitEmailService.notifyAfterSave(
+            changedVisits(
+                new List<CSC_Visit_Request__c>{ visits[3] },
+                CscVisitRequestSelector.STATUS_CONFIRMED,
+                'Yes'
+            ),
+            priorVisits(
+                new List<CSC_Visit_Request__c>{ visits[3] },
+                CscVisitRequestSelector.STATUS_APPROVED,
+                'No'
+            )
+        );
+
+        CSC_Visit_Request__c confirmed = visits[3].clone(true, true, true, true);
+        confirmed.Status__c = CscVisitRequestSelector.STATUS_CONFIRMED;
+        confirmed.PlanningDesignRequired__c = 'No';
+        CSC_Visit_Request__c planningOn = confirmed.clone(true, true, true, true);
+        planningOn.PlanningDesignRequired__c = 'Yes';
+        CscVisitEmailService.notifyAfterSave(
+            new List<CSC_Visit_Request__c>{ planningOn },
+            new Map<Id, CSC_Visit_Request__c>{ visits[3].Id => confirmed }
+        );
+        System.assert(
+            new Set<Id>(CscVisitEmailService.lastTeamRecipientIds).contains(orcUser.Id),
+            'ORC team member receives the requested notice.'
+        );
+        CscVisitEmailService.additionalConfirmationRecipients(null, null, null);
+        CscVisitEmailService.additionalConfirmationRecipients(
+            new List<CSC_Visit_Request__c>(),
+            null,
+            null
+        );
+        Test.stopTest();
+    }
+
+    /**
      * @description Inserts a requested visit with one STERIS attendee.
      * @param attendeeUserId STERIS attendee user Id.
      * @return CSC_Visit_Request__c requested visit.
@@ -532,5 +671,61 @@ private class CscVisitConfirmationServiceTest {
             }
         }
         return null;
+    }
+
+    private static CSC_Visit_Request__c nonCscVisit(Id facilityId, String visitType) {
+        return new CSC_Visit_Request__c(
+            AccountFacility__c = facilityId,
+            VisitType__c = visitType,
+            Status__c = CscVisitRequestSelector.STATUS_DRAFT,
+            VisitLocation__c = LOCATION,
+            Primary_Requested_Date__c = Date.today().addDays(10),
+            Backup_Requested_Date__c = Date.today().addDays(11),
+            Visit_Purpose__c = 'Product Evaluation',
+            PrimaryObjective__c = 'Review the installed equipment',
+            VisitAgendaDuration__c = 'One Day',
+            VisitRequestor__c = UserInfo.getUserId()
+        );
+    }
+
+    private static TeamMember__c teamMember(Id visitId, Id userId) {
+        return new TeamMember__c(
+            CSCVisitRequest__c = visitId,
+            User__c = userId,
+            AccessLevel__c = 'Read'
+        );
+    }
+
+    private static List<CSC_Visit_Request__c> changedVisits(
+        List<CSC_Visit_Request__c> visits,
+        String status,
+        String planning
+    ) {
+        List<CSC_Visit_Request__c> changed = new List<CSC_Visit_Request__c>();
+        for (CSC_Visit_Request__c visit : visits) {
+            CSC_Visit_Request__c currentVisit = visit.clone(true, true, true, true);
+            currentVisit.Status__c = status;
+            currentVisit.PlanningDesignRequired__c = planning;
+            if (status == CscVisitRequestSelector.STATUS_CONFIRMED) {
+                currentVisit.Confirmed_Date__c = Date.today().addDays(10);
+            }
+            changed.add(currentVisit);
+        }
+        return changed;
+    }
+
+    private static Map<Id, CSC_Visit_Request__c> priorVisits(
+        List<CSC_Visit_Request__c> visits,
+        String status,
+        String planning
+    ) {
+        Map<Id, CSC_Visit_Request__c> prior = new Map<Id, CSC_Visit_Request__c>();
+        for (CSC_Visit_Request__c visit : visits) {
+            CSC_Visit_Request__c previousVisit = visit.clone(true, true, true, true);
+            previousVisit.Status__c = status;
+            previousVisit.PlanningDesignRequired__c = planning;
+            prior.put(visit.Id, previousVisit);
+        }
+        return prior;
     }
 }

@@ -253,6 +253,7 @@
                         </template>
                     </div>
                     <div slot="actions-right" class="workspace-actions-end">
+                        <!-- GW-3377 backed out: Current Repair Cost and Updated Repair Cost
                         <template lwc:if={showRepairCostHeader}>
                             <div class="repair-cost-header">
                                 <span class="repair-cost-header__label">Current Repair Cost</span>
@@ -261,6 +262,7 @@
                                 <span class="repair-cost-header__value">{updatedRepairCostDisplay}</span>
                             </div>
                         </template>
+                        -->
                         <template lwc:if={isWorkspaceMode}>
                             <lightning-button
                                 label="Next"

@@ -16,7 +16,6 @@ public with sharing class RepairCenterTeamMembersSelector {
 				Person__c,
 				Person__r.Name,
 				WorkOrderLineItem__c,
-				WorkOrderLineItem__r.Product__c,
 				WorkOrderLineItem__r.Product2Id
 			FROM RepairCenterTeamMember__c
 			WHERE WorkOrder__c = :workOrderId

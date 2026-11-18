@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
     <apiVersion>65.0</apiVersion>
-    <description>GW-5892 / GW-6600: Field Service quote editor (Header, Time, Parts, Expenses, Save All).</description>
+    <description>GW-5892 / GW-5890: Field Service quote editor (Header, Time, Parts, Expenses, Save All, Calculate Pricing).</description>
     <isExposed>true</isExposed>
     <masterLabel>Field Service Quote Editor</masterLabel>
     <targets>

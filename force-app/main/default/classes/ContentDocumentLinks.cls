@@ -11,90 +11,90 @@
  */
 public with sharing class ContentDocumentLinks {
 
-    private final List<ContentDocumentLink> records;
+	private final List<ContentDocumentLink> records;
 
-    /**
-     * @description Constructs domain instance with the given ContentDocumentLink records.
-     * @param records List of ContentDocumentLink records to operate on.
-     */
-    public ContentDocumentLinks(List<ContentDocumentLink> records) {
-        this.records = records;
-    }
+	/**
+	 * @description Constructs domain instance with the given ContentDocumentLink records.
+	 * @param records List of ContentDocumentLink records to operate on.
+	 */
+	public ContentDocumentLinks(List<ContentDocumentLink> records) {
+		this.records = records;
+	}
 
-    // ── Validation Constants ────────────────────────────────────────────────
-    // NOTE: Examples only — delete before deploying to production.
-    // private static final String ERROR_CONTENT_DOCUMENT_REQUIRED = 'Content Document is required.';
-    // private static final String ERROR_LINKED_ENTITY_REQUIRED = 'Linked Entity is required.';
+	// ── Validation Constants ────────────────────────────────────────────────
+	// NOTE: Examples only — delete before deploying to production.
+	// private static final String ERROR_CONTENT_DOCUMENT_REQUIRED = 'Content Document is required.';
+	// private static final String ERROR_LINKED_ENTITY_REQUIRED = 'Linked Entity is required.';
 
-    // ── Defaults ────────────────────────────────────────────────────────────
+	// ── Defaults ────────────────────────────────────────────────────────────
 
-    // NOTE: Examples only — delete before deploying to production.
-    // /**
-    //  * @description Applies default field values to new ContentDocumentLink records.
-    //  */
-    // public void applyDefaults() {
-    //     // For loop iterates over all document links to apply defaults
-    //     for (ContentDocumentLink link : records) {
-    //         // Set ShareType to 'V' (Viewer) when not provided
-    //         if (String.isBlank(link.ShareType)) {
-    //             link.ShareType = 'V';
-    //         }
-    //         // Set Visibility to 'AllUsers' when not provided
-    //         if (String.isBlank(link.Visibility)) {
-    //             link.Visibility = 'AllUsers';
-    //         }
-    //     }
-    // }
+	// NOTE: Examples only — delete before deploying to production.
+	// /**
+	//  * @description Applies default field values to new ContentDocumentLink records.
+	//  */
+	// public void applyDefaults() {
+	//     // For loop iterates over all document links to apply defaults
+	//     for (ContentDocumentLink link : records) {
+	//         // Set ShareType to 'V' (Viewer) when not provided
+	//         if (String.isBlank(link.ShareType)) {
+	//             link.ShareType = 'V';
+	//         }
+	//         // Set Visibility to 'AllUsers' when not provided
+	//         if (String.isBlank(link.Visibility)) {
+	//             link.Visibility = 'AllUsers';
+	//         }
+	//     }
+	// }
 
-    // ── Validation ──────────────────────────────────────────────────────────
+	// ── Validation ──────────────────────────────────────────────────────────
 
-    // NOTE: Examples only — delete before deploying to production.
-    // /**
-    //  * @description Validates ContentDocumentLink records using a dual-path strategy.
-    //  *              In a trigger context, addError() blocks platform DML.
-    //  *              Outside a trigger, collects all violations and throws ContentDocumentLinksException.
-    //  * @throws ContentDocumentLinksException when one or more rules fail outside a trigger context.
-    //  */
-    // public void validate() {
-    //     List<String> errors = new List<String>();
-    //
-    //     // Validate each record; both addError() and errors.add() run in one pass
-    //     for (ContentDocumentLink link : records) {
-    //         validateContentDocument(link, errors);
-    //         validateLinkedEntity(link, errors);
-    //     }
-    //
-    //     // Outside a trigger, addError() does not prevent DML — throw instead
-    //     if (!Trigger.isExecuting && !errors.isEmpty()) {
-    //         throw new ContentDocumentLinksException(String.join(errors, '; '));
-    //     }
-    // }
+	// NOTE: Examples only — delete before deploying to production.
+	// /**
+	//  * @description Validates ContentDocumentLink records using a dual-path strategy.
+	//  *              In a trigger context, addError() blocks platform DML.
+	//  *              Outside a trigger, collects all violations and throws ContentDocumentLinksException.
+	//  * @throws ContentDocumentLinksException when one or more rules fail outside a trigger context.
+	//  */
+	// public void validate() {
+	//     List<String> errors = new List<String>();
+	//
+	//     // Validate each record; both addError() and errors.add() run in one pass
+	//     for (ContentDocumentLink link : records) {
+	//         validateContentDocument(link, errors);
+	//         validateLinkedEntity(link, errors);
+	//     }
+	//
+	//     // Outside a trigger, addError() does not prevent DML — throw instead
+	//     if (!Trigger.isExecuting && !errors.isEmpty()) {
+	//         throw new ContentDocumentLinksException(String.join(errors, '; '));
+	//     }
+	// }
 
-    // ── Private Validators ──────────────────────────────────────────────────
+	// ── Private Validators ──────────────────────────────────────────────────
 
-    // NOTE: Examples only — delete before deploying to production.
-    // private void validateContentDocument(ContentDocumentLink link, List<String> errors) {
-    //     // ContentDocumentId is required
-    //     if (link.ContentDocumentId == null) {
-    //         link.ContentDocumentId.addError(ERROR_CONTENT_DOCUMENT_REQUIRED);
-    //         errors.add(ERROR_CONTENT_DOCUMENT_REQUIRED);
-    //     }
-    // }
+	// NOTE: Examples only — delete before deploying to production.
+	// private void validateContentDocument(ContentDocumentLink link, List<String> errors) {
+	//     // ContentDocumentId is required
+	//     if (link.ContentDocumentId == null) {
+	//         link.ContentDocumentId.addError(ERROR_CONTENT_DOCUMENT_REQUIRED);
+	//         errors.add(ERROR_CONTENT_DOCUMENT_REQUIRED);
+	//     }
+	// }
 
-    // NOTE: Examples only — delete before deploying to production.
-    // private void validateLinkedEntity(ContentDocumentLink link, List<String> errors) {
-    //     // LinkedEntityId is required
-    //     if (link.LinkedEntityId == null) {
-    //         link.LinkedEntityId.addError(ERROR_LINKED_ENTITY_REQUIRED);
-    //         errors.add(ERROR_LINKED_ENTITY_REQUIRED);
-    //     }
-    // }
+	// NOTE: Examples only — delete before deploying to production.
+	// private void validateLinkedEntity(ContentDocumentLink link, List<String> errors) {
+	//     // LinkedEntityId is required
+	//     if (link.LinkedEntityId == null) {
+	//         link.LinkedEntityId.addError(ERROR_LINKED_ENTITY_REQUIRED);
+	//         errors.add(ERROR_LINKED_ENTITY_REQUIRED);
+	//     }
+	// }
 
-    // ── Domain Exception ────────────────────────────────────────────────────
+	// ── Domain Exception ────────────────────────────────────────────────────
 
-    /**
-     * @description Thrown when validation fails outside a trigger execution context.
-     *              Message contains all violations joined by '; '.
-     */
-    public class ContentDocumentLinksException extends Exception {}
+	/**
+	 * @description Thrown when validation fails outside a trigger execution context.
+	 *              Message contains all violations joined by '; '.
+	 */
+	public class ContentDocumentLinksException extends Exception {}
 }

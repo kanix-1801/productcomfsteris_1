@@ -11,7 +11,8 @@ private class OnLocationEndOfDayReportTest {
         .getRecordTypeId();
 
     /**
-     * @description Site visit with one completed child: a Repair Center line, a beyond repair line, and a plain line.
+     * @description Site visit with one completed child: a Repair Center line, a line already placed
+     *              on a return order, a beyond repair line, and a plain line.
      */
     @TestSetup
     static void setup() {
@@ -39,6 +40,16 @@ private class OnLocationEndOfDayReportTest {
                 SerialNumber__c = 'Karl Storz',
                 Model__c = '33500',
                 ReportedProblem__c = 'Cracked'
+            ),
+            new WorkOrderLineItem(
+                WorkOrderId = child.Id,
+                RecordTypeId = INSTRUMENT_RECORD_TYPE_ID,
+                LineType__c = 'Instrument',
+                SendToRepairCenter__c = false,
+                EndOfDayReportRepairCenter__c = true,
+                SerialNumber__c = 'Olympus',
+                Model__c = '12345',
+                ReportedProblem__c = 'Power issues'
             ),
             new WorkOrderLineItem(
                 WorkOrderId = child.Id,
@@ -73,9 +84,11 @@ private class OnLocationEndOfDayReportTest {
 
         System.assertEquals(true, controller.getHasRepairCenterRows());
         System.assertEquals(true, controller.getHasBeyondRepairRows());
-        System.assertEquals(1, repairCenterRows.size());
+        System.assertEquals(2, repairCenterRows.size());
         System.assertEquals('Karl Storz', repairCenterRows[0].manufacturer);
         System.assertEquals('MAIN PODIATRY TRAY 2', repairCenterRows[0].trayName);
+        System.assertEquals('Olympus', repairCenterRows[1].manufacturer);
+        System.assertEquals('Power issues', repairCenterRows[1].reason);
         System.assertEquals(1, beyondRepairRows.size());
         System.assertEquals('Life Worn', beyondRepairRows[0].reason);
         System.assertEquals('Yes', beyondRepairRows[0].replacedWithIXchange);

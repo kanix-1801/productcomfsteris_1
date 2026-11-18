@@ -1716,11 +1716,11 @@ static void testUpdateProspectOpportunityProducts() {
             ).contains('"a"')
         );
         System.assertEquals(
-            'SO_Callout returned empty response',
+            'Oracle pricing callout returned an empty response',
             OracleUnitPricingGateway.extractErrorDetail(null)
         );
         System.assertEquals(
-            'SO_Callout returned empty response',
+            'Oracle pricing callout returned an empty response',
             OracleUnitPricingGateway.extractErrorDetail(new Map<String, Object>())
         );
         System.assertEquals(
@@ -1732,7 +1732,7 @@ static void testUpdateProspectOpportunityProducts() {
             OracleUnitPricingGateway.extractErrorDetail(new Map<String, Object>{ 'SERVICERESPONSE' => 'raw body' })
         );
         System.assertEquals(
-            'SO_Callout failed',
+            'Oracle pricing callout failed (SO_SUCCESS=false)',
             OracleUnitPricingGateway.extractErrorDetail(new Map<String, Object>{ 'SO_SUCCESS' => false })
         );
     }

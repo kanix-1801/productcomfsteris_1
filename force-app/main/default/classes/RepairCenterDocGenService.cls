@@ -753,8 +753,8 @@ public with sharing class RepairCenterDocGenService {
 			? WORK_ORDER_TYPE_DEVICES
 			: (isInstrumentsWorkOrder ? WORK_ORDER_TYPE_INSTRUMENTS : null);
 
-		// GW-5695 - Header Ship Date is the parent Work Order's Actual Ship Date (delivery documents only).
-		Date shipDate = isDeliveryDocument ? workOrderRecord.ActualShipDate__c : null;
+		// GW-5695 - Header Ship Date is the parent Work Order's Actual Ship Date, or today when it is not set yet (delivery documents only).
+		Date shipDate = isDeliveryDocument ? (workOrderRecord.ActualShipDate__c ?? Date.today()) : null;
 		String deliveryTitle = isSterisUs ? DOCUMENT_TITLE_SERVICE_DELIVERY_REPORT : DOCUMENT_TITLE_DELIVERY_NOTE;
 		tokenData.put('DocumentTitle', isDeliveryDocument ? deliveryTitle : DOCUMENT_TITLE_ORDER_ACKNOWLEDGEMENT);
 		tokenData.put('IF_IsDeliveryDocument', isDeliveryDocument);

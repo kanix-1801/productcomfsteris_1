@@ -488,6 +488,30 @@
         </div>
     </template>
 
+    <template if:true={showDealerSalesConnectionLaunch}>
+        <section class="qa-panel dealer-launch-panel" role="status" aria-live="polite">
+            <div class="qa-panel__container slds-p-around_medium">
+                <p class="slds-text-heading_small slds-m-bottom_small">Quote created in Salesforce.</p>
+                <p class="slds-text-body_regular slds-m-bottom_medium">
+                    Open Sales Connection to finish building the quote.
+                </p>
+                <div class="slds-grid slds-grid_align-end slds-gutters_x-small">
+                    <lightning-button
+                        label="Close"
+                        onclick={handleCloseDealerLaunchPanel}>
+                    </lightning-button>
+                    <a
+                        class="slds-button slds-button_brand slds-m-left_small"
+                        href={dealerSalesConnectionLaunchUrl}
+                        target="_blank"
+                        rel="noopener noreferrer">
+                        Open Sales Connection
+                    </a>
+                </div>
+            </div>
+        </section>
+    </template>
+
     <!-- Existing Quotes Modal -->
     <template if:true={showExistingQuotesModal}>
         <section
@@ -618,14 +642,16 @@
                 <footer class={existingQuotesFooterClass}>
                     <lightning-button
                         label="Cancel"
-                        onclick={closeExistingQuotesModal}>
+                        onclick={closeExistingQuotesModal}
+                        disabled={isLoading}>
                     </lightning-button>
 
                     <lightning-button
                         variant="brand"
                         label={generateNewQuoteButtonLabel}
                         class="slds-m-left_small"
-                        onclick={handleGenerateNewQuote}>
+                        onclick={handleGenerateNewQuote}
+                        disabled={isLoading}>
                     </lightning-button>
                 </footer>
             </div>

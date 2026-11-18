@@ -13,12 +13,15 @@ public with sharing class ProductRequestsService {
 	@TestVisible
 	private static Map<String, Object> testOracleResponseOverride;
 	private static final String SOURCE_APPLICATION = 'SFService';
+	/** GW-2689: Used when ServiceResource.OrderType__c is blank. */
 	private static final String ORDER_TYPE = '1 USA FIELD REPLENISH ORDER';
+	/** Line order type stays this value. It is not taken from the Service Resource. */
 	private static final String LINE_ORDER_TYPE = '1 USA FIELD REPLENISHMENT LINE';
 	private static final String PRICE_LIST_ID = '6307';
 	private static final String PRICE_LIST_NAME = 'FIELD SERVICE TECH PARTS LIST';
 	private static final String PAYMENT_TERM = 'NET 60';
 	private static final String FOB_POINT = 'ORIGIN';
+	/** GW-2689: Used when the matching Service Resource field is blank. */
 	private static final String FREIGHT_TERMS = 'Paid';
 	private static final String DEFAULT_SHIP_METHOD = '000001_FEDEX EXPR_A_FEDXS';
 	private static final String DEFAULT_SHIP_PRIOR = 'High';
@@ -265,16 +268,18 @@ public with sharing class ProductRequestsService {
 				);
 			}
 
+			OracleShipping shipping = resolveOracleShipping(pr);
 			Map<String, Object> body = buildOracleSalesOrderHeader(
 				pr,
 				soldToOrgId,
 				shipToCustId,
 				shipToAddrId,
-				invAddrId
+				invAddrId,
+				shipping
 			);
 			body.put(
 				'P_ORDER_LINE_ITEMS',
-				buildOracleSalesOrderLines(pr, lines, shipToAddrId, invAddrId)
+				buildOracleSalesOrderLines(pr, lines, shipToAddrId, invAddrId, shipping)
 			);
 			String restBody = JSON.serialize(body);
 			result.requestJson = restBody;
@@ -528,6 +533,12 @@ public with sharing class ProductRequestsService {
 				ServiceResource__r.OracleAccountId__c,
 				ServiceResource__r.Description,
 				ServiceResource__r.LocationId,
+				ServiceResource__r.OrderType__c,
+				ServiceResource__r.FreightTerm__c,
+				ServiceResource__r.ShippingMethod__c,
+				ServiceResource__r.ShippingPriority__c,
+				ServiceResource__r.PackingInstruction__c,
+				ServiceResource__r.ShippingInstruction__c,
 				ShipToAddressAccount__c,
 				ShipToAddressAccount__r.OracleAddressId__c,
 				ShipToAddressAccount__r.Parent.SystemID__c,
@@ -669,7 +680,17 @@ public with sharing class ProductRequestsService {
 				return pr.ServiceResource__r;
 			}
 			List<ServiceResource> srs = [
-				SELECT Id, OracleAccountId__c, Description, LocationId
+				SELECT
+					Id,
+					OracleAccountId__c,
+					Description,
+					LocationId,
+					OrderType__c,
+					FreightTerm__c,
+					ShippingMethod__c,
+					ShippingPriority__c,
+					PackingInstruction__c,
+					ShippingInstruction__c
 				FROM ServiceResource
 				WHERE Id = :pr.ServiceResource__c
 				LIMIT 1
@@ -681,7 +702,17 @@ public with sharing class ProductRequestsService {
 
 		if (pr.DestinationLocationId != null) {
 			List<ServiceResource> byLocation = [
-				SELECT Id, OracleAccountId__c, Description, LocationId
+				SELECT
+					Id,
+					OracleAccountId__c,
+					Description,
+					LocationId,
+					OrderType__c,
+					FreightTerm__c,
+					ShippingMethod__c,
+					ShippingPriority__c,
+					PackingInstruction__c,
+					ShippingInstruction__c
 				FROM ServiceResource
 				WHERE LocationId = :pr.DestinationLocationId
 					AND IsActive = TRUE
@@ -693,7 +724,17 @@ public with sharing class ProductRequestsService {
 		}
 
 		List<ServiceResource> byUser = [
-			SELECT Id, OracleAccountId__c, Description, LocationId
+			SELECT
+				Id,
+				OracleAccountId__c,
+				Description,
+				LocationId,
+				OrderType__c,
+				FreightTerm__c,
+				ShippingMethod__c,
+				ShippingPriority__c,
+				PackingInstruction__c,
+				ShippingInstruction__c
 			FROM ServiceResource
 			WHERE RelatedRecordId = :UserInfo.getUserId()
 				AND IsActive = TRUE
@@ -703,12 +744,54 @@ public with sharing class ProductRequestsService {
 	}
 
 	/**
+	 * @description GW-2689: Shipping values copied onto the sales order header and every line.
+	 *              Read from the Service Resource. A blank order type, freight term, ship method,
+	 *              or priority keeps the value sent before this change. Instructions stay blank.
+	 */
+	private class OracleShipping {
+		public String orderType;
+		public String freightTerms;
+		public String shipMethod;
+		public String shipPrior;
+		public String packingInstructions;
+		public String shippingInstructions;
+	}
+
+	/**
+	 * @description GW-2689: Reads shipping fields from the Service Resource used for the order.
+	 * @param pr Product Request header.
+	 * @return Shipping values for the JSON.
+	 */
+	private static OracleShipping resolveOracleShipping(ProductRequest pr) {
+		ServiceResource sr = resolveServiceResourceForOracle(pr);
+		OracleShipping shipping = new OracleShipping();
+		shipping.orderType = valueOrDefault(sr == null ? null : sr.OrderType__c, ORDER_TYPE);
+		shipping.freightTerms = valueOrDefault(sr == null ? null : sr.FreightTerm__c, FREIGHT_TERMS);
+		shipping.shipMethod = valueOrDefault(sr == null ? null : sr.ShippingMethod__c, DEFAULT_SHIP_METHOD);
+		shipping.shipPrior = valueOrDefault(sr == null ? null : sr.ShippingPriority__c, DEFAULT_SHIP_PRIOR);
+		shipping.packingInstructions = sr == null ? '' : blankToEmpty(sr.PackingInstruction__c).trim();
+		shipping.shippingInstructions = sr == null ? '' : blankToEmpty(sr.ShippingInstruction__c).trim();
+		return shipping;
+	}
+
+	/**
+	 * @description Returns the trimmed value, or the fallback when the value is blank.
+	 * @param value Source value.
+	 * @param fallback Value used when the source is blank.
+	 * @return Source or fallback.
+	 */
+	private static String valueOrDefault(String value, String fallback) {
+		return String.isBlank(value) ? fallback : value.trim();
+	}
+
+	/**
 	 * @description GW-514: Builds Create Sales Order header map (P_* fields) from Product Request.
 	 * @param pr Product Request header.
 	 * @param soldToOrgId ServiceResource.OracleAccountId__c for P_SOLD_TO_ORG_ID.
 	 * @param shipToCustId Ship-to account parent SystemID__c, or soldToOrgId, for P_SHIP_TO_CUST_ID.
 	 * @param shipToAddrId Account.OracleAddressId__c or Address.AddressID__c for P_SHIP_TO_ADDR_ID.
 	 * @param invAddrId Primary Bill To Address.AddressID__c for P_INV_ADDR_ID.
+	 * @param shipping Service Resource shipping values for the order header.
 	 * @return Header field map for RESTBODY.
 	 */
 	private static Map<String, Object> buildOracleSalesOrderHeader(
@@ -716,7 +799,8 @@ public with sharing class ProductRequestsService {
 		String soldToOrgId,
 		String shipToCustId,
 		String shipToAddrId,
-		String invAddrId
+		String invAddrId,
+		OracleShipping shipping
 	) {
 		Map<String, Object> header = new Map<String, Object>();
 		header.put('P_SOURCE_APPLICATION', SOURCE_APPLICATION);
@@ -726,7 +810,7 @@ public with sharing class ProductRequestsService {
 		// Blank in sample JSON — do not fill from SF
 		header.put('P_CONTACT_FIRST_NAME', '');
 		header.put('P_CONTACT_LAST_NAME', '');
-		header.put('P_ORDER_TYPE', ORDER_TYPE);
+		header.put('P_ORDER_TYPE', shipping.orderType);
 		header.put('P_SOLD_TO_ORG_ID', soldToOrgId);
 		header.put('P_SHIP_TO_CUST_ID', shipToCustId);
 		header.put('P_SHIP_TO_ADDR_ID', shipToAddrId);
@@ -740,11 +824,11 @@ public with sharing class ProductRequestsService {
 			header.put('P_SOURCE_HEADER_ATTRIBUTE' + i, '');
 		}
 		header.put('P_FOB_POINT', FOB_POINT);
-		header.put('P_FREIGHT_TERMS', FREIGHT_TERMS);
-		header.put('P_SHIP_METHOD', DEFAULT_SHIP_METHOD);
-		header.put('P_SHIP_PRIOR', DEFAULT_SHIP_PRIOR);
-		header.put('P_PACKING_INSTRUCTIONS', '');
-		header.put('P_SHIPPING_INSTRUCTIONS', '');
+		header.put('P_FREIGHT_TERMS', shipping.freightTerms);
+		header.put('P_SHIP_METHOD', shipping.shipMethod);
+		header.put('P_SHIP_PRIOR', shipping.shipPrior);
+		header.put('P_PACKING_INSTRUCTIONS', shipping.packingInstructions);
+		header.put('P_SHIPPING_INSTRUCTIONS', shipping.shippingInstructions);
 		header.put('P_PAYMENT_TYPE', '');
 		header.put('P_CREDIT_CARD_TYPE', '');
 		header.put('P_CREDIT_CARD_NUMBER', '');
@@ -765,18 +849,18 @@ public with sharing class ProductRequestsService {
 	 * @param lines Product Request Line Items.
 	 * @param shipToAddrId Ship-to address id for line P_SHIP_TO_ADDR.
 	 * @param invAddrId Primary Bill To address id for line P_BILL_TO_ADDR.
+	 * @param shipping Service Resource shipping values copied onto every line.
 	 * @return List of line maps for P_ORDER_LINE_ITEMS.
 	 */
 	private static List<Object> buildOracleSalesOrderLines(
 		ProductRequest pr,
 		List<ProductRequestLineItem> lines,
 		String shipToAddrId,
-		String invAddrId
+		String invAddrId,
+		OracleShipping shipping
 	) {
 		List<Object> linePayloads = new List<Object>();
 		Integer lineNum = 1;
-		String shipMethod = DEFAULT_SHIP_METHOD;
-		String shipPrior = DEFAULT_SHIP_PRIOR;
 		String headerNeedBy = formatOracleDate(pr.NeedByDate);
 
 		for (ProductRequestLineItem line : lines) {
@@ -816,13 +900,13 @@ public with sharing class ProductRequestsService {
 			lineMap.put('P_BILL_TO_ADDR', invAddrId);
 			lineMap.put('P_SHIP_TO_ADDR', shipToAddrId);
 			lineMap.put('P_LINE_FOB_POINT', FOB_POINT);
-			lineMap.put('P_FREIGHT_TERMS2', FREIGHT_TERMS);
-			lineMap.put('P_LINE_SHIP_METHOD', shipMethod);
-			lineMap.put('P_LINE_SHIP_PRIOR', shipPrior);
+			lineMap.put('P_FREIGHT_TERMS2', shipping.freightTerms);
+			lineMap.put('P_LINE_SHIP_METHOD', shipping.shipMethod);
+			lineMap.put('P_LINE_SHIP_PRIOR', shipping.shipPrior);
 			lineMap.put('P_SHIP_SET', '');
 			lineMap.put('P_FULL_SET', '');
-			lineMap.put('P_LINE_PACKING_INSTRUCTIONS', '');
-			lineMap.put('P_LINE_SHIPPING_INSTRUCTIONS', '');
+			lineMap.put('P_LINE_PACKING_INSTRUCTIONS', shipping.packingInstructions);
+			lineMap.put('P_LINE_SHIPPING_INSTRUCTIONS', shipping.shippingInstructions);
 			lineMap.put('P_RETURN_REASON', '');
 			lineMap.put('P_LINE_ORDER_TYPE', LINE_ORDER_TYPE);
 			lineMap.put('P_SALES_REP_ID', '');

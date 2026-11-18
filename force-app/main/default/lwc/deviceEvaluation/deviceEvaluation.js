@@ -13,7 +13,8 @@ import returnToEvaluation from '@salesforce/apex/DeviceEvaluationController.retu
 import addRepairSignature from '@salesforce/apex/DeviceEvaluationController.addRepairSignature';
 import signAllRepairCodes from '@salesforce/apex/DeviceEvaluationController.signAllRepairCodes';
 import removeRepairSignature from '@salesforce/apex/DeviceEvaluationController.removeRepairSignature';
-import finalizeDeviceEvaluationAfterPricing from '@salesforce/apex/DeviceEvaluationController.finalizeDeviceEvaluationAfterPricing';
+// GW-3377 backed out: Execute Pricing and the requote warning stay off.
+// import finalizeDeviceEvaluationAfterPricing from '@salesforce/apex/DeviceEvaluationController.finalizeDeviceEvaluationAfterPricing';
 
 const MODE_SCAN = 'scan';
 const MODE_EVALUATION = 'evaluation';
@@ -188,8 +189,11 @@ export default class DeviceEvaluation extends LightningElement {
         return this.evaluation?.status === STATUS_REPAIR;
     }
 
+    /**
+     * GW-3377 backed out. Current / Updated Repair Cost stay hidden.
+     */
     get showRepairCostHeader() {
-        return this.isEvaluationMode && this.isRepairStatus;
+        return false;
     }
 
     get currentRepairCostDisplay() {
@@ -991,51 +995,24 @@ export default class DeviceEvaluation extends LightningElement {
         return workspace;
     }
 
+    /**
+     * GW-3377 backed out. Requote gate is not evaluated on save.
+     */
     get needsRepairPricing() {
-        return (
-            this.isRepairStatus &&
-            (this.evaluation?.estimateRequired === 'Estimate Required' ||
-                this.evaluation?.customerPORequired === true)
-        );
+        return false;
     }
 
     async persistThenPrice({ applyCompletion }) {
-        const restoreProductIds = [...(this.lastPersistedProductIds || [])];
-        const originalNetTotal = this.evaluation?.originalNetTotalPrice;
-        const workspace = await this.persistEvaluationDraft();
-        if (applyCompletion === true || this.needsRepairPricing) {
-            try {
-                const priced = await finalizeDeviceEvaluationAfterPricing({
-                    workOrderId: this.evaluation.workOrderId,
-                    originalNetTotal,
-                    applyCompletion: applyCompletion === true,
-                    restoreProductIds,
-                    subStatus: this.evaluation.subStatus,
-                    newPriceableLineItemIds: workspace?.newPriceableLineItemIds || []
-                });
-                this.applyWorkspace(priced, true);
-                if (priced?.requoteWarning) {
-                    this.dispatchEvent(
-                        new ShowToastEvent({
-                            title: 'Repair cost increased',
-                            message: priced.requoteWarning,
-                            variant: 'warning',
-                            mode: 'sticky'
-                        })
-                    );
-                }
-            } catch (error) {
-                this.lastPersistedProductIds = [...restoreProductIds];
-                this.selectedProductIdSet = new Set(restoreProductIds);
-                if (this.evaluation) {
-                    this.evaluation = {
-                        ...this.evaluation,
-                        selectedProductIds: [...restoreProductIds]
-                    };
-                }
-                throw error;
-            }
+        // GW-3377 backed out: do not Execute Pricing or show the requote warning.
+        // Complete still applies Status / Sub Status through completeEvaluation.
+        if (applyCompletion === true) {
+            await completeEvaluation({
+                ...this.buildEvaluationPayload(),
+                contaminationJson: JSON.stringify(this.buildContaminationPayload())
+            });
+            return;
         }
+        await this.persistEvaluationDraft();
     }
 
     async handleQuickSave() {

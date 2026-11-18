@@ -312,5 +312,17 @@ public without sharing class ShipDNEmailController {
             ErrorLogger.logException(ex,'ShipDNEmailController','getOrderNumber');
             throw ex;
         }
-	}         
+	}
+
+    /**
+     * @description CBM-1486: Returns first names of Capital and Service line
+     * Sales Reps (AM) for the CAN Credit Notification greeting.
+     * @return String AM first name(s) joined with " / ", or empty string
+     */
+    public String getAccountManagerFirstName() {
+        if (caseId == null) {
+            return '';
+        }
+        return EmailControllerHelper.getAccountManagerCapSerLineSalesRep(caseId);
+    }         
 }

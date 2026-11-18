@@ -5,99 +5,99 @@
  * @group Work Order Debrief
  */
 public with sharing class WorkOrderSelector {
-    /** @description Work Order fields required for Allowed Unit evaluation. */
-    private static final String ALLOWED_UNIT_FIELDS =
-        'Id, AssetId, Asset.PFCL__c, Asset.ServiceBOM__c';
+	/** @description Work Order fields required for Allowed Unit evaluation. */
+	private static final String ALLOWED_UNIT_FIELDS =
+		'Id, AssetId, Asset.PFCL__c, Asset.ServiceBOM__c';
 
-    /**
-     * @description Selects Work Orders by Id for Allowed Unit evaluation.
-     * @param workOrderIdSet Work Order Ids
-     * @return Matching Work Order records
-     */
-    public static List<WorkOrder> selectByIdsForAllowedUnit(Set<Id> workOrderIdSet) {
-        if (workOrderIdSet == null || workOrderIdSet.isEmpty()) {
-            return new List<WorkOrder>();
-        }
+	/**
+	 * @description Selects Work Orders by Id for Allowed Unit evaluation.
+	 * @param workOrderIdSet Work Order Ids
+	 * @return Matching Work Order records
+	 */
+	public static List<WorkOrder> selectByIdsForAllowedUnit(Set<Id> workOrderIdSet) {
+		if (workOrderIdSet == null || workOrderIdSet.isEmpty()) {
+			return new List<WorkOrder>();
+		}
 
-        return Database.query(
-            'SELECT ' + ALLOWED_UNIT_FIELDS +
-            ' FROM WorkOrder' +
-            ' WHERE Id IN :workOrderIdSet' +
-            ' WITH SECURITY_ENFORCED'
-        );
-    }
+		return Database.query(
+			'SELECT ' + ALLOWED_UNIT_FIELDS +
+			' FROM WorkOrder' +
+			' WHERE Id IN :workOrderIdSet' +
+			' WITH SECURITY_ENFORCED'
+		);
+	}
 
-    /**
-     * @description Selects Work Orders with Account Rate List lookup for ES debrief travel and labor pricing.
-     * @param workOrderIdSet Work Order Ids
-     * @return Matching Work Order records
-     */
-    public static List<WorkOrder> selectByIdsForRateList(Set<Id> workOrderIdSet) {
-        if (workOrderIdSet == null || workOrderIdSet.isEmpty()) {
-            return new List<WorkOrder>();
-        }
+	/**
+	 * @description Selects Work Orders with Account Rate List lookup for ES debrief travel and labor pricing.
+	 * @param workOrderIdSet Work Order Ids
+	 * @return Matching Work Order records
+	 */
+	public static List<WorkOrder> selectByIdsForRateList(Set<Id> workOrderIdSet) {
+		if (workOrderIdSet == null || workOrderIdSet.isEmpty()) {
+			return new List<WorkOrder>();
+		}
 
-        return [
-            SELECT Id, AccountId, Account.RateList__c, RateList__c
-            FROM WorkOrder
-            WHERE Id IN :workOrderIdSet
-        ];
-    }
+		return [
+			SELECT Id, AccountId, Account.RateList__c, RateList__c
+			FROM WorkOrder
+			WHERE Id IN :workOrderIdSet
+		];
+	}
 
-    /****************************************************************************************
-     * ADDITIVES FOR SHIP DATE CALCULATION (GW-3918)
-     ****************************************************************************************/
+	/****************************************************************************************
+	 * ADDITIVES FOR SHIP DATE CALCULATION (GW-3918)
+	 ****************************************************************************************/
 
-    /**
-     * @description Queries Work Orders and related Repair Center Operating Hours.
-     * @param workOrderIdSet Set of Work Order IDs
-     * @return List of Work Orders
-     */
-    public static List<WorkOrder> selectWorkOrdersWithOperatingHours(Set<Id> workOrderIdSet) {
-        return [
-            SELECT Id, TurnTime__c, DateReadyforRepair__c, ScheduledShipDate__c,
-                   RepairCenter__c, SubStatus__c,
-                   RepairCenter__r.OperatingHours__c,
-                   RepairCenter__r.OperatingHours__r.TimeZone
-            FROM WorkOrder
-            WHERE Id IN :workOrderIdSet
-        ];
-    }
+	/**
+	 * @description Queries Work Orders and related Repair Center Operating Hours.
+	 * @param workOrderIdSet Set of Work Order IDs
+	 * @return List of Work Orders
+	 */
+	public static List<WorkOrder> selectWorkOrdersWithOperatingHours(Set<Id> workOrderIdSet) {
+		return [
+			SELECT Id, TurnTime__c, DateReadyforRepair__c, ScheduledShipDate__c,
+				   RepairCenter__c, SubStatus__c,
+				   RepairCenter__r.OperatingHours__c,
+				   RepairCenter__r.OperatingHours__r.TimeZone
+			FROM WorkOrder
+			WHERE Id IN :workOrderIdSet
+		];
+	}
 
-    /**
-     * @description Queries Holidays for given Operating Hours.
-     * @param operatingHoursIdSet Set of Operating Hours IDs
-     * @return List of OperatingHoursHoliday records
-     */
-    public static List<OperatingHoursHoliday> selectOperatingHoursHolidays(Set<Id> operatingHoursIdSet) {
-        return [
-            SELECT OperatingHoursId, Holiday.ActivityDate
-            FROM OperatingHoursHoliday
-            WHERE OperatingHoursId IN :operatingHoursIdSet
-        ];
-    }
+	/**
+	 * @description Queries Holidays for given Operating Hours.
+	 * @param operatingHoursIdSet Set of Operating Hours IDs
+	 * @return List of OperatingHoursHoliday records
+	 */
+	public static List<OperatingHoursHoliday> selectOperatingHoursHolidays(Set<Id> operatingHoursIdSet) {
+		return [
+			SELECT OperatingHoursId, Holiday.ActivityDate
+			FROM OperatingHoursHoliday
+			WHERE OperatingHoursId IN :operatingHoursIdSet
+		];
+	}
 
-    /**
-     * @description Work Order fields needed to create a mobile Product Request.
-     * @param workOrderId Work Order Id passed in from the action.
-     * @return The Work Order, or null when the Id is blank or no row is visible.
-     * @example
-     * WorkOrderSelector.selectForProductRequest(workOrderId);
-     */
-    public static WorkOrder selectForProductRequest(Id workOrderId) {
-        if (workOrderId == null) {
-            return null;
-        }
-        return (WorkOrder) SoqlQueryBuilder.fromObject('WorkOrder')
-            .selectFields(new List<String>{
-                'Id',
-                'WorkOrderNumber',
-                'Subject',
-                'AccountId',
-                'CaseId',
-                'ShipToAddressAccount__c'
-            })
-            .whereEquals('Id', workOrderId)
-            .first();
-    }
+	/**
+	 * @description Work Order fields needed to create a mobile Product Request.
+	 * @param workOrderId Work Order Id passed in from the action.
+	 * @return The Work Order, or null when the Id is blank or no row is visible.
+	 * @example
+	 * WorkOrderSelector.selectForProductRequest(workOrderId);
+	 */
+	public static WorkOrder selectForProductRequest(Id workOrderId) {
+		if (workOrderId == null) {
+			return null;
+		}
+		return (WorkOrder) SoqlQueryBuilder.fromObject('WorkOrder')
+			.selectFields(new List<String>{
+				'Id',
+				'WorkOrderNumber',
+				'Subject',
+				'AccountId',
+				'CaseId',
+				'ShipToAddressAccount__c'
+			})
+			.whereEquals('Id', workOrderId)
+			.first();
+	}
 }

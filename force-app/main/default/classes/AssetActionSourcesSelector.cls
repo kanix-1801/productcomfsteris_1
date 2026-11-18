@@ -4,10 +4,10 @@
  * @group GW-5302
  */
 public with sharing class AssetActionSourcesSelector extends SoqlQueryBuilder {
-    /**
-     * @description GW-5302 - Creates a selector for AssetActionSource.
-     */
-    public AssetActionSourcesSelector() {
-        super('AssetActionSource');
-    }
+	/**
+	 * @description GW-5302 - Creates a selector for AssetActionSource.
+	 */
+	public AssetActionSourcesSelector() {
+		super('AssetActionSource');
+	}
 }

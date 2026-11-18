@@ -493,7 +493,10 @@ public with sharing class PsamQuoteLineGroupingService {
         Decimal quantity,
         Decimal unitPrice
     ) {
-        return QuoteService.calculateQuoteLineTotal(quoteLineItem);
+        if (quoteLineItem == null || quoteLineItem.LS_ExtendedPrice__c == null) {
+            return 0;
+        }
+        return quoteLineItem.LS_ExtendedPrice__c;
     }
 
     private static Decimal normalizeQuantity(Decimal quantity) {

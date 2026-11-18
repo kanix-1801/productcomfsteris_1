@@ -33,7 +33,23 @@
                             <div class="lead-column">
                                 <lightning-input-field field-name="Name" required></lightning-input-field>
                                 <lightning-input-field field-name="Email"></lightning-input-field>
-                                <lightning-input-field field-name="Status"></lightning-input-field>
+                                <lightning-input-field field-name="Status" onchange={handleStatusChange}></lightning-input-field>
+                                <template if:true={showUnqualifiedReason}>
+                                    <lightning-input-field data-name="UnqualifiedReason__c" field-name="UnqualifiedReason__c" required onchange={handleUnqualifiedReasonChange}></lightning-input-field>
+                                </template>
+                                <template if:true={showUnqualifiedDetails}>
+                                    <lightning-input-field data-name="UnqualifiedDetails__c" field-name="UnqualifiedDetails__c" required></lightning-input-field>
+                                </template>
+                                <template if:true={showConsent}>
+                                    <lightning-input-field data-name="Consent_Provided__c" field-name="Consent_Provided__c" required></lightning-input-field>
+                                </template>
+                                <template if:true={showNurtureReason}>
+                                    <lightning-input-field data-name="NurtureReason__c" field-name="NurtureReason__c" required onchange={handleNurtureReasonChange}></lightning-input-field>
+                                    <lightning-input-field data-name="Nurture_Reminder_Date__c" field-name="Nurture_Reminder_Date__c"></lightning-input-field>
+                                </template>
+                                <template if:true={showNurtureDetail}>
+                                    <lightning-input-field data-name="NurtureDetail__c" field-name="NurtureDetail__c" required></lightning-input-field>
+                                </template>
                                 <lightning-input-field field-name="LeadSourceDetail__c"></lightning-input-field>
                                 <lightning-input-field field-name="Class_Code__c"></lightning-input-field>
                             </div>

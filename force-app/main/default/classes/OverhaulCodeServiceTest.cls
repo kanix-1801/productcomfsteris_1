@@ -388,7 +388,6 @@ private class OverhaulCodeServiceTest {
             WorkOrderId = childWorkOrderId,
             RecordTypeId = repairCodeRtId,
             LineType__c = 'Service Code',
-            Product__c = productId,
             RepairCode__c = productId,
             ProductCodeWoli__c = productCode,
             PricebookEntryId = pricebookEntry.Id,

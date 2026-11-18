@@ -13,7 +13,9 @@ import getEvalCategories from '@salesforce/apex/InstrumentEvaluationController.g
 import getProductsForEvalCategory from '@salesforce/apex/InstrumentEvaluationController.getProductsForEvalCategory';
 import getRepairCodesForProduct from '@salesforce/apex/InstrumentEvaluationController.getRepairCodesForProduct';
 import saveDraftItems from '@salesforce/apex/InstrumentEvaluationController.saveDraftItems';
-import finalizeInstrumentEvaluationAfterPricing from '@salesforce/apex/InstrumentEvaluationController.finalizeInstrumentEvaluationAfterPricing';
+import completeDraftItems from '@salesforce/apex/InstrumentEvaluationController.completeDraftItems';
+// GW-3377 backed out: Execute Pricing and the requote warning stay off.
+// import finalizeInstrumentEvaluationAfterPricing from '@salesforce/apex/InstrumentEvaluationController.finalizeInstrumentEvaluationAfterPricing';
 import returnToEvaluation from '@salesforce/apex/InstrumentEvaluationController.returnToEvaluation';
 import getEvaluationItems from '@salesforce/apex/InstrumentEvaluationController.getEvaluationItems';
 import getReturnOrderLineAssignment from '@salesforce/apex/InstrumentEvaluationController.getReturnOrderLineAssignment';
@@ -417,8 +419,11 @@ export default class InstrumentEvaluation extends LightningElement {
         return estimate === ESTIMATE_OA || estimate === ESTIMATE_PRE_APPROVED;
     }
 
+    /**
+     * GW-3377 backed out. Current / Updated Repair Cost stay hidden.
+     */
     get showRepairCostHeader() {
-        return this.isWorkspaceMode && this.isRepairStatus;
+        return false;
     }
 
     get currentRepairCostDisplay() {
@@ -518,37 +523,23 @@ export default class InstrumentEvaluation extends LightningElement {
         return this.workspace?.status === STATUS_REPAIR;
     }
 
+    /**
+     * GW-3377 backed out. Requote gate is not evaluated on save.
+     */
     get needsRepairPricing() {
-        return (
-            this.isRepairStatus &&
-            (this.workspace?.estimateRequired === ESTIMATE_REQUIRED ||
-                this.workspace?.customerPoRequired === true)
-        );
+        return false;
     }
 
-    async priceCommittedInstrumentLines({ applyCompletion, originalNetTotal }) {
-        if (applyCompletion !== true && !this.needsRepairPricing) {
+    async priceCommittedInstrumentLines({ applyCompletion }) {
+        // GW-3377 backed out: do not Execute Pricing or show the requote warning.
+        // Complete still applies Status / Sub Status through completeDraftItems.
+        if (applyCompletion !== true) {
             return;
         }
-        const newPriceableLineItemIds = [...(this.pendingPriceableLineItemIds || [])];
-        const priced = await finalizeInstrumentEvaluationAfterPricing({
+        await completeDraftItems({
             workOrderId: this.workspace.workOrderId,
-            originalNetTotal,
-            applyCompletion: applyCompletion === true,
-            newPriceableLineItemIds
+            draftItems: []
         });
-        this.pendingPriceableLineItemIds = [];
-        this.applyDraftSaveResult(priced);
-        if (priced?.requoteWarning) {
-            this.dispatchEvent(
-                new ShowToastEvent({
-                    title: 'Repair cost increased',
-                    message: priced.requoteWarning,
-                    variant: 'warning',
-                    mode: 'sticky'
-                })
-            );
-        }
     }
 
     /**

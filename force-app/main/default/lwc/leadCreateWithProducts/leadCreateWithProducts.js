@@ -9,6 +9,11 @@ import previewLeadDuplicate from '@salesforce/apex/LeadCreateController.previewL
 import fieldRequiredMessage from '@salesforce/label/c.LeadCreateFieldRequiredMessage';
 import emailOrPhoneMessage from '@salesforce/label/c.LeadCreateEmailOrPhoneMessage';
 import sourceDetailMessage from '@salesforce/label/c.LeadCreateSourceDetailMessage';
+import consentRequiredMessage from '@salesforce/label/c.LeadCreateConsentRequiredMessage';
+import unqualifiedReasonMessage from '@salesforce/label/c.LeadCreateUnqualifiedReasonMessage';
+import unqualifiedDetailsMessage from '@salesforce/label/c.LeadCreateUnqualifiedDetailsMessage';
+import nurtureReasonMessage from '@salesforce/label/c.LeadCreateNurtureReasonMessage';
+import nurtureDetailMessage from '@salesforce/label/c.LeadCreateNurtureDetailMessage';
 import productRequiredMessage from '@salesforce/label/c.LeadCreateProductRequiredMessage';
 import savedMessage from '@salesforce/label/c.LeadCreateSavedMessage';
 import failedMessage from '@salesforce/label/c.LeadCreateFailedMessage';
@@ -37,6 +42,9 @@ export default class LeadCreateWithProducts extends NavigationMixin(LightningEle
     formToken = 0;
     pendingFieldReset = false;
     pageRefKey;
+    leadStatus;
+    unqualifiedReason;
+    nurtureReason;
 
     connectedCallback() {
         this.products = [this.createProductRow()];
@@ -83,6 +91,9 @@ export default class LeadCreateWithProducts extends NavigationMixin(LightningEle
         this.duplicateUseLayout = false;
         this.products = [this.createProductRow()];
         this.selectedProductIds = {};
+        this.leadStatus = null;
+        this.unqualifiedReason = null;
+        this.nurtureReason = null;
         this.formToken += 1;
         this.pendingFieldReset = true;
         this.showLeadForm = false;
@@ -125,6 +136,7 @@ export default class LeadCreateWithProducts extends NavigationMixin(LightningEle
     handleLeadNext(event) {
         event.preventDefault();
         const fields = event.detail.fields;
+        this.readStatusFields(fields);
         const message = this.validateLead(fields);
         if (message) {
             this.toast(message, 'error');
@@ -153,7 +165,13 @@ export default class LeadCreateWithProducts extends NavigationMixin(LightningEle
             Country: fields.Country,
             CountryCode: fields.CountryCode,
             Org_ID__c: fields.Org_ID__c,
-            Class_Code__c: fields.Class_Code__c
+            Class_Code__c: fields.Class_Code__c,
+            Consent_Provided__c: fields.Status === 'Working' ? fields.Consent_Provided__c === true : false,
+            UnqualifiedReason__c: fields.Status === 'Unqualified' ? fields.UnqualifiedReason__c : null,
+            UnqualifiedDetails__c: this.requiresUnqualifiedDetails(fields) ? fields.UnqualifiedDetails__c : null,
+            NurtureReason__c: fields.Status === 'Nurturing' ? fields.NurtureReason__c : null,
+            Nurture_Reminder_Date__c: fields.Status === 'Nurturing' ? fields.Nurture_Reminder_Date__c : null,
+            NurtureDetail__c: this.requiresNurtureDetail(fields) ? fields.NurtureDetail__c : null
         };
         if (this.recordTypeId) {
             this.leadRecord.RecordTypeId = this.recordTypeId;
@@ -377,7 +395,97 @@ export default class LeadCreateWithProducts extends NavigationMixin(LightningEle
         if (fields.LeadSource === 'Other' && !fields.LeadSourceDetail__c) {
             return sourceDetailMessage;
         }
+        if (fields.Status === 'Working' && fields.Consent_Provided__c !== true) {
+            return consentRequiredMessage;
+        }
+        if (fields.Status === 'Unqualified' && !fields.UnqualifiedReason__c) {
+            return unqualifiedReasonMessage;
+        }
+        if (this.requiresUnqualifiedDetails(fields) && this.blank(fields.UnqualifiedDetails__c)) {
+            return unqualifiedDetailsMessage;
+        }
+        if (fields.Status === 'Nurturing' && !fields.NurtureReason__c) {
+            return nurtureReasonMessage;
+        }
+        if (this.requiresNurtureDetail(fields) && this.blank(fields.NurtureDetail__c)) {
+            return nurtureDetailMessage;
+        }
         return null;
+    }
+
+    readStatusFields(fields) {
+        const read = (fieldName) => {
+            const input = this.template.querySelector(`lightning-input-field[data-name="${fieldName}"]`);
+            return input ? input.value : fields[fieldName];
+        };
+        if (this.showUnqualifiedReason) {
+            fields.UnqualifiedReason__c = read('UnqualifiedReason__c');
+        }
+        if (this.showUnqualifiedDetails) {
+            fields.UnqualifiedDetails__c = read('UnqualifiedDetails__c');
+        }
+        if (this.showConsent) {
+            fields.Consent_Provided__c = read('Consent_Provided__c');
+        }
+        if (this.showNurtureReason) {
+            fields.NurtureReason__c = read('NurtureReason__c');
+            fields.Nurture_Reminder_Date__c = read('Nurture_Reminder_Date__c');
+        }
+        if (this.showNurtureDetail) {
+            fields.NurtureDetail__c = read('NurtureDetail__c');
+        }
+    }
+
+    blank(value) {
+        return value == null || String(value).trim() === '';
+    }
+
+    handleStatusChange(event) {
+        this.leadStatus = event.detail.value;
+        if (this.leadStatus !== 'Unqualified') {
+            this.unqualifiedReason = null;
+        }
+        if (this.leadStatus !== 'Nurturing') {
+            this.nurtureReason = null;
+        }
+    }
+
+    handleUnqualifiedReasonChange(event) {
+        this.unqualifiedReason = event.detail.value;
+    }
+
+    handleNurtureReasonChange(event) {
+        this.nurtureReason = event.detail.value;
+    }
+
+    get showUnqualifiedReason() {
+        return this.leadStatus === 'Unqualified';
+    }
+
+    get showUnqualifiedDetails() {
+        return this.showUnqualifiedReason
+            && (this.unqualifiedReason === 'Unresponsive' || this.unqualifiedReason === 'Other');
+    }
+
+    get showConsent() {
+        return this.leadStatus === 'Working';
+    }
+
+    get showNurtureReason() {
+        return this.leadStatus === 'Nurturing';
+    }
+
+    get showNurtureDetail() {
+        return this.showNurtureReason && this.nurtureReason === 'Other';
+    }
+
+    requiresUnqualifiedDetails(fields) {
+        return fields.Status === 'Unqualified'
+            && (fields.UnqualifiedReason__c === 'Unresponsive' || fields.UnqualifiedReason__c === 'Other');
+    }
+
+    requiresNurtureDetail(fields) {
+        return fields.Status === 'Nurturing' && fields.NurtureReason__c === 'Other';
     }
 
     createProductRow() {

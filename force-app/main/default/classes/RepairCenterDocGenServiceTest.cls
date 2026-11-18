@@ -647,8 +647,10 @@ private class RepairCenterDocGenServiceTest {
 			Assert.areEqual('', ((Map<String, Object>) service).get('TotalPrice'));
 		}
 		Assert.areEqual('$0.00', tokenData.get('GrandTotal'));
-		Assert.areEqual('', tokenData.get('ShipDate'));
-		Assert.areEqual(false, tokenData.get('IF_HasShipDate'));
+		// No Actual Ship Date on the parent: the header shows today; the unshipped item still shows no date.
+		Assert.areEqual(Date.today().format(), tokenData.get('ShipDate'));
+		Assert.areEqual(true, tokenData.get('IF_HasShipDate'));
+		Assert.areEqual(false, firstItem.get('IF_HasShipDate'));
 	}
 
 	@isTest

@@ -20,26 +20,26 @@
             </div>
         </template>
         <template lwc:elseif={hasRequests}>
-            <table class="slds-table slds-table_cell-buffer slds-table_bordered">
+            <table class="slds-table slds-table_cell-buffer slds-table_bordered requests-table">
                 <thead>
                     <tr class="slds-line-height_reset">
-                        <th scope="col">Product Request Number</th>
-                        <th scope="col">Status</th>
-                        <th scope="col">Request Type</th>
-                        <th scope="col">Products Requested</th>
+                        <th scope="col" class="col-number">Product Request Number</th>
+                        <th scope="col" class="col-status">Status</th>
+                        <th scope="col" class="col-type">Request Type</th>
+                        <th scope="col" class="col-products">Products Requested</th>
                     </tr>
                 </thead>
                 <tbody>
                     <template for:each={requests} for:item="row">
                         <tr key={row.id}>
-                            <td>
+                            <td class="col-number">
                                 <a href={row.recordUrl}>{row.productRequestNumber}</a>
                             </td>
-                            <td>{row.status}</td>
-                            <td>{row.requestType}</td>
-                            <td>
+                            <td class="col-status">{row.status}</td>
+                            <td class="col-type">{row.requestType}</td>
+                            <td class="col-products">
                                 <template for:each={row.lines} for:item="line">
-                                    <div key={line.id}>{line.displayText}</div>
+                                    <div key={line.id} class="product-line">{line.displayText}</div>
                                 </template>
                             </td>
                         </tr>
@@ -107,18 +107,25 @@
                             </template>
                         </template>
                         <template lwc:else>
-                            <lightning-input
-                                type="text"
-                                label="Scan Part Barcode"
-                                value={scanValue}
-                                class="scan-input"
-                                disabled={isBusy}
-                                oninput={handleScanInput}
-                                onkeydown={handleScanKeyDown}
-                            ></lightning-input>
-                            <template lwc:if={scanError}>
-                                <div class="slds-text-color_error slds-m-top_x-small" role="alert">{scanError}</div>
-                            </template>
+                            <div class="slds-form-element">
+                                <label class="slds-form-element__label" for="scan-part-barcode">Scan Part Barcode</label>
+                                <div class="slds-form-element__control">
+                                    <input
+                                        id="scan-part-barcode"
+                                        type="text"
+                                        class="slds-input scan-input"
+                                        autocomplete="off"
+                                        spellcheck="false"
+                                        disabled={isSaving}
+                                        aria-describedby={scanErrorId}
+                                        oninput={handleScanInput}
+                                        onkeydown={handleScanKeyDown}
+                                    />
+                                </div>
+                                <template lwc:if={scanError}>
+                                    <div id="scan-part-error" class="slds-form-element__help slds-text-color_error" role="alert">{scanError}</div>
+                                </template>
+                            </div>
                             <template lwc:if={draftParts.length}>
                                 <ul class="parts-list slds-m-top_medium">
                                     <template for:each={draftParts} for:item="part">

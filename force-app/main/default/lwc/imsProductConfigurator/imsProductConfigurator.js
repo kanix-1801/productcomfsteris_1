@@ -62,6 +62,14 @@ const pickMobileVan = (source) => ({
 // A real, saved Quote Line Item Id. New lines in the configurator have temporary "ref_" Ids.
 const isSavedLineId = (id) => typeof id === 'string' && id.startsWith('0QL') && (id.length === 15 || id.length === 18);
 const clean = (value) => (value === undefined || value === null ? '' : String(value).trim());
+// A pricing program date (Apex Date -> "YYYY-MM-DD") for display, e.g. "1 Jan 2026"; fallback when empty.
+// Parsed as a local date so the day does not shift with the browser's time zone.
+const formatProgramDate = (value, fallback) => {
+    if (!value) return fallback;
+    const [y, m, d] = String(value).split('-').map(Number);
+    if (!y || !m || !d) return fallback;
+    return new Date(y, m - 1, d).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+};
 const blankToNull = (value) => clean(value) || null;
 const lower = (value) => clean(value).toLowerCase();
 const reduceError = (e) => e?.body?.message || e?.message || 'Unexpected error.';
@@ -1055,9 +1063,28 @@ export default class ImsProductConfigurator extends LightningElement {
         return this.onlSearchData.map((p) => ({
             programId: p.programId,
             program: p.program,
-            description: p.description || '—',
-            label: `${p.program} - ${p.description || ''}`
+            description: p.description || p.program,
+            // Second line of the list item: PP number and validity, e.g. "PP-0009 • 1 Jan 2026 – No end date"
+            meta: `${p.program} • ${formatProgramDate(p.startDate, 'No start date')} – ${formatProgramDate(
+                p.endDate,
+                'No end date'
+            )}`,
+            label: p.description ? `${p.program} - ${p.description}` : p.program
         }));
+    }
+
+    // The dropdown is open while a search is active and there is something to show in it
+    get showOnlDropdown() {
+        return this.hasOnlSearchResults || this.noOnlSearchResults || !!this.onlSearchError;
+    }
+
+    handleOnlSearchKeydown(event) {
+        if (event.key === 'Escape') {
+            this.resetOnlSearch();
+        } else if (event.key === 'ArrowDown' && this.hasOnlSearchResults) {
+            event.preventDefault();
+            this.template.querySelector('.ca-lookup-option')?.focus();
+        }
     }
 
     get hasOnlSearchResults() {
@@ -1144,10 +1171,23 @@ export default class ImsProductConfigurator extends LightningElement {
         // Functional pass: load the program's ONL_Category__c lines into onlProgramCategories and check them
     }
 
+    // Keyboard on a result: Enter/Space picks it, Up/Down move between results, Escape closes the list
     handleOnlProgramKeydown(event) {
+        const option = event.currentTarget;
         if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
             this.handleOnlProgramPick(event);
+        } else if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            option.nextElementSibling?.focus();
+        } else if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            const previous = option.previousElementSibling;
+            if (previous) previous.focus();
+            else this.template.querySelector('.ca-lookup-input')?.focus();
+        } else if (event.key === 'Escape') {
+            this.resetOnlSearch();
+            this.template.querySelector('.ca-lookup-input')?.focus();
         }
     }
 

@@ -18,20 +18,20 @@
                                 <thead>
                                     <tr>
                                         <th>Serial Number</th>
-                                        <th>Product</th>
+                                        <th class="col-product">Product</th>
                                         <th>Model</th>
                                         <th>Manufacturer</th>
-                                        <th>Modifier</th>
+                                        <th class="col-modifier">Modifier</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <template for:each={itemRows} for:item="row">
                                         <tr key={row.id}>
                                             <td>{row.serialNumber}</td>
-                                            <td>{row.productName}</td>
+                                            <td class="col-product">{row.productName}</td>
                                             <td>{row.model}</td>
                                             <td>{row.manufacturer}</td>
-                                            <td>
+                                            <td class="col-modifier">
                                                 <c-modifier-codes-cell
                                                     row={row}
                                                     onadd={handleAdd}
@@ -60,8 +60,8 @@
                                         <th>Category</th>
                                         <th>Item Number</th>
                                         <th>Description</th>
-                                        <th>Category Code Discount</th>
-                                        <th>Modifier</th>
+                                        <th class="col-discount">Category Code Discount</th>
+                                        <th class="col-modifier">Modifier</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -70,8 +70,8 @@
                                             <td>{row.category}</td>
                                             <td>{row.itemNumber}</td>
                                             <td>{row.description}</td>
-                                            <td>{row.categoryCodeDiscount}</td>
-                                            <td>
+                                            <td class="col-discount">{row.categoryCodeDiscount}</td>
+                                            <td class="col-modifier">
                                                 <c-modifier-codes-cell
                                                     row={row}
                                                     onadd={handleAdd}
@@ -136,8 +136,8 @@
                                             <tr>
                                                 <th>Item Number</th>
                                                 <th>Description</th>
-                                                <th>Category Code Discount</th>
-                                                <th>Modifier</th>
+                                                <th class="col-discount">Category Code Discount</th>
+                                                <th class="col-modifier">Modifier</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -145,8 +145,8 @@
                                                 <tr key={row.id}>
                                                     <td>{row.itemNumber}</td>
                                                     <td>{row.description}</td>
-                                                    <td>{row.categoryCodeDiscount}</td>
-                                                    <td>
+                                                    <td class="col-discount">{row.categoryCodeDiscount}</td>
+                                                    <td class="col-modifier">
                                                         <c-modifier-codes-cell
                                                             row={row}
                                                             onadd={handleAdd}

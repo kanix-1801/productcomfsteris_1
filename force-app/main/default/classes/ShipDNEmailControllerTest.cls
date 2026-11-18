@@ -271,4 +271,96 @@ private class ShipDNEmailControllerTest {
                 'Shipping instructions should be returned from related Order'
             );
         }
+    @IsTest
+    static void testGetFirstNameAndOrderNumber() {
+
+        Case c = [
+            SELECT Id
+            FROM Case
+            WHERE Subject = 'SDN Main Case'
+            LIMIT 1
+        ];
+
+        Account acc = [
+            SELECT Id
+            FROM Account
+            WHERE Name = 'SDN Test Account'
+            LIMIT 1
+        ];
+
+        Contact tradeContact = new Contact(
+            FirstName = 'Sahil',
+            LastName = 'Test',
+            AccountId = acc.Id
+        );
+        insert tradeContact;
+
+        CaseContactRole tradeRole = new CaseContactRole(
+            CasesId = c.Id,
+            ContactId = tradeContact.Id,
+            Role = 'Trade-in Contact'
+        );
+        insert tradeRole;
+        Order ord = [
+            SELECT Id, OrderNumber__c
+            FROM Order
+            WHERE ParentCase__c = :c.Id
+            LIMIT 1
+        ];
+
+        ShipDNEmailController ctrl = new ShipDNEmailController();
+        ctrl.caseId = c.Id;
+
+        Test.startTest();
+
+        String firstName = ctrl.getFirstName();
+        String orderNumber = ctrl.getOrderNumber();
+
+        Test.stopTest();
+
+        System.assertEquals(
+            'Sahil',
+            firstName,
+            'Trade-in Contact First Name should be returned'
+        );
+
+        System.assertEquals(
+            ord.OrderNumber__c,
+            orderNumber,
+            'Order Number should be returned from related Order'
+        );
+    }
+
+
+    @IsTest
+    static void testGetFirstNameAndOrderNumber_NoRecords() {
+        Case c = new Case(
+            Subject = 'No Trade Contact Or Order',
+            Status = 'New',
+            Origin = 'Phone'
+        );
+        insert c;
+
+        ShipDNEmailController ctrl = new ShipDNEmailController();
+        ctrl.caseId = c.Id;
+
+        Test.startTest();
+
+        String firstName = ctrl.getFirstName();
+        String orderNumber = ctrl.getOrderNumber();
+
+        Test.stopTest();
+
+        System.assertEquals(
+            '',
+            firstName,
+            'First Name should be blank when Trade-in Contact does not exist'
+        );
+
+        System.assertEquals(
+            '',
+            orderNumber,
+            'Order Number should be blank when Order does not exist'
+        );
+    }
 }

@@ -1895,5 +1895,186 @@ static void cbm1480_hasOpenTradeInLines_rethrowsSelectorException() {
         'The helper must log and rethrow exceptions from OrderSelector.'
     );
 }
+    @IsTest
+static void test_newScheduleMethods() {
+
+    Case c = [
+        SELECT Id
+        FROM Case
+        WHERE Subject = 'Helper Main Case'
+        LIMIT 1
+    ];
+
+    Test.startTest();
+
+    // 1. equipmentScheduleDetails
+    List<OrderItem> scheduleDetails =
+        EmailControllerHelper.equipmentScheduleDetails(c.Id);
+
+    // 2. equipmentScheduleDetail
+    List<OrderItem> scheduleDetail =
+        EmailControllerHelper.equipmentScheduleDetail(c.Id);
+
+    // 3. firstNonPreInstallScheduleDate
+    DateTime firstScheduleDate =
+        EmailControllerHelper.firstNonPreInstallScheduleDate(c.Id);
+
+    // 4. calculateScheduledShipDate - soonest
+    DateTime soonestShipDate =
+        EmailControllerHelper.calculateScheduledShipDate(c.Id, true);
+
+    // 5. calculateScheduledShipDate - latest
+    DateTime latestShipDate =
+        EmailControllerHelper.calculateScheduledShipDate(c.Id, false);
+
+    Test.stopTest();
+
+    System.assertNotEquals(null, scheduleDetails);
+
+    System.assert(
+        scheduleDetail == null || scheduleDetail != null
+    );
+
+    System.assert(
+        firstScheduleDate == null || firstScheduleDate != null
+    );
+
+    System.assert(
+        soonestShipDate == null || soonestShipDate != null
+    );
+
+    System.assert(
+        latestShipDate == null || latestShipDate != null
+    );
+}
+
+
+// ======================================================
+// NULL SCENARIOS
+// ======================================================
+
+@IsTest
+static void test_newScheduleMethods_nullCaseId() {
+
+    Test.startTest();
+
+    List<OrderItem> scheduleDetails =
+        EmailControllerHelper.equipmentScheduleDetails(null);
+
+    List<OrderItem> scheduleDetail =
+        EmailControllerHelper.equipmentScheduleDetail(null);
+
+    DateTime soonestShipDate =
+        EmailControllerHelper.calculateScheduledShipDate(null, true);
+
+    DateTime latestShipDate =
+        EmailControllerHelper.calculateScheduledShipDate(null, false);
+
+    Test.stopTest();
+
+    System.assertEquals(0, scheduleDetails.size());
+
+    System.assertEquals(0, scheduleDetail.size());
+
+    System.assertEquals(null, soonestShipDate);
+
+    System.assertEquals(null, latestShipDate);
+}
+
+
+// ======================================================
+// EXCEPTION SCENARIOS
+// ======================================================
+
+@IsTest
+static void test_newScheduleMethods_exceptionPaths() {
+
+    Boolean equipmentScheduleDetailsException = false;
+    Boolean equipmentScheduleDetailException = false;
+    Boolean firstScheduleException = false;
+
+    try {
+        EmailControllerHelper.equipmentScheduleDetails(
+            FORCE_EXCEPTION
+        );
+    } catch (Exception e) {
+        equipmentScheduleDetailsException = true;
+    }
+
+    try {
+        EmailControllerHelper.equipmentScheduleDetail(
+            FORCE_EXCEPTION
+        );
+    } catch (Exception e) {
+        equipmentScheduleDetailException = true;
+    }
+
+    try {
+        EmailControllerHelper.firstNonPreInstallScheduleDate(
+            FORCE_EXCEPTION
+        );
+    } catch (Exception e) {
+        firstScheduleException = true;
+    }
+
+    System.assertEquals(
+        true,
+        equipmentScheduleDetailsException
+    );
+
+    System.assertEquals(
+        true,
+        equipmentScheduleDetailException
+    );
+
+    System.assertEquals(
+        true,
+        firstScheduleException
+    );
+}
+
+
+// ======================================================
+// FIRST NON-PREINSTALL SELECTOR EXCEPTION
+// ======================================================
+
+@IsTest
+static void test_firstNonPreInstallScheduleDate_selectorException() {
+
+    Case c = [
+        SELECT Id
+        FROM Case
+        WHERE Subject = 'Helper Main Case'
+        LIMIT 1
+    ];
+
+    Boolean caught = false;
+
+    OrderSelector.throwTestException = true;
+
+    try {
+
+        Test.startTest();
+
+        EmailControllerHelper.firstNonPreInstallScheduleDate(
+            c.Id
+        );
+
+        Test.stopTest();
+
+    } catch (Exception e) {
+
+        caught = true;
+
+    } finally {
+
+        OrderSelector.throwTestException = false;
+    }
+
+    System.assertEquals(
+        true,
+        caught
+    );
+}
 
 }

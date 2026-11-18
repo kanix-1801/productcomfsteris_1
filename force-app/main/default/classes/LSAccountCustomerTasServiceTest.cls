@@ -22,10 +22,16 @@ private class LSAccountCustomerTasServiceTest {
             WHERE Name = :UserSelector.LIFESCIENCES_SALES_PROFILE_NAME
             LIMIT 1
         ];
+        UserRole lsRepRole = [
+            SELECT Id
+            FROM UserRole
+            WHERE DeveloperName = 'LS_Sales_Rep_FormChem_Asia'
+            LIMIT 1
+        ];
 
         insert new List<User>{
-            createUser(lsProfile.Id, 'lscusrepone', REP_ONE_EMPLOYEE),
-            createUser(lsProfile.Id, 'lscusreptwo', REP_TWO_EMPLOYEE)
+            createUser(lsProfile.Id, lsRepRole.Id, 'lscusrepone', REP_ONE_EMPLOYEE),
+            createUser(lsProfile.Id, lsRepRole.Id, 'lscusreptwo', REP_TWO_EMPLOYEE)
         };
     }
 
@@ -703,11 +709,12 @@ private class LSAccountCustomerTasServiceTest {
     /**
      * @description Builds an unsaved Life Sciences Sales user with the supplied employee number.
      * @param profileId Profile Id assigned to the user.
+     * @param roleId LS Role Id; Life Sciences users must have a Role.
      * @param prefix Username prefix.
      * @param employeeNumber Employee number resolved by TAS.
      * @return Unsaved User record.
      */
-    private static User createUser(Id profileId, String prefix, String employeeNumber) {
+    private static User createUser(Id profileId, Id roleId, String prefix, String employeeNumber) {
         String suffix = uniqueSuffix();
         String username = prefix + suffix + '@test.steris.com';
         return new User(
@@ -718,6 +725,7 @@ private class LSAccountCustomerTasServiceTest {
             Username = username,
             CommunityNickname = (prefix + suffix).left(40),
             ProfileId = profileId,
+            UserRoleId = roleId,
             TimeZoneSidKey = 'America/New_York',
             LocaleSidKey = 'en_US',
             EmailEncodingKey = 'UTF-8',

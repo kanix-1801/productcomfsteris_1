@@ -690,7 +690,7 @@ public with sharing class EmailAddressDefaultController {
                            ToExternal__c, CCExternal__c,
                            GIExternalCC__c, ProceduralExternalCC__c, ReprocessingExternalCC__c,
                            GIReprocessingFixedEmailIds__c, ProceduralFixedEmailIds__c, ReprocessingFixedEmailIds__c,
-                           CaseTeamMember__c, EmailType__c
+                           CaseTeamMember__c, EmailType__c, CCFixed__c
                     FROM EmailConditionsConfiguration__mdt
                     WHERE EmailType__c = :c.EmailType__c
                     LIMIT 1
@@ -916,6 +916,14 @@ public with sharing class EmailAddressDefaultController {
             }
         }
 
+            // CBM-1486: Fixed CC email ids from metadata (comma / semicolon / new line separated)
+            if (config != null && String.isNotBlank(config.CCFixed__c)) {
+                for (String email : config.CCFixed__c.split('[,;\\r\\n]+')) {
+                    if (String.isNotBlank(email)) {
+                        ccAddresses.add(email.trim());
+                    }
+                }
+            }
 
             // ---- De-duplicate CC from To ----
             ccAddresses.removeAll(toAddresses);

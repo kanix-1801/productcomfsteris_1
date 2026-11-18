@@ -75,8 +75,11 @@ const SHIP_TO_MY_LOCATION = 'MyLocation';
 const SHIP_TO_CUSTOMER = 'Customer';
 const SCREEN_FORM = 'form';
 const SCREEN_CONFIRM = 'confirm';
+const SCREEN_ERP_BLOCKED = 'erpBlocked';
 const SCREEN_ERP_CONFIRM = 'erpConfirm';
 const SCREEN_ERP_SUCCESS = 'erpSuccess';
+const SCREEN_ERP_FAIL = 'erpFail';
+const SCREEN_ERP_FAULT = 'erpFault';
 const DEFAULT_NEED_BY_HOUR = 8;
 
 function isWorkOrderId(value) {
@@ -186,6 +189,9 @@ export default class CreateProductRequest extends NavigationMixin(LightningEleme
     productRequestNumber;
     oracleIntegrationStatus;
     oracleIntegrationMessage;
+    erpOrderNumber;
+    blockMessage;
+    faultMessage;
     showPriorResult = false;
     searchTimer;
 
@@ -251,11 +257,19 @@ export default class CreateProductRequest extends NavigationMixin(LightningEleme
     }
 
     get showPageTitle() {
-        return !this.showErpConfirm && !this.showErpSuccess;
+        return !this.showErpBlocked
+            && !this.showErpConfirm
+            && !this.showErpSuccess
+            && !this.showErpFail
+            && !this.showErpFault;
     }
 
     get showConfirm() {
         return this.screen === SCREEN_CONFIRM;
+    }
+
+    get showErpBlocked() {
+        return this.screen === SCREEN_ERP_BLOCKED;
     }
 
     get showErpConfirm() {
@@ -264,6 +278,14 @@ export default class CreateProductRequest extends NavigationMixin(LightningEleme
 
     get showErpSuccess() {
         return this.screen === SCREEN_ERP_SUCCESS;
+    }
+
+    get showErpFail() {
+        return this.screen === SCREEN_ERP_FAIL;
+    }
+
+    get showErpFault() {
+        return this.screen === SCREEN_ERP_FAULT;
     }
 
     get erpSubmitBodyHtml() {
@@ -676,7 +698,8 @@ export default class CreateProductRequest extends NavigationMixin(LightningEleme
         try {
             const preview = await getOracleSubmitPreview({ productRequestId: this.productRequestId });
             if (!preview?.eligible) {
-                this.formError = preview?.blockMessage || this.labels.cannotSubmit;
+                this.blockMessage = preview?.blockMessage || this.labels.cannotSubmit;
+                this.screen = SCREEN_ERP_BLOCKED;
                 return;
             }
             this.oracleIntegrationStatus = preview.integrationStatus;
@@ -684,7 +707,8 @@ export default class CreateProductRequest extends NavigationMixin(LightningEleme
             this.showPriorResult = preview.showPriorResult === true;
             this.screen = SCREEN_ERP_CONFIRM;
         } catch (error) {
-            this.formError = this.errorMessage(error);
+            this.faultMessage = this.errorMessage(error);
+            this.screen = SCREEN_ERP_FAULT;
         } finally {
             this.isSaving = false;
         }
@@ -694,10 +718,15 @@ export default class CreateProductRequest extends NavigationMixin(LightningEleme
         this.isSaving = true;
         this.formError = undefined;
         try {
-            await submitProductRequest({ productRequestId: this.productRequestId });
-            this.screen = SCREEN_ERP_SUCCESS;
+            // Set Submit Create. The after-save flow makes the one Oracle call.
+            const result = await submitProductRequest({ productRequestId: this.productRequestId });
+            this.oracleIntegrationStatus = result?.integrationStatus;
+            this.oracleIntegrationMessage = result?.integrationMessage;
+            this.erpOrderNumber = result?.erpOrderNumber;
+            this.screen = result?.success === true ? SCREEN_ERP_SUCCESS : SCREEN_ERP_FAIL;
         } catch (error) {
-            this.formError = this.errorMessage(error);
+            this.faultMessage = this.errorMessage(error);
+            this.screen = SCREEN_ERP_FAULT;
         } finally {
             this.isSaving = false;
         }

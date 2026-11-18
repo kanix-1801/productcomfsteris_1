@@ -406,52 +406,66 @@
 
                             <div class="ca-onl-fields">
                                 <div>
-                                    <template lwc:if={hasOnlProgram}>
-                                        <div class="slds-form-element">
-                                            <span class="slds-form-element__label">
-                                                <abbr class="slds-required" title="required">*</abbr>ONL Pricing Program
-                                            </span>
-                                            <div class="slds-form-element__control">
-                                                <lightning-pill label={onlProgramLabel}
-                                                    onremove={handleOnlProgramClear}></lightning-pill>
-                                            </div>
-                                        </div>
-                                    </template>
-                                    <template lwc:else>
-                                        <lightning-input type="search" label="ONL Pricing Program" required
-                                            placeholder="Search active programs..."
-                                            value={onlSearchTerm}
-                                            onchange={handleOnlProgramSearch}></lightning-input>
-
-                                        <p lwc:if={onlSearchTooShort} class="ca-search-hint" aria-live="polite">
-                                            Type at least 3 characters to search.
-                                        </p>
-                                        <div lwc:if={showOnlSearchSpinner} class="ca-search-hint" aria-live="polite">
-                                            <lightning-spinner alternative-text="Searching ONL pricing programs" size="small"
-                                                variant="brand" class="slds-is-relative"></lightning-spinner>
-                                        </div>
-                                        <p lwc:if={onlSearchError} class="ca-search-hint slds-text-color_error" role="alert">
-                                            {onlSearchError}
-                                        </p>
-
-                                        <ul lwc:if={hasOnlSearchResults} class="ca-search-results slds-listbox slds-listbox_vertical"
-                                            role="listbox" aria-label="Active ONL pricing programs">
-                                            <template for:each={onlSearchResults} for:item="result">
-                                                <li key={result.programId} role="option" tabindex="0"
-                                                    class="slds-listbox__item slds-listbox__option slds-listbox__option_plain slds-media_small"
-                                                    data-id={result.programId}
-                                                    onclick={handleOnlProgramPick} onkeydown={handleOnlProgramKeydown}>
-                                                    <span class="slds-truncate" title={result.label}>
-                                                        <strong>{result.program}</strong> - {result.description}
-                                                    </span>
-                                                </li>
+                                    <!-- ONL Pricing Program lookup: search box + result list, or the selected program -->
+                                    <div class="slds-form-element ca-lookup">
+                                        <!-- Visible label for both states; the search input carries its own hidden label -->
+                                        <span class="slds-form-element__label" aria-hidden="true">
+                                            <abbr class="slds-required" title="required">*</abbr>ONL Pricing Program
+                                        </span>
+                                        <div class="slds-form-element__control">
+                                            <template lwc:if={hasOnlProgram}>
+                                                <!-- Selected: same size as the search box, icon on the left, clear button on the right -->
+                                                <div class="ca-lookup-selected" title={onlProgramLabel}>
+                                                    <lightning-icon icon-name="standard:pricebook" size="x-small"
+                                                        alternative-text="Pricing Program" class="ca-lookup-icon"></lightning-icon>
+                                                    <span class="ca-lookup-selected-text">{onlProgramLabel}</span>
+                                                    <lightning-button-icon icon-name="utility:close" variant="bare"
+                                                        size="small" alternative-text="Remove selected pricing program"
+                                                        title="Remove" class="ca-lookup-clear"
+                                                        onclick={handleOnlProgramClear}></lightning-button-icon>
+                                                </div>
                                             </template>
-                                        </ul>
+                                            <template lwc:else>
+                                                <lightning-input type="search" variant="label-hidden" label="ONL Pricing Program"
+                                                    required placeholder="Search active programs..."
+                                                    class="ca-lookup-input" value={onlSearchTerm}
+                                                    is-loading={showOnlSearchSpinner}
+                                                    onchange={handleOnlProgramSearch}
+                                                    onkeydown={handleOnlSearchKeydown}></lightning-input>
 
-                                        <p lwc:if={noOnlSearchResults} class="ca-search-hint">
-                                            No active programs match "{onlSearchTerm}".
-                                        </p>
-                                    </template>
+                                                <!-- Result list (dropdown under the search box) -->
+                                                <div lwc:if={showOnlDropdown} class="ca-lookup-dropdown" role="listbox"
+                                                    aria-label="Active ONL pricing programs">
+                                                    <p lwc:if={onlSearchError} class="ca-lookup-message slds-text-color_error" role="alert">
+                                                        {onlSearchError}
+                                                    </p>
+                                                    <p lwc:if={noOnlSearchResults} class="ca-lookup-message">
+                                                        No active programs match "{onlSearchTerm}".
+                                                    </p>
+                                                    <ul lwc:if={hasOnlSearchResults} class="ca-lookup-list">
+                                                        <template for:each={onlSearchResults} for:item="result">
+                                                            <li key={result.programId} role="option" tabindex="0"
+                                                                aria-selected="false" class="ca-lookup-option"
+                                                                data-id={result.programId} title={result.label}
+                                                                onclick={handleOnlProgramPick}
+                                                                onkeydown={handleOnlProgramKeydown}>
+                                                                <lightning-icon icon-name="standard:pricebook" size="small"
+                                                                    alternative-text="" class="ca-lookup-icon"></lightning-icon>
+                                                                <span class="ca-lookup-option-body">
+                                                                    <span class="ca-lookup-option-title">{result.description}</span>
+                                                                    <span class="ca-lookup-option-meta">{result.meta}</span>
+                                                                </span>
+                                                            </li>
+                                                        </template>
+                                                    </ul>
+                                                </div>
+
+                                                <p lwc:if={onlSearchTooShort} class="ca-search-hint" aria-live="polite">
+                                                    Type at least 3 characters to search.
+                                                </p>
+                                            </template>
+                                        </div>
+                                    </div>
                                     <p class="ca-field-help">Only Active programs within their start/end dates.</p>
                                 </div>
                                 <div>

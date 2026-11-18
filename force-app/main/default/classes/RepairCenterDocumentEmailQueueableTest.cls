@@ -53,31 +53,35 @@ private class RepairCenterDocumentEmailQueueableTest {
         Assert.areEqual(1, enqueuedJobs, 'Quote doc-gen PDF links should enqueue email');
     }
 
-    @IsTest
-    static void testHandleNewContentDocumentLinks_workOrderPrefixEnqueues() {
-        Account account = [SELECT Id FROM Account LIMIT 1];
-        ContentDocumentLink pdfLink = insertFileLink(
-            account.Id,
-            '00001234-1001',
-            'wo-doc.pdf'
-        );
-        Id fakeWorkOrderId = (Id) (WorkOrder.SObjectType.getDescribe().getKeyPrefix() +
-            '000000000001');
-        ContentDocumentLink workOrderShapedLink = new ContentDocumentLink(
-            Id = pdfLink.Id,
-            ContentDocumentId = pdfLink.ContentDocumentId,
-            LinkedEntityId = fakeWorkOrderId
-        );
+	@IsTest
+	static void testHandleNewContentDocumentLinks_workOrderOrderAcknowledgementEnqueues() {
+		WorkOrder workOrderRecord = insertWorkOrder();
 
-        Test.startTest();
-        RepairCenterDocumentEmailService.handleNewContentDocumentLinks(
-            new List<ContentDocumentLink>{ workOrderShapedLink }
-        );
-        Integer enqueuedJobs = Limits.getQueueableJobs();
-        Test.stopTest();
+		Test.startTest();
+		RepairCenterDocumentEmailService.handleNewContentDocumentLinks(new List<ContentDocumentLink>{ buildWorkOrderLink(workOrderRecord, orderAcknowledgementTitle(workOrderRecord)) });
+		Integer enqueuedJobs = Limits.getQueueableJobs();
+		Test.stopTest();
 
-        Assert.areEqual(1, enqueuedJobs, 'Work Order doc-gen PDF links should enqueue email');
-    }
+		Assert.areEqual(1, enqueuedJobs, 'The Order Acknowledgement PDF should enqueue email');
+	}
+
+	@IsTest
+	static void testHandleNewContentDocumentLinks_workOrderDeliveryDocumentsDoNotEnqueue() {
+		// GW-5695 - Service Delivery Reports and Delivery Notes must not go out as an Order Acknowledgement.
+		WorkOrder workOrderRecord = insertWorkOrder();
+		String orderAcknowledgementTitle = orderAcknowledgementTitle(workOrderRecord);
+
+		Test.startTest();
+		RepairCenterDocumentEmailService.handleNewContentDocumentLinks(new List<ContentDocumentLink>{
+			buildWorkOrderLink(workOrderRecord, orderAcknowledgementTitle + '-SDR'),
+			buildWorkOrderLink(workOrderRecord, orderAcknowledgementTitle + '-DN'),
+			buildWorkOrderLink(workOrderRecord, workOrderRecord.WorkOrderNumber + '-photo')
+		});
+		Integer enqueuedJobs = Limits.getQueueableJobs();
+		Test.stopTest();
+
+		Assert.areEqual(0, enqueuedJobs, 'Only the Order Acknowledgement PDF should enqueue email on a Work Order');
+	}
 
     @IsTest
     static void testHandleNewContentDocumentLinks_nonDocGenTitleDoesNotEnqueue() {
@@ -110,34 +114,16 @@ private class RepairCenterDocumentEmailQueueableTest {
         Id fakeWorkOrderId = (Id) (WorkOrder.SObjectType.getDescribe().getKeyPrefix() +
             '000000000001');
 
-        Assert.isTrue(
-            RepairCenterDocumentEmailService.isRepairCenterDocGenTitle(
-                '00004824-1001-V9',
-                fakeQuoteId
-            )
-        );
-        Assert.isTrue(
-            RepairCenterDocumentEmailService.isRepairCenterDocGenTitle(
-                'RepairCenterQuote-0Q0Ou000004y60EKAQ',
-                fakeQuoteId
-            )
-        );
-        Assert.isTrue(
-            RepairCenterDocumentEmailService.isRepairCenterDocGenTitle(
-                '00001234-1001',
-                fakeWorkOrderId
-            )
-        );
-        Assert.isFalse(
-            RepairCenterDocumentEmailService.isRepairCenterDocGenTitle(
-                '00001234-1001-V1',
-                fakeWorkOrderId
-            )
-        );
-        Assert.isFalse(
-            RepairCenterDocumentEmailService.isRepairCenterDocGenTitle('Random', fakeQuoteId)
-        );
-    }
+		Assert.isTrue(RepairCenterDocumentEmailService.isRepairCenterDocGenTitle('00004824-1001-V9', fakeQuoteId, null));
+		Assert.isTrue(RepairCenterDocumentEmailService.isRepairCenterDocGenTitle('RepairCenterQuote-0Q0Ou000004y60EKAQ', fakeQuoteId, null));
+		Assert.isFalse(RepairCenterDocumentEmailService.isRepairCenterDocGenTitle('Random', fakeQuoteId, null));
+		Assert.isTrue(RepairCenterDocumentEmailService.isRepairCenterDocGenTitle('00001234-1001', fakeWorkOrderId, '00001234-1001'));
+		Assert.isTrue(RepairCenterDocumentEmailService.isRepairCenterDocGenTitle('00001234-ACC-1041', fakeWorkOrderId, '00001234-ACC-1041'), 'Account numbers with dashes still match');
+		Assert.isFalse(RepairCenterDocumentEmailService.isRepairCenterDocGenTitle('00001234-1001-SDR', fakeWorkOrderId, '00001234-1001'));
+		Assert.isFalse(RepairCenterDocumentEmailService.isRepairCenterDocGenTitle('00001234-1001-DN', fakeWorkOrderId, '00001234-1001'));
+		Assert.isFalse(RepairCenterDocumentEmailService.isRepairCenterDocGenTitle('00001234-1001-V1', fakeWorkOrderId, '00001234-1001'));
+		Assert.isFalse(RepairCenterDocumentEmailService.isRepairCenterDocGenTitle('00001234-1001', fakeWorkOrderId, null), 'Unknown Work Order never sends');
+	}
 
     @IsTest
     static void testQueueable_emptyList_doesNotThrow() {
@@ -234,6 +220,22 @@ private class RepairCenterDocumentEmailQueueableTest {
         );
         Assert.areEqual(0, Limits.getQueueableJobs(), 'Null and blank link lists should not enqueue email');
     }
+
+	private static WorkOrder insertWorkOrder() {
+		adb_WorkOrder workOrderBuilder = new adb_WorkOrder();
+		workOrderBuilder.persist();
+		return [SELECT Id, WorkOrderNumber, Account.AccountNumber FROM WorkOrder WHERE Id = :workOrderBuilder.Id];
+	}
+
+	private static String orderAcknowledgementTitle(WorkOrder workOrderRecord) {
+		return workOrderRecord.WorkOrderNumber + '-' + (workOrderRecord.Account?.AccountNumber == null ? '' : workOrderRecord.Account.AccountNumber);
+	}
+
+	// Files are linked to the Account first so the real trigger does not enqueue; the Work Order-shaped link is built in memory.
+	private static ContentDocumentLink buildWorkOrderLink(WorkOrder workOrderRecord, String title) {
+		ContentDocumentLink accountLink = insertFileLink([SELECT Id FROM Account LIMIT 1].Id, title, 'wo-doc.pdf');
+		return new ContentDocumentLink(Id = accountLink.Id, ContentDocumentId = accountLink.ContentDocumentId, LinkedEntityId = workOrderRecord.Id);
+	}
 
     private static ContentDocumentLink insertFileLink(
         Id linkedEntityId,

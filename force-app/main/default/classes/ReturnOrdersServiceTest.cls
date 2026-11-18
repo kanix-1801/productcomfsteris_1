@@ -617,6 +617,7 @@ private class ReturnOrdersServiceTest {
 	@IsTest
 	static void testRequestVendorFedExShipmentRetriesThenSucceeds() {
 		ReturnOrdersService.testRemainingVendorCalloutFailures = 2;
+		ReturnOrdersService.skipVendorFedExRetryPause = true;
 		FedExService.testCalloutResponseMap = FedExService.buildTestSuccessResponse(
 			'794900000001',
 			Blob.valueOf('retry-success')
@@ -629,10 +630,12 @@ private class ReturnOrdersServiceTest {
 		Assert.areEqual('794900000001', response.trackingNumber);
 		Assert.areEqual(0, ReturnOrdersService.testRemainingVendorCalloutFailures);
 		FedExService.testCalloutResponseMap = null;
+		ReturnOrdersService.skipVendorFedExRetryPause = false;
 	}
 
 	@IsTest
 	static void testRequestVendorFedExShipmentBlankTrackingThrowsAfterRetries() {
+		ReturnOrdersService.skipVendorFedExRetryPause = true;
 		FedExService.testCalloutResponseMap = FedExService.buildTestSuccessResponse('', null);
 
 		Boolean threw = false;
@@ -649,6 +652,7 @@ private class ReturnOrdersServiceTest {
 			);
 		} finally {
 			FedExService.testCalloutResponseMap = null;
+			ReturnOrdersService.skipVendorFedExRetryPause = false;
 		}
 		Assert.isTrue(threw);
 	}

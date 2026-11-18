@@ -255,6 +255,84 @@ private class CreateProductRequestServiceTest {
     }
 
     /**
+     * @description A Work Order with several assigned technicians selects the running user's resource.
+     */
+    @IsTest
+    static void testGetContextDefaultsToCurrentUserResource() {
+        User technician = createTechnician();
+        User otherUser = createTechnician();
+        System.runAs(technician) {
+            // SETUP
+            Fixture fixture = insertFixture(technician, true, true);
+            ServiceResource earlierResource = insertAssignedTechnician(otherUser, 'Arthur Tech', fixture);
+
+            // GIVEN
+            System.assertNotEquals(
+                null,
+                earlierResource.Id,
+                'Another technician is assigned to the Work Order.'
+            );
+
+            // WHEN
+            CreateProductRequestService.ContextResult context = CreateProductRequestController.getContext(
+                fixture.workOrderId,
+                technician.Id
+            );
+
+            // THEN
+            System.assertEquals(2, context.serviceResources.size(), 'Both assigned technicians are listed.');
+            System.assertEquals(
+                'Arthur Tech',
+                context.serviceResources[0].name,
+                'The list is ordered by name.'
+            );
+            System.assertEquals(
+                fixture.serviceResourceId,
+                context.selectedServiceResourceId,
+                'The current user Service Resource is selected.'
+            );
+            System.assertEquals(
+                fixture.addressId,
+                context.defaultAddressId,
+                'The address follows the current user Service Resource.'
+            );
+        }
+    }
+
+    /**
+     * @description The first assigned technician stays selected when the running user is not assigned.
+     */
+    @IsTest
+    static void testGetContextKeepsFirstResourceWhenCurrentUserIsUnassigned() {
+        User technician = createTechnician();
+        User arthur = createTechnician();
+        User zoe = createTechnician();
+        System.runAs(technician) {
+            // SETUP
+            Fixture fixture = insertFixture(technician, true, false);
+            ServiceResource arthurResource = insertAssignedTechnician(arthur, 'Arthur Tech', fixture);
+            insertAssignedTechnician(zoe, 'Zoe Tech', fixture);
+
+            // GIVEN
+            System.assertNotEquals(fixture.serviceResourceId, arthurResource.Id, 'The running user is not assigned.');
+
+            // WHEN
+            CreateProductRequestService.ContextResult context = CreateProductRequestController.getContext(
+                fixture.workOrderId,
+                technician.Id
+            );
+
+            // THEN
+            System.assertEquals(2, context.serviceResources.size(), 'Only assigned technicians are listed.');
+            System.assertEquals(
+                arthurResource.Id,
+                context.selectedServiceResourceId,
+                'The first assigned technician by name is selected.'
+            );
+        }
+    }
+
+    /**
      * @description A Service Resource record opens a replenishment for that resource.
      */
     @IsTest
@@ -540,7 +618,7 @@ private class CreateProductRequestServiceTest {
     }
 
     /**
-     * @description Yes on the second screen sets Submission to ERP to Submit Create.
+     * @description Yes sets Submission to ERP to Submit Create and does not call Oracle from this screen.
      */
     @IsTest
     static void testSubmitToErp() {
@@ -561,14 +639,20 @@ private class CreateProductRequestServiceTest {
             );
 
             // WHEN
-            CreateProductRequestController.submitProductRequest(created.productRequestId);
+            CreateProductRequestService.OracleSubmitPreview outcome =
+                CreateProductRequestController.submitProductRequest(created.productRequestId);
 
             // THEN
+            ProductRequest saved = selectProductRequest(created.productRequestId);
+            System.assertEquals(true, outcome.success, 'Submit Create was saved.');
+            System.assertEquals(null, outcome.integrationStatus, 'This screen does not stamp an Oracle result.');
             System.assertEquals(
                 'Submit Create',
-                selectProductRequest(created.productRequestId).SubmissionToERP__c,
-                'The Product Request is marked for Oracle.'
+                saved.SubmissionToERP__c,
+                'Submission to ERP is Submit Create.'
             );
+            System.assertEquals(null, saved.IntegrationStatus__c, 'Integration Status waits for the callout.');
+            System.assertEquals(null, saved.ERPOrderNumber__c, 'ERP Order Number waits for the callout.');
         }
     }
 
@@ -644,10 +728,108 @@ private class CreateProductRequestServiceTest {
     }
 
     /**
-     * @description A request that is not Draft cannot be marked Submit Create.
+     * @description A Fail status other than Fail Create is not shown as the prior result.
      */
     @IsTest
-    static void testSubmitToErpRejectsWhenNotDraft() {
+    static void testOracleSubmitPreviewIgnoresOtherFailure() {
+        User technician = createTechnician();
+        System.runAs(technician) {
+            // SETUP
+            CreateProductRequestService.CreateResult created = createSavedRequest(technician);
+            update new ProductRequest(
+                Id = created.productRequestId,
+                IntegrationStatus__c = 'Fail Cancel',
+                IntegrationMessage__c = 'A different failure'
+            );
+
+            // GIVEN
+            System.assertEquals(
+                'Fail Cancel',
+                selectProductRequest(created.productRequestId).IntegrationStatus__c,
+                'The prior status is not Fail Create.'
+            );
+
+            // WHEN
+            CreateProductRequestService.OracleSubmitPreview preview =
+                CreateProductRequestController.getOracleSubmitPreview(created.productRequestId);
+
+            // THEN
+            System.assertEquals(true, preview.eligible, 'A status other than Fail Create can still be submitted.');
+            System.assertEquals(false, preview.showPriorResult, 'Only Fail Create is shown on the confirm screen.');
+            System.assertEquals(null, preview.blockMessage, 'This status does not block submit.');
+        }
+    }
+
+    /**
+     * @description Submit Create with no Integration Status cannot be submitted again.
+     */
+    @IsTest
+    static void testOracleSubmitPreviewBlocksInFlight() {
+        User technician = createTechnician();
+        System.runAs(technician) {
+            // SETUP
+            CreateProductRequestService.CreateResult created = createSavedRequest(technician);
+            update new ProductRequest(
+                Id = created.productRequestId,
+                SubmissionToERP__c = 'Submit Create'
+            );
+
+            // GIVEN
+            ProductRequest saved = selectProductRequest(created.productRequestId);
+            System.assertEquals('Submit Create', saved.SubmissionToERP__c, 'Submission to ERP is Submit Create.');
+            System.assertEquals(null, saved.IntegrationStatus__c, 'Integration Status is still blank.');
+
+            // WHEN
+            CreateProductRequestService.OracleSubmitPreview preview =
+                CreateProductRequestController.getOracleSubmitPreview(created.productRequestId);
+
+            // THEN
+            System.assertEquals(false, preview.eligible, 'An in-flight request is not submitted again.');
+            System.assertEquals(
+                Label.CreateProductRequest_SubmitInFlight,
+                preview.blockMessage,
+                'The screen explains that submission is already in progress.'
+            );
+        }
+    }
+
+    /**
+     * @description A request with no lines cannot be submitted to Oracle.
+     */
+    @IsTest
+    static void testOracleSubmitPreviewBlocksWhenNoLines() {
+        User technician = createTechnician();
+        System.runAs(technician) {
+            // SETUP
+            CreateProductRequestService.CreateResult created = createSavedRequest(technician);
+            delete selectLines(created.productRequestId);
+
+            // GIVEN
+            System.assertEquals(
+                0,
+                selectLines(created.productRequestId).size(),
+                'The Product Request has no lines.'
+            );
+
+            // WHEN
+            CreateProductRequestService.OracleSubmitPreview preview =
+                CreateProductRequestController.getOracleSubmitPreview(created.productRequestId);
+
+            // THEN
+            System.assertEquals(false, preview.eligible, 'A request without lines is not submitted.');
+            System.assertEquals(
+                Label.CreateProductRequest_NoLinesForErp,
+                preview.blockMessage,
+                'The screen explains that a line is required.'
+            );
+        }
+    }
+
+    /**
+     * @description Product Request Status does not block Submit Create. The screen flow does not check Draft.
+     */
+    @IsTest
+    static void testSubmitToErpAllowsWhenNotDraft() {
         User technician = createTechnician();
         System.runAs(technician) {
             // SETUP
@@ -669,36 +851,60 @@ private class CreateProductRequestServiceTest {
             // WHEN
             CreateProductRequestService.OracleSubmitPreview preview =
                 CreateProductRequestController.getOracleSubmitPreview(created.productRequestId);
-            AuraHandledException thrownError;
-            try {
+            CreateProductRequestService.OracleSubmitPreview outcome =
                 CreateProductRequestController.submitProductRequest(created.productRequestId);
-            } catch (AuraHandledException e) {
-                thrownError = e;
-            }
 
             // THEN
-            System.assertEquals(false, preview.eligible, 'A request that is not Draft is not eligible.');
+            System.assertEquals(true, preview.eligible, 'Status does not block Submit Create.');
+            System.assertEquals(null, preview.blockMessage, 'A non-Draft request has no block message.');
+            System.assertEquals(true, outcome.success, 'Submit Create was saved.');
             System.assertEquals(
-                Label.CreateProductRequest_CannotSubmit,
-                preview.blockMessage,
-                'The screen explains that Oracle submit is unavailable.'
-            );
-            System.assertNotEquals(null, thrownError, 'Submit Create is rejected.');
-            System.assertEquals(
-                Label.CreateProductRequest_CannotSubmit,
-                thrownError.getMessage(),
-                'The same message is returned when the field update is attempted.'
-            );
-            System.assertEquals(
-                null,
+                'Submit Create',
                 selectProductRequest(created.productRequestId).SubmissionToERP__c,
-                'Submission to ERP stays empty.'
+                'Submission to ERP is Submit Create.'
             );
         }
     }
 
     /**
-     * @description An order already created in ERP cannot be marked Submit Create again.
+     * @description A request already on Submit Create is cleared and set again so the callout is queued.
+     */
+    @IsTest
+    static void testSubmitToErpResetsWhenAlreadySubmitCreate() {
+        User technician = createTechnician();
+        System.runAs(technician) {
+            // SETUP
+            CreateProductRequestService.CreateResult created = createSavedRequest(technician);
+            update new ProductRequest(
+                Id = created.productRequestId,
+                SubmissionToERP__c = 'Submit Create',
+                IntegrationStatus__c = 'Fail Create',
+                IntegrationMessage__c = 'Oracle rejected the order'
+            );
+
+            // GIVEN
+            System.assertEquals(
+                'Submit Create',
+                selectProductRequest(created.productRequestId).SubmissionToERP__c,
+                'Submission to ERP is already Submit Create.'
+            );
+
+            // WHEN
+            CreateProductRequestService.OracleSubmitPreview outcome =
+                CreateProductRequestController.submitProductRequest(created.productRequestId);
+
+            // THEN
+            System.assertEquals(true, outcome.success, 'Submit Create was saved again.');
+            System.assertEquals(
+                'Submit Create',
+                selectProductRequest(created.productRequestId).SubmissionToERP__c,
+                'Submission to ERP is Submit Create after the reset.'
+            );
+        }
+    }
+
+    /**
+     * @description An order already created in ERP cannot be submitted again.
      */
     @IsTest
     static void testSubmitToErpRejectsWhenAlreadyInErp() {
@@ -1054,6 +1260,74 @@ private class CreateProductRequestServiceTest {
         line.quantity = 2;
         request.lines.add(line);
         return request;
+    }
+
+    private static ServiceResource insertAssignedTechnician(User technician, String resourceName, Fixture fixture) {
+        Schema.Location resourceLocation = new Schema.Location(
+            Name = 'Van ' + resourceName,
+            LocationType = 'Technician Vehicle',
+            IsInventoryLocation = true,
+            IsMobile = true
+        );
+        insert resourceLocation;
+        Schema.Address technicianAddress = new Schema.Address(
+            ParentId = resourceLocation.Id,
+            LocationType = 'Technician Vehicle',
+            AddressType = 'Shipping',
+            Street = '1 ' + resourceName + ' Road',
+            City = 'Mentor',
+            StateCode = 'OH',
+            PostalCode = '44060',
+            CountryCode = 'US',
+            AddressID__c = 'ADDR-' + resourceName.replace(' ', '')
+        );
+        insert technicianAddress;
+        resourceLocation.VisitorAddressId = technicianAddress.Id;
+        update resourceLocation;
+
+        ServiceResource technicianResource = new ServiceResource(
+            Name = resourceName,
+            RelatedRecordId = technician.Id,
+            IsActive = true,
+            ResourceType = 'T',
+            LocationId = resourceLocation.Id
+        );
+        insert technicianResource;
+        if (fixture.serviceTerritoryId == null) {
+            OperatingHours hours = new OperatingHours(
+                Name = 'CPR Hours ' + technicianResource.Id,
+                TimeZone = 'America/New_York'
+            );
+            insert hours;
+            ServiceTerritory territory = new ServiceTerritory(
+                Name = 'CPR Territory ' + technicianResource.Id,
+                IsActive = true,
+                OperatingHoursId = hours.Id
+            );
+            insert territory;
+            fixture.serviceTerritoryId = territory.Id;
+        }
+        insert new ServiceTerritoryMember(
+            ServiceTerritoryId = fixture.serviceTerritoryId,
+            ServiceResourceId = technicianResource.Id,
+            TerritoryType = 'P',
+            EffectiveStartDate = DateTime.now().addDays(-2)
+        );
+        DateTime scheduledStart = DateTime.now().addHours(2);
+        ServiceAppointment appointment = new ServiceAppointment(
+            ParentRecordId = fixture.workOrderId,
+            ServiceTerritoryId = fixture.serviceTerritoryId,
+            EarliestStartTime = DateTime.now(),
+            DueDate = DateTime.now().addDays(1),
+            SchedStartTime = scheduledStart,
+            SchedEndTime = scheduledStart.addHours(1)
+        );
+        insert appointment;
+        insert new AssignedResource(
+            ServiceAppointmentId = appointment.Id,
+            ServiceResourceId = technicianResource.Id
+        );
+        return technicianResource;
     }
 
     private static Fixture insertFixture(User technician, Boolean withWorkOrder) {

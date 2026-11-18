@@ -8,158 +8,158 @@
  */
 public with sharing class ModelQtyCoverageController {
 
-    private static final String CLASS_NAME = 'ModelQtyCoverageController';
-    private static final String SCENARIO = 'Contract Adjustments';
-    private static final String LOGGER_TAG = 'ContractAdjustments';
+	private static final String CLASS_NAME = 'ModelQtyCoverageController';
+	private static final String SCENARIO = 'Contract Adjustments';
+	private static final String LOGGER_TAG = 'ContractAdjustments';
 
 
-    /**
-     * @description Saved Contract Adjustments of a quote line, as JSON (the ModelQtyCoverage__c shape). Unsaved
-     *              configurator lines (temporary "ref_" Ids) have nothing stored yet and return empty adjustments.
-     * @param lineId Quote Line Item Id from the configurator
-     * @return JSON: {"inclusions":[{criteria, "exclusions":[criteria]}], "models":[{criteria, "qty"}]}
-     */
-    @AuraEnabled
-    public static String getCoverage(String lineId) {
-        Id quoteLineItemId = toQuoteLineId(lineId);
-        if (quoteLineItemId == null) {
-            return JSON.serialize(new ContractModifierService.ContractAdjustments());
-        }
-        try {
-            return JSON.serialize(ContractModifierService.getContractAdjustments(quoteLineItemId));
-        } catch (Exception e) {
-            throw toAuraException('getCoverage: unable to load adjustments', quoteLineItemId, e,
-                                  'Unable to load the contract adjustments for this line.');
-        } finally {
-            Logger.saveLog();
-        }
-    }
+	/**
+	 * @description Saved Contract Adjustments of a quote line, as JSON (the ModelQtyCoverage__c shape). Unsaved
+	 *              configurator lines (temporary "ref_" Ids) have nothing stored yet and return empty adjustments.
+	 * @param lineId Quote Line Item Id from the configurator
+	 * @return JSON: {"inclusions":[{criteria, "exclusions":[criteria]}], "models":[{criteria, "qty"}]}
+	 */
+	@AuraEnabled
+	public static String getCoverage(String lineId) {
+		Id quoteLineItemId = toQuoteLineId(lineId);
+		if (quoteLineItemId == null) {
+			return JSON.serialize(new ContractModifierService.ContractAdjustments());
+		}
+		try {
+			return JSON.serialize(ContractModifierService.getContractAdjustments(quoteLineItemId));
+		} catch (Exception e) {
+			throw toAuraException('getCoverage: unable to load adjustments', quoteLineItemId, e,
+								  'Unable to load the contract adjustments for this line.');
+		} finally {
+			Logger.saveLog();
+		}
+	}
 
-    /**
-     * @description Valid Sub Product Lines for a Product Line (master data).
-     * @param productLine Product Line value
-     * @return Sub Product Line values; empty when no Product Line is given
-     */
-    @AuraEnabled(cacheable=true)
-    public static List<String> getSubProductLines(String productLine) {
-        try {
-            return ContractModifierService.getSubProductLines(productLine);
-        } catch (Exception e) {
-            throw toAuraException('getSubProductLines: lookup failed for ' + productLine, null, e,
-                                  'Unable to load the Sub Product Lines.');
-        } finally {
-            Logger.saveLog();
-        }
-    }
+	/**
+	 * @description Valid Sub Product Lines for a Product Line (master data).
+	 * @param productLine Product Line value
+	 * @return Sub Product Line values; empty when no Product Line is given
+	 */
+	@AuraEnabled(cacheable=true)
+	public static List<String> getSubProductLines(String productLine) {
+		try {
+			return ContractModifierService.getSubProductLines(productLine);
+		} catch (Exception e) {
+			throw toAuraException('getSubProductLines: lookup failed for ' + productLine, null, e,
+								  'Unable to load the Sub Product Lines.');
+		} finally {
+			Logger.saveLog();
+		}
+	}
 
-    /**
-     * @description Manufacturers of the repair assets on the quote's account (and its parent accounts),
-     *              narrowed to the Product Line and Sub Product Line picked on an Inclusion / Exclusion row.
-     * @param quoteId Quote Id
-     * @param productLine Product Line (optional)
-     * @param subProductLine Sub Product Line (optional)
-     * @return Manufacturer names
-     */
-    @AuraEnabled(cacheable=true)
-    public static List<String> getManufacturers(Id quoteId, String productLine, String subProductLine) {
-        try {
-            return ContractModifierService.getManufacturers(quoteId, productLine, subProductLine);
-        } catch (Exception e) {
-            throw toAuraException('getManufacturers: lookup failed', quoteId, e,
-                                  'Unable to load the Manufacturers.');
-        } finally {
-            Logger.saveLog();
-        }
-    }
+	/**
+	 * @description Manufacturers of the repair assets on the quote's account (and its parent accounts),
+	 *              narrowed to the Product Line and Sub Product Line picked on an Inclusion / Exclusion row.
+	 * @param quoteId Quote Id
+	 * @param productLine Product Line (optional)
+	 * @param subProductLine Sub Product Line (optional)
+	 * @return Manufacturer names
+	 */
+	@AuraEnabled(cacheable=true)
+	public static List<String> getManufacturers(Id quoteId, String productLine, String subProductLine) {
+		try {
+			return ContractModifierService.getManufacturers(quoteId, productLine, subProductLine);
+		} catch (Exception e) {
+			throw toAuraException('getManufacturers: lookup failed', quoteId, e,
+								  'Unable to load the Manufacturers.');
+		} finally {
+			Logger.saveLog();
+		}
+	}
 
-    /**
-     * @description Repair assets on the quote's account (and its parent accounts), grouped by Product Line,
-     *              Sub Product Line, Product Type, Manufacturer and Model, with counts.
-     * @param quoteId Quote Id
-     * @return Asset groups
-     */
-    @AuraEnabled(cacheable=true)
-    public static List<ContractModifierService.AssetGroup> getAssetCatalog(Id quoteId) {
-        try {
-            return ContractModifierService.getAssetCatalog(quoteId);
-        } catch (Exception e) {
-            throw toAuraException('getAssetCatalog: lookup failed', quoteId, e,
-                                  'Unable to load the assets on this account.');
-        } finally {
-            Logger.saveLog();
-        }
-    }
+	/**
+	 * @description Repair assets on the quote's account (and its parent accounts), grouped by Product Line,
+	 *              Sub Product Line, Product Type, Manufacturer and Model, with counts.
+	 * @param quoteId Quote Id
+	 * @return Asset groups
+	 */
+	@AuraEnabled(cacheable=true)
+	public static List<ContractModifierService.AssetGroup> getAssetCatalog(Id quoteId) {
+		try {
+			return ContractModifierService.getAssetCatalog(quoteId);
+		} catch (Exception e) {
+			throw toAuraException('getAssetCatalog: lookup failed', quoteId, e,
+								  'Unable to load the assets on this account.');
+		} finally {
+			Logger.saveLog();
+		}
+	}
 
-    /**
-     * @description Active, in-date pricing programs matching the search text, with their CT codes
-     *              (Pricing Programs search).
-     * @param searchTerm Text typed in the Pricing Programs search (3 characters minimum)
-     * @return Matching programs; empty for a blank or too-short term
-     */
-    @AuraEnabled(cacheable=true)
-    public static List<ContractModifierService.PricingProgramOption> searchPricingPrograms(String searchTerm) {
-        try {
-            return ContractModifierService.searchPricingPrograms(searchTerm);
-        } catch (Exception e) {
-            throw toAuraException('searchPricingPrograms: search failed for ' + searchTerm, null, e,
-                                  'Unable to load the Pricing Programs.');
-        } finally {
-            Logger.saveLog();
-        }
-    }
+	/**
+	 * @description Active, in-date pricing programs matching the search text, with their CT codes
+	 *              (Pricing Programs search).
+	 * @param searchTerm Text typed in the Pricing Programs search (3 characters minimum)
+	 * @return Matching programs; empty for a blank or too-short term
+	 */
+	@AuraEnabled(cacheable=true)
+	public static List<ContractModifierService.PricingProgramOption> searchPricingPrograms(String searchTerm) {
+		try {
+			return ContractModifierService.searchPricingPrograms(searchTerm);
+		} catch (Exception e) {
+			throw toAuraException('searchPricingPrograms: search failed for ' + searchTerm, null, e,
+								  'Unable to load the Pricing Programs.');
+		} finally {
+			Logger.saveLog();
+		}
+	}
 
-    /**
-     * @description Pricing programs by name with their current CT codes, to refresh the programs saved on a line.
-     * @param programNames PricingProgram__c names, e.g. PP-0009
-     * @return The programs found
-     */
-    @AuraEnabled(cacheable=true)
-    public static List<ContractModifierService.PricingProgramOption> getPricingProgramsByNames(
-        List<String> programNames
-    ) {
-        try {
-            return ContractModifierService.getPricingProgramsByNames(programNames);
-        } catch (Exception e) {
-            throw toAuraException('getPricingProgramsByNames: lookup failed', null, e,
-                                  'Unable to load the Pricing Programs.');
-        } finally {
-            Logger.saveLog();
-        }
-    }
+	/**
+	 * @description Pricing programs by name with their current CT codes, to refresh the programs saved on a line.
+	 * @param programNames PricingProgram__c names, e.g. PP-0009
+	 * @return The programs found
+	 */
+	@AuraEnabled(cacheable=true)
+	public static List<ContractModifierService.PricingProgramOption> getPricingProgramsByNames(
+		List<String> programNames
+	) {
+		try {
+			return ContractModifierService.getPricingProgramsByNames(programNames);
+		} catch (Exception e) {
+			throw toAuraException('getPricingProgramsByNames: lookup failed', null, e,
+								  'Unable to load the Pricing Programs.');
+		} finally {
+			Logger.saveLog();
+		}
+	}
 
-    /**
-     * @description Checking for valid Quote Line Item Id.
-     * @param lineId Quote Line Item Id
-     * @return Id, or null for blank, temporary ("ref_") or malformed Ids
-     */
-    private static Id toQuoteLineId(String lineId) {
-        if (String.isBlank(lineId) || !lineId.startsWith('0QL')) {
-            return null;
-        }
-        try {
-            return Id.valueOf(lineId);
-        } catch (StringException e) {
-            Logger.debug(CLASS_NAME + '.toQuoteLineId: not a valid Quote Line Id: ' + lineId).addTag(LOGGER_TAG);
-            Logger.saveLog();
-            return null;
-        }
-    }
+	/**
+	 * @description Checking for valid Quote Line Item Id.
+	 * @param lineId Quote Line Item Id
+	 * @return Id, or null for blank, temporary ("ref_") or malformed Ids
+	 */
+	private static Id toQuoteLineId(String lineId) {
+		if (String.isBlank(lineId) || !lineId.startsWith('0QL')) {
+			return null;
+		}
+		try {
+			return Id.valueOf(lineId);
+		} catch (StringException e) {
+			Logger.debug(CLASS_NAME + '.toQuoteLineId: not a valid Quote Line Id: ' + lineId).addTag(LOGGER_TAG);
+			Logger.saveLog();
+			return null;
+		}
+	}
 
-    /**
-     * @description Logs a failed @AuraEnabled call and builds the exception the LWC receives.
-     * @param context Method name and what failed, for the log entry
-     * @param recordId Record the call was for (may be null)
-     * @param error The caught exception
-     * @param userMessage Message shown in the LWC
-     * @return AuraHandledException for the caller to throw
-     */
-    @TestVisible
-    private static AuraHandledException toAuraException(String context, Id recordId, Exception error,
-                                                        String userMessage) {
-        Logger.setScenario(SCENARIO);
-        Logger.error(CLASS_NAME + '.' + context, recordId, error).addTag(LOGGER_TAG);
-        AuraHandledException auraException = new AuraHandledException(userMessage);
-        auraException.setMessage(userMessage);
-        return auraException;
-    }
+	/**
+	 * @description Logs a failed @AuraEnabled call and builds the exception the LWC receives.
+	 * @param context Method name and what failed, for the log entry
+	 * @param recordId Record the call was for (may be null)
+	 * @param error The caught exception
+	 * @param userMessage Message shown in the LWC
+	 * @return AuraHandledException for the caller to throw
+	 */
+	@TestVisible
+	private static AuraHandledException toAuraException(String context, Id recordId, Exception error,
+														String userMessage) {
+		Logger.setScenario(SCENARIO);
+		Logger.error(CLASS_NAME + '.' + context, recordId, error).addTag(LOGGER_TAG);
+		AuraHandledException auraException = new AuraHandledException(userMessage);
+		auraException.setMessage(userMessage);
+		return auraException;
+	}
 }

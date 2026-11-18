@@ -5,10 +5,10 @@
  */
 public with sharing class ContractLineItemSelector extends SoqlQueryBuilder {
 
-    /**
-     * @description Creates a selector for ContractLineItem.
-     */
-    public ContractLineItemSelector() {
-        this.objectName = 'ContractLineItem';
-    }
+	/**
+	 * @description Creates a selector for ContractLineItem.
+	 */
+	public ContractLineItemSelector() {
+		this.objectName = 'ContractLineItem';
+	}
 }

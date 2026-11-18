@@ -271,36 +271,22 @@ public with sharing class RepairSignatureOverrideService {
 		row.signatures = signatures == null ? new List<SignatureChip>() : signatures;
 		if (isDevice) {
 			row.category = firstNonBlank(
-				lineItem.Product__r?.EvalCategory__c,
-				lineItem.Product2?.EvalCategory__c
-			);
+				lineItem.Product2?.EvalCategory__c, null);
 			row.itemNumber = firstNonBlank(
-				lineItem.Product__r?.ProductCode,
-				lineItem.Product2?.ProductCode
-			);
-			row.description = firstNonBlank(
-				firstNonBlank(lineItem.Product__r?.Description, lineItem.Product2?.Description),
-				firstNonBlank(lineItem.Product__r?.Name, lineItem.Product2?.Name)
-			);
+				lineItem.Product2?.ProductCode, null);
+			row.description = firstNonBlank(lineItem.Product2?.Description, lineItem.Product2?.Name);
 			return row;
 		}
 
 		WorkOrderLineItem parentLine = lineItem.ParentWorkOrderLineItem;
 		row.itemNumber = firstNonBlank(
-			parentLine?.Product__r?.ProductCode,
-			parentLine?.Product2?.ProductCode
-		);
+			parentLine?.Product2?.ProductCode, null);
 		row.productName = firstNonBlank(
-			parentLine?.Product__r?.Name,
-			parentLine?.Product2?.Name
-		);
+			parentLine?.Product2?.Name, null);
 		row.quantity = formatQuantity(
 			parentLine == null ? lineItem.Quantity : parentLine.Quantity
 		);
-		row.repairDescription = firstNonBlank(
-			firstNonBlank(lineItem.Product__r?.Name, lineItem.Product2?.Name),
-			firstNonBlank(lineItem.Product__r?.ProductCode, lineItem.Product2?.ProductCode)
-		);
+		row.repairDescription = firstNonBlank(lineItem.Product2?.Name, lineItem.Product2?.ProductCode);
 		row.status = lineItem.Status;
 		return row;
 	}

@@ -137,4 +137,121 @@ private class WorkOrderSummaryServiceTest {
 		Test.stopTest();
 		Assert.isTrue(threw, 'Blank input should throw');
 	}
+
+	@IsTest
+	static void testGetSummaryWhenOpenRackAssignmentPopulatesCurrentRack() {
+		WorkOrder parent = [
+			SELECT Id
+			FROM WorkOrder
+			WHERE Subject = :PARENT_SUBJECT
+			LIMIT 1
+		];
+
+		adb_Location rackBuilder = new adb_Location()
+			.name('WO-SUMMARY-OPEN-RACK')
+			.locationType('Rack');
+		Schema.Location rack = (Schema.Location) rackBuilder.record;
+		rack.TrackRackAssignmentHistory__c = true;
+		rackBuilder.persist();
+
+		adb_WorkOrder childBuilder = new adb_WorkOrder()
+			.subject('WO Summary Rack Child')
+			.status('Repair')
+			.account(new adb_Account())
+			.setRecordType('RepairCenterInstruments');
+		childBuilder.persist();
+		WorkOrder child = (WorkOrder) childBuilder.record;
+		child.ParentWorkOrderId = parent.Id;
+		child.Rack__c = rack.Id;
+		Database.update(child, AccessLevel.SYSTEM_MODE);
+
+		Id wahRecordTypeId = Schema.SObjectType.WOAssignmentHistory__c
+			.getRecordTypeInfosByDeveloperName()
+			.get('RepairCenter')
+			?.getRecordTypeId();
+		WOAssignmentHistory__c rackAssignment = new WOAssignmentHistory__c(
+			WorkOrder__c = child.Id,
+			Type__c = 'Rack',
+			Rack__c = rack.Id,
+			StartDateTime__c = Datetime.now().addHours(-1)
+		);
+		if (wahRecordTypeId != null) {
+			rackAssignment.RecordTypeId = wahRecordTypeId;
+		}
+		insert rackAssignment;
+
+		Test.startTest();
+		WorkOrderSummaryService.WorkOrderSummaryWorkspace workspace =
+			WorkOrderSummaryService.getSummary(parent.Id);
+		Test.stopTest();
+
+		WorkOrderSummaryService.ChildWorkOrderSummary rackChild;
+		for (WorkOrderSummaryService.ChildWorkOrderSummary row : workspace.children) {
+			if (row.workOrderId == child.Id) {
+				rackChild = row;
+				break;
+			}
+		}
+		Assert.isNotNull(rackChild, 'Rack child should be in summary');
+		Assert.areEqual(
+			'WO-SUMMARY-OPEN-RACK',
+			rackChild.currentLocation,
+			'Open Rack assignment should populate Current Rack'
+		);
+		Assert.isTrue(
+			String.isBlank(rackChild.currentTechnician),
+			'Open Rack assignment should leave Current Technician blank'
+		);
+	}
+
+	@IsTest
+	static void testGetSummaryWhenNoOpenAssignmentUsesWorkOrderRack() {
+		WorkOrder parent = [
+			SELECT Id
+			FROM WorkOrder
+			WHERE Subject = :PARENT_SUBJECT
+			LIMIT 1
+		];
+
+		adb_Location rackBuilder = new adb_Location()
+			.name('WO-SUMMARY-FALLBACK-RACK')
+			.locationType('Rack');
+		Schema.Location rack = (Schema.Location) rackBuilder.record;
+		rack.TrackRackAssignmentHistory__c = true;
+		rackBuilder.persist();
+
+		adb_WorkOrder childBuilder = new adb_WorkOrder()
+			.subject('WO Summary Fallback Rack Child')
+			.status('Repair')
+			.account(new adb_Account())
+			.setRecordType('RepairCenterInstruments');
+		childBuilder.persist();
+		WorkOrder child = (WorkOrder) childBuilder.record;
+		child.ParentWorkOrderId = parent.Id;
+		child.Rack__c = rack.Id;
+		Database.update(child, AccessLevel.SYSTEM_MODE);
+
+		Test.startTest();
+		WorkOrderSummaryService.WorkOrderSummaryWorkspace workspace =
+			WorkOrderSummaryService.getSummary(parent.Id);
+		Test.stopTest();
+
+		WorkOrderSummaryService.ChildWorkOrderSummary fallbackChild;
+		for (WorkOrderSummaryService.ChildWorkOrderSummary row : workspace.children) {
+			if (row.workOrderId == child.Id) {
+				fallbackChild = row;
+				break;
+			}
+		}
+		Assert.isNotNull(fallbackChild, 'Fallback rack child should be in summary');
+		Assert.areEqual(
+			'WO-SUMMARY-FALLBACK-RACK',
+			fallbackChild.currentLocation,
+			'Work Order Rack__c should populate Current Rack when no open WAH'
+		);
+		Assert.isTrue(
+			String.isBlank(fallbackChild.currentTechnician),
+			'Current Technician should stay blank when only WO Rack fallback applies'
+		);
+	}
 }

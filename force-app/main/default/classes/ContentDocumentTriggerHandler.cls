@@ -25,44 +25,44 @@
  */
 public with sharing class ContentDocumentTriggerHandler extends TriggerHandler {
 
-    // ── Before Update ─────────────────────────────────────────────────────────
-    public override void beforeUpdate() {
-        if (!AutomationControl.isTriggerEnabled('ContentDocumentTrigger')) { return; }
-        ContentDocuments domain = new ContentDocuments((List<ContentDocument>) Trigger.new);
-        // domain.applyDefaults();
-        // domain.validate();
-    }
+	// ── Before Update ─────────────────────────────────────────────────────────
+	public override void beforeUpdate() {
+		if (!AutomationControl.isTriggerEnabled('ContentDocumentTrigger')) { return; }
+		ContentDocuments domain = new ContentDocuments((List<ContentDocument>) Trigger.new);
+		// domain.applyDefaults();
+		// domain.validate();
+	}
 
-    // ── Before Delete ─────────────────────────────────────────────────────────
-    public override void beforeDelete() {
-        if (!AutomationControl.isTriggerEnabled('ContentDocumentTrigger')) { return; }
-        // Trigger.old contains the records being deleted; Trigger.new is null in delete contexts.
-        ContentDocuments domain = new ContentDocuments((List<ContentDocument>) Trigger.old);
-        // domain.validate();
-    }
+	// ── Before Delete ─────────────────────────────────────────────────────────
+	public override void beforeDelete() {
+		if (!AutomationControl.isTriggerEnabled('ContentDocumentTrigger')) { return; }
+		// Trigger.old contains the records being deleted; Trigger.new is null in delete contexts.
+		ContentDocuments domain = new ContentDocuments((List<ContentDocument>) Trigger.old);
+		// domain.validate();
+	}
 
-    // ── After Update ──────────────────────────────────────────────────────────
-    public override void afterUpdate() {
-        if (!AutomationControl.isTriggerEnabled('ContentDocumentTrigger')) { return; }
-        // Set<Id> contentDocumentIds = new Map<Id, ContentDocument>((List<ContentDocument>) Trigger.new).keySet();
-        // ContentDocumentsService.handleUpdatedContentDocuments(contentDocumentIds);
-    }
+	// ── After Update ──────────────────────────────────────────────────────────
+	public override void afterUpdate() {
+		if (!AutomationControl.isTriggerEnabled('ContentDocumentTrigger')) { return; }
+		// Set<Id> contentDocumentIds = new Map<Id, ContentDocument>((List<ContentDocument>) Trigger.new).keySet();
+		// ContentDocumentsService.handleUpdatedContentDocuments(contentDocumentIds);
+	}
 
-    // ── After Delete ──────────────────────────────────────────────────────────
-    public override void afterDelete() {
-        if (!AutomationControl.isTriggerEnabled('ContentDocumentTrigger')) { return; }
-        // Set<Id> contentDocumentIds = new Map<Id, ContentDocument>((List<ContentDocument>) Trigger.old).keySet();
-        // ContentDocumentsService.handleDeletedContentDocuments(contentDocumentIds);
-    }
+	// ── After Delete ──────────────────────────────────────────────────────────
+	public override void afterDelete() {
+		if (!AutomationControl.isTriggerEnabled('ContentDocumentTrigger')) { return; }
+		// Set<Id> contentDocumentIds = new Map<Id, ContentDocument>((List<ContentDocument>) Trigger.old).keySet();
+		// ContentDocumentsService.handleDeletedContentDocuments(contentDocumentIds);
+	}
 
-    // ── After Undelete ────────────────────────────────────────────────────────
-    public override void afterUndelete() {
-        if (!AutomationControl.isTriggerEnabled('ContentDocumentTrigger')) { return; }
-        // Set<Id> contentDocumentIds = new Map<Id, ContentDocument>((List<ContentDocument>) Trigger.new).keySet();
-        // ContentDocumentsService.handleUndeletedContentDocuments(contentDocumentIds);
-    }
+	// ── After Undelete ────────────────────────────────────────────────────────
+	public override void afterUndelete() {
+		if (!AutomationControl.isTriggerEnabled('ContentDocumentTrigger')) { return; }
+		// Set<Id> contentDocumentIds = new Map<Id, ContentDocument>((List<ContentDocument>) Trigger.new).keySet();
+		// ContentDocumentsService.handleUndeletedContentDocuments(contentDocumentIds);
+	}
 
-    // ── NOT SUPPORTED — Insert contexts are intentionally absent ──────────────
-    // beforeInsert() and afterInsert() are NOT overridden here.
-    // ContentDocument has no insert trigger context — see class header for details.
+	// ── NOT SUPPORTED — Insert contexts are intentionally absent ──────────────
+	// beforeInsert() and afterInsert() are NOT overridden here.
+	// ContentDocument has no insert trigger context — see class header for details.
 }

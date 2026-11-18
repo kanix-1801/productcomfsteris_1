@@ -141,12 +141,17 @@ private class ModifierCodesServiceTest {
         fixture.modifier('Hidden', ModifierCodesService.LEVEL_ITEM, false);
         fixture.modifier('Service Choice', ModifierCodesService.LEVEL_SERVICE, true);
 
+        PricingModifier__c described = fixture.modifier('Described', ModifierCodesService.LEVEL_ITEM, true);
+        described.ModifierDescription__c = 'Ops courtesy';
+        update described;
+
         List<ModifierCodesService.PickOption> itemOptions = ModifierCodesService.getPricingModifierOptions('item');
         List<String> itemLabels = new List<String>();
         for (ModifierCodesService.PickOption option : itemOptions) {
             itemLabels.add(option.label);
         }
         Assert.isTrue(itemLabels.contains('Item Choice'));
+        Assert.isTrue(itemLabels.contains('Described - Ops courtesy'));
         Assert.isFalse(itemLabels.contains('Hidden'));
         Assert.isFalse(itemLabels.contains('Service Choice'));
 

@@ -4,10 +4,10 @@
  * @group GW-4751
  */
 public with sharing class WorkstationPrintersSelector extends SoqlQueryBuilder {
-    /**
-     * @description GW-4751 - Creates a selector for WorkstationPrinter__c.
-     */
-    public WorkstationPrintersSelector() {
-        super('WorkstationPrinter__c');
-    }
+	/**
+	 * @description GW-4751 - Creates a selector for WorkstationPrinter__c.
+	 */
+	public WorkstationPrintersSelector() {
+		super('WorkstationPrinter__c');
+	}
 }

@@ -571,7 +571,13 @@ private class ProductRequestsServiceTest {
             ResourceType = 'T',
             AccountId = acct.Id,
             OracleAccountId__c = '3370699',
-            Description = '4269123'
+            Description = '4269123',
+            OrderType__c = '1 USA FIELD REPLENISH ORDER',
+            FreightTerm__c = 'Paid',
+            ShippingMethod__c = '000001_FEDEX EXPR_A_FEDXS',
+            ShippingPriority__c = 'High',
+            PackingInstruction__c = 'Pack flat',
+            ShippingInstruction__c = 'Leave at dock'
         );
         insert sr;
         assignPrimaryBillToLocation(sr);
@@ -621,6 +627,39 @@ private class ProductRequestsServiceTest {
         Assert.isTrue(results[0].requestJson.contains('"P_BILL_TO_ADDR":"5551111"'), results[0].requestJson);
         Assert.isTrue(results[0].requestJson.contains('"P_SHIP_TO_ADDR":"4269123"'), results[0].requestJson);
         Assert.isTrue(results[0].requestJson.contains('"P_PRODUCT_NAME":"P755718521"'), results[0].requestJson);
+        Assert.isTrue(
+            results[0].requestJson.contains('"P_ORDER_TYPE":"1 USA FIELD REPLENISH ORDER"'),
+            results[0].requestJson
+        );
+        Assert.isTrue(results[0].requestJson.contains('"P_FREIGHT_TERMS":"Paid"'), results[0].requestJson);
+        Assert.isTrue(
+            results[0].requestJson.contains('"P_SHIP_METHOD":"000001_FEDEX EXPR_A_FEDXS"'),
+            results[0].requestJson
+        );
+        Assert.isTrue(results[0].requestJson.contains('"P_SHIP_PRIOR":"High"'), results[0].requestJson);
+        Assert.isTrue(results[0].requestJson.contains('"P_PACKING_INSTRUCTIONS":"Pack flat"'), results[0].requestJson);
+        Assert.isTrue(
+            results[0].requestJson.contains('"P_SHIPPING_INSTRUCTIONS":"Leave at dock"'),
+            results[0].requestJson
+        );
+        Assert.isTrue(results[0].requestJson.contains('"P_FREIGHT_TERMS2":"Paid"'), results[0].requestJson);
+        Assert.isTrue(
+            results[0].requestJson.contains('"P_LINE_SHIP_METHOD":"000001_FEDEX EXPR_A_FEDXS"'),
+            results[0].requestJson
+        );
+        Assert.isTrue(results[0].requestJson.contains('"P_LINE_SHIP_PRIOR":"High"'), results[0].requestJson);
+        Assert.isTrue(
+            results[0].requestJson.contains('"P_LINE_PACKING_INSTRUCTIONS":"Pack flat"'),
+            results[0].requestJson
+        );
+        Assert.isTrue(
+            results[0].requestJson.contains('"P_LINE_SHIPPING_INSTRUCTIONS":"Leave at dock"'),
+            results[0].requestJson
+        );
+        Assert.isTrue(
+            results[0].requestJson.contains('"P_LINE_ORDER_TYPE":"1 USA FIELD REPLENISHMENT LINE"'),
+            results[0].requestJson
+        );
     }
 
     @IsTest
@@ -694,6 +733,15 @@ private class ProductRequestsServiceTest {
         Assert.areEqual('Submitted', stamped.SubmissionToERP__c);
         Assert.areEqual('Success Create', stamped.IntegrationStatus__c);
         Assert.areEqual('TEST-SO-001', stamped.ERPOrderNumber__c);
+        Assert.isTrue(results[0].requestJson.contains('"P_ORDER_TYPE":"1 USA FIELD REPLENISH ORDER"'), results[0].requestJson);
+        Assert.isTrue(results[0].requestJson.contains('"P_FREIGHT_TERMS":"Paid"'), results[0].requestJson);
+        Assert.isTrue(
+            results[0].requestJson.contains('"P_SHIP_METHOD":"000001_FEDEX EXPR_A_FEDXS"'),
+            results[0].requestJson
+        );
+        Assert.isTrue(results[0].requestJson.contains('"P_SHIP_PRIOR":"High"'), results[0].requestJson);
+        Assert.isTrue(results[0].requestJson.contains('"P_PACKING_INSTRUCTIONS":""'), results[0].requestJson);
+        Assert.isTrue(results[0].requestJson.contains('"P_SHIPPING_INSTRUCTIONS":""'), results[0].requestJson);
     }
 
     @IsTest

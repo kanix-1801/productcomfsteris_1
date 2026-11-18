@@ -27,7 +27,7 @@ const TAB_LINE_TYPES = {
     [TAB.EXPENSES]: [LINE_TYPE.EXPENSE]
 };
 const STATE = { SAVED: 'saved', NEW: 'new', MODIFIED: 'modified' };
-const CALCULATE_PRICING_FLOW = 'Quote_SCR_Calculate_Pricing';
+const CALCULATE_PRICING_FLOW = 'Quote_SCR_CalculatePricing';
 const PRICING_BADGE_CLASS = {
     Priced: 'slds-badge slds-theme_success',
     'Repricing Required': 'slds-badge slds-theme_warning',
@@ -480,8 +480,20 @@ export default class FieldServiceQuoteEditor extends LightningElement {
         return this.unsavedChangeCount > 0 ? 'Save All before calculating pricing' : 'Calculate Pricing';
     }
 
+    /**
+     * @description Quote_SCR_CalculatePricing loads the Quote from this Id, then prices parts (Oracle),
+     *              labor and travel (Rate List), and shipping.
+     */
     get pricingFlowInputs() {
-        return [{ name: 'recordId', type: 'SObject', value: { Id: this.recordId } }];
+        return [
+            {
+                name: 'recordId',
+                type: 'SObject',
+                value: {
+                    Id: this.recordId
+                }
+            }
+        ];
     }
 
     get pricingFlowName() {

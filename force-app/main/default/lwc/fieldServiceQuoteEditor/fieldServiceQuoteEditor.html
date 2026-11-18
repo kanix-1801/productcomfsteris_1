@@ -1,3 +1,10 @@
+<!--
+  @description       : 
+  @author            : 
+  @group             : 
+  @last modified on  : 11-17-2026
+  @last modified by  : 
+-->
 <template>
     <div class="editor">
         <div class="slds-modal__header">
@@ -90,7 +97,7 @@
                     </template>
                 </div>
 
-                <!-- Calculate Pricing (GW-5890 flow) -->
+                <!-- Calculate Pricing (GW-5890 Quote_SCR_CalculatePricing) -->
                 <template lwc:if={showPricingFlow}>
                     <div class="slds-box slds-box_x-small slds-m-bottom_small">
                         <div class="slds-grid slds-grid_align-spread slds-m-bottom_x-small">
@@ -125,6 +132,9 @@
                                             </template>
                                             <template lwc:if={line.isModified}>
                                                 <span class="slds-badge slds-badge_lightest badge-modified">Modified</span>
+                                            </template>
+                                            <template lwc:if={line.pricingMessage}>
+                                                <p class="slds-text-color_error slds-text-body_small">{line.pricingMessage}</p>
                                             </template>
                                         </div>
                                         <lightning-button-icon
@@ -270,7 +280,7 @@
                                                     onchange={handleLineFieldChange}
                                                 ></lightning-textarea>
                                             </div>
-                                            <div class="slds-col slds-size_1-of-1 slds-text-align_right">
+                                            <div style="padding-top: 10px;" class="slds-col slds-size_1-of-1 slds-text-align_right">
                                                 <lightning-button label="Done" onclick={handleDoneEditing}></lightning-button>
                                             </div>
                                         </div>
@@ -303,6 +313,9 @@
                                             </template>
                                             <template lwc:if={line.isModified}>
                                                 <span class="slds-badge slds-badge_lightest badge-modified">Modified</span>
+                                            </template>
+                                            <template lwc:if={line.pricingMessage}>
+                                                <p class="slds-text-color_error slds-text-body_small">{line.pricingMessage}</p>
                                             </template>
                                         </div>
                                         <lightning-button-icon
@@ -453,6 +466,9 @@
                                             </template>
                                             <template lwc:if={line.isModified}>
                                                 <span class="slds-badge slds-badge_lightest badge-modified">Modified</span>
+                                            </template>
+                                            <template lwc:if={line.pricingMessage}>
+                                                <p class="slds-text-color_error slds-text-body_small">{line.pricingMessage}</p>
                                             </template>
                                         </div>
                                         <lightning-button-icon

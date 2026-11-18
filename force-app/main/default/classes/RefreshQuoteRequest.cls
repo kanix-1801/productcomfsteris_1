@@ -13,6 +13,7 @@ public with sharing class RefreshQuoteRequest {
 
     private static final String DEFAULT_SOURCE_SYSTEM = 'GlobalSF';
     private static final String DEFAULT_CLASS_CODE = 'HC';
+    private static final String DEFAULT_CLASS_CODE_LS = 'LS';   //GCL-66
 
     /**
      * @description Builds a refresh quote request for an Opportunity.
@@ -23,7 +24,7 @@ public with sharing class RefreshQuoteRequest {
         RefreshQuoteRequest requestBody = new RefreshQuoteRequest();
         requestBody.opportunitySfId = String.valueOf(opportunityId);
         requestBody.sourceSystem = DEFAULT_SOURCE_SYSTEM;
-        requestBody.classCode = DEFAULT_CLASS_CODE;
+        requestBody.classCode = GeneralUtility.getCurrentBusinessLine() == GeneralUtility.HC_STR ? DEFAULT_CLASS_CODE : DEFAULT_CLASS_CODE_LS;   //GCL-66
         return requestBody;
     }
 

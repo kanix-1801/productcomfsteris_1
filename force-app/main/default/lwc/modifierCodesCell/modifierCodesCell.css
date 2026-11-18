@@ -9,6 +9,7 @@
 .modifier-name {
     margin-right: 0.25rem;
     text-align: right;
+    white-space: nowrap;
 }
 
 .icon-button,

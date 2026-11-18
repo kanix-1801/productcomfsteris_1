@@ -27,7 +27,6 @@ public with sharing class LSGenerateQuoteController {
         Id sampleId
     ) {
         try {
-            new GeneralUtility();   //GCL-66
             return GenerateQuoteService.createQuote(
                 opportunityId,
                 String.isBlank(quoteType) ? GenerateQuoteService.QUOTE_TYPE_NORMAL : quoteType,

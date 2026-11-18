@@ -8,6 +8,7 @@
 public without sharing class GeneralUtility {
     public static final String LIFESCIENCES_SALES_PROFILE_NAME = 'Life Sciences Sales';
     public static final String HEALTHCARE_SALES_PROFILE_NAME = 'Healthcare Sales';
+    public static final String HEALTHCARE_DEALER_PROFILE_NAME = 'Healthcare Dealer';
     public static final String LIFESCIENCES_SALES_APP_NAME = 'LifeSciencesSales';
     public static final String HEALTHCARE_SALES_APP_NAME = 'HealthcareSales';
     public static final String LS_STR = 'LS';
@@ -24,22 +25,6 @@ public without sharing class GeneralUtility {
         loadUserPermission();
         loadCurrentAppName();
         loadCurrentBusinessLine();
-    }
-
-
-    /*****************************************************************************
-     * Method Name       : loadCurrentBusinessLine
-     * Author           : Sarthak Pani
-     * Date of Dev      : 16th November 2026
-     * Last Modified Date   : 16th November 2026
-     * Description          : get the current scenario
-    *****************************************************************************/
-    public static void loadCurrentBusinessLine() {
-        if(userProfileName == HEALTHCARE_SALES_PROFILE_NAME || appName == HEALTHCARE_SALES_APP_NAME || userPermission == HC_STR) {
-            currentBusinessLine = HC_STR;
-        } else if(userProfileName == LIFESCIENCES_SALES_PROFILE_NAME || appName == LIFESCIENCES_SALES_APP_NAME || userPermission == LS_STR) {
-            currentBusinessLine = LS_STR;
-        }
     }
 
 
@@ -92,6 +77,7 @@ public without sharing class GeneralUtility {
                                         ORDER BY LastModifiedDate DESC LIMIT 1];
         if (appInfos.isEmpty()) {
             appName = null;
+            return;
         }
 
         List<AppDefinition> apps = [SELECT DeveloperName
@@ -99,5 +85,33 @@ public without sharing class GeneralUtility {
                                     WHERE DurableId = :appInfos[0].AppDefinitionId LIMIT 1];
 
         appName = apps.isEmpty() ? null : apps[0].DeveloperName;
+    }
+
+    /*****************************************************************************
+     * Method Name       : loadCurrentBusinessLine
+     * Author           : Sarthak Pani
+     * Date of Dev      : 16th November 2026
+     * Last Modified Date   : 16th November 2026
+     * Description          : get the current scenario
+    *****************************************************************************/
+    public static void loadCurrentBusinessLine() {
+        loadUserProfileName();
+        loadUserPermission();
+        loadCurrentAppName();
+        if(userProfileName == HEALTHCARE_SALES_PROFILE_NAME
+            || userProfileName == HEALTHCARE_DEALER_PROFILE_NAME
+            || appName == HEALTHCARE_SALES_APP_NAME
+            || userPermission == HC_STR) {
+            currentBusinessLine = HC_STR;
+        } else if(userProfileName == LIFESCIENCES_SALES_PROFILE_NAME || appName == LIFESCIENCES_SALES_APP_NAME || userPermission == LS_STR) {
+            currentBusinessLine = LS_STR;
+        }
+    }
+
+    public static String getCurrentBusinessLine() {
+        if(String.isBlank(currentBusinessLine)) {
+            loadCurrentBusinessLine();
+        }
+        return currentBusinessLine;
     }
 }

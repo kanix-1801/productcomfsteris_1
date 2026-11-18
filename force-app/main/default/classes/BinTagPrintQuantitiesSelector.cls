@@ -5,10 +5,10 @@
  * @group GW-4637
  */
 public with sharing class BinTagPrintQuantitiesSelector extends SoqlQueryBuilder {
-    /**
-     * @description Creates a selector for BinTagPrintQuantity__c.
-     */
-    public BinTagPrintQuantitiesSelector() {
-        super('BinTagPrintQuantity__c');
-    }
+	/**
+	 * @description Creates a selector for BinTagPrintQuantity__c.
+	 */
+	public BinTagPrintQuantitiesSelector() {
+		super('BinTagPrintQuantity__c');
+	}
 }

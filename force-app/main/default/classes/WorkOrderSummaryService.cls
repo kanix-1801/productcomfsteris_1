@@ -44,6 +44,8 @@ public with sharing class WorkOrderSummaryService {
 		'RepairCategory__c',
 		'TurnTime__c',
 		'ScheduledShipDate__c',
+		'Rack__c',
+		'Rack__r.Name',
 		'AssetId',
 		'Asset.SerialNumber',
 		'Asset.ModelCalculated__c',
@@ -158,6 +160,14 @@ public with sharing class WorkOrderSummaryService {
 			.execute();
 	}
 
+	/**
+	 * @description GW-5287 - Resolves Current Technician / Current Rack from open WO Assignment
+	 *              History (EndDateTime__c null). Open Technician rows populate Current Technician.
+	 *              Open Rack rows populate Current Rack and do not set Current Technician. When no
+	 *              open history exists for the child, falls back to Work Order Rack__c.
+	 * @param children Child Work Orders (must include Rack__c / Rack__r.Name)
+	 * @return Map of child Work Order Id to assignment display values
+	 */
 	private static Map<Id, AssignmentDisplay> mapOpenAssignments(List<WorkOrder> children) {
 		Map<Id, AssignmentDisplay> result = new Map<Id, AssignmentDisplay>();
 		if (children == null || children.isEmpty()) {
@@ -165,6 +175,7 @@ public with sharing class WorkOrderSummaryService {
 		}
 
 		Set<Id> workOrderIds = new Set<Id>();
+		Set<Id> workOrdersWithOpenHistory = new Set<Id>();
 		for (WorkOrder child : children) {
 			workOrderIds.add(child.Id);
 			result.put(child.Id, new AssignmentDisplay());
@@ -187,11 +198,24 @@ public with sharing class WorkOrderSummaryService {
 			if (display == null) {
 				continue;
 			}
+			workOrdersWithOpenHistory.add(row.WorkOrder__c);
 			if (TYPE_TECHNICIAN.equals(row.Type__c) && String.isBlank(display.currentTechnician)) {
 				display.currentTechnician = row.Technician__r != null ? row.Technician__r.Name : null;
 			} else if (TYPE_RACK.equals(row.Type__c) && String.isBlank(display.currentLocation)) {
+				// Rack history fills Current Rack only; Current Technician stays blank from this path.
 				display.currentLocation = row.Rack__r != null ? row.Rack__r.Name : null;
 			}
+		}
+
+		for (WorkOrder child : children) {
+			if (workOrdersWithOpenHistory.contains(child.Id)) {
+				continue;
+			}
+			AssignmentDisplay display = result.get(child.Id);
+			if (display == null || child.Rack__c == null) {
+				continue;
+			}
+			display.currentLocation = child.Rack__r != null ? child.Rack__r.Name : null;
 		}
 		return result;
 	}

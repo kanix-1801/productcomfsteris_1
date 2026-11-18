@@ -534,7 +534,7 @@ public with sharing class GenerateQuoteService {
 
         if (!resolveCurrentUserHasEditAccess(opportunityId)) {
             //GCL-66: START
-            if(GeneralUtility.currentBusinessLine == GeneralUtility.HC_STR) {
+            if(GeneralUtility.getCurrentBusinessLine() == GeneralUtility.HC_STR) {
                 throw new AuraHandledException(QUOTE_ACCESS_DENIED_MESSAGE);
             } else {
                 throw new AuraHandledException(QUOTE_ACCESS_DENIED_MESSAGE_LS);
@@ -587,7 +587,7 @@ public with sharing class GenerateQuoteService {
         }
 
         //GCL-66: START
-        if(GeneralUtility.currentBusinessLine == GeneralUtility.HC_STR) {
+        if(GeneralUtility.getCurrentBusinessLine() == GeneralUtility.HC_STR) {
             newQuote.RecordTypeId = resolveQuoteRecordTypeId();
         } else {
             newQuote.RecordTypeId = resolveLSQuoteRecordTypeId();

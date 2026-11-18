@@ -169,7 +169,9 @@
                                                         </td>
 
                                                         <td class="col-forecast-confidence">
-                                                            <select key={quote.forecastConfidenceSelectKey}
+                                                            <!--GCL-291: Added 'disabled' to the Forecast Confidence functionality for LS.
+                                                            This is not needed at the moment; it might be used in the future.-->
+                                                            <select disabled key={quote.forecastConfidenceSelectKey}
                                                                 class="slds-select forecast-confidence-select"
                                                                 data-id={quote.id} value={quote.quoteForecastConfidence}
                                                                 onchange={handleForecastConfidenceChange}

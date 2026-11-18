@@ -297,7 +297,7 @@ private class CreateReturnOrderControllerTest {
 		Account account = [SELECT Id FROM Account LIMIT 1];
 
 		Test.startTest();
-		CreateReturnOrderController.InitContext ctx =
+		CreateReturnOrderService.InitContext ctx =
 			CreateReturnOrderController.getInitialContext(account.Id, 'Account', null);
 		Test.stopTest();
 
@@ -313,7 +313,7 @@ private class CreateReturnOrderControllerTest {
 		Case testCase = [SELECT Id, AccountId FROM Case LIMIT 1];
 
 		Test.startTest();
-		CreateReturnOrderController.InitContext ctx =
+		CreateReturnOrderService.InitContext ctx =
 			CreateReturnOrderController.getInitialContext(testCase.Id, 'Case', null);
 		Test.stopTest();
 
@@ -330,7 +330,7 @@ private class CreateReturnOrderControllerTest {
 		List<String> assetIds = new List<String>{ asset.Id };
 
 		Test.startTest();
-		CreateReturnOrderController.InitContext ctx =
+		CreateReturnOrderService.InitContext ctx =
 			CreateReturnOrderController.getInitialContext(null, 'Asset', assetIds);
 		Test.stopTest();
 
@@ -373,7 +373,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		CreateReturnOrderController.InitContext ctx =
+		CreateReturnOrderService.InitContext ctx =
 			CreateReturnOrderController.getInitialContext(null, null, assetIds);
 		Test.stopTest();
 
@@ -388,7 +388,7 @@ private class CreateReturnOrderControllerTest {
 		Account account = [SELECT Id, Name FROM Account LIMIT 1];
 
 		Test.startTest();
-		CreateReturnOrderController.InitContext ctx =
+		CreateReturnOrderService.InitContext ctx =
 			CreateReturnOrderController.getInitialContext(account.Id, null, null);
 		Test.stopTest();
 
@@ -401,7 +401,7 @@ private class CreateReturnOrderControllerTest {
 		Asset asset = [SELECT Id, AccountId FROM Asset LIMIT 1];
 
 		Test.startTest();
-		CreateReturnOrderController.InitContext ctx =
+		CreateReturnOrderService.InitContext ctx =
 			CreateReturnOrderController.getInitialContext(asset.Id, 'Asset', null);
 		Test.stopTest();
 
@@ -416,7 +416,7 @@ private class CreateReturnOrderControllerTest {
 		Test.startTest();
 		List<Contact> contacts = CreateReturnOrderController.getContactsForAccount(account.Id);
 		List<Case> cases = CreateReturnOrderController.getOpenCasesForAccount(account.Id);
-		List<CreateReturnOrderController.LocationOption> locations =
+		List<CreateReturnOrderService.LocationOption> locations =
 			CreateReturnOrderController.getRepairCenterLocations();
 		List<User> users = CreateReturnOrderController.getActiveInternalUsers();
 		Test.stopTest();
@@ -454,7 +454,7 @@ private class CreateReturnOrderControllerTest {
 		];
 
 		Test.startTest();
-		CreateReturnOrderController.AssetReturnOrderCheckResult result =
+		CreateReturnOrderService.AssetReturnOrderCheckResult result =
 			CreateReturnOrderController.checkOpenReturnOrdersForAsset(asset.Id);
 		Test.stopTest();
 
@@ -488,7 +488,7 @@ private class CreateReturnOrderControllerTest {
 		);
 
 		Test.startTest();
-		CreateReturnOrderController.AssetReturnOrderCheckResult result =
+		CreateReturnOrderService.AssetReturnOrderCheckResult result =
 			CreateReturnOrderController.checkOpenReturnOrdersForAsset(asset.Id);
 		Test.stopTest();
 
@@ -498,13 +498,16 @@ private class CreateReturnOrderControllerTest {
 
 	@isTest
 	static void testCheckOpenReturnOrdersForAsset_nullAsset() {
+		Boolean threw = false;
 		Test.startTest();
-		CreateReturnOrderController.AssetReturnOrderCheckResult result =
+		try {
 			CreateReturnOrderController.checkOpenReturnOrdersForAsset(null);
+			Assert.fail('Expected AuraHandledException');
+		} catch (AuraHandledException e) {
+			threw = true;
+		}
 		Test.stopTest();
-
-		System.assertEquals(false, result.hasOpenReturnOrders);
-		System.assertEquals(0, result.returnOrders.size());
+		Assert.isTrue(threw);
 	}
 
 	@isTest
@@ -583,7 +586,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		CreateReturnOrderController.CreateResult result = CreateReturnOrderController.createReturnOrder(
+		CreateReturnOrderService.CreateResult result = CreateReturnOrderController.createReturnOrder(
 			JSON.serialize(header),
 			JSON.serialize(lines)
 		);
@@ -663,7 +666,7 @@ private class CreateReturnOrderControllerTest {
 		);
 
 		Test.startTest();
-		CreateReturnOrderController.InitContext ctx =
+		CreateReturnOrderService.InitContext ctx =
 			CreateReturnOrderController.getInitialContext(workOrder.Id, 'WorkOrder', null);
 		Test.stopTest();
 
@@ -737,9 +740,9 @@ private class CreateReturnOrderControllerTest {
 		insert new List<WorkOrderLineItem>{ markedLine, unmarkedLine };
 
 		Test.startTest();
-		CreateReturnOrderController.InitContext ctx =
+		CreateReturnOrderService.InitContext ctx =
 			CreateReturnOrderController.getInitialContext(workOrder.Id, 'WorkOrder', null);
-		CreateReturnOrderController.clearCrssSendToRepairCenterByAsset(
+		CreateReturnOrderService.clearCrssSendToRepairCenterByAsset(
 			JSON.serialize(new Map<String, Object>{ 'workOrderId' => workOrder.Id }),
 			new List<Object>{ new Map<String, Object>{ 'assetId' => String.valueOf(markedAsset.Id) } }
 		);
@@ -747,7 +750,7 @@ private class CreateReturnOrderControllerTest {
 
 		System.assertEquals(1, ctx.assetIds.size(), 'Only the marked line asset should be returned.');
 		System.assertEquals(String.valueOf(markedAsset.Id), ctx.assetIds[0]);
-		CreateReturnOrderController.AssetLineDefaults defaults = ctx.lineDefaultsByAssetId.get(ctx.assetIds[0]);
+		CreateReturnOrderService.AssetLineDefaults defaults = ctx.lineDefaultsByAssetId.get(ctx.assetIds[0]);
 		System.assertEquals(headerAsset.Department__c, defaults.departmentId, 'Department should come from the line.');
 		System.assertEquals('Broken hinge', defaults.reportedProblem, 'Reported problem should come from the line.');
 		System.assertEquals(
@@ -794,7 +797,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		CreateReturnOrderController.CreateResult result = CreateReturnOrderController.createReturnOrder(
+		CreateReturnOrderService.CreateResult result = CreateReturnOrderController.createReturnOrder(
 			JSON.serialize(header),
 			JSON.serialize(lines)
 		);
@@ -848,7 +851,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		CreateReturnOrderController.CreateResult result = CreateReturnOrderController.createReturnOrder(
+		CreateReturnOrderService.CreateResult result = CreateReturnOrderController.createReturnOrder(
 			JSON.serialize(header),
 			JSON.serialize(lines)
 		);
@@ -914,7 +917,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		CreateReturnOrderController.CreateResult result = CreateReturnOrderController.createReturnOrder(
+		CreateReturnOrderService.CreateResult result = CreateReturnOrderController.createReturnOrder(
 			JSON.serialize(header),
 			JSON.serialize(lines)
 		);
@@ -943,7 +946,7 @@ private class CreateReturnOrderControllerTest {
 		update testCase;
 
 		Test.startTest();
-		CreateReturnOrderController.InitContext ctx =
+		CreateReturnOrderService.InitContext ctx =
 			CreateReturnOrderController.getInitialContext(testCase.Id, 'Case', null);
 		Test.stopTest();
 
@@ -953,7 +956,7 @@ private class CreateReturnOrderControllerTest {
 	@isTest
 	static void testGetInitialContextFromInvalidRecordIdOnly() {
 		Test.startTest();
-		CreateReturnOrderController.InitContext ctx =
+		CreateReturnOrderService.InitContext ctx =
 			CreateReturnOrderController.getInitialContext('not-a-valid-id', null, null);
 		Test.stopTest();
 
@@ -966,7 +969,7 @@ private class CreateReturnOrderControllerTest {
 		Asset asset = [SELECT Id FROM Asset LIMIT 1];
 
 		Test.startTest();
-		CreateReturnOrderController.InitContext ctx = CreateReturnOrderController.getInitialContext(
+		CreateReturnOrderService.InitContext ctx = CreateReturnOrderController.getInitialContext(
 			null,
 			null,
 			new List<String>{ 'not-a-valid-id', asset.Id }
@@ -982,7 +985,7 @@ private class CreateReturnOrderControllerTest {
 		Asset asset = [SELECT Id FROM Asset LIMIT 1];
 
 		Test.startTest();
-		CreateReturnOrderController.InitContext ctx = CreateReturnOrderController.getInitialContext(
+		CreateReturnOrderService.InitContext ctx = CreateReturnOrderController.getInitialContext(
 			null,
 			'Asset',
 			new List<String>{ '', 'bad-id', asset.Id }
@@ -1009,29 +1012,47 @@ private class CreateReturnOrderControllerTest {
 	}
 
 	@isTest
-	static void testGetAccountDetails_null_returnsNull() {
+	static void testGetAccountDetails_null_throwsAuraHandled() {
+		Boolean threw = false;
 		Test.startTest();
-		Account result = CreateReturnOrderController.getAccountDetails(null);
+		try {
+			CreateReturnOrderController.getAccountDetails(null);
+			Assert.fail('Expected AuraHandledException');
+		} catch (AuraHandledException e) {
+			threw = true;
+		}
 		Test.stopTest();
-
-		System.assertEquals(null, result);
+		Assert.isTrue(threw);
 	}
 
 	@isTest
-	static void testGetContactsCasesAssets_nullAccount_returnsEmpty() {
+	static void testGetContactsCasesAssets_nullAccount_throwsAuraHandled() {
+		Integer auraCaught = 0;
 		Test.startTest();
-		List<Contact> contacts = CreateReturnOrderController.getContactsForAccount(null);
-		List<Case> cases = CreateReturnOrderController.getOpenCasesForAccount(null);
-		List<CreateReturnOrderController.AssetLineData> assets =
+		try {
+			CreateReturnOrderController.getContactsForAccount(null);
+			Assert.fail('Expected AuraHandledException');
+		} catch (AuraHandledException e) {
+			auraCaught++;
+		}
+		try {
+			CreateReturnOrderController.getOpenCasesForAccount(null);
+			Assert.fail('Expected AuraHandledException');
+		} catch (AuraHandledException e) {
+			auraCaught++;
+		}
+		try {
 			CreateReturnOrderController.getAssetsForAccount(null);
-		List<CreateReturnOrderController.AssetLineData> assetsByIds =
+			Assert.fail('Expected AuraHandledException');
+		} catch (AuraHandledException e) {
+			auraCaught++;
+		}
+		List<CreateReturnOrderService.AssetLineData> assetsByIds =
 			CreateReturnOrderController.getAssetsByIds(null);
 		Test.stopTest();
 
-		System.assertEquals(0, contacts.size());
-		System.assertEquals(0, cases.size());
-		System.assertEquals(0, assets.size());
-		System.assertEquals(0, assetsByIds.size());
+		Assert.areEqual(3, auraCaught);
+		Assert.areEqual(0, assetsByIds.size());
 	}
 
 	@isTest
@@ -1057,7 +1078,7 @@ private class CreateReturnOrderControllerTest {
 		insert new List<Asset>{ firstAsset, secondAsset };
 
 		Test.startTest();
-		List<CreateReturnOrderController.AssetLineData> selectedAssets =
+		List<CreateReturnOrderService.AssetLineData> selectedAssets =
 			CreateReturnOrderController.getAssetsByIds(
 				new List<String>{ secondAsset.Id, firstAsset.Id }
 			);
@@ -1074,11 +1095,11 @@ private class CreateReturnOrderControllerTest {
 		Asset asset = [SELECT Id FROM Asset LIMIT 1];
 
 		Test.startTest();
-		List<CreateReturnOrderController.AssetLineData> accountAssets =
+		List<CreateReturnOrderService.AssetLineData> accountAssets =
 			CreateReturnOrderController.getAssetsForAccount(account.Id);
-		List<CreateReturnOrderController.AssetLineData> selectedAssets =
+		List<CreateReturnOrderService.AssetLineData> selectedAssets =
 			CreateReturnOrderController.getAssetsByIds(new List<String>{ asset.Id });
-		List<CreateReturnOrderController.AssetLineData> emptySelection =
+		List<CreateReturnOrderService.AssetLineData> emptySelection =
 			CreateReturnOrderController.getAssetsByIds(new List<String>{ 'invalid-id' });
 		Test.stopTest();
 
@@ -1095,7 +1116,7 @@ private class CreateReturnOrderControllerTest {
 	@isTest
 	static void testFindAssetsBySerial_blankSerial_returnsEmpty() {
 		Test.startTest();
-		List<CreateReturnOrderController.ScanSerialAssetResult> results =
+		List<CreateReturnOrderService.ScanSerialAssetResult> results =
 			CreateReturnOrderController.findAssetsBySerial(null);
 		Test.stopTest();
 
@@ -1108,7 +1129,7 @@ private class CreateReturnOrderControllerTest {
 		Account account = [SELECT Id, Name FROM Account WHERE Id = :asset.AccountId LIMIT 1];
 
 		Test.startTest();
-		List<CreateReturnOrderController.ScanSerialAssetResult> results =
+		List<CreateReturnOrderService.ScanSerialAssetResult> results =
 			CreateReturnOrderController.findAssetsBySerial(asset.SerialNumber);
 		Test.stopTest();
 
@@ -1121,7 +1142,7 @@ private class CreateReturnOrderControllerTest {
 	@isTest
 	static void testSearchAssetsBySerial_blankSerial_returnsEmpty() {
 		Test.startTest();
-		List<CreateReturnOrderController.ScanSerialAssetResult> results =
+		List<CreateReturnOrderService.ScanSerialAssetResult> results =
 			CreateReturnOrderController.searchAssetsBySerial('  ', null);
 		Test.stopTest();
 
@@ -1133,7 +1154,7 @@ private class CreateReturnOrderControllerTest {
 		Asset asset = [SELECT Id, SerialNumber FROM Asset LIMIT 1];
 
 		Test.startTest();
-		List<CreateReturnOrderController.ScanSerialAssetResult> results =
+		List<CreateReturnOrderService.ScanSerialAssetResult> results =
 			CreateReturnOrderController.searchAssetsBySerial('SN-00', null);
 		Test.stopTest();
 
@@ -1143,13 +1164,17 @@ private class CreateReturnOrderControllerTest {
 	}
 
 	@isTest
-	static void testSearchProductsByModel_blankModel_returnsEmpty() {
+	static void testSearchProductsByModel_blankModel_browsesFilteredProducts() {
+		// Blank term browses the filtered Service Asset set (does not require a Model__c LIKE).
 		Test.startTest();
-		List<CreateReturnOrderController.ProductPicklistOption> results =
+		List<CreateReturnOrderService.ProductPicklistOption> results =
 			CreateReturnOrderController.searchProductsByModel(' ', true, null);
 		Test.stopTest();
 
-		System.assertEquals(0, results.size());
+		System.assert(
+			results.size() >= 1,
+			'Blank model search should browse active Service Asset products.'
+		);
 	}
 
 	@isTest
@@ -1164,13 +1189,13 @@ private class CreateReturnOrderControllerTest {
 		update product;
 
 		Test.startTest();
-		List<CreateReturnOrderController.ProductPicklistOption> results =
+		List<CreateReturnOrderService.ProductPicklistOption> results =
 			CreateReturnOrderController.searchProductsByModel('MODEL-ABC', true, null);
 		Test.stopTest();
 
 		System.assert(results.size() >= 1);
 		Boolean found = false;
-		for (CreateReturnOrderController.ProductPicklistOption option : results) {
+		for (CreateReturnOrderService.ProductPicklistOption option : results) {
 			if (option.value == product.Id) {
 				found = true;
 				System.assertEquals('MODEL-ABC-123', option.model);
@@ -1184,7 +1209,7 @@ private class CreateReturnOrderControllerTest {
 		Account account = [SELECT Id, Name FROM Account LIMIT 1];
 
 		Test.startTest();
-		CreateReturnOrderController.AccountReadinessResult result =
+		CreateReturnOrderService.AccountReadinessResult result =
 			CreateReturnOrderController.validateAccountForReturnOrder(account.Id);
 		Test.stopTest();
 
@@ -1201,7 +1226,7 @@ private class CreateReturnOrderControllerTest {
 		update account;
 
 		Test.startTest();
-		CreateReturnOrderController.AccountReadinessResult result =
+		CreateReturnOrderService.AccountReadinessResult result =
 			CreateReturnOrderController.validateAccountForReturnOrder(account.Id);
 		Test.stopTest();
 
@@ -1213,7 +1238,7 @@ private class CreateReturnOrderControllerTest {
 	@isTest
 	static void testValidateAccountForReturnOrder_nullAccount() {
 		Test.startTest();
-		CreateReturnOrderController.AccountReadinessResult result =
+		CreateReturnOrderService.AccountReadinessResult result =
 			CreateReturnOrderController.validateAccountForReturnOrder(null);
 		Test.stopTest();
 
@@ -1228,7 +1253,7 @@ private class CreateReturnOrderControllerTest {
 		Department__c testDepartment = [SELECT Id, Name FROM Department__c LIMIT 1];
 
 		Test.startTest();
-		List<CreateReturnOrderController.PicklistOption> departments =
+		List<CreateReturnOrderService.PicklistOption> departments =
 			CreateReturnOrderController.getDepartmentsForAccount(account.Id, null);
 		Test.stopTest();
 
@@ -1245,7 +1270,7 @@ private class CreateReturnOrderControllerTest {
 		insert otherDepartment;
 
 		Test.startTest();
-		List<CreateReturnOrderController.PicklistOption> departments =
+		List<CreateReturnOrderService.PicklistOption> departments =
 			CreateReturnOrderController.getDepartmentsForAccount(
 				account.Id,
 				new List<String>{ otherDepartment.Id }
@@ -1255,7 +1280,7 @@ private class CreateReturnOrderControllerTest {
 		System.assertEquals(2, departments.size());
 
 		Set<Id> departmentIds = new Set<Id>();
-		for (CreateReturnOrderController.PicklistOption option : departments) {
+		for (CreateReturnOrderService.PicklistOption option : departments) {
 			departmentIds.add(option.value);
 		}
 		System.assert(departmentIds.contains(accountDepartment.Id));
@@ -1264,12 +1289,16 @@ private class CreateReturnOrderControllerTest {
 
 	@isTest
 	static void testGetDepartmentsForAccount_nullAccount() {
+		Boolean threw = false;
 		Test.startTest();
-		List<CreateReturnOrderController.PicklistOption> departments =
+		try {
 			CreateReturnOrderController.getDepartmentsForAccount(null, null);
+			Assert.fail('Expected AuraHandledException');
+		} catch (AuraHandledException e) {
+			threw = true;
+		}
 		Test.stopTest();
-
-		System.assertEquals(0, departments.size());
+		Assert.isTrue(threw);
 	}
 
 	@isTest
@@ -1283,7 +1312,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		CreateReturnOrderController.CreateResult result = CreateReturnOrderController.createReturnOrder(
+		CreateReturnOrderService.CreateResult result = CreateReturnOrderController.createReturnOrder(
 			JSON.serialize(header),
 			null
 		);
@@ -1327,7 +1356,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		CreateReturnOrderController.CreateResult result = CreateReturnOrderController.createReturnOrder(
+		CreateReturnOrderService.CreateResult result = CreateReturnOrderController.createReturnOrder(
 			JSON.serialize(header),
 			JSON.serialize(lines)
 		);
@@ -1376,7 +1405,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		CreateReturnOrderController.CreateResult result = CreateReturnOrderController.createReturnOrder(
+		CreateReturnOrderService.CreateResult result = CreateReturnOrderController.createReturnOrder(
 			JSON.serialize(header),
 			JSON.serialize(lines)
 		);
@@ -1550,7 +1579,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		CreateReturnOrderController.CreateResult result = CreateReturnOrderController.createReturnOrder(
+		CreateReturnOrderService.CreateResult result = CreateReturnOrderController.createReturnOrder(
 			JSON.serialize(header),
 			JSON.serialize(lines)
 		);
@@ -1581,7 +1610,7 @@ private class CreateReturnOrderControllerTest {
 		Account account = [SELECT Id FROM Account LIMIT 1];
 
 		Test.startTest();
-		CreateReturnOrderController.CreateContactResult result =
+		CreateReturnOrderService.CreateContactResult result =
 			CreateReturnOrderController.createAccountContact(
 				account.Id,
 				'Jane',
@@ -1763,7 +1792,7 @@ private class CreateReturnOrderControllerTest {
 		Account account = [SELECT Id FROM Account LIMIT 1];
 
 		Test.startTest();
-		CreateReturnOrderController.InitContext ctx =
+		CreateReturnOrderService.InitContext ctx =
 			CreateReturnOrderController.getInitialContext(account.Id, 'Account', null);
 		Test.stopTest();
 
@@ -1833,7 +1862,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		CreateReturnOrderController.LineRoutingValidation validation =
+		CreateReturnOrderService.LineRoutingValidation validation =
 			CreateReturnOrderController.validateLineRoutingMatches(
 				JSON.serialize(header),
 				JSON.serialize(lines)
@@ -1882,7 +1911,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		CreateReturnOrderController.LineRoutingValidation validation =
+		CreateReturnOrderService.LineRoutingValidation validation =
 			CreateReturnOrderController.validateLineRoutingMatches(
 				JSON.serialize(header),
 				JSON.serialize(lines)
@@ -1962,7 +1991,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		List<CreateReturnOrderController.ProposedReturnOrderGroup> groups =
+		List<CreateReturnOrderService.ProposedReturnOrderGroup> groups =
 			CreateReturnOrderController.buildReturnOrderPlan(
 				JSON.serialize(header),
 				JSON.serialize(lines)
@@ -1975,7 +2004,7 @@ private class CreateReturnOrderControllerTest {
 		Boolean foundYesGroup = false;
 		Boolean foundNoBatchGroup = false;
 
-		for (CreateReturnOrderController.ProposedReturnOrderGroup proposedGroup : groups) {
+		for (CreateReturnOrderService.ProposedReturnOrderGroup proposedGroup : groups) {
 			totalLines += proposedGroup.lineCount;
 			if (proposedGroup.groupKey ==
 				groupKeyFor('Serialized', String.valueOf(serialRepairCenter.Id))) {
@@ -2039,7 +2068,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		List<CreateReturnOrderController.ProposedReturnOrderGroup> groups =
+		List<CreateReturnOrderService.ProposedReturnOrderGroup> groups =
 			CreateReturnOrderController.buildReturnOrderPlan(
 				JSON.serialize(header),
 				JSON.serialize(lines)
@@ -2108,7 +2137,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		List<CreateReturnOrderController.ProposedReturnOrderGroup> groups =
+		List<CreateReturnOrderService.ProposedReturnOrderGroup> groups =
 			CreateReturnOrderController.buildReturnOrderPlan(
 				JSON.serialize(header),
 				JSON.serialize(lines)
@@ -2120,7 +2149,7 @@ private class CreateReturnOrderControllerTest {
 		Boolean foundStandardGroup = false;
 		Boolean foundModRequestGroup = false;
 
-		for (CreateReturnOrderController.ProposedReturnOrderGroup proposedGroup : groups) {
+		for (CreateReturnOrderService.ProposedReturnOrderGroup proposedGroup : groups) {
 			if (proposedGroup.groupKey ==
 				groupKeyFor('Instruments', String.valueOf(repairCenter.Id))) {
 				foundStandardGroup = true;
@@ -2206,7 +2235,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		List<CreateReturnOrderController.ProposedReturnOrderGroup> groups =
+		List<CreateReturnOrderService.ProposedReturnOrderGroup> groups =
 			CreateReturnOrderController.buildReturnOrderPlan(
 				JSON.serialize(header),
 				JSON.serialize(lines)
@@ -2222,7 +2251,7 @@ private class CreateReturnOrderControllerTest {
 		Boolean foundStandardGroup = false;
 		Boolean foundRepairExchangeGroup = false;
 
-		for (CreateReturnOrderController.ProposedReturnOrderGroup proposedGroup : groups) {
+		for (CreateReturnOrderService.ProposedReturnOrderGroup proposedGroup : groups) {
 			if (
 				proposedGroup.groupKey ==
 				groupKeyFor('Serialized', String.valueOf(repairCenter.Id))
@@ -2301,7 +2330,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		List<CreateReturnOrderController.ProposedReturnOrderGroup> groups =
+		List<CreateReturnOrderService.ProposedReturnOrderGroup> groups =
 			CreateReturnOrderController.buildReturnOrderPlan(
 				JSON.serialize(header),
 				JSON.serialize(lines)
@@ -2310,20 +2339,20 @@ private class CreateReturnOrderControllerTest {
 
 		System.assertEquals(2, groups.size(), 'Expected two return order groups.');
 
-		Map<String, CreateReturnOrderController.ProposedReturnOrderGroup> groupsByKey =
-			new Map<String, CreateReturnOrderController.ProposedReturnOrderGroup>();
-		for (CreateReturnOrderController.ProposedReturnOrderGroup proposedGroup : groups) {
+		Map<String, CreateReturnOrderService.ProposedReturnOrderGroup> groupsByKey =
+			new Map<String, CreateReturnOrderService.ProposedReturnOrderGroup>();
+		for (CreateReturnOrderService.ProposedReturnOrderGroup proposedGroup : groups) {
 			groupsByKey.put(proposedGroup.groupKey, proposedGroup);
 		}
 
-		CreateReturnOrderController.ProposedReturnOrderGroup serialGroup =
+		CreateReturnOrderService.ProposedReturnOrderGroup serialGroup =
 			groupsByKey.get(groupKeyFor('Serialized', String.valueOf(serialRepairCenter.Id)));
 		System.assertNotEquals(null, serialGroup);
 		System.assertEquals(false, serialGroup.requiresRepairCenterSelection);
 		System.assertEquals(1, serialGroup.lineCount);
 		System.assertEquals('Serialized', serialGroup.returnOrderType);
 
-		CreateReturnOrderController.ProposedReturnOrderGroup unassignedGroup =
+		CreateReturnOrderService.ProposedReturnOrderGroup unassignedGroup =
 			groupsByKey.get(groupKeyFor('Instruments', 'UNASSIGNED'));
 		System.assertNotEquals(null, unassignedGroup);
 		System.assertEquals(true, unassignedGroup.requiresRepairCenterSelection);
@@ -2385,7 +2414,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		List<CreateReturnOrderController.ProposedReturnOrderGroup> groups =
+		List<CreateReturnOrderService.ProposedReturnOrderGroup> groups =
 			CreateReturnOrderController.buildReturnOrderPlan(
 				JSON.serialize(header),
 				JSON.serialize(lines)
@@ -2399,7 +2428,7 @@ private class CreateReturnOrderControllerTest {
 		);
 
 		Set<String> returnOrderTypes = new Set<String>();
-		for (CreateReturnOrderController.ProposedReturnOrderGroup proposedGroup : groups) {
+		for (CreateReturnOrderService.ProposedReturnOrderGroup proposedGroup : groups) {
 			returnOrderTypes.add(proposedGroup.returnOrderType);
 			System.assertEquals(1, proposedGroup.lineCount);
 		}
@@ -2473,7 +2502,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		List<CreateReturnOrderController.ProposedReturnOrderGroup> groups =
+		List<CreateReturnOrderService.ProposedReturnOrderGroup> groups =
 			CreateReturnOrderController.buildReturnOrderPlan(
 				JSON.serialize(header),
 				JSON.serialize(lines)
@@ -2485,7 +2514,7 @@ private class CreateReturnOrderControllerTest {
 			groups.size(),
 			'Different product lines routed to the same center must use separate return orders.'
 		);
-		for (CreateReturnOrderController.ProposedReturnOrderGroup proposedGroup : groups) {
+		for (CreateReturnOrderService.ProposedReturnOrderGroup proposedGroup : groups) {
 			System.Assert.areEqual(1, proposedGroup.lineCount);
 			System.Assert.areEqual(String.valueOf(repairCenter.Id), proposedGroup.repairCenterId);
 		}
@@ -2566,7 +2595,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		List<CreateReturnOrderController.ProposedReturnOrderGroup> groups =
+		List<CreateReturnOrderService.ProposedReturnOrderGroup> groups =
 			CreateReturnOrderController.buildReturnOrderPlan(
 				JSON.serialize(header),
 				JSON.serialize(lines)
@@ -2579,7 +2608,7 @@ private class CreateReturnOrderControllerTest {
 			'Different customer PO numbers must use separate return orders.'
 		);
 		Set<Integer> lineCounts = new Set<Integer>();
-		for (CreateReturnOrderController.ProposedReturnOrderGroup proposedGroup : groups) {
+		for (CreateReturnOrderService.ProposedReturnOrderGroup proposedGroup : groups) {
 			lineCounts.add(proposedGroup.lineCount);
 			System.Assert.areEqual(String.valueOf(repairCenter.Id), proposedGroup.repairCenterId);
 		}
@@ -2653,7 +2682,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		List<CreateReturnOrderController.ProposedReturnOrderGroup> groups =
+		List<CreateReturnOrderService.ProposedReturnOrderGroup> groups =
 			CreateReturnOrderController.buildReturnOrderPlan(
 				JSON.serialize(header),
 				JSON.serialize(lines)
@@ -2665,7 +2694,7 @@ private class CreateReturnOrderControllerTest {
 			groups.size(),
 			'Lines with different Ship-To accounts must use separate return orders.'
 		);
-		for (CreateReturnOrderController.ProposedReturnOrderGroup proposedGroup : groups) {
+		for (CreateReturnOrderService.ProposedReturnOrderGroup proposedGroup : groups) {
 			System.Assert.areEqual(1, proposedGroup.lineCount);
 			System.Assert.areEqual(String.valueOf(repairCenter.Id), proposedGroup.repairCenterId);
 		}
@@ -2729,7 +2758,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		List<CreateReturnOrderController.ProposedReturnOrderGroup> groups =
+		List<CreateReturnOrderService.ProposedReturnOrderGroup> groups =
 			CreateReturnOrderController.buildReturnOrderPlan(
 				JSON.serialize(header),
 				JSON.serialize(lines)
@@ -2804,7 +2833,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		List<CreateReturnOrderController.ProposedReturnOrderGroup> groups =
+		List<CreateReturnOrderService.ProposedReturnOrderGroup> groups =
 			CreateReturnOrderController.buildReturnOrderPlan(
 				JSON.serialize(header),
 				JSON.serialize(lines)
@@ -2893,7 +2922,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		List<CreateReturnOrderController.ProposedReturnOrderGroup> groups =
+		List<CreateReturnOrderService.ProposedReturnOrderGroup> groups =
 			CreateReturnOrderController.buildReturnOrderPlan(
 				JSON.serialize(header),
 				JSON.serialize(lines)
@@ -2906,7 +2935,7 @@ private class CreateReturnOrderControllerTest {
 		Boolean foundYesGroup = false;
 		Boolean foundNoBatchGroup = false;
 
-		for (CreateReturnOrderController.ProposedReturnOrderGroup proposedGroup : groups) {
+		for (CreateReturnOrderService.ProposedReturnOrderGroup proposedGroup : groups) {
 			totalLines += proposedGroup.lineCount;
 			if (proposedGroup.groupKey ==
 				groupKeyFor('Other (Non-Serialized)', String.valueOf(otherRepairCenter.Id))) {
@@ -2998,7 +3027,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		List<CreateReturnOrderController.ProposedReturnOrderGroup> groups =
+		List<CreateReturnOrderService.ProposedReturnOrderGroup> groups =
 			CreateReturnOrderController.buildReturnOrderPlan(
 				JSON.serialize(header),
 				JSON.serialize(lines)
@@ -3015,7 +3044,7 @@ private class CreateReturnOrderControllerTest {
 		Boolean foundYesGroup = false;
 		Boolean foundNoBatchGroup = false;
 
-		for (CreateReturnOrderController.ProposedReturnOrderGroup proposedGroup : groups) {
+		for (CreateReturnOrderService.ProposedReturnOrderGroup proposedGroup : groups) {
 			totalLines += proposedGroup.lineCount;
 			if (proposedGroup.groupKey ==
 				groupKeyFor('Instruments', String.valueOf(instrumentRepairCenter.Id))) {
@@ -3080,7 +3109,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		CreateReturnOrderController.CreateOrdersResult result =
+		CreateReturnOrderService.CreateOrdersResult result =
 			CreateReturnOrderController.createReturnOrders(
 				JSON.serialize(header),
 				JSON.serialize(groups)
@@ -3195,7 +3224,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		CreateReturnOrderController.CreateResult result = CreateReturnOrderController.createReturnOrder(
+		CreateReturnOrderService.CreateResult result = CreateReturnOrderController.createReturnOrder(
 			JSON.serialize(header),
 			JSON.serialize(lines)
 		);
@@ -3320,7 +3349,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		CreateReturnOrderController.CreateResult result = CreateReturnOrderController.createReturnOrder(
+		CreateReturnOrderService.CreateResult result = CreateReturnOrderController.createReturnOrder(
 			JSON.serialize(header),
 			JSON.serialize(lines)
 		);
@@ -3336,11 +3365,32 @@ private class CreateReturnOrderControllerTest {
 	}
 
 	@isTest
-	static void testCreateReturnOrder_instruments_legPositionersAdditionalServiceFields() {
+	static void testCreateReturnOrder_otherSerialized_legPositionersAdditionalServiceFields() {
+		// GW-6346: pad replacement moved from Instruments to Other (Serialized) Stirrup.
 		Account account = [SELECT Id FROM Account LIMIT 1];
+		account.BillingCountryCode = 'US';
+		account.BillingStateCode = 'OH';
+		update account;
 		Contact contact = [SELECT Id FROM Contact LIMIT 1];
-		Asset asset = [SELECT Id, Product2Id FROM Asset LIMIT 1];
 		Department__c testDepartment = [SELECT Id FROM Department__c LIMIT 1];
+		Product2 stirrupProduct = new Product2(
+			Name = 'Other Serialized Stirrup Product',
+			ProductType__c = 'Service Asset',
+			ProductLine__c = 'INSTRUMENT',
+			IsActive = true
+		);
+		insert stirrupProduct;
+		Schema.Location repairCenter = new Schema.Location(
+			Name = 'Stirrup Pad Repair Center',
+			LocationType = 'Repair Center'
+		);
+		insert repairCenter;
+		insert new RepairCenterRoutingRule__c(
+			OperatingUnit__c = '82',
+			ProductLine__c = 'INSTRUMENT',
+			ShipState__c = 'OH',
+			RepairCenter__c = repairCenter.Id
+		);
 
 		Map<String, Object> header = new Map<String, Object>{
 			'accountId' => account.Id,
@@ -3349,17 +3399,19 @@ private class CreateReturnOrderControllerTest {
 
 		List<Object> lines = new List<Object>{
 			new Map<String, Object>{
-				'lineType' => 'instruments',
-				'serialized' => false,
-				'product2Id' => asset.Product2Id,
+				'lineType' => 'other-serialized',
+				'roliLineType' => 'Other (Serialized)',
+				'serialized' => true,
+				'product2Id' => stirrupProduct.Id,
 				'productLine' => 'INSTRUMENT',
+				'itemType' => 'Stirrup',
 				'itemDescription' => 'Stirrup set',
 				'serialNumber' => 'LEG-001',
+				'model' => 'STIRRUP-MODEL',
 				'disinfected' => getDisinfectedYesValueForTest(),
 				'departmentId' => testDepartment.Id,
 				'contactId' => contact.Id,
 				'additionalServices' => true,
-				'modRequest' => false,
 				'legPositionersStirrup' => getLegPositionersStirrupValueForTest(),
 				'reportedProblem' => 'Pad worn',
 				'estimateRequired' => 'Pre-Approved',
@@ -3368,7 +3420,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		CreateReturnOrderController.CreateResult result = CreateReturnOrderController.createReturnOrder(
+		CreateReturnOrderService.CreateResult result = CreateReturnOrderController.createReturnOrder(
 			JSON.serialize(header),
 			JSON.serialize(lines)
 		);
@@ -3416,7 +3468,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		CreateReturnOrderController.CreateResult result = CreateReturnOrderController.createReturnOrder(
+		CreateReturnOrderService.CreateResult result = CreateReturnOrderController.createReturnOrder(
 			JSON.serialize(header),
 			JSON.serialize(lines)
 		);
@@ -3462,7 +3514,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		CreateReturnOrderController.CreateResult result = CreateReturnOrderController.createReturnOrder(
+		CreateReturnOrderService.CreateResult result = CreateReturnOrderController.createReturnOrder(
 			JSON.serialize(header),
 			JSON.serialize(lines)
 		);
@@ -3625,7 +3677,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		CreateReturnOrderController.CreateResult result = CreateReturnOrderController.createReturnOrder(
+		CreateReturnOrderService.CreateResult result = CreateReturnOrderController.createReturnOrder(
 			JSON.serialize(header),
 			JSON.serialize(lines)
 		);
@@ -3705,7 +3757,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		CreateReturnOrderController.CreateResult result = CreateReturnOrderController.createReturnOrder(
+		CreateReturnOrderService.CreateResult result = CreateReturnOrderController.createReturnOrder(
 			JSON.serialize(header),
 			JSON.serialize(lines)
 		);
@@ -3779,13 +3831,13 @@ private class CreateReturnOrderControllerTest {
 		insert endocamProduct;
 
 		Test.startTest();
-		List<CreateReturnOrderController.ProductPicklistOption> options =
+		List<CreateReturnOrderService.ProductPicklistOption> options =
 			CreateReturnOrderController.getProductsForReturnOrderLine('ENDOCAM', false, null);
 		Test.stopTest();
 
 		System.assert(!options.isEmpty(), 'Expected at least one ENDOCAM product option.');
 		Boolean found = false;
-		for (CreateReturnOrderController.ProductPicklistOption option : options) {
+		for (CreateReturnOrderService.ProductPicklistOption option : options) {
 			if (option.value == endocamProduct.Id) {
 				found = true;
 				System.assert(option.label.contains('Other Line Endocam Product'));
@@ -3816,7 +3868,7 @@ private class CreateReturnOrderControllerTest {
 		insert nonServiceAssetProduct;
 
 		Test.startTest();
-		List<CreateReturnOrderController.ProductPicklistOption> options =
+		List<CreateReturnOrderService.ProductPicklistOption> options =
 			CreateReturnOrderController.getProductsForReturnOrderLine('INSTRUMENT', true, null);
 		Test.stopTest();
 
@@ -3824,7 +3876,7 @@ private class CreateReturnOrderControllerTest {
 		// Assert the Service Asset filter includes our product and excludes the non-Service Asset one.
 		Boolean foundServiceAsset = false;
 		Boolean foundNonServiceAsset = false;
-		for (CreateReturnOrderController.ProductPicklistOption option : options) {
+		for (CreateReturnOrderService.ProductPicklistOption option : options) {
 			if (option.value == serviceAssetProduct.Id) {
 				foundServiceAsset = true;
 			}
@@ -3864,13 +3916,13 @@ private class CreateReturnOrderControllerTest {
 		);
 
 		Test.startTest();
-		List<CreateReturnOrderController.ProductPicklistOption> options =
+		List<CreateReturnOrderService.ProductPicklistOption> options =
 			CreateReturnOrderController.getProductsForReturnOrderLine(null, true, null);
 		Test.stopTest();
 
 		System.assert(!options.isEmpty(), 'Expected active service asset products.');
 		Boolean foundSerializedProduct = false;
-		for (CreateReturnOrderController.ProductPicklistOption option : options) {
+		for (CreateReturnOrderService.ProductPicklistOption option : options) {
 			if (option.value == serializedProduct.Id) {
 				foundSerializedProduct = true;
 				System.assert(option.label.contains('Serialized Service Asset Product'));
@@ -3904,7 +3956,7 @@ private class CreateReturnOrderControllerTest {
 		);
 
 		Test.startTest();
-		List<CreateReturnOrderController.ProductPicklistOption> options =
+		List<CreateReturnOrderService.ProductPicklistOption> options =
 			CreateReturnOrderController.getProductsForReturnOrderLine(null, true, 'SEARCH-SER');
 		Test.stopTest();
 
@@ -3931,7 +3983,7 @@ private class CreateReturnOrderControllerTest {
 		);
 
 		Test.startTest();
-		List<CreateReturnOrderController.ProductPicklistOption> options =
+		List<CreateReturnOrderService.ProductPicklistOption> options =
 			CreateReturnOrderController.getProductsForReturnOrderLine('ENDOCAM', false, 'SEARCH-ENDO');
 		Test.stopTest();
 
@@ -3959,7 +4011,7 @@ private class CreateReturnOrderControllerTest {
 		insert otherInstrument;
 
 		Test.startTest();
-		List<CreateReturnOrderController.ProductPicklistOption> options =
+		List<CreateReturnOrderService.ProductPicklistOption> options =
 			CreateReturnOrderController.getProductsForReturnOrderLine(
 				'INSTRUMENT',
 				false,
@@ -3970,7 +4022,7 @@ private class CreateReturnOrderControllerTest {
 
 		Boolean foundStirrup = false;
 		Boolean foundOther = false;
-		for (CreateReturnOrderController.ProductPicklistOption option : options) {
+		for (CreateReturnOrderService.ProductPicklistOption option : options) {
 			if (option.value == stirrupProduct.Id) {
 				foundStirrup = true;
 			}
@@ -4042,7 +4094,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		List<CreateReturnOrderController.ProposedReturnOrderGroup> groups =
+		List<CreateReturnOrderService.ProposedReturnOrderGroup> groups =
 			CreateReturnOrderController.buildReturnOrderPlan(
 				JSON.serialize(header),
 				JSON.serialize(lines)
@@ -4050,7 +4102,7 @@ private class CreateReturnOrderControllerTest {
 		Test.stopTest();
 
 		System.assertEquals(2, groups.size(), 'Each Stirrup line must be its own Return Order.');
-		for (CreateReturnOrderController.ProposedReturnOrderGroup proposedGroup : groups) {
+		for (CreateReturnOrderService.ProposedReturnOrderGroup proposedGroup : groups) {
 			System.assertEquals(1, proposedGroup.lineCount);
 			System.assertEquals('Other (Serialized)', proposedGroup.returnOrderType);
 			System.assert(
@@ -4125,7 +4177,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		CreateReturnOrderController.CreateResult result = CreateReturnOrderController.createReturnOrder(
+		CreateReturnOrderService.CreateResult result = CreateReturnOrderController.createReturnOrder(
 			JSON.serialize(header),
 			JSON.serialize(lines)
 		);
@@ -4215,7 +4267,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		List<CreateReturnOrderController.ProposedReturnOrderGroup> groups =
+		List<CreateReturnOrderService.ProposedReturnOrderGroup> groups =
 			CreateReturnOrderController.buildReturnOrderPlan(
 				JSON.serialize(header),
 				JSON.serialize(lines)
@@ -4223,7 +4275,7 @@ private class CreateReturnOrderControllerTest {
 		Test.stopTest();
 
 		System.assertEquals(2, groups.size(), 'Max items per return of 1 should split lines.');
-		for (CreateReturnOrderController.ProposedReturnOrderGroup proposedGroup : groups) {
+		for (CreateReturnOrderService.ProposedReturnOrderGroup proposedGroup : groups) {
 			System.assertEquals(1, proposedGroup.lineCount);
 			System.assertEquals('Serialized', proposedGroup.returnOrderType);
 			System.assert(
@@ -4278,7 +4330,7 @@ private class CreateReturnOrderControllerTest {
 		}
 
 		Test.startTest();
-		List<CreateReturnOrderController.ProposedReturnOrderGroup> groups =
+		List<CreateReturnOrderService.ProposedReturnOrderGroup> groups =
 			CreateReturnOrderController.buildReturnOrderPlan(
 				JSON.serialize(header),
 				JSON.serialize(lines)
@@ -4289,7 +4341,7 @@ private class CreateReturnOrderControllerTest {
 		Integer totalLines = 0;
 		Boolean foundTwoLineGroup = false;
 		Boolean foundOneLineGroup = false;
-		for (CreateReturnOrderController.ProposedReturnOrderGroup proposedGroup : groups) {
+		for (CreateReturnOrderService.ProposedReturnOrderGroup proposedGroup : groups) {
 			totalLines += proposedGroup.lineCount;
 			if (proposedGroup.lineCount == 2) {
 				foundTwoLineGroup = true;
@@ -4338,7 +4390,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		CreateReturnOrderController.CreateResult result = CreateReturnOrderController.createReturnOrder(
+		CreateReturnOrderService.CreateResult result = CreateReturnOrderController.createReturnOrder(
 			JSON.serialize(header),
 			JSON.serialize(lines)
 		);
@@ -4400,7 +4452,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		CreateReturnOrderController.CreateOrdersResult result =
+		CreateReturnOrderService.CreateOrdersResult result =
 			CreateReturnOrderController.createReturnOrders(
 				JSON.serialize(header),
 				JSON.serialize(groups)
@@ -4505,7 +4557,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		CreateReturnOrderController.CreateOrdersResult result =
+		CreateReturnOrderService.CreateOrdersResult result =
 			CreateReturnOrderController.createReturnOrders(
 				JSON.serialize(header),
 				JSON.serialize(groups)
@@ -4568,7 +4620,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		CreateReturnOrderController.CreateResult result = CreateReturnOrderController.createReturnOrder(
+		CreateReturnOrderService.CreateResult result = CreateReturnOrderController.createReturnOrder(
 			JSON.serialize(header),
 			JSON.serialize(lines)
 		);
@@ -4647,7 +4699,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		List<CreateReturnOrderController.ProposedReturnOrderGroup> groups =
+		List<CreateReturnOrderService.ProposedReturnOrderGroup> groups =
 			CreateReturnOrderController.buildReturnOrderPlan(
 				JSON.serialize(header),
 				JSON.serialize(lines)
@@ -4712,7 +4764,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		List<CreateReturnOrderController.ProposedReturnOrderGroup> groups =
+		List<CreateReturnOrderService.ProposedReturnOrderGroup> groups =
 			CreateReturnOrderController.buildReturnOrderPlan(
 				JSON.serialize(header),
 				JSON.serialize(lines)
@@ -4792,7 +4844,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		CreateReturnOrderController.CreateOrdersResult result =
+		CreateReturnOrderService.CreateOrdersResult result =
 			CreateReturnOrderController.createReturnOrders(
 				JSON.serialize(header),
 				JSON.serialize(groups)
@@ -4859,7 +4911,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		List<CreateReturnOrderController.ShipToAddressOption> options =
+		List<CreateReturnOrderService.ShipToAddressOption> options =
 			CreateReturnOrderController.getShipToAddressesForAccount(customer.Id);
 		Test.stopTest();
 
@@ -4942,7 +4994,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		CreateReturnOrderController.CreateResult result = CreateReturnOrderController.createReturnOrder(
+		CreateReturnOrderService.CreateResult result = CreateReturnOrderController.createReturnOrder(
 			JSON.serialize(header),
 			JSON.serialize(lines)
 		);
@@ -5042,7 +5094,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		List<CreateReturnOrderController.ProposedReturnOrderGroup> groups =
+		List<CreateReturnOrderService.ProposedReturnOrderGroup> groups =
 			CreateReturnOrderController.buildReturnOrderPlan(
 				JSON.serialize(header),
 				JSON.serialize(lines)
@@ -5051,7 +5103,7 @@ private class CreateReturnOrderControllerTest {
 
 		System.Assert.areEqual(2, groups.size(), 'Each Ship-To state code routes separately.');
 		Set<String> repairCenterIds = new Set<String>();
-		for (CreateReturnOrderController.ProposedReturnOrderGroup proposedGroup : groups) {
+		for (CreateReturnOrderService.ProposedReturnOrderGroup proposedGroup : groups) {
 			System.Assert.areEqual(1, proposedGroup.lineCount);
 			System.Assert.areEqual(false, proposedGroup.requiresRepairCenterSelection);
 			repairCenterIds.add(proposedGroup.repairCenterId);
@@ -5109,7 +5161,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		List<CreateReturnOrderController.ProposedReturnOrderGroup> groups =
+		List<CreateReturnOrderService.ProposedReturnOrderGroup> groups =
 			CreateReturnOrderController.buildReturnOrderPlan(
 				JSON.serialize(header),
 				JSON.serialize(lines)
@@ -5187,7 +5239,7 @@ private class CreateReturnOrderControllerTest {
 		insert new List<WorkOrderLineItem>{ marked, unmarked, parentLine };
 
 		Test.startTest();
-		List<CreateReturnOrderController.SiteVisitInstrumentLine> lines =
+		List<CreateReturnOrderService.SiteVisitInstrumentLine> lines =
 			CreateReturnOrderController.getSiteVisitRepairCenterLines(siteVisit.Id);
 		Test.stopTest();
 
@@ -5210,7 +5262,12 @@ private class CreateReturnOrderControllerTest {
 	static void testCreateReturnOrder_siteVisitClearsSendToRepairCenter() {
 		Account account = [SELECT Id FROM Account LIMIT 1];
 		Contact contact = [SELECT Id FROM Contact LIMIT 1];
-		Product2 product = [SELECT Id FROM Product2 LIMIT 1];
+		Product2 product = [
+			SELECT Id
+			FROM Product2
+			WHERE Name = 'Test Service Asset Product'
+			LIMIT 1
+		];
 		Department__c testDepartment = [SELECT Id FROM Department__c LIMIT 1];
 		Schema.Location repairCenter = [SELECT Id FROM Location LIMIT 1];
 
@@ -5250,6 +5307,7 @@ private class CreateReturnOrderControllerTest {
 				'sourceWorkOrderLineItemId' => included.Id,
 				'product2Id' => product.Id,
 				'productLine' => 'INSTRUMENT',
+				'itemDescription' => 'Bent forceps',
 				'serialNumber' => 'SN-RC-1',
 				'model' => 'Forceps',
 				'departmentId' => testDepartment.Id,
@@ -5270,7 +5328,7 @@ private class CreateReturnOrderControllerTest {
 		};
 
 		Test.startTest();
-		CreateReturnOrderController.CreateOrdersResult result =
+		CreateReturnOrderService.CreateOrdersResult result =
 			CreateReturnOrderController.createReturnOrders(
 				JSON.serialize(header),
 				JSON.serialize(groups)
@@ -5292,4 +5350,125 @@ private class CreateReturnOrderControllerTest {
 		System.assertEquals(false, savedLines.get(included.Id).SendToRepairCenter__c);
 		System.assertEquals(true, savedLines.get(leftForNextOrder.Id).SendToRepairCenter__c);
 	}
+
+	@IsTest
+	static void testGetProductDetails_returnsActiveProduct() {
+		Product2 product = [SELECT Id, Name FROM Product2 LIMIT 1];
+
+		Test.startTest();
+		Product2 result = CreateReturnOrderController.getProductDetails(product.Id, false);
+		Test.stopTest();
+
+		Assert.isNotNull(result);
+		Assert.areEqual(product.Id, result.Id);
+	}
+
+	@IsTest
+	static void testControllerMethods_errorPaths_asAuraHandled() {
+		Integer auraCaught = 0;
+
+		Test.startTest();
+		try {
+			CreateReturnOrderController.checkOpenReturnOrdersForAsset(null);
+			Assert.fail('Expected AuraHandledException');
+		} catch (AuraHandledException e) {
+			auraCaught++;
+		}
+		try {
+			CreateReturnOrderController.getAccountDetails(null);
+			Assert.fail('Expected AuraHandledException');
+		} catch (AuraHandledException e) {
+			auraCaught++;
+		}
+		try {
+			CreateReturnOrderController.getShipToAddressesForAccount(null);
+			Assert.fail('Expected AuraHandledException');
+		} catch (AuraHandledException e) {
+			auraCaught++;
+		}
+		try {
+			CreateReturnOrderController.getProductDetails(null, true);
+			Assert.fail('Expected AuraHandledException');
+		} catch (AuraHandledException e) {
+			auraCaught++;
+		}
+		try {
+			CreateReturnOrderController.getContactsForAccount(null);
+			Assert.fail('Expected AuraHandledException');
+		} catch (AuraHandledException e) {
+			auraCaught++;
+		}
+		try {
+			CreateReturnOrderController.createAccountContact(
+				null,
+				'First',
+				'Last',
+				null,
+				null,
+				null,
+				false
+			);
+			Assert.fail('Expected AuraHandledException');
+		} catch (AuraHandledException e) {
+			auraCaught++;
+		}
+		try {
+			CreateReturnOrderController.updateContactEmail(null, 'test@example.com');
+			Assert.fail('Expected AuraHandledException');
+		} catch (AuraHandledException e) {
+			auraCaught++;
+		}
+		try {
+			CreateReturnOrderController.getOpenCasesForAccount(null);
+			Assert.fail('Expected AuraHandledException');
+		} catch (AuraHandledException e) {
+			auraCaught++;
+		}
+		try {
+			CreateReturnOrderController.getAssetsForAccount(null);
+			Assert.fail('Expected AuraHandledException');
+		} catch (AuraHandledException e) {
+			auraCaught++;
+		}
+		try {
+			CreateReturnOrderController.getDepartmentsForAccount(null, null);
+			Assert.fail('Expected AuraHandledException');
+		} catch (AuraHandledException e) {
+			auraCaught++;
+		}
+		try {
+			CreateReturnOrderController.validateLineRoutingMatches(null, null);
+			Assert.fail('Expected AuraHandledException');
+		} catch (AuraHandledException e) {
+			auraCaught++;
+		}
+		try {
+			CreateReturnOrderController.buildReturnOrderPlan(null, null);
+			Assert.fail('Expected AuraHandledException');
+		} catch (AuraHandledException e) {
+			auraCaught++;
+		}
+		try {
+			CreateReturnOrderController.createReturnOrders(null, null);
+			Assert.fail('Expected AuraHandledException');
+		} catch (AuraHandledException e) {
+			auraCaught++;
+		}
+		try {
+			CreateReturnOrderController.createReturnOrder(null, null);
+			Assert.fail('Expected AuraHandledException');
+		} catch (AuraHandledException e) {
+			auraCaught++;
+		}
+		try {
+			CreateReturnOrderController.getSiteVisitRepairCenterLines(null);
+			Assert.fail('Expected AuraHandledException');
+		} catch (AuraHandledException e) {
+			auraCaught++;
+		}
+		Test.stopTest();
+
+		Assert.isTrue(auraCaught >= 14, 'Expected Aura catch paths, got ' + auraCaught);
+	}
+
 }

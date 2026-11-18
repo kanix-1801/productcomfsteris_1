@@ -31,42 +31,42 @@
  */
 public with sharing class ContentVersionTriggerHandler extends TriggerHandler {
 
-    // ── Before Insert ─────────────────────────────────────────────────────────
-    // NOTE: This context fires when a new ContentVersion is inserted, which also
-    // causes the platform to create the parent ContentDocument implicitly.
-    // ContentDocumentId is NOT yet available here (document hasn't been created yet).
-    public override void beforeInsert() {
-        if (!AutomationControl.isTriggerEnabled('ContentVersionTrigger')) { return; }
-        ContentVersions domain = new ContentVersions((List<ContentVersion>) Trigger.new);
-        // domain.applyDefaults();
-        // domain.validate();
-    }
+	// ── Before Insert ─────────────────────────────────────────────────────────
+	// NOTE: This context fires when a new ContentVersion is inserted, which also
+	// causes the platform to create the parent ContentDocument implicitly.
+	// ContentDocumentId is NOT yet available here (document hasn't been created yet).
+	public override void beforeInsert() {
+		if (!AutomationControl.isTriggerEnabled('ContentVersionTrigger')) { return; }
+		ContentVersions domain = new ContentVersions((List<ContentVersion>) Trigger.new);
+		// domain.applyDefaults();
+		// domain.validate();
+	}
 
-    // ── After Insert ──────────────────────────────────────────────────────────
-    // NOTE: ContentDocumentId IS populated on Trigger.new records at this point.
-    // This is the correct context for creating ContentDocumentLink records or
-    // triggering notifications that require the ContentDocumentId to be known.
-    public override void afterInsert() {
-        if (!AutomationControl.isTriggerEnabled('ContentVersionTrigger')) { return; }
-        // Set<Id> contentVersionIds = new Map<Id, ContentVersion>((List<ContentVersion>) Trigger.new).keySet();
-        // ContentVersionsService.handleNewContentVersions(contentVersionIds);
-    }
+	// ── After Insert ──────────────────────────────────────────────────────────
+	// NOTE: ContentDocumentId IS populated on Trigger.new records at this point.
+	// This is the correct context for creating ContentDocumentLink records or
+	// triggering notifications that require the ContentDocumentId to be known.
+	public override void afterInsert() {
+		if (!AutomationControl.isTriggerEnabled('ContentVersionTrigger')) { return; }
+		// Set<Id> contentVersionIds = new Map<Id, ContentVersion>((List<ContentVersion>) Trigger.new).keySet();
+		// ContentVersionsService.handleNewContentVersions(contentVersionIds);
+	}
 
-    // ── Before Update ─────────────────────────────────────────────────────────
-    public override void beforeUpdate() {
-        if (!AutomationControl.isTriggerEnabled('ContentVersionTrigger')) { return; }
-        ContentVersions domain = new ContentVersions((List<ContentVersion>) Trigger.new);
-        // domain.validate();
-    }
+	// ── Before Update ─────────────────────────────────────────────────────────
+	public override void beforeUpdate() {
+		if (!AutomationControl.isTriggerEnabled('ContentVersionTrigger')) { return; }
+		ContentVersions domain = new ContentVersions((List<ContentVersion>) Trigger.new);
+		// domain.validate();
+	}
 
-    // ── After Update ──────────────────────────────────────────────────────────
-    public override void afterUpdate() {
-        if (!AutomationControl.isTriggerEnabled('ContentVersionTrigger')) { return; }
-        // Set<Id> contentVersionIds = new Map<Id, ContentVersion>((List<ContentVersion>) Trigger.new).keySet();
-        // ContentVersionsService.handleUpdatedContentVersions(contentVersionIds);
-    }
+	// ── After Update ──────────────────────────────────────────────────────────
+	public override void afterUpdate() {
+		if (!AutomationControl.isTriggerEnabled('ContentVersionTrigger')) { return; }
+		// Set<Id> contentVersionIds = new Map<Id, ContentVersion>((List<ContentVersion>) Trigger.new).keySet();
+		// ContentVersionsService.handleUpdatedContentVersions(contentVersionIds);
+	}
 
-    // ── NOT SUPPORTED — Delete and Undelete contexts are intentionally absent ─
-    // beforeDelete(), afterDelete(), and afterUndelete() are NOT overridden here.
-    // See class header for platform restrictions on these contexts for ContentVersion.
+	// ── NOT SUPPORTED — Delete and Undelete contexts are intentionally absent ─
+	// beforeDelete(), afterDelete(), and afterUndelete() are NOT overridden here.
+	// See class header for platform restrictions on these contexts for ContentVersion.
 }

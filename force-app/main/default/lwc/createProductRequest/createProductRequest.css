@@ -26,29 +26,33 @@
 }
 
 .part-head {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.5rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(11rem, 42%);
+    column-gap: 0.75rem;
+    align-items: start;
 }
 
-.part-main {
-    flex: 1 1 auto;
-    min-width: 0;
-}
-
-.part-side {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    flex: 1 1 40%;
+.part-info {
+    grid-column: 1;
+    grid-row: 1;
     min-width: 0;
 }
 
 .part-side-top {
+    grid-column: 2;
+    grid-row: 1;
     display: flex;
     align-items: flex-start;
-    width: 100%;
+    min-width: 0;
     gap: 0.5rem;
+}
+
+.part-qty {
+    grid-column: 1;
+    grid-row: 2;
+    align-self: center;
+    margin-top: 0.75rem;
+    min-width: 0;
 }
 
 .part-remove {
@@ -58,11 +62,22 @@
 }
 
 .ship-set {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: center;
+    justify-self: start;
     width: 100%;
-    margin-top: 0.25rem;
+    margin-top: 0.75rem;
+}
+
+.ship-set lightning-input {
+    display: block;
+    margin: 0;
 }
 
 .substitute {
+    grid-column: 2;
+    grid-row: 3;
     width: 100%;
     margin: 0.25rem 0 0;
     color: #0176d3;

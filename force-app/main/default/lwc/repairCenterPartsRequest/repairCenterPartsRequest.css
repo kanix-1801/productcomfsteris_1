@@ -1,3 +1,34 @@
+/*
+ * Size the list to its columns instead of the full tab. Short columns stay
+ * on one line; the products column uses the rest, up to a little more than
+ * half the tab so long part names can wrap without stretching the row.
+ */
+table.requests-table.slds-table {
+    width: auto;
+    max-width: 62%;
+    table-layout: auto;
+}
+
+.requests-table th,
+.requests-table td {
+    vertical-align: top;
+}
+
+.requests-table .col-number,
+.requests-table .col-status,
+.requests-table .col-type {
+    width: 1%;
+    white-space: nowrap;
+}
+
+.requests-table .col-products {
+    overflow-wrap: break-word;
+}
+
+.requests-table .product-line + .product-line {
+    margin-top: 0.125rem;
+}
+
 .parts-modal {
     z-index: 9001;
 }

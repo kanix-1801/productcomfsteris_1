@@ -146,7 +146,7 @@ export default class ModifierCodes extends LightningElement {
         this.modifierOptions = [];
         this.reasonCodeOptions = [];
         this.workOrderOptions = [];
-        this.isModalOpen = true;
+        this.setModalOpen(true);
         this.optionsLoading = true;
         try {
             const modifierRequest = getPricingModifierOptions({ appliesTo: this.targetKind });
@@ -162,10 +162,32 @@ export default class ModifierCodes extends LightningElement {
             this.workOrderOptions = workOrders || [];
             this.reasonCodeOptions = reasons || [];
         } catch (error) {
-            this.isModalOpen = false;
+            this.setModalOpen(false);
             this.toastError(this.messageFrom(error));
         } finally {
             this.optionsLoading = false;
+        }
+    }
+
+    /**
+     * GW-3458 - The dialog lives in the scrolling panel. Tell the evaluation
+     * header to drop behind it, the same way parts and photos do.
+     * @param {Boolean} open true while the pricing modifier dialog is open
+     */
+    setModalOpen(open) {
+        this.isModalOpen = open;
+        this.dispatchEvent(
+            new CustomEvent('modalchange', {
+                bubbles: true,
+                composed: true,
+                detail: { open }
+            })
+        );
+    }
+
+    disconnectedCallback() {
+        if (this.isModalOpen) {
+            this.setModalOpen(false);
         }
     }
 
@@ -185,7 +207,7 @@ export default class ModifierCodes extends LightningElement {
         if (this.isActing) {
             return;
         }
-        this.isModalOpen = false;
+        this.setModalOpen(false);
     }
 
     async handleSave() {
@@ -205,7 +227,7 @@ export default class ModifierCodes extends LightningElement {
                 orderReferenceId: this.showOrderReference ? this.orderReferenceId || null : null,
                 applyOrderReference: this.showOrderReference
             });
-            this.isModalOpen = false;
+            this.setModalOpen(false);
             await this.loadWorkspace();
         } catch (error) {
             this.toastError(this.messageFrom(error));

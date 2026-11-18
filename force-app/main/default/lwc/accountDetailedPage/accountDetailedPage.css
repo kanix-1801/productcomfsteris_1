@@ -34,8 +34,12 @@
 }
 
 .account-name {
-    flex: 1;
+    flex: 1 1 auto;
     min-width: 0;
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: break-word;
+    word-break: break-word;
 }
 
 .hierarchy-button {

@@ -16,10 +16,10 @@ public with sharing class ReturnOrdersService {
 
 	@TestVisible
 	private static void throwIfSimulated() {
-		if (Test.isRunningTest() && simulateFedExException) {
+		if (simulateFedExException) {
 			throw new FedExService.FedExServiceException('Simulated FedEx exception for coverage');
 		}
-		if (Test.isRunningTest() && simulateGenericException) {
+		if (simulateGenericException) {
 			throw new CalloutException('Simulated exception for coverage');
 		}
 	}
@@ -43,11 +43,9 @@ public with sharing class ReturnOrdersService {
 			insert returnOrders;
 		} catch (ReturnOrders.ReturnOrdersException e) {
 			Logger.error(new LogMessage('ReturnOrdersService.createReturnOrders: Validation failed. {0}', e.getMessage()), e);
-			Logger.saveLog();
 			throw new ReturnOrdersServiceException(e.getMessage(), e);
 		} catch (Exception e) {
 			Logger.error('ReturnOrdersService.createReturnOrders: Unexpected error.', e);
-			Logger.saveLog();
 			throw new ReturnOrdersServiceException('An unexpected error occurred while creating ReturnOrder records.', e);
 		} finally {
 			Logger.saveLog();
@@ -71,11 +69,9 @@ public with sharing class ReturnOrdersService {
 			update returnOrders;
 		} catch (ReturnOrders.ReturnOrdersException e) {
 			Logger.error(new LogMessage('ReturnOrdersService.updateReturnOrders: Validation failed. {0}', e.getMessage()), e);
-			Logger.saveLog();
 			throw new ReturnOrdersServiceException(e.getMessage(), e);
 		} catch (Exception e) {
 			Logger.error('ReturnOrdersService.updateReturnOrders: Unexpected error.', e);
-			Logger.saveLog();
 			throw new ReturnOrdersServiceException('An unexpected error occurred while updating ReturnOrder records.', e);
 		} finally {
 			Logger.saveLog();
@@ -101,7 +97,6 @@ public with sharing class ReturnOrdersService {
 			delete returnOrderList;
 		} catch (Exception e) {
 			Logger.error('ReturnOrdersService.deleteReturnOrders: Unexpected error.', e);
-			Logger.saveLog();
 			throw new ReturnOrdersServiceException('An unexpected error occurred while deleting ReturnOrder records.', e);
 		} finally {
 			Logger.saveLog();
@@ -123,8 +118,9 @@ public with sharing class ReturnOrdersService {
 			return ReturnOrdersSelector.selectById(returnOrderIds);
 		} catch (Exception e) {
 			Logger.error('ReturnOrdersService.getReturnOrdersById: Unexpected error.', e);
-			Logger.saveLog();
 			throw new ReturnOrdersServiceException('An unexpected error occurred while retrieving ReturnOrder records.', e);
+		} finally {
+			Logger.saveLog();
 		}
 	}
 
@@ -1100,14 +1096,16 @@ public with sharing class ReturnOrdersService {
 		ReturnOrder returnOrder,
 		List<ReturnOrderLineItem> lineItems
 	) {
-		if (lineItems == null || lineItems.isEmpty()) {
-			return lineItems == null ? new List<ReturnOrderLineItem>() : lineItems;
+		List<ReturnOrderLineItem> sourceLines =
+			lineItems == null ? new List<ReturnOrderLineItem>() : lineItems;
+		if (sourceLines.isEmpty()) {
+			return sourceLines;
 		}
 		if (!isRepairExchangeReturnOrder(returnOrder)) {
-			return lineItems;
+			return sourceLines;
 		}
 		List<ReturnOrderLineItem> inboundOnly = new List<ReturnOrderLineItem>();
-		for (ReturnOrderLineItem lineItem : lineItems) {
+		for (ReturnOrderLineItem lineItem : sourceLines) {
 			if (isInboundPaperworkLine(lineItem)) {
 				inboundOnly.add(lineItem);
 			}
@@ -1410,6 +1408,9 @@ public with sharing class ReturnOrdersService {
 
 	@TestVisible
 	private static Integer testRemainingVendorCalloutFailures = 0;
+	/** Test-only: skip the busy-wait between vendor FedEx retries. */
+	@TestVisible
+	private static Boolean skipVendorFedExRetryPause = false;
 
 	/** Parent RO header fields copied onto the new Vendor Return Order when present. */
 	private static final List<String> VCS_PARENT_RO_COPY_FIELDS = new List<String>{
@@ -1850,7 +1851,7 @@ public with sharing class ReturnOrdersService {
 		for (Integer attempt = 1; attempt <= VCS_CALLOUT_ATTEMPTS; attempt++) {
 			try {
 				throwIfSimulated();
-				if (Test.isRunningTest() && testRemainingVendorCalloutFailures > 0) {
+				if (testRemainingVendorCalloutFailures > 0) {
 					testRemainingVendorCalloutFailures--;
 					throw new FedExService.FedExServiceException(
 						'FedEx shipping-label call did not return a tracking number.'
@@ -1934,7 +1935,7 @@ public with sharing class ReturnOrdersService {
 	}
 
 	private static void pauseBetweenVendorFedExRetries() {
-		if (Test.isRunningTest()) {
+		if (skipVendorFedExRetryPause) {
 			return;
 		}
 		Long startTime = Datetime.now().getTime();
@@ -2156,9 +2157,7 @@ public with sharing class ReturnOrdersService {
 		Set<Id> returnOrderIds
 	) {
 		Map<Id, List<ReturnOrderLineItem>> byReturnOrder = new Map<Id, List<ReturnOrderLineItem>>();
-		Id outboundRtId = Schema.SObjectType.ReturnOrderLineItem.getRecordTypeInfosByDeveloperName()
-			.get(VCS_ROLI_RECORD_TYPE_OUTBOUND)
-			?.getRecordTypeId();
+		Id outboundRtId = getOutboundRoliRecordTypeId();
 		if (outboundRtId == null) {
 			return byReturnOrder;
 		}
@@ -2584,7 +2583,13 @@ public with sharing class ReturnOrdersService {
 		return defaultProduct == null ? null : defaultProduct.Id;
 	}
 
+	private static Map<String, Id> cachedRecordTypeIdsByKey = new Map<String, Id>();
+
 	private static Id getRecordTypeId(Schema.SObjectType sobjectType, String developerName) {
+		String cacheKey = String.valueOf(sobjectType) + '|' + developerName;
+		if (cachedRecordTypeIdsByKey.containsKey(cacheKey)) {
+			return cachedRecordTypeIdsByKey.get(cacheKey);
+		}
 		Map<String, Schema.RecordTypeInfo> infos = sobjectType.getDescribe()
 			.getRecordTypeInfosByDeveloperName();
 		Schema.RecordTypeInfo info = infos.get(developerName);
@@ -2597,7 +2602,9 @@ public with sharing class ReturnOrdersService {
 					'.'
 			);
 		}
-		return info.getRecordTypeId();
+		Id recordTypeId = info.getRecordTypeId();
+		cachedRecordTypeIdsByKey.put(cacheKey, recordTypeId);
+		return recordTypeId;
 	}
 
 	private static void insertViaElevatedAccess(List<SObject> records) {
@@ -3327,7 +3334,7 @@ public with sharing class ReturnOrdersService {
 		Id instrumentContactId = useInstrumentOrderHeader
 			? parseId((String) instrumentOrderHeader.get('contactId'))
 			: null;
-		Map<Id, Product2> productsById = loadProductsForRepairExchange(lineObjects);
+		Map<Id, Product2> productsById = loadProductsForLineItems(lineObjects);
 
 		for (Object lineObj : lineObjects) {
 			Map<String, Object> line = (Map<String, Object>) lineObj;
@@ -3410,6 +3417,12 @@ public with sharing class ReturnOrdersService {
 			} else {
 				// Serialized, Other (Serialized): Product Line comes from the selected product.
 				productLine = (String) line.get('productLine');
+				if (String.isBlank(productLine)) {
+					Product2 selectedProduct = productsById.get(product2Id);
+					if (selectedProduct != null) {
+						productLine = selectedProduct.ProductLine__c;
+					}
+				}
 			}
 			item.ProductLine__c = requireNonBlank(
 				productLine,
@@ -3432,6 +3445,20 @@ public with sharing class ReturnOrdersService {
 				item.IsLoanerAsset__c = toBoolean(line.get('isLoanerAsset'));
 				item.LoanerRequested__c = toBoolean(line.get('loanerRequested'));
 				item.IsRepairExchange__c = toBoolean(line.get('isRepairExchange'));
+				if (isOtherSerializedLine(line)) {
+					applyOptionalTrimmedField(
+						item,
+						'ItemType__c',
+						(String) line.get('itemType')
+					);
+					applyOptionalTrimmedField(
+						item,
+						'ItemDescription__c',
+						(String) line.get('itemDescription')
+					);
+					// GW-6346 / GW-1197: pad replacement on Other (Serialized) Stirrup lines.
+					populateOtherSerializedStirrupAdditionalServiceFields(item, line);
+				}
 			} else {
 				if (!(instrumentsLine && useInstrumentOrderHeader)) {
 					item.CustomerPO__c = (String) line.get('customerPo');
@@ -3558,14 +3585,16 @@ public with sharing class ReturnOrdersService {
 		item.Manufacturer__c = product.Manufacturer__c;
 	}
 
-	private static Map<Id, Product2> loadProductsForRepairExchange(List<Object> lineObjects) {
+	/**
+	 * @description Loads Product2 rows for create-line mapping (Product Line + RE Manufacturer).
+	 * @param lineObjects Create Return Order line payloads
+	 * @return Products keyed by Id
+	 */
+	private static Map<Id, Product2> loadProductsForLineItems(List<Object> lineObjects) {
 		Set<Id> productIds = new Set<Id>();
 		if (lineObjects != null) {
 			for (Object lineObj : lineObjects) {
 				Map<String, Object> line = (Map<String, Object>) lineObj;
-				if (!toBoolean(line.get('isRepairExchange'))) {
-					continue;
-				}
 				Id product2Id = parseId(String.valueOf(line.get('product2Id')));
 				if (product2Id != null) {
 					productIds.add(product2Id);
@@ -3576,7 +3605,7 @@ public with sharing class ReturnOrdersService {
 			return new Map<Id, Product2>();
 		}
 		return new Map<Id, Product2>([
-			SELECT Id, Manufacturer__c
+			SELECT Id, Manufacturer__c, ProductLine__c
 			FROM Product2
 			WHERE Id IN :productIds
 			WITH USER_MODE
@@ -3939,6 +3968,52 @@ public with sharing class ReturnOrdersService {
 				(String) line.get('numberOfRings')
 			);
 		}
+	}
+
+	/**
+	 * @description GW-6346 / GW-1197 - Persists Leg Positioners/Stirrup pad replacement on
+	 *              Other (Serialized) Stirrup lines when Additional Services is selected.
+	 */
+	private static void populateOtherSerializedStirrupAdditionalServiceFields(
+		ReturnOrderLineItem item,
+		Map<String, Object> line
+	) {
+		if (!toBoolean(line.get('additionalServices'))) {
+			return;
+		}
+		setLineItemCustomFieldValue(
+			item,
+			'LegPositionersStirrup__c',
+			legPositionersStirrupValueFromLine(line)
+		);
+	}
+
+	/**
+	 * @description Normalizes LWC multi-select payload (string or list) to a multipicklist value.
+	 */
+	private static String legPositionersStirrupValueFromLine(Map<String, Object> line) {
+		if (line == null || !line.containsKey('legPositionersStirrup')) {
+			return null;
+		}
+		Object rawValue = line.get('legPositionersStirrup');
+		if (rawValue == null) {
+			return null;
+		}
+		if (rawValue instanceof List<Object>) {
+			List<String> parts = new List<String>();
+			for (Object entry : (List<Object>) rawValue) {
+				if (entry == null) {
+					continue;
+				}
+				String part = String.valueOf(entry).trim();
+				if (String.isNotBlank(part)) {
+					parts.add(part);
+				}
+			}
+			return parts.isEmpty() ? null : String.join(parts, ';');
+		}
+		String asString = String.valueOf(rawValue).trim();
+		return String.isBlank(asString) ? null : asString;
 	}
 
 	private static void populateLineEstimateContact(

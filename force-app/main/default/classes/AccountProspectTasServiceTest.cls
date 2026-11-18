@@ -293,9 +293,13 @@ public class AccountProspectTasServiceTest {
         System.assertEquals(acc.Id, request.prospectId);
         System.assertEquals('GlobalSF', request.sourceSystem);
 
-        Map<String, Object> jsonMap = request.toJsonMap();
+        Map<String, Object> jsonMap = (Map<String, Object>) JSON.deserializeUntyped(
+            JSON.serialize(request.toJsonMap())
+        );
         System.assertNotEquals(null, jsonMap.get('date'));
         System.assertEquals('83', jsonMap.get('orgId'));
+        System.assertEquals(false, jsonMap.containsKey('salesCategory'));
+        System.assertEquals(0, ((List<Object>) jsonMap.get('products')).size());
     }
 
     /**
@@ -323,7 +327,6 @@ public class AccountProspectTasServiceTest {
         Map<String, Object> jsonMap = request.toJsonMap();
         System.assertEquals('US', jsonMap.get('country'));
         System.assertEquals('HC', jsonMap.get('classCode'));
-        System.assertEquals(false, jsonMap.containsKey('salesCategory'));
     }
 
     /**

@@ -5,7 +5,7 @@
  */
 public with sharing class ContextAttributeSelector extends SoqlQueryBuilder {
 
-    public ContextAttributeSelector() {
-        this.objectName = 'ContextAttribute';
-    }
+	public ContextAttributeSelector() {
+		this.objectName = 'ContextAttribute';
+	}
 }

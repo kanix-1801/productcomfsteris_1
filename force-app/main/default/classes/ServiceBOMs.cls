@@ -5,20 +5,20 @@
  */
 public with sharing class ServiceBOMs {
 
-    private final List<ServiceBOM__c> records;
+	private final List<ServiceBOM__c> records;
 
-    /**
-     * @description Constructs domain instance with the given ServiceBOM__c records.
-     * @param records List of ServiceBOM__c records to operate on.
-     */
-    public ServiceBOMs(List<ServiceBOM__c> records) {
-        this.records = records;
-    }
+	/**
+	 * @description Constructs domain instance with the given ServiceBOM__c records.
+	 * @param records List of ServiceBOM__c records to operate on.
+	 */
+	public ServiceBOMs(List<ServiceBOM__c> records) {
+		this.records = records;
+	}
 
-    /**
-     * @description Thrown when validation fails outside a trigger execution context.
-     *              Message contains all violations joined by '; '.
-     */
-    public class ServiceBOMsException extends Exception {
-    }
+	/**
+	 * @description Thrown when validation fails outside a trigger execution context.
+	 *              Message contains all violations joined by '; '.
+	 */
+	public class ServiceBOMsException extends Exception {
+	}
 }

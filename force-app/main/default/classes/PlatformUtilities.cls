@@ -5,276 +5,276 @@
  * @description Shared platform helpers for Aura controllers (Id validation, Aura exceptions, picklists).
  */
 public with sharing class PlatformUtilities {
-    /**
-     * @description Label/value pair for Aura-enabled picklist UIs.
-     */
-    public class PicklistOption {
-        @AuraEnabled
-        public String label;
-        @AuraEnabled
-        public String value;
-    }
+	/**
+	 * @description Label/value pair for Aura-enabled picklist UIs.
+	 */
+	public class PicklistOption {
+		@AuraEnabled
+		public String label;
+		@AuraEnabled
+		public String value;
+	}
 
-    /**
-     * @description Returns true when value is a 15- or 18-character Salesforce Id that Id.valueOf accepts.
-     * @param value Candidate Id string
-     * @return true when value is a valid Salesforce Id
-     */
-    public static Boolean isSalesforceId(String value) {
-        if (String.isBlank(value) || (value.length() != 15 && value.length() != 18)) {
-            return false;
-        }
-        try {
-            Id.valueOf(value);
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
+	/**
+	 * @description Returns true when value is a 15- or 18-character Salesforce Id that Id.valueOf accepts.
+	 * @param value Candidate Id string
+	 * @return true when value is a valid Salesforce Id
+	 */
+	public static Boolean isSalesforceId(String value) {
+		if (String.isBlank(value) || (value.length() != 15 && value.length() != 18)) {
+			return false;
+		}
+		try {
+			Id.valueOf(value);
+			return true;
+		} catch (Exception e) {
+			return false;
+		}
+	}
 
-    /**
-     * @description Builds an AuraHandledException with a user-visible message.
-     * @param message Message shown to the Lightning client
-     * @return AuraHandledException
-     */
-    public static AuraHandledException buildAuraException(String message) {
-        AuraHandledException ex = new AuraHandledException(message);
-        ex.setMessage(message);
-        return ex;
-    }
+	/**
+	 * @description Builds an AuraHandledException with a user-visible message.
+	 * @param message Message shown to the Lightning client
+	 * @return AuraHandledException
+	 */
+	public static AuraHandledException buildAuraException(String message) {
+		AuraHandledException ex = new AuraHandledException(message);
+		ex.setMessage(message);
+		return ex;
+	}
 
-    /**
-     * @description Resolves a readable exception message, preferring the cause when present.
-     * @param e Exception to inspect
-     * @return Message string, or null when e is null
-     */
-    public static String resolveExceptionMessage(Exception e) {
-        if (e == null) {
-            return null;
-        }
-        if (e.getCause() != null && String.isNotBlank(e.getCause().getMessage())) {
-            return e.getCause().getMessage();
-        }
-        return e.getMessage();
-    }
+	/**
+	 * @description Resolves a readable exception message, preferring the cause when present.
+	 * @param e Exception to inspect
+	 * @return Message string, or null when e is null
+	 */
+	public static String resolveExceptionMessage(Exception e) {
+		if (e == null) {
+			return null;
+		}
+		if (e.getCause() != null && String.isNotBlank(e.getCause().getMessage())) {
+			return e.getCause().getMessage();
+		}
+		return e.getMessage();
+	}
 
-    /**
-     * @description Returns active picklist entries for a field as Aura picklist options.
-     * @param fieldToken SObject field token
-     * @return Active picklist options
-     */
-    public static List<PicklistOption> getActivePicklistOptions(Schema.SObjectField fieldToken) {
-        List<PicklistOption> options = new List<PicklistOption>();
-        if (fieldToken == null) {
-            return options;
-        }
-        for (Schema.PicklistEntry entry : fieldToken.getDescribe().getPicklistValues()) {
-            if (!entry.isActive()) {
-                continue;
-            }
-            PicklistOption option = new PicklistOption();
-            option.label = entry.getLabel();
-            option.value = entry.getValue();
-            options.add(option);
-        }
-        return options;
-    }
+	/**
+	 * @description Returns active picklist entries for a field as Aura picklist options.
+	 * @param fieldToken SObject field token
+	 * @return Active picklist options
+	 */
+	public static List<PicklistOption> getActivePicklistOptions(Schema.SObjectField fieldToken) {
+		List<PicklistOption> options = new List<PicklistOption>();
+		if (fieldToken == null) {
+			return options;
+		}
+		for (Schema.PicklistEntry entry : fieldToken.getDescribe().getPicklistValues()) {
+			if (!entry.isActive()) {
+				continue;
+			}
+			PicklistOption option = new PicklistOption();
+			option.label = entry.getLabel();
+			option.value = entry.getValue();
+			options.add(option);
+		}
+		return options;
+	}
 
-    /**
-     * @description Returns Yes/No options for boolean-style Aura picklists.
-     * @return Yes and No picklist options
-     */
-    public static List<PicklistOption> buildYesNoOptions() {
-        List<PicklistOption> options = new List<PicklistOption>();
-        PicklistOption yesOption = new PicklistOption();
-        yesOption.label = 'Yes';
-        yesOption.value = 'Yes';
-        options.add(yesOption);
-        PicklistOption noOption = new PicklistOption();
-        noOption.label = 'No';
-        noOption.value = 'No';
-        options.add(noOption);
-        return options;
-    }
+	/**
+	 * @description Returns Yes/No options for boolean-style Aura picklists.
+	 * @return Yes and No picklist options
+	 */
+	public static List<PicklistOption> buildYesNoOptions() {
+		List<PicklistOption> options = new List<PicklistOption>();
+		PicklistOption yesOption = new PicklistOption();
+		yesOption.label = 'Yes';
+		yesOption.value = 'Yes';
+		options.add(yesOption);
+		PicklistOption noOption = new PicklistOption();
+		noOption.label = 'No';
+		noOption.value = 'No';
+		options.add(noOption);
+		return options;
+	}
 
-    /**
-     * @description Returns the value at the given key as a Map<String, Object>, or null if
-     *              the source map is null, the key is absent, or the value isn't a map.
-     * @param source The map to read from.
-     * @param key The key to look up.
-     * @return The value as a Map<String, Object>, or null.
-     */
-    public static Map<String, Object> getMapValue(Map<String, Object> source, String key) {
-        if (source == null || !source.containsKey(key)) {
-            return null;
-        }
+	/**
+	 * @description Returns the value at the given key as a Map<String, Object>, or null if
+	 *              the source map is null, the key is absent, or the value isn't a map.
+	 * @param source The map to read from.
+	 * @param key The key to look up.
+	 * @return The value as a Map<String, Object>, or null.
+	 */
+	public static Map<String, Object> getMapValue(Map<String, Object> source, String key) {
+		if (source == null || !source.containsKey(key)) {
+			return null;
+		}
 
-        Object value = source.get(key);
-        return value instanceof Map<String, Object> ? (Map<String, Object>) value : null;
-    }
+		Object value = source.get(key);
+		return value instanceof Map<String, Object> ? (Map<String, Object>) value : null;
+	}
 
-    /**
-     * @description Returns the value at the given key as a List<Object>, or null if the
-     *              source map is null, the key is absent, or the value isn't a list.
-     * @param source The map to read from.
-     * @param key The key to look up.
-     * @return The value as a List<Object>, or null.
-     */
-    public static List<Object> getListValue(Map<String, Object> source, String key) {
-        if (source == null || !source.containsKey(key)) {
-            return null;
-        }
+	/**
+	 * @description Returns the value at the given key as a List<Object>, or null if the
+	 *              source map is null, the key is absent, or the value isn't a list.
+	 * @param source The map to read from.
+	 * @param key The key to look up.
+	 * @return The value as a List<Object>, or null.
+	 */
+	public static List<Object> getListValue(Map<String, Object> source, String key) {
+		if (source == null || !source.containsKey(key)) {
+			return null;
+		}
 
-        Object value = source.get(key);
-        return value instanceof List<Object> ? (List<Object>) value : null;
-    }
+		Object value = source.get(key);
+		return value instanceof List<Object> ? (List<Object>) value : null;
+	}
 
-    /**
-     * @description Trims a string and returns null in place of an empty or blank result,
-     *              so callers can treat "no value" and "blank value" the same way.
-     * @param value The string to trim.
-     * @return The trimmed string, or null if it is null or blank after trimming.
-     */
-    public static String trimToNull(String value) {
-        if (value == null) {
-            return null;
-        }
+	/**
+	 * @description Trims a string and returns null in place of an empty or blank result,
+	 *              so callers can treat "no value" and "blank value" the same way.
+	 * @param value The string to trim.
+	 * @return The trimmed string, or null if it is null or blank after trimming.
+	 */
+	public static String trimToNull(String value) {
+		if (value == null) {
+			return null;
+		}
 
-        String trimmed = value.trim();
-        return String.isBlank(trimmed) ? null : trimmed;
-    }
+		String trimmed = value.trim();
+		return String.isBlank(trimmed) ? null : trimmed;
+	}
 
-    /**
-     * @description Parses a string as a Salesforce Id, returning null instead of throwing
-     *              if the value is blank or not a valid Id.
-     * @param value The string to parse.
-     * @return The parsed Id, or null if it is blank or invalid.
-     */
-    public static Id parseId(String value) {
-        if (String.isBlank(value)) {
-            return null;
-        }
+	/**
+	 * @description Parses a string as a Salesforce Id, returning null instead of throwing
+	 *              if the value is blank or not a valid Id.
+	 * @param value The string to parse.
+	 * @return The parsed Id, or null if it is blank or invalid.
+	 */
+	public static Id parseId(String value) {
+		if (String.isBlank(value)) {
+			return null;
+		}
 
-        try {
-            return (Id) value;
-        } catch (Exception e) {
-            return null;
-        }
-    }
+		try {
+			return (Id) value;
+		} catch (Exception e) {
+			return null;
+		}
+	}
 
 
-    /**
-     * @description Parses a list of Id values from an untyped JSON list.
-     * @param value Untyped list (typically from JSON.deserializeUntyped)
-     * @return Parsed Ids; blank/invalid entries are skipped
-     */
-    public static List<Id> parseIdList(Object value) {
-        List<Id> ids = new List<Id>();
-        if (!(value instanceof List<Object>)) {
-            return ids;
-        }
-        for (Object rawValue : (List<Object>) value) {
-            Id parsedId = parseId(String.valueOf(rawValue));
-            if (parsedId != null) {
-                ids.add(parsedId);
-            }
-        }
-        return ids;
-    }
+	/**
+	 * @description Parses a list of Id values from an untyped JSON list.
+	 * @param value Untyped list (typically from JSON.deserializeUntyped)
+	 * @return Parsed Ids; blank/invalid entries are skipped
+	 */
+	public static List<Id> parseIdList(Object value) {
+		List<Id> ids = new List<Id>();
+		if (!(value instanceof List<Object>)) {
+			return ids;
+		}
+		for (Object rawValue : (List<Object>) value) {
+			Id parsedId = parseId(String.valueOf(rawValue));
+			if (parsedId != null) {
+				ids.add(parsedId);
+			}
+		}
+		return ids;
+	}
 
-    /**
-     * @description Coerces common JSON/boolean representations to Boolean.
-     * @param value Boolean, or string/number representation
-     * @return true for true/1/yes (case-insensitive); otherwise false
-     */
-    public static Boolean toBoolean(Object value) {
-        if (value == null) {
-            return false;
-        }
-        if (value instanceof Boolean) {
-            return (Boolean) value;
-        }
-        String text = String.valueOf(value);
-        return 'true'.equalsIgnoreCase(text) || '1'.equals(text) || 'yes'.equalsIgnoreCase(text);
-    }
+	/**
+	 * @description Coerces common JSON/boolean representations to Boolean.
+	 * @param value Boolean, or string/number representation
+	 * @return true for true/1/yes (case-insensitive); otherwise false
+	 */
+	public static Boolean toBoolean(Object value) {
+		if (value == null) {
+			return false;
+		}
+		if (value instanceof Boolean) {
+			return (Boolean) value;
+		}
+		String text = String.valueOf(value);
+		return 'true'.equalsIgnoreCase(text) || '1'.equals(text) || 'yes'.equalsIgnoreCase(text);
+	}
 
-    /**
-     * @description Parses a positive Decimal from common JSON numeric types.
-     * @param value Decimal/Integer/Long/String value
-     * @param defaultValue Value returned when null/blank/non-positive
-     * @return Parsed positive Decimal, or defaultValue
-     */
-    public static Decimal parsePositiveDecimal(Object value, Decimal defaultValue) {
-        if (value == null) {
-            return defaultValue;
-        }
-        if (value instanceof Decimal) {
-            Decimal decimalValue = (Decimal) value;
-            return decimalValue > 0 ? decimalValue : defaultValue;
-        }
-        if (value instanceof Integer) {
-            Integer intValue = (Integer) value;
-            return intValue > 0 ? Decimal.valueOf(intValue) : defaultValue;
-        }
-        if (value instanceof Long) {
-            Long longValue = (Long) value;
-            return longValue > 0 ? Decimal.valueOf(longValue) : defaultValue;
-        }
+	/**
+	 * @description Parses a positive Decimal from common JSON numeric types.
+	 * @param value Decimal/Integer/Long/String value
+	 * @param defaultValue Value returned when null/blank/non-positive
+	 * @return Parsed positive Decimal, or defaultValue
+	 */
+	public static Decimal parsePositiveDecimal(Object value, Decimal defaultValue) {
+		if (value == null) {
+			return defaultValue;
+		}
+		if (value instanceof Decimal) {
+			Decimal decimalValue = (Decimal) value;
+			return decimalValue > 0 ? decimalValue : defaultValue;
+		}
+		if (value instanceof Integer) {
+			Integer intValue = (Integer) value;
+			return intValue > 0 ? Decimal.valueOf(intValue) : defaultValue;
+		}
+		if (value instanceof Long) {
+			Long longValue = (Long) value;
+			return longValue > 0 ? Decimal.valueOf(longValue) : defaultValue;
+		}
 
-        String text = String.valueOf(value);
-        if (String.isBlank(text)) {
-            return defaultValue;
-        }
+		String text = String.valueOf(value);
+		if (String.isBlank(text)) {
+			return defaultValue;
+		}
 
-        Decimal parsed = Decimal.valueOf(text);
-        return parsed > 0 ? parsed : defaultValue;
-    }
+		Decimal parsed = Decimal.valueOf(text);
+		return parsed > 0 ? parsed : defaultValue;
+	}
 
-    /**
-     * @description Serializes the given body to JSON and writes it to the REST response
-     *              along with the given HTTP status code.
-     * @param response The REST response to write to.
-     * @param statusCode The HTTP status code to set on the response.
-     * @param body The map to serialize as the response body.
-     */
-    public static void writeJson(RestResponse response, Integer statusCode, Map<String, Object> body) {
-        response.statusCode = statusCode;
-        response.responseBody = Blob.valueOf(JSON.serialize(body));
-    }
+	/**
+	 * @description Serializes the given body to JSON and writes it to the REST response
+	 *              along with the given HTTP status code.
+	 * @param response The REST response to write to.
+	 * @param statusCode The HTTP status code to set on the response.
+	 * @param body The map to serialize as the response body.
+	 */
+	public static void writeJson(RestResponse response, Integer statusCode, Map<String, Object> body) {
+		response.statusCode = statusCode;
+		response.responseBody = Blob.valueOf(JSON.serialize(body));
+	}
 
-    /**
-     * @description GW-5874 - Reduces a North American phone number to its 10 digits: strips formatting and the
-     *              +1 country code, so '+1 (555) 123-4567' becomes '5551234567'.
-     * @param phone Raw phone number
-     * @return Digits only, or null when the value has no digits
-     */
-    public static String normalizePhone(String phone) {
-        if (String.isBlank(phone)) {
-            return null;
-        }
+	/**
+	 * @description GW-5874 - Reduces a North American phone number to its 10 digits: strips formatting and the
+	 *              +1 country code, so '+1 (555) 123-4567' becomes '5551234567'.
+	 * @param phone Raw phone number
+	 * @return Digits only, or null when the value has no digits
+	 */
+	public static String normalizePhone(String phone) {
+		if (String.isBlank(phone)) {
+			return null;
+		}
 
-        String digits = phone.replaceAll('[^0-9]', '');
-        if (digits.length() == 11 && digits.startsWith('1')) {
-            digits = digits.substring(1);
-        }
-        return String.isBlank(digits) ? null : digits;
-    }
+		String digits = phone.replaceAll('[^0-9]', '');
+		if (digits.length() == 11 && digits.startsWith('1')) {
+			digits = digits.substring(1);
+		}
+		return String.isBlank(digits) ? null : digits;
+	}
 
-    /**
-     * @description Null-safe uppercase for print/label payloads (used by PrinterService).
-     * @param value Input string
-     * @return Uppercased value, or the original blank/null value
-     */
-    public static String toUpperCase(String value) {
-        return String.isBlank(value) ? value : value.toUpperCase();
-    }
+	/**
+	 * @description Null-safe uppercase for print/label payloads (used by PrinterService).
+	 * @param value Input string
+	 * @return Uppercased value, or the original blank/null value
+	 */
+	public static String toUpperCase(String value) {
+		return String.isBlank(value) ? value : value.toUpperCase();
+	}
 
-    /**
-     * @description Converts null to empty string for print/map payloads (used by PrinterService).
-     * @param value Input string
-     * @return Empty string when null; otherwise the original value
-     */
-    public static String blankToEmpty(String value) {
-        return value == null ? '' : value;
-    }
+	/**
+	 * @description Converts null to empty string for print/map payloads (used by PrinterService).
+	 * @param value Input string
+	 * @return Empty string when null; otherwise the original value
+	 */
+	public static String blankToEmpty(String value) {
+		return value == null ? '' : value;
+	}
 }

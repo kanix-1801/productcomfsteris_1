@@ -164,78 +164,76 @@
                     <template for:each={partsRows} for:item="part">
                         <li key={part.key} class="part slds-box slds-m-bottom_x-small" data-key={part.key} data-product-id={part.productId}>
                             <div class="part-head">
-                                <div class="part-main">
+                                <div class="part-info">
                                     <p class="slds-text-title_bold">{part.name}</p>
                                     <p class="slds-text-body_small">{part.productCode}<template lwc:if={part.quantityUnitOfMeasure}> · {part.quantityUnitOfMeasure}</template></p>
                                     <template lwc:if={part.requiredOnWorkOrder}>
                                         <span class="slds-badge slds-m-top_xx-small">{labels.requiredOnWorkOrder}</span>
                                     </template>
-                                    <div class="slds-grid slds-grid_vertical-align-center slds-m-top_small">
-                                        <span class="slds-m-right_small" id={part.key}>{labels.quantity}</span>
-                                        <lightning-button-icon
-                                            icon-name="utility:dash"
-                                            alternative-text={labels.decreaseQuantity}
-                                            title={labels.decreaseQuantity}
-                                            data-key={part.key}
-                                            onclick={handleDecreaseQuantity}>
-                                        </lightning-button-icon>
-                                        <span class="quantity" aria-labelledby={part.key}>{part.quantity}</span>
-                                        <lightning-button-icon
-                                            icon-name="utility:add"
-                                            alternative-text={labels.increaseQuantity}
-                                            title={labels.increaseQuantity}
-                                            data-key={part.key}
-                                            onclick={handleIncreaseQuantity}>
-                                        </lightning-button-icon>
-                                    </div>
                                 </div>
-                                <div class="part-side">
-                                    <div class="part-side-top">
-                                        <template lwc:if={part.oeNotes}>
-                                            <div class="oe-notes">
-                                                <button
-                                                    type="button"
-                                                    class="oe-notes-toggle slds-button slds-button_reset slds-text-color_error"
-                                                    aria-expanded={part.oeNotesExpanded}
-                                                    data-key={part.key}
-                                                    onclick={handleToggleOeNotes}>
-                                                    <lightning-icon
-                                                        icon-name={part.oeNotesIcon}
-                                                        size="xx-small"
-                                                        alternative-text="">
-                                                    </lightning-icon>
-                                                    {labels.oeNotes}
-                                                </button>
-                                                <template lwc:if={part.oeNotesExpanded}>
-                                                    <lightning-formatted-text class="oe-notes-body" value={part.oeNotes}></lightning-formatted-text>
-                                                </template>
-                                            </div>
-                                        </template>
-                                        <lightning-button-icon
-                                            class="part-remove"
-                                            icon-name="utility:delete"
-                                            alternative-text={labels.removePart}
-                                            title={labels.removePart}
-                                            data-key={part.key}
-                                            onclick={handleRemovePart}>
-                                        </lightning-button-icon>
-                                    </div>
-                                    <div class="ship-set">
-                                        <lightning-input
-                                            type="checkbox"
-                                            label={labels.shipSet}
-                                            name={part.key}
-                                            checked={part.shipSet}
-                                            onchange={handleLineShipSetChange}>
-                                        </lightning-input>
-                                    </div>
-                                    <template lwc:if={part.substitutePart}>
-                                        <p class="substitute">
-                                            {labels.substitutePart}<br />
-                                            {part.substitutePart}
-                                        </p>
+                                <div class="part-side-top">
+                                    <template lwc:if={part.oeNotes}>
+                                        <div class="oe-notes">
+                                            <button
+                                                type="button"
+                                                class="oe-notes-toggle slds-button slds-button_reset slds-text-color_error"
+                                                aria-expanded={part.oeNotesExpanded}
+                                                data-key={part.key}
+                                                onclick={handleToggleOeNotes}>
+                                                <lightning-icon
+                                                    icon-name={part.oeNotesIcon}
+                                                    size="xx-small"
+                                                    alternative-text="">
+                                                </lightning-icon>
+                                                {labels.oeNotes}
+                                            </button>
+                                            <template lwc:if={part.oeNotesExpanded}>
+                                                <lightning-formatted-text class="oe-notes-body" value={part.oeNotes}></lightning-formatted-text>
+                                            </template>
+                                        </div>
                                     </template>
+                                    <lightning-button-icon
+                                        class="part-remove"
+                                        icon-name="utility:delete"
+                                        alternative-text={labels.removePart}
+                                        title={labels.removePart}
+                                        data-key={part.key}
+                                        onclick={handleRemovePart}>
+                                    </lightning-button-icon>
                                 </div>
+                                <div class="part-qty slds-grid slds-grid_vertical-align-center">
+                                    <span class="slds-m-right_small" id={part.key}>{labels.quantity}</span>
+                                    <lightning-button-icon
+                                        icon-name="utility:dash"
+                                        alternative-text={labels.decreaseQuantity}
+                                        title={labels.decreaseQuantity}
+                                        data-key={part.key}
+                                        onclick={handleDecreaseQuantity}>
+                                    </lightning-button-icon>
+                                    <span class="quantity" aria-labelledby={part.key}>{part.quantity}</span>
+                                    <lightning-button-icon
+                                        icon-name="utility:add"
+                                        alternative-text={labels.increaseQuantity}
+                                        title={labels.increaseQuantity}
+                                        data-key={part.key}
+                                        onclick={handleIncreaseQuantity}>
+                                    </lightning-button-icon>
+                                </div>
+                                <div class="ship-set">
+                                    <lightning-input
+                                        type="checkbox"
+                                        label={labels.shipSet}
+                                        name={part.key}
+                                        checked={part.shipSet}
+                                        onchange={handleLineShipSetChange}>
+                                    </lightning-input>
+                                </div>
+                                <template lwc:if={part.substitutePart}>
+                                    <p class="substitute">
+                                        {labels.substitutePart}<br />
+                                        {part.substitutePart}
+                                    </p>
+                                </template>
                             </div>
                         </li>
                     </template>
@@ -274,6 +272,18 @@
             </div>
         </template>
 
+        <template lwc:if={showErpBlocked}>
+            <article class="erp-card">
+                <h1 class="erp-header">{labels.erpScreenTitle}</h1>
+                <div class="erp-body">
+                    <p role="alert">{blockMessage}</p>
+                </div>
+                <footer class="erp-footer">
+                    <lightning-button variant="brand" label={labels.finish} onclick={handleClose}></lightning-button>
+                </footer>
+            </article>
+        </template>
+
         <template lwc:if={showErpConfirm}>
             <article class="erp-card">
                 <h1 class="erp-header">{labels.erpScreenTitle}</h1>
@@ -309,11 +319,33 @@
                 <h1 class="erp-header">{labels.erpScreenTitle}</h1>
                 <div class="erp-body">
                     <p class="slds-text-title_bold" role="status">{labels.erpSavedHeading}</p>
-                    <p>{labels.erpSavedBody}</p>
-                    <lightning-formatted-rich-text
-                        class="slds-m-top_x-small"
-                        value={labels.erpSavedBoomi}>
-                    </lightning-formatted-rich-text>
+                    <lightning-formatted-rich-text value={labels.erpSavedBody}></lightning-formatted-rich-text>
+                </div>
+                <footer class="erp-footer">
+                    <lightning-button variant="brand" label={labels.finish} onclick={handleClose}></lightning-button>
+                </footer>
+            </article>
+        </template>
+
+        <template lwc:if={showErpFail}>
+            <article class="erp-card">
+                <h1 class="erp-header">{labels.erpScreenTitle}</h1>
+                <div class="erp-body">
+                    <p class="slds-text-title_bold" role="alert">{labels.erpSavedBoomi}</p>
+                    <p>{labels.erpStatus}: {oracleIntegrationStatus}</p>
+                    <p>{oracleIntegrationMessage}</p>
+                </div>
+                <footer class="erp-footer">
+                    <lightning-button variant="brand" label={labels.finish} onclick={handleClose}></lightning-button>
+                </footer>
+            </article>
+        </template>
+
+        <template lwc:if={showErpFault}>
+            <article class="erp-card">
+                <h1 class="erp-header">{labels.erpScreenTitle}</h1>
+                <div class="erp-body">
+                    <p role="alert">{faultMessage}</p>
                 </div>
                 <footer class="erp-footer">
                     <lightning-button variant="brand" label={labels.finish} onclick={handleClose}></lightning-button>

@@ -56,7 +56,8 @@
 }
 
 .modifier-table {
-    width: 100%;
+    width: max-content;
+    max-width: 100%;
     border-collapse: collapse;
     margin-top: 0.5rem;
 }
@@ -75,10 +76,18 @@
     white-space: nowrap;
 }
 
-.modifier-table th:last-child,
-.modifier-table td:last-child {
+.modifier-table .col-product {
+    max-width: 16rem;
+    white-space: normal;
+}
+
+.modifier-table .col-discount,
+.modifier-table .col-modifier {
+    white-space: nowrap;
+}
+
+.modifier-table .col-modifier {
     text-align: right;
-    width: 12rem;
 }
 
 .modifier-name {

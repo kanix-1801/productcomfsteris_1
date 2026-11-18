@@ -54,6 +54,7 @@ import WOLI_MODEL from '@salesforce/schema/WorkOrderLineItem.Model__c';
 import WOLI_SERIAL_NUMBER from '@salesforce/schema/WorkOrderLineItem.SerialNumber__c';
 import WOLI_DEPARTMENT from '@salesforce/schema/WorkOrderLineItem.Department__c';
 import WOLI_SEND_TO_REPAIR_CENTER from '@salesforce/schema/WorkOrderLineItem.SendToRepairCenter__c';
+import WOLI_END_OF_DAY_REPORT_REPAIR_CENTER from '@salesforce/schema/WorkOrderLineItem.EndOfDayReportRepairCenter__c';
 import WOLI_REPORTED_PROBLEM from '@salesforce/schema/WorkOrderLineItem.ReportedProblem__c';
 import WOLI_ADDITIONAL_SERVICES from '@salesforce/schema/WorkOrderLineItem.AdditionalServices__c';
 import WOLI_INSULATION from '@salesforce/schema/WorkOrderLineItem.InsulationPowderCoating__c';
@@ -491,6 +492,7 @@ const REPAIR_CENTER_LINES_QUERY = gql`
 							AdditionalServices__c { value }
 							InsulationPowderCoating__c { value }
 							SendToRepairCenter__c { value }
+							EndOfDayReportRepairCenter__c { value }
 							ReplacedWithIXchange__c { value }
 						}
 					}
@@ -823,6 +825,7 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 				additionalServices: !!node.AdditionalServices__c?.value,
 				insulationPowderCoating: node.InsulationPowderCoating__c?.value ?? '',
 				sendToRepairCenter: !!node.SendToRepairCenter__c?.value,
+				endOfDayReportRepairCenter: !!node.EndOfDayReportRepairCenter__c?.value,
 				replacedWithIXchange: !!node.ReplacedWithIXchange__c?.value
 			};
 		}
@@ -4989,6 +4992,7 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 				quantity: line.Quantity?.value ?? '',
 				status: line.Status?.value ?? 'New',
 				sendToRepairCenter: !!this._repairCenterByLineId[line.Id]?.sendToRepairCenter,
+				endOfDayReportRepairCenter: !!this._repairCenterByLineId[line.Id]?.endOfDayReportRepairCenter,
 				serialNumber: line.SerialNumber__c?.value ?? this._repairCenterByLineId[line.Id]?.serialNumber ?? '',
 				model: line.Model__c?.value ?? this._repairCenterByLineId[line.Id]?.model ?? '',
 				departmentId: this._repairCenterByLineId[line.Id]?.departmentId ?? null,
@@ -6380,6 +6384,8 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 	/**
 	 * @description Beyond-repair values saved on the work order line.
 	 *              Send to Repair Center is set only for Forward to National Repair Center for Service.
+	 *              End of Day Report Repair Center is set for that same service code and is left set
+	 *              after Create Return Order clears Send to Repair Center.
 	 * @param {Object} instrument Staged instrument line
 	 * @return {Object}
 	 */
@@ -6397,9 +6403,12 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 			}
 			return {};
 		}
-		const sendToRepairCenter = this._isRepairCenterServiceCode(serviceCodeId);
+		const serviceSaysRepairCenter = this._isRepairCenterServiceCode(serviceCodeId);
+		const sendToRepairCenter = serviceSaysRepairCenter
+			&& !(instrument.endOfDayReportRepairCenter && !instrument.sendToRepairCenter);
 		const fields = {
-			[WOLI_SEND_TO_REPAIR_CENTER.fieldApiName]: sendToRepairCenter
+			[WOLI_SEND_TO_REPAIR_CENTER.fieldApiName]: sendToRepairCenter,
+			[WOLI_END_OF_DAY_REPORT_REPAIR_CENTER.fieldApiName]: serviceSaysRepairCenter
 		};
 		if (!this._showsObrDetailFields(serviceCodeId)) {
 			fields[WOLI_SERIAL_NUMBER.fieldApiName] = null;
@@ -6452,6 +6461,9 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 		if (has(WOLI_ADDITIONAL_SERVICES)) next.additionalServices = !!fields[WOLI_ADDITIONAL_SERVICES.fieldApiName];
 		if (has(WOLI_INSULATION)) next.insulationPowderCoating = fields[WOLI_INSULATION.fieldApiName] ?? '';
 		if (has(WOLI_SEND_TO_REPAIR_CENTER)) next.sendToRepairCenter = !!fields[WOLI_SEND_TO_REPAIR_CENTER.fieldApiName];
+		if (has(WOLI_END_OF_DAY_REPORT_REPAIR_CENTER)) {
+			next.endOfDayReportRepairCenter = !!fields[WOLI_END_OF_DAY_REPORT_REPAIR_CENTER.fieldApiName];
+		}
 		if (has(WOLI_REPLACED_WITH_IXCHANGE)) {
 			next.replacedWithIXchange = !!fields[WOLI_REPLACED_WITH_IXCHANGE.fieldApiName];
 		}
@@ -6545,7 +6557,10 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 		if (serviceCodeId) {
 			return this._isObrServiceCodeId(serviceCodeId) && !this._isRepairCenterServiceCode(serviceCodeId);
 		}
-		return !!stored && !stored.sendToRepairCenter && this._hasObrDetailValues(stored);
+		return !!stored
+			&& !stored.sendToRepairCenter
+			&& !stored.endOfDayReportRepairCenter
+			&& this._hasObrDetailValues(stored);
 	}
 
 	/**
@@ -6925,6 +6940,7 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 	 * @description Service Code of a saved instrument line. The line stores only the Repair Level,
 	 *              so the code is matched from the Device Type Service Codes. A line with Beyond Repair
 	 *              Info only matches a beyond-repair code, so saving it does not clear Make and Model.
+	 *              Send to Repair Center or End of Day Report Repair Center keeps the repair-center code.
 	 * @param {string} deviceTypeId Device Type Product2 Id
 	 * @param {string} repairLevel Saved Repair Level
 	 * @param {Object} stored Beyond Repair values saved on the line
@@ -6943,7 +6959,8 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 		const beyondRepair = matches.filter(id => this._showsObrDetailFields(id));
 		const repairCenter = beyondRepair.find(id => this._isRepairCenterServiceCode(id));
 		const otherBeyondRepair = beyondRepair.find(id => !this._isRepairCenterServiceCode(id));
-		return stored?.sendToRepairCenter
+		const markedRepairCenter = !!stored?.sendToRepairCenter || !!stored?.endOfDayReportRepairCenter;
+		return markedRepairCenter
 			? (repairCenter ?? otherBeyondRepair ?? null)
 			: (otherBeyondRepair ?? repairCenter ?? null);
 	}

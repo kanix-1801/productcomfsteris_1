@@ -47,7 +47,10 @@ private class LSTemporaryAccessEmailServiceTest {
             notifications[0].subject
         );
         System.assert(notifications[0].htmlBody.contains('requires your review'));
-        System.assert(notifications[0].htmlBody.contains('Please approve or reject the request.'));
+        System.assert(notifications[0].htmlBody.contains('approve or reject the request.'));
+        System.assert(notifications[0].htmlBody.contains('Current Rep Coverage'));
+        System.assert(notifications[0].htmlBody.contains('Temporary Rep Coverage'));
+        System.assert(notifications[0].htmlBody.contains('Please do not reply to this email.'));
         System.assert(notifications[0].htmlBody.contains('Coverage Duration'));
         assertCc(
             notifications[0].ccAddresses,

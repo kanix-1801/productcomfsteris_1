@@ -18,7 +18,6 @@ export default class RepairCenterPartsRequest extends LightningElement {
 
     requests = [];
     draftParts = [];
-    scanValue = '';
     scanError = '';
     modalError = '';
     isModalOpen = false;
@@ -26,6 +25,7 @@ export default class RepairCenterPartsRequest extends LightningElement {
     isModalLoading = false;
     isSaving = false;
     loadError = '';
+    pendingScanFocus = false;
 
     get isBomMode() {
         return this.mode === MODE_BOM;
@@ -39,8 +39,24 @@ export default class RepairCenterPartsRequest extends LightningElement {
         return this.isListLoading || this.isModalLoading || this.isSaving;
     }
 
+    get scanErrorId() {
+        return this.scanError ? 'scan-part-error' : null;
+    }
+
     connectedCallback() {
         this.loadRequests();
+    }
+
+    renderedCallback() {
+        if (!this.pendingScanFocus) {
+            return;
+        }
+        const input = this.template.querySelector('input.scan-input');
+        if (!input || input.disabled) {
+            return;
+        }
+        this.pendingScanFocus = false;
+        input.focus();
     }
 
     async loadRequests() {
@@ -69,7 +85,6 @@ export default class RepairCenterPartsRequest extends LightningElement {
         this.notifyModal(true);
         this.modalError = '';
         this.scanError = '';
-        this.scanValue = '';
         this.draftParts = [];
         if (this.isBomMode) {
             await this.loadBom();
@@ -85,7 +100,6 @@ export default class RepairCenterPartsRequest extends LightningElement {
         this.isModalOpen = false;
         this.notifyModal(false);
         this.draftParts = [];
-        this.scanValue = '';
         this.scanError = '';
         this.modalError = '';
     }
@@ -103,23 +117,23 @@ export default class RepairCenterPartsRequest extends LightningElement {
         }
     }
 
-    handleScanInput(event) {
-        this.scanValue = event.target.value;
+    handleScanInput() {
         this.scanError = '';
     }
 
-    async handleScanKeyDown(event) {
+    handleScanKeyDown(event) {
         if (event.key !== 'Enter') {
             return;
         }
         event.preventDefault();
-        const entered = (event.target.value || this.scanValue || '').trim();
-        this.scanValue = '';
-        await this.submitScan(entered);
+        const entered = (event.currentTarget.value || '').trim();
+        // Clear the DOM value directly. A bound lightning-input keeps the
+        // typed barcode when its value is set back to empty.
+        this.clearScanField();
+        this.submitScan(entered);
     }
 
     async submitScan(entered) {
-        this.focusScanField();
         if (!entered) {
             return;
         }
@@ -162,9 +176,9 @@ export default class RepairCenterPartsRequest extends LightningElement {
     handleQuantityChange(event) {
         const productId = event.target.dataset.id;
         const quantity = event.target.value;
-        this.draftParts = this.draftParts.map((part) =>
-            part.productId === productId ? { ...part, quantity } : part
-        );
+        this.draftParts = this.draftParts.map((part) => {
+            return part.productId === productId ? { ...part, quantity } : part;
+        });
     }
 
     handleRemove(event) {
@@ -259,10 +273,23 @@ export default class RepairCenterPartsRequest extends LightningElement {
         );
     }
 
+    clearScanField() {
+        const input = this.template.querySelector('input.scan-input');
+        if (!input) {
+            return;
+        }
+        input.value = '';
+        this.focusScanField();
+    }
+
     focusScanField() {
-        window.setTimeout(() => {
-            this.template.querySelector('lightning-input.scan-input')?.focus();
-        }, 0);
+        const input = this.template.querySelector('input.scan-input');
+        if (input && !input.disabled) {
+            this.pendingScanFocus = false;
+            input.focus();
+            return;
+        }
+        this.pendingScanFocus = true;
     }
 
     errorMessage(error, fallback) {

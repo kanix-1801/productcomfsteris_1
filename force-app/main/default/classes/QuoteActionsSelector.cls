@@ -4,10 +4,10 @@
  * @group GW-5302
  */
 public with sharing class QuoteActionsSelector extends SoqlQueryBuilder {
-    /**
-     * @description GW-5302 - Creates a selector for QuoteAction.
-     */
-    public QuoteActionsSelector() {
-        super('QuoteAction');
-    }
+	/**
+	 * @description GW-5302 - Creates a selector for QuoteAction.
+	 */
+	public QuoteActionsSelector() {
+		super('QuoteAction');
+	}
 }

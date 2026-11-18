@@ -5,20 +5,20 @@
  */
 public with sharing class ReturnOrderLineItems {
 
-    private final List<ReturnOrderLineItem> records;
+	private final List<ReturnOrderLineItem> records;
 
-    /**
-     * @description Constructs domain instance with the given ReturnOrderLineItem records.
-     * @param records List of ReturnOrderLineItem records to operate on.
-     */
-    public ReturnOrderLineItems(List<ReturnOrderLineItem> records) {
-        this.records = records;
-    }
+	/**
+	 * @description Constructs domain instance with the given ReturnOrderLineItem records.
+	 * @param records List of ReturnOrderLineItem records to operate on.
+	 */
+	public ReturnOrderLineItems(List<ReturnOrderLineItem> records) {
+		this.records = records;
+	}
 
-    /**
-     * @description Thrown when validation fails outside a trigger execution context.
-     *              Message contains all violations joined by '; '.
-     */
-    public class ReturnOrderLineItemsException extends Exception {
-    }
+	/**
+	 * @description Thrown when validation fails outside a trigger execution context.
+	 *              Message contains all violations joined by '; '.
+	 */
+	public class ReturnOrderLineItemsException extends Exception {
+	}
 }

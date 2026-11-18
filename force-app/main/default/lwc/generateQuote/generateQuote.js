@@ -52,6 +52,7 @@ export default class GenerateQuote extends LightningElement {
     @track modalQuotes = [];
     @track currentPage = 1;
     @track showExistingQuotesModal = false;
+    @track dealerSalesConnectionLaunchUrl;
     @track isLoading = false;
     @track groupBySalesCategory = false;
 
@@ -511,6 +512,8 @@ export default class GenerateQuote extends LightningElement {
         if (!this.isQuickAction) {
             return;
         }
+
+        this.dealerSalesConnectionLaunchUrl = null;
 
         if (refreshRecordPage) {
             this.notifyOpportunityRecordRefresh();
@@ -1188,6 +1191,7 @@ export default class GenerateQuote extends LightningElement {
             await this.loadModalQuotes();
 
             if (this.modalQuotes.length > 0) {
+                this.clearDealerPortalNavigationTab();
                 this.showExistingQuotesModal = true;
                 return;
             }
@@ -1199,6 +1203,7 @@ export default class GenerateQuote extends LightningElement {
     }
 
     async handleGenerateNewQuote() {
+        this.dealerSalesConnectionLaunchUrl = null;
         this.showExistingQuotesModal = false;
         await this.generateQuoteRecord();
     }
@@ -1249,6 +1254,7 @@ export default class GenerateQuote extends LightningElement {
 
     async generateQuoteRecord() {
         this.isLoading = true;
+        this.dealerSalesConnectionLaunchUrl = null;
 
         try {
             const result = await createQuote({
@@ -1258,22 +1264,40 @@ export default class GenerateQuote extends LightningElement {
                 sampleId: this.sampleIdFilter
             });
 
-            if (result.salesConnectionUrl) {
-                this.openUrlInNewTab(result.salesConnectionUrl);
-                if (this.isQuickAction) {
-                    this.notifyRecordPageRefresh();
-                    this.closeQuickActionPanel();
-                }
-            } else {
-                this.clearDealerPortalNavigationTab();
-                this.showToast(
-                    'Error',
-                    'Sales Connection URL is not available. Verify the Sales Connection Quote Id and endpoint settings, or the Account Oracle Address Id for new quotes.',
-                    'error'
-                );
+            if (!result?.quoteId) {
+                this.showToast('Error', 'Unable to create quote.', 'error');
                 if (this.isQuickAction) {
                     this.closeQuickActionPanel(false);
                 }
+                return;
+            }
+
+            this.notifyRecordPageRefresh();
+            const quoteLabel = result.quoteNumber || result.quoteName || result.quoteId;
+            this.showToast('Success', `Quote ${quoteLabel} was created.`, 'success');
+
+            if (result.salesConnectionUrl) {
+                const opened = this.openUrlInNewTab(result.salesConnectionUrl);
+                if (this.isDealerPortal === true && !opened) {
+                    this.dealerSalesConnectionLaunchUrl = result.salesConnectionUrl;
+                    if (this.isQuickAction) {
+                        return;
+                    }
+                }
+
+                if (this.isQuickAction) {
+                    this.closeQuickActionPanel();
+                }
+                return;
+            }
+
+            this.showToast(
+                'Error',
+                'The quote was saved in Salesforce, but Sales Connection URL is not available. Verify endpoint settings or the Account Oracle Address Id.',
+                'error'
+            );
+            if (this.isQuickAction) {
+                this.closeQuickActionPanel(false);
             }
         } catch (error) {
             this.clearDealerPortalNavigationTab();
@@ -1456,7 +1480,7 @@ export default class GenerateQuote extends LightningElement {
 
     openUrlInNewTab(url) {
         if (!url) {
-            return;
+            return false;
         }
 
         if (this.isDealerPortal === true) {
@@ -1464,11 +1488,11 @@ export default class GenerateQuote extends LightningElement {
             if (!opened) {
                 this.showToast(
                     'Sales Connection',
-                    'Your browser blocked the new tab. Allow pop-ups for this site and try again.',
+                    'Your browser blocked the new tab. Use Open Sales Connection below or allow pop-ups for this site.',
                     'warning'
                 );
             }
-            return;
+            return opened;
         }
 
         const resolvedUrl =
@@ -1476,7 +1500,17 @@ export default class GenerateQuote extends LightningElement {
                 ? url
                 : `${window.location.origin}${url.startsWith('/') ? '' : '/'}${url}`;
 
-        window.open(resolvedUrl, '_blank', 'noopener,noreferrer');
+        const openedWindow = window.open(resolvedUrl, '_blank', 'noopener,noreferrer');
+        return Boolean(openedWindow);
+    }
+
+    handleCloseDealerLaunchPanel() {
+        this.dealerSalesConnectionLaunchUrl = null;
+        this.closeQuickActionPanel();
+    }
+
+    get showDealerSalesConnectionLaunch() {
+        return this.isDealerPortal === true && !!this.dealerSalesConnectionLaunchUrl;
     }
 
     formatUom(value) {

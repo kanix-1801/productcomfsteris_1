@@ -4,10 +4,10 @@
  * @group GW-3600
  */
 public with sharing class DocumentTemplateSelector extends SoqlQueryBuilder {
-    /**
-     * @description GW-3600 - Creates a selector for DocumentTemplate.
-     */
-    public DocumentTemplateSelector() {
-        this.objectName = 'DocumentTemplate';
-    }
+	/**
+	 * @description GW-3600 - Creates a selector for DocumentTemplate.
+	 */
+	public DocumentTemplateSelector() {
+		this.objectName = 'DocumentTemplate';
+	}
 }

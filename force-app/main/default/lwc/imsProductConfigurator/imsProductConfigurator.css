@@ -596,6 +596,117 @@
     color: #706e6b;
 }
 
+/* ONL Pricing Program lookup */
+.ca-lookup {
+    position: relative; /* anchors the result dropdown */
+}
+
+/* Result list: dropdown under the search box */
+.ca-lookup-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 7000;
+    margin-top: 0.125rem;
+    max-height: 18rem;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid #c9c9c9;
+    border-radius: 0.25rem;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.16);
+    padding: 0.25rem 0;
+}
+
+.ca-lookup-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ca-lookup-option {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+}
+
+.ca-lookup-option + .ca-lookup-option {
+    border-top: 1px solid #f3f3f3;
+}
+
+.ca-lookup-option:hover,
+.ca-lookup-option:focus {
+    background: #f3f3f3;
+    outline: none;
+}
+
+.ca-lookup-option:focus-visible {
+    box-shadow: inset 0 0 0 2px #0176d3;
+}
+
+.ca-lookup-option-body {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.ca-lookup-option-title,
+.ca-lookup-option-meta {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ca-lookup-option-title {
+    font-size: 0.8125rem;
+    color: #181818;
+}
+
+.ca-lookup-option-meta {
+    font-size: 0.75rem;
+    color: #706e6b;
+}
+
+.ca-lookup-message {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+    color: #5c5c5c;
+}
+
+.ca-lookup-icon {
+    flex: 0 0 auto;
+}
+
+/* Selected program: same size and border as the search input, icon left, clear button right */
+.ca-lookup-selected {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2rem;
+    padding: 0 0.25rem 0 0.5rem;
+    background: #fff;
+    border: 1px solid #747474;
+    border-radius: 0.25rem;
+    line-height: 1.875rem;
+}
+
+.ca-lookup-selected-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.8125rem;
+    color: #181818;
+}
+
+.ca-lookup-clear {
+    flex: 0 0 auto;
+    margin-left: auto;
+}
+
 /* Change summary */
 .ca-onl-count-pill {
     padding: 0.125rem 0.625rem;

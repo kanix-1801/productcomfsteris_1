@@ -27,48 +27,48 @@
  */
 public with sharing class ContentDocumentLinkTriggerHandler extends TriggerHandler {
 
-    // ── Before Insert ─────────────────────────────────────────────────────────
-    public override void beforeInsert() {
-        if (!AutomationControl.isTriggerEnabled('ContentDocumentLinkTrigger')) {
-            return;
-        }
-    }
+	// ── Before Insert ─────────────────────────────────────────────────────────
+	public override void beforeInsert() {
+		if (!AutomationControl.isTriggerEnabled('ContentDocumentLinkTrigger')) {
+			return;
+		}
+	}
 
-    // ── After Insert ──────────────────────────────────────────────────────────
+	// ── After Insert ──────────────────────────────────────────────────────────
    public override void afterInsert() {
-        if (!AutomationControl.isTriggerEnabled('ContentDocumentLinkTrigger')) {
-            return;
-        }
-        MobileDevicePictureLinkHandler.completeMobileAppPictureLinks(
-            (List<ContentDocumentLink>) Trigger.new
-        );
-        // GW-3114 - Generate document: email the Repair Center Quote / Work Order PDF to the customer once it is linked.
-        RepairCenterDocumentEmailService.handleNewContentDocumentLinks((List<ContentDocumentLink>) Trigger.new);
-    }
+		if (!AutomationControl.isTriggerEnabled('ContentDocumentLinkTrigger')) {
+			return;
+		}
+		MobileDevicePictureLinkHandler.completeMobileAppPictureLinks(
+			(List<ContentDocumentLink>) Trigger.new
+		);
+		// GW-3114 - Generate document: email the Repair Center Quote / Work Order PDF to the customer once it is linked.
+		RepairCenterDocumentEmailService.handleNewContentDocumentLinks((List<ContentDocumentLink>) Trigger.new);
+	}
 
-    // ── Before Delete ─────────────────────────────────────────────────────────
-    public override void beforeDelete() {
-        if (!AutomationControl.isTriggerEnabled('ContentDocumentLinkTrigger')) { return; }
-        // Trigger.old contains the records being deleted; Trigger.new is null in delete contexts.
-        ContentDocumentLinks domain = new ContentDocumentLinks((List<ContentDocumentLink>) Trigger.old);
-        // domain.validate();
-    }
+	// ── Before Delete ─────────────────────────────────────────────────────────
+	public override void beforeDelete() {
+		if (!AutomationControl.isTriggerEnabled('ContentDocumentLinkTrigger')) { return; }
+		// Trigger.old contains the records being deleted; Trigger.new is null in delete contexts.
+		ContentDocumentLinks domain = new ContentDocumentLinks((List<ContentDocumentLink>) Trigger.old);
+		// domain.validate();
+	}
 
-    // ── After Delete ──────────────────────────────────────────────────────────
-    public override void afterDelete() {
-        if (!AutomationControl.isTriggerEnabled('ContentDocumentLinkTrigger')) { return; }
-        // Set<Id> linkedEntityIds = new Set<Id>();
-        // for (ContentDocumentLink cdl : (List<ContentDocumentLink>) Trigger.old) {
-        //     linkedEntityIds.add(cdl.LinkedEntityId);
-        // }
-        // ContentDocumentLinksService.handleDeletedContentDocumentLinks(linkedEntityIds);
+	// ── After Delete ──────────────────────────────────────────────────────────
+	public override void afterDelete() {
+		if (!AutomationControl.isTriggerEnabled('ContentDocumentLinkTrigger')) { return; }
+		// Set<Id> linkedEntityIds = new Set<Id>();
+		// for (ContentDocumentLink cdl : (List<ContentDocumentLink>) Trigger.old) {
+		//     linkedEntityIds.add(cdl.LinkedEntityId);
+		// }
+		// ContentDocumentLinksService.handleDeletedContentDocumentLinks(linkedEntityIds);
         
-    }
+	}
     
   
        
 
-    // ── NOT SUPPORTED — Update and Undelete contexts are intentionally absent ─
-    // beforeUpdate(), afterUpdate(), and afterUndelete() are NOT overridden here.
-    // ContentDocumentLink records are immutable and cannot be undeleted — see class header.
+	// ── NOT SUPPORTED — Update and Undelete contexts are intentionally absent ─
+	// beforeUpdate(), afterUpdate(), and afterUndelete() are NOT overridden here.
+	// ContentDocumentLink records are immutable and cannot be undeleted — see class header.
 }

@@ -49,6 +49,10 @@ public class QuickActionDefaultsHandler implements QuickAction.QuickActionDefaul
                 EmailAddressDefaultController.defaultSDNEmailAddresses(sendEmailDefaults, c,'Credit Notification Trade In');
 
             }
+
+            if(c.EmailType__c == 'CREDITMEMOCAN') {
+                EmailAddressDefaultController.defaultSDNEmailAddresses(sendEmailDefaults, c,'Credit Notification Trade In CAN');
+            }
             
             if (c.EmailType__c == 'COA Project' && c.EmailLanguage__c=='English'){
                 

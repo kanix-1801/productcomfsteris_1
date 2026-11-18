@@ -841,4 +841,42 @@ private class ImsProductConfiguratorServiceTest {
         Assert.areEqual(new List<String>{ second }, fromRecords.mobileVan.instrumentServices,
                         'Categories rebuilt from the records');
     }
+
+    /**
+     * @description GW-6468 - The ONL pricing program and Business Group in the "mobileVan" JSON are read and
+     *              survive the round trip back to the LWC; JSON saved before them reads as no program.
+     */
+    @IsTest
+    static void testMobileVanProgramRoundTrip() {
+        /********************************************
+        * SETUP
+        ********************************************/
+        String raw = '{"mobileVan":{"programId":"a1B000000000001AAA","program":"PP-0012",'
+                   + '"description":"ONL","businessGroup":"Repair Only","instrumentServices":["X"]}}';
+        String legacyRaw = '{"mobileVan":{"instrumentServices":[]}}';
+
+        /********************************************
+        * WHEN
+        ********************************************/
+        Test.startTest();
+        ImsProductConfiguratorService.ContractAdjustments parsed = ImsProductConfiguratorService.parseCoverage(raw);
+        ImsProductConfiguratorService.ContractAdjustments legacy =
+            ImsProductConfiguratorService.parseCoverage(legacyRaw);
+        String serialized = JSON.serialize(parsed);
+        Test.stopTest();
+
+        /********************************************
+        * THEN
+        ********************************************/
+        Assert.areEqual('a1B000000000001AAA', parsed.mobileVan.programId, 'Program Id is read');
+        Assert.areEqual('PP-0012', parsed.mobileVan.program, 'Program name is read');
+        Assert.areEqual('ONL', parsed.mobileVan.description, 'Program description is read');
+        Assert.areEqual('Repair Only', parsed.mobileVan.businessGroup, 'Business Group is read');
+        Assert.isTrue(serialized.contains('"businessGroup":"Repair Only"'),
+                      'Business Group survives the round trip back to the LWC');
+        Assert.isTrue(serialized.contains('"programId":"a1B000000000001AAA"'),
+                      'Program Id survives the round trip back to the LWC');
+        Assert.isNull(legacy.mobileVan.programId, 'Old JSON reads as no program');
+        Assert.isNull(legacy.mobileVan.businessGroup, 'Old JSON reads as no Business Group');
+    }
 }

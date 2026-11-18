@@ -102,9 +102,16 @@ public with sharing class ImsProductConfiguratorService {
 	}
 
 	/**
-	 * @description On Location - Mobile Van categories picked: ContractAdjustment__c.InstrumentServices__c values.
+	 * @description On Location - Mobile Van selection, stored in ModelQtyCoverage__c "mobileVan": the ONL pricing
+	 *              program and Business Group picked (kept in the JSON only) and the categories checked
+	 *              (ContractAdjustment__c.InstrumentServices__c values). Every key the LWC saves must be declared
+	 *              here, or it is dropped when the JSON is read back for the LWC.
 	 */
 	public class MobileVanSelection {
+		public String programId; // PricingProgram__c.Id
+		public String program; // PricingProgram__c.Name, e.g. PP-0012
+		public String description; // DisplayName__c, or ProgramName__c
+		public String businessGroup; // Onlocation Only | Repair and Onlocation | Repair Only
 		public List<String> instrumentServices = new List<String>();
 	}
 

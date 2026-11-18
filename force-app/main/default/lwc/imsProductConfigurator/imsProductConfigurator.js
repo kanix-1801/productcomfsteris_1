@@ -52,12 +52,25 @@ const EMPTY_ADJUSTMENTS = {
     models: [],
     pricingPrograms: [],
     pricingProgram: null,
-    mobileVan: { instrumentServices: [] }
+    mobileVan: { programId: null, program: null, description: null, businessGroup: null, instrumentServices: [] }
 };
-// Mobile Van as stored in the JSON: the InstrumentServices__c values picked, once each, sorted
-const pickMobileVan = (source) => ({
-    instrumentServices: [...new Set((source?.instrumentServices || []).map(clean).filter(Boolean))].sort()
-});
+// Mobile Van as stored in the JSON: the ONL pricing program and Business Group (all null when no program is
+// picked) and the InstrumentServices__c values picked, once each, sorted
+const pickMobileVan = (source) => {
+    const programId = blankToNull(source?.programId);
+    return {
+        programId,
+        program: programId ? blankToNull(source?.program) : null,
+        description: programId ? blankToNull(source?.description) : null,
+        businessGroup: programId ? blankToNull(source?.businessGroup) : null,
+        instrumentServices: [...new Set((source?.instrumentServices || []).map(clean).filter(Boolean))].sort()
+    };
+};
+// ONL program pill / summary text, same format as the search results: "PP-0012 - Description"
+const onlProgramText = (program, description) => {
+    if (!program) return null;
+    return description && description !== program ? `${program} - ${description}` : program;
+};
 
 // A real, saved Quote Line Item Id. New lines in the configurator have temporary "ref_" Ids.
 const isSavedLineId = (id) => typeof id === 'string' && id.startsWith('0QL') && (id.length === 15 || id.length === 18);
@@ -155,12 +168,14 @@ export default class ImsProductConfigurator extends LightningElement {
     mobileVanFilter = '';
     mobileVanSelected = []; // picklist API values
     // On Location - Mobile Van categories: ContractAdjustment__c.InstrumentServices__c picklist values
-    // ({ label, value }) for the user's default record type. UI only for now, not saved with the configuration.
+    // ({ label, value }) for the Mobile Van record type. The values checked are saved in the JSON "mobileVan".
     mobileVanCategories = [];
     mobileVanCategoriesLoaded = false;
     mobileVanError;
-    // ONL pricing program and Business Group picked in the Mobile Van tab (UI only for now: not saved yet)
+    // ONL pricing program and Business Group picked in the Mobile Van tab, saved in the JSON "mobileVan"
     onlProgramId = null;
+    onlProgramName = null; // PricingProgram__c.Name, e.g. PP-0012
+    onlProgramDescription = null;
     onlProgramLabel = null; // shown in the pill once a program is picked
     onlBusinessGroup = null;
     // ONL program search (Apex: Active, in-date programs only)
@@ -396,6 +411,14 @@ export default class ImsProductConfigurator extends LightningElement {
             })
             .join(' · ');
         const mobileVan = c.mobileVan?.instrumentServices || [];
+        const onlProgram = onlProgramText(c.mobileVan?.program, c.mobileVan?.description);
+        const mobileVanPreview = [
+            onlProgram && `Program ${onlProgram}`,
+            c.mobileVan?.businessGroup,
+            ...mobileVan.map((v) => this.mobileVanLabel(v))
+        ]
+            .filter(Boolean)
+            .join(' · ');
         return [
             {
                 key: SECTION_INC_EXC,
@@ -419,7 +442,7 @@ export default class ImsProductConfigurator extends LightningElement {
                 key: SECTION_MOBILE_VAN,
                 label: 'On Location - Mobile Van',
                 count: mobileVan.length,
-                preview: mobileVan.map((v) => this.mobileVanLabel(v)).join(' · ') || 'None configured'
+                preview: mobileVanPreview || 'None configured'
             }
         ];
     }
@@ -475,6 +498,12 @@ export default class ImsProductConfigurator extends LightningElement {
         this.resetProgramSearch();
         this.mobileVanFilter = '';
         this.mobileVanSelected = [...(c.mobileVan?.instrumentServices || [])];
+        this.onlProgramId = c.mobileVan?.programId || null;
+        this.onlProgramName = c.mobileVan?.program || null;
+        this.onlProgramDescription = c.mobileVan?.description || null;
+        this.onlProgramLabel = onlProgramText(this.onlProgramName, this.onlProgramDescription) || this.onlProgramId;
+        this.onlBusinessGroup = c.mobileVan?.businessGroup || null;
+        this.resetOnlSearch();
         this.ensureManufacturers({}); // new rows start at Any / Any
         this.incRules.forEach((r) => {
             this.ensureSubProductLines(r.productLine);
@@ -535,7 +564,7 @@ export default class ImsProductConfigurator extends LightningElement {
 
     get footerSummary() {
         if (this.isMobileVanSection) {
-            return 'On save: program + Business Group on the quote line - one ContractAdjustment (Type = ONL - Mobile Van) per checked category';
+            return 'On save: program, Business Group and categories are saved with the line - one ContractAdjustment (Type = ONL - Mobile Van) per checked category';
         }
         const total = this.navItems.reduce((n, item) => n + item.count, 0);
         const noun = total === 1 ? 'adjustment' : 'adjustments';
@@ -1166,6 +1195,8 @@ export default class ImsProductConfigurator extends LightningElement {
         const program = this.onlSearchResults.find((p) => p.programId === id);
         if (!program) return;
         this.onlProgramId = program.programId;
+        this.onlProgramName = program.program;
+        this.onlProgramDescription = program.description;
         this.onlProgramLabel = program.label;
         this.resetOnlSearch();
         // Functional pass: load the program's ONL_Category__c lines into onlProgramCategories and check them
@@ -1193,6 +1224,8 @@ export default class ImsProductConfigurator extends LightningElement {
 
     handleOnlProgramClear() {
         this.onlProgramId = null;
+        this.onlProgramName = null;
+        this.onlProgramDescription = null;
         this.onlProgramLabel = null;
         this.onlBusinessGroup = null;
     }
@@ -1235,11 +1268,18 @@ export default class ImsProductConfigurator extends LightningElement {
             models,
             pricingPrograms,
             pricingProgram: this.committed.pricingProgram || null,
-            mobileVan: pickMobileVan({ instrumentServices: this.mobileVanSelected })
+            mobileVan: pickMobileVan({
+                programId: this.onlProgramId,
+                program: this.onlProgramName,
+                description: this.onlProgramDescription,
+                businessGroup: this.onlBusinessGroup,
+                instrumentServices: this.mobileVanSelected
+            })
         };
     }
 
     get commitDisabled() {
+        console.log('101 workingValue', JSON.stringify(this.workingValue));
         return JSON.stringify(this.workingValue) === JSON.stringify(this.toValue(this.committed));
     }
 
@@ -1305,6 +1345,10 @@ export default class ImsProductConfigurator extends LightningElement {
                 };
             }
             seenPrograms.add(row.program);
+        }
+
+        if (value.mobileVan.programId && !value.mobileVan.businessGroup) {
+            return { section: SECTION_MOBILE_VAN, message: 'Select a Business Group for the ONL Pricing Program.' };
         }
         return null;
     }

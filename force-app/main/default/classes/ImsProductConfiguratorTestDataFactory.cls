@@ -93,6 +93,7 @@ public class ImsProductConfiguratorTestDataFactory {
      */
     public static QuoteLineItem createQuoteWithLine() {
         AutomationControl.setAllDisabled(true);
+        bypassAccountTrigger();
 
         adb_Account accountBuilder = new adb_Account().name('Model Qty Test Account');
         accountBuilder.persist();
@@ -159,6 +160,20 @@ public class ImsProductConfiguratorTestDataFactory {
 
         AutomationControl.setAllDisabled(false);
         return line;
+    }
+
+    /**
+     * @description Turns on the org bypass checked at the top of AccountTrigger
+     *              (Automation_Setting_Trigger__c.AccountTriggerByPass__c) for the running user, so the test
+     *              Account is inserted without running AccountTriggerHandler. These tests only need the Account
+     *              as a parent record; Account automation (TAS assignment etc.) is covered by its own tests.
+     *              Same pattern as AccountServiceTest.bypassAccountTrigger(). Test data only: rolled back after
+     *              each test.
+     */
+    private static void bypassAccountTrigger() {
+        Automation_Setting_Trigger__c settings = Automation_Setting_Trigger__c.getInstance(UserInfo.getUserId());
+        settings.AccountTriggerByPass__c = true;
+        upsert settings;
     }
 
     /**

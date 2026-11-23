@@ -1,5 +1,14 @@
 /**
- * @description Test coverage for OpportunitySelector.
+ * @description Tests for OpportunitySelector.
+ *
+ *              Responsibilities:
+ *              1. Verify every selector method returns an empty result for null or empty input.
+ *              2. Verify each selector method returns the expected opportunities and fields for valid Ids.
+ *              3. Verify open pipeline results exclude closed opportunities and keep the expected order.
+ *
+ *              Test data is created once in the test setup method.
+ * @author      Surya Manindra
+ * @date        2026-11-23
  */
 @IsTest
 private class OpportunitySelectorTest {
@@ -12,6 +21,9 @@ private class OpportunitySelectorTest {
     private static final String CLOSED_OPP = 'Pipeline Closed Won';
     private static final String OTHER_OPP = 'Other Account Opportunity';
 
+    /**
+     * @description Creates two accounts, a primary contact and five opportunities shared by all tests.
+     */
     @TestSetup
     static void setup() {
         adb_Account pipelineAccount = new adb_Account()
@@ -40,12 +52,19 @@ private class OpportunitySelectorTest {
         adb_DomainBuilder.save();
     }
 
+    /**
+     * @description Confirms an empty list is returned for a null or empty set of account Ids.
+     */
     @IsTest
     static void selectByAccountIds_nullOrEmptySet_returnsEmptyList() {
         Assert.areEqual(0, OpportunitySelector.selectByAccountIds(null).size());
         Assert.areEqual(0, OpportunitySelector.selectByAccountIds(new Set<Id>()).size());
     }
 
+    /**
+     * @description Confirms open and closed opportunities are returned only for the requested accounts with their
+     *              fields populated.
+     */
     @IsTest
     static void selectByAccountIds_validIds_returnsOpenAndClosedForThoseAccounts() {
         Id pipelineAccountId = accountId(PIPELINE_ACCOUNT_NUMBER);
@@ -74,12 +93,18 @@ private class OpportunitySelectorTest {
         Assert.isFalse(resultsById.get(opportunityNamed(OPEN_EARLY_A).Id).IsClosed);
     }
 
+    /**
+     * @description Confirms an empty list is returned for a null or empty set of opportunity Ids.
+     */
     @IsTest
     static void selectByIds_nullOrEmptySet_returnsEmptyList() {
         Assert.areEqual(0, OpportunitySelector.selectByIds(null).size());
         Assert.areEqual(0, OpportunitySelector.selectByIds(new Set<Id>()).size());
     }
 
+    /**
+     * @description Confirms only the opportunities that exist for the given Ids are returned.
+     */
     @IsTest
     static void selectByIds_validIds_returnsMatchingNames() {
         Opportunity earlyOpportunity = opportunityNamed(OPEN_EARLY_A);
@@ -96,12 +121,18 @@ private class OpportunitySelectorTest {
         Assert.areEqual(OPEN_EARLY_A, results[0].Name);
     }
 
+    /**
+     * @description Confirms an empty list is returned for a null or empty set of owner Ids.
+     */
     @IsTest
     static void selectByOwnerIds_nullOrEmptySet_returnsEmptyList() {
         Assert.areEqual(0, OpportunitySelector.selectByOwnerIds(null).size());
         Assert.areEqual(0, OpportunitySelector.selectByOwnerIds(new Set<Id>()).size());
     }
 
+    /**
+     * @description Confirms all opportunities of the owner are returned and none for an unknown owner.
+     */
     @IsTest
     static void selectByOwnerIds_validIds_returnsOpportunitiesForThatOwner() {
         Test.startTest();
@@ -118,12 +149,19 @@ private class OpportunitySelectorTest {
         Assert.areEqual(0, unowned.size());
     }
 
+    /**
+     * @description Confirms null is returned for a null or missing Id.
+     */
     @IsTest
     static void selectById_nullOrMissing_returnsNull() {
         Assert.isNull(OpportunitySelector.selectById(null));
         Assert.isNull(OpportunitySelector.selectById(fakeId(Opportunity.SObjectType, 2)));
     }
 
+    /**
+     * @description Confirms the opportunity is returned with its account, owner, pricebook, forecast confidence and
+     *              record type.
+     */
     @IsTest
     static void selectById_validId_returnsOpportunityDetail() {
         Opportunity earlyOpportunity = opportunityNamed(OPEN_EARLY_A);
@@ -142,12 +180,18 @@ private class OpportunitySelectorTest {
         Assert.isNotNull(result.CurrencyIsoCode);
     }
 
+    /**
+     * @description Confirms an empty map is returned for a null or empty set of Ids.
+     */
     @IsTest
     static void selectForecastConfidenceByIds_nullOrEmptySet_returnsEmptyMap() {
         Assert.isTrue(OpportunitySelector.selectForecastConfidenceByIds(null).isEmpty());
         Assert.isTrue(OpportunitySelector.selectForecastConfidenceByIds(new Set<Id>()).isEmpty());
     }
 
+    /**
+     * @description Confirms the forecast confidence level is returned for each requested opportunity.
+     */
     @IsTest
     static void selectForecastConfidenceByIds_validIds_returnsConfidenceByOpportunity() {
         Opportunity openOpportunity = opportunityNamed(OPEN_LATER);
@@ -164,12 +208,18 @@ private class OpportunitySelectorTest {
         Assert.areEqual('Won', results.get(closedOpportunity.Id).ForecastConfidenceLevel__c);
     }
 
+    /**
+     * @description Confirms an empty list is returned for a null or empty set of account Ids.
+     */
     @IsTest
     static void selectOpenPipelineByAccountIds_nullOrEmptySet_returnsEmptyList() {
         Assert.areEqual(0, OpportunitySelector.selectOpenPipelineByAccountIds(null).size());
         Assert.areEqual(0, OpportunitySelector.selectOpenPipelineByAccountIds(new Set<Id>()).size());
     }
 
+    /**
+     * @description Confirms only open opportunities of the account are returned in the expected order.
+     */
     @IsTest
     static void selectOpenPipelineByAccountIds_validIds_returnsOpenOpportunitiesInOrder() {
         Test.startTest();
@@ -189,6 +239,9 @@ private class OpportunitySelectorTest {
         }
     }
 
+    /**
+     * @description Confirms an empty map is returned for a null or empty set of Ids.
+     */
     @IsTest
     static void selectByIdsForPrimaryContact_nullOrEmptySet_returnsEmptyMap() {
         OpportunitySelector selector = new OpportunitySelector();
@@ -197,6 +250,9 @@ private class OpportunitySelectorTest {
         Assert.isTrue(selector.selectByIdsForPrimaryContact(new Set<Id>()).isEmpty());
     }
 
+    /**
+     * @description Confirms the primary contact and record type are returned for the requested opportunity.
+     */
     @IsTest
     static void selectByIdsForPrimaryContact_validIds_returnsContactAndRecordType() {
         Opportunity earlyOpportunity = opportunityNamed(OPEN_EARLY_A);
@@ -216,6 +272,17 @@ private class OpportunitySelectorTest {
         Assert.areEqual(recordTypeId, results.get(earlyOpportunity.Id).RecordTypeId);
     }
 
+    /**
+     * @description Builds a Healthcare Sales opportunity with the given values.
+     * @param name Opportunity name.
+     * @param account Builder of the parent account.
+     * @param primaryContact Builder of the primary contact.
+     * @param closeDate Close date.
+     * @param stageName Stage name.
+     * @param forecastConfidence Forecast confidence level.
+     * @param probability Probability.
+     * @param onHold Value of the On Hold flag.
+     */
     private static void buildOpportunity(
         String name,
         adb_Account account,
@@ -240,14 +307,29 @@ private class OpportunitySelectorTest {
         opportunityBuilder.set(Opportunity.OnHold__c, onHold);
     }
 
+    /**
+     * @description Finds an account by account number.
+     * @param accountNumber Account number to search for.
+     * @return Id of the account.
+     */
     private static Id accountId(String accountNumber) {
         return [SELECT Id FROM Account WHERE AccountNumber = :accountNumber LIMIT 1].Id;
     }
 
+    /**
+     * @description Finds an opportunity by name.
+     * @param name Opportunity name to search for.
+     * @return Matching opportunity.
+     */
     private static Opportunity opportunityNamed(String name) {
         return [SELECT Id FROM Opportunity WHERE Name = :name LIMIT 1];
     }
 
+    /**
+     * @description Reads the names of the opportunities.
+     * @param opportunities Opportunities to read.
+     * @return Names in the same order.
+     */
     private static List<String> namesOf(List<Opportunity> opportunities) {
         List<String> names = new List<String>();
         for (Opportunity opportunityRecord : opportunities) {
@@ -256,6 +338,12 @@ private class OpportunitySelectorTest {
         return names;
     }
 
+    /**
+     * @description Builds a well formed Id that does not exist in the org.
+     * @param objectType Object type the Id is built for.
+     * @param suffix Number that makes the Id unique.
+     * @return Fake record Id.
+     */
     private static Id fakeId(Schema.SObjectType objectType, Integer suffix) {
         String digits = String.valueOf(suffix);
         return (Id) (

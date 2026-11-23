@@ -1808,4 +1808,154 @@ public class TestDataFactory {
 
         return null;
     }
+
+    /**
+     * @description GC-3603 - Bypasses the Opportunity trigger for dealer portal tests.
+     */
+    public static void bypassDealerOpportunityTrigger() {
+        insert new Automation_Setting_Trigger__c(
+            SetupOwnerId = UserInfo.getOrganizationId(),
+            OpportunityTriggerByPass__c = true
+        );
+    }
+
+    /**
+     * @description GC-3603 - Inserts a dealer account without a record type.
+     * @param accountName Account name
+     * @return Inserted Account
+     */
+    public static Account insertDealerAccount(String accountName) {
+        Account dealerAccount = new Account(Name = accountName);
+        insert dealerAccount;
+        return dealerAccount;
+    }
+
+    /**
+     * @description GC-3603 - Inserts an active System Administrator for dealer portal tests.
+     * @param firstName First name
+     * @param lastName Last name
+     * @param aliasPrefix Alias prefix
+     * @return Inserted User
+     */
+    public static User insertDealerUser(String firstName, String lastName, String aliasPrefix) {
+        return insertDealerUser(firstName, lastName, aliasPrefix, 'System Administrator');
+    }
+
+    /**
+     * @description GC-3603 - Inserts an active user on the requested profile for dealer portal tests.
+     * @param firstName First name
+     * @param lastName Last name
+     * @param aliasPrefix Alias prefix
+     * @param profileName Profile name
+     * @return Inserted User
+     */
+    public static User insertDealerUser(
+        String firstName,
+        String lastName,
+        String aliasPrefix,
+        String profileName
+    ) {
+        Profile userProfile = [SELECT Id FROM Profile WHERE Name = :profileName LIMIT 1];
+        String suffix = String.valueOf(Math.abs(Crypto.getRandomInteger()));
+        User userRecord = new User(
+            FirstName = firstName,
+            LastName = lastName,
+            Alias = (aliasPrefix + suffix).left(8),
+            Email = aliasPrefix + '.' + suffix + '@test.com',
+            Username = aliasPrefix + '.' + suffix + '@steris.test',
+            CommunityNickname = aliasPrefix + suffix,
+            TimeZoneSidKey = 'America/Los_Angeles',
+            LocaleSidKey = 'en_US',
+            EmailEncodingKey = 'UTF-8',
+            LanguageLocaleKey = 'en_US',
+            ProfileId = userProfile.Id,
+            EmployeeNumber__c = suffix.left(8),
+            IsActive = true
+        );
+        insert userRecord;
+        return userRecord;
+    }
+
+    /**
+     * @description GC-3603 - Inserts a dealer account team member.
+     * @param accountId Account Id
+     * @param userId User Id
+     * @param teamMemberRole Team member role
+     * @return Inserted AccountTeamMember
+     */
+    public static AccountTeamMember insertDealerTeamMember(Id accountId, Id userId, String teamMemberRole) {
+        AccountTeamMember teamMember = new AccountTeamMember(
+            AccountId = accountId,
+            UserId = userId,
+            TeamMemberRole = teamMemberRole,
+            AccountAccessLevel = 'Edit',
+            OpportunityAccessLevel = 'Edit',
+            CaseAccessLevel = 'Read',
+            ContactAccessLevel = 'Read'
+        );
+        insert teamMember;
+        return teamMember;
+    }
+
+    /**
+     * @description GC-3603 - Builds an HCSalesDealer opportunity without inserting it.
+     * @param accountId Account Id
+     * @param opportunityName Opportunity name
+     * @param stageName Stage name
+     * @param amount Amount
+     * @param closeDate Close date
+     * @param expectedShipDate Expected ship date
+     * @return Unsaved Opportunity
+     */
+    public static Opportunity buildDealerOpportunity(
+        Id accountId,
+        String opportunityName,
+        String stageName,
+        Decimal amount,
+        Date closeDate,
+        Date expectedShipDate
+    ) {
+        Opportunity opportunityRecord = new Opportunity(
+            Name = opportunityName,
+            RecordTypeId = dealerOpportunityRecordTypeId(),
+            StageName = stageName,
+            CloseDate = closeDate,
+            EndCustomerName__c = opportunityName + ' Customer',
+            Country__c = 'United States',
+            ForecastConfidenceLevel__c = 'Pipeline',
+            CurrencyIsoCode = 'USD'
+        );
+        if (accountId != null) {
+            opportunityRecord.AccountId = accountId;
+        }
+        if (amount != null) {
+            opportunityRecord.Amount = amount;
+        }
+        if (expectedShipDate != null) {
+            opportunityRecord.Expected_Ship_Date__c = expectedShipDate;
+        }
+        return opportunityRecord;
+    }
+
+    /**
+     * @description GC-3603 - Inserts dealer opportunities and writes the stage again after org automation resets it.
+     * @param opportunities Opportunities to insert
+     * @return Inserted opportunities
+     */
+    public static List<Opportunity> insertDealerOpportunities(List<Opportunity> opportunities) {
+        insert opportunities;
+        update opportunities;
+        return opportunities;
+    }
+
+    /**
+     * @description GC-3603 - Returns the HCSalesDealer opportunity record type Id.
+     * @return Dealer opportunity record type Id
+     */
+    public static Id dealerOpportunityRecordTypeId() {
+        return Schema.SObjectType.Opportunity
+            .getRecordTypeInfosByDeveloperName()
+            .get('HCSalesDealer')
+            .getRecordTypeId();
+    }
 }

@@ -1,6 +1,21 @@
+/**
+ * @description Tests for LSTemporaryAccessExceptionEmailService.
+ *
+ *              Responsibilities:
+ *              1. Verify Life Sciences requests are separated from healthcare requests.
+ *              2. Verify the recipient, CC list, subject and body for each notification type.
+ *              3. Verify coverage emails list the territory numbers of the requester and the covered accounts.
+ *              4. Verify the invocable method logs sending errors and does not throw.
+ * @author      Surya Manindra
+ * @date        2026-11-23
+ */
 @IsTest
 private class LSTemporaryAccessEmailServiceTest {
 
+    /**
+     * @description Confirms only requests created by a Life Sciences Sales user are kept and healthcare requests are
+     *              excluded.
+     */
     @IsTest
     static void lifeScienceRequestIsSeparatedFromHealthcare() {
         Profile lifeScienceProfile = lifeScienceProfile();
@@ -30,6 +45,10 @@ private class LSTemporaryAccessEmailServiceTest {
         System.assert(!lifeScienceIds.contains(healthcareRequest.Id));
     }
 
+    /**
+     * @description Confirms the approval needed email goes to the coverage rep manager and copies the requester,
+     *              coverage rep and submitter.
+     */
     @IsTest
     static void approvalNeededEmailUsesCoverageManagerAndCopiesTheOtherParties() {
         RequestContext context = lifeScienceRequest();
@@ -62,6 +81,10 @@ private class LSTemporaryAccessEmailServiceTest {
         );
     }
 
+    /**
+     * @description Confirms the approved email uses the granted subject and body and copies the requester, coverage
+     *              rep and submitter.
+     */
     @IsTest
     static void grantedEmailGoesToCreatorAndCopiesTheWordRecipients() {
         RequestContext context = lifeScienceRequest();
@@ -86,6 +109,10 @@ private class LSTemporaryAccessEmailServiceTest {
         );
     }
 
+    /**
+     * @description Confirms the rejected email uses the rejected subject and body and copies the requester, coverage
+     *              rep and submitter.
+     */
     @IsTest
     static void rejectedEmailGoesToCreatorAndCopiesTheWordRecipients() {
         RequestContext context = lifeScienceRequest();
@@ -111,6 +138,10 @@ private class LSTemporaryAccessEmailServiceTest {
         );
     }
 
+    /**
+     * @description Confirms the expired email uses the expired subject and body and copies the requester, coverage
+     *              rep and submitter.
+     */
     @IsTest
     static void expiredEmailGoesToCreatorAndCopiesCoverageManager() {
         RequestContext context = lifeScienceRequest();
@@ -135,6 +166,10 @@ private class LSTemporaryAccessEmailServiceTest {
         );
     }
 
+    /**
+     * @description Confirms the expiring email warns of the 3 day expiry, links to the request record and copies the
+     *              other parties.
+     */
     @IsTest
     static void expiringEmailGoesToCreatorWithRecordLink() {
         RequestContext context = lifeScienceRequest();
@@ -160,6 +195,10 @@ private class LSTemporaryAccessEmailServiceTest {
         );
     }
 
+    /**
+     * @description Confirms a manager with an active delegated approver still receives one email and the CC list has
+     *              no duplicates.
+     */
     @IsTest
     static void activeDelegatedApproverIsCopiedOnce() {
         RequestContext context = lifeScienceRequest();
@@ -191,6 +230,9 @@ private class LSTemporaryAccessEmailServiceTest {
         }
     }
 
+    /**
+     * @description Confirms a relative record link in the email template becomes an absolute link on the org domain.
+     */
     @IsTest
     static void blankTemplateLinkIsMadeAbsolute() {
         RequestContext context = lifeScienceRequest();
@@ -201,6 +243,10 @@ private class LSTemporaryAccessEmailServiceTest {
         System.assert(fixedBody.contains('href="' + URL.getOrgDomainUrl().toExternalForm() + '/' + context.request.Id + '"'));
     }
 
+    /**
+     * @description Confirms the coverage granted and coverage revoked emails use their own subject and body and copy
+     *              the other parties.
+     */
     @IsTest
     static void coverageEmailsGoToRequesterAndCoverageRep() {
         RequestContext context = lifeScienceRequest();
@@ -246,6 +292,10 @@ private class LSTemporaryAccessEmailServiceTest {
         );
     }
 
+    /**
+     * @description Confirms the coverage email lists the requester territory numbers in sort order and excludes the
+     *              coverage rep territories.
+     */
     @IsTest
     static void coverageEmailListsRequesterTerritoryNumbers() {
         RequestContext context = lifeScienceRequest();
@@ -282,6 +332,10 @@ private class LSTemporaryAccessEmailServiceTest {
         );
     }
 
+    /**
+     * @description Confirms the coverage email lists territories of the accounts on the request and excludes other
+     *              accounts.
+     */
     @IsTest
     static void coverageEmailListsTerritoriesOnTheCoveredAccount() {
         RequestContext context = lifeScienceRequest();
@@ -313,6 +367,9 @@ private class LSTemporaryAccessEmailServiceTest {
         System.assert(!granted[0].htmlBody.contains('{{LS_TERRITORY_ROWS}}'));
     }
 
+    /**
+     * @description Confirms the invocable send method completes without throwing when sending is skipped.
+     */
     @IsTest
     static void invocableLogsAndDoesNotThrow() {
         RequestContext context = lifeScienceRequest();
@@ -329,6 +386,9 @@ private class LSTemporaryAccessEmailServiceTest {
         System.assertEquals(true, LSTemporaryAccessExceptionEmailService.skipSendForTest);
     }
 
+    /**
+     * @description Confirms an invalid org wide from address is logged and does not throw.
+     */
     @IsTest
     static void invalidFromAddressIsLoggedAndDoesNotThrow() {
         RequestContext context = lifeScienceRequest();
@@ -346,6 +406,10 @@ private class LSTemporaryAccessEmailServiceTest {
         System.assertEquals(true, LSTemporaryAccessExceptionEmailService.fromAddressLoaded);
     }
 
+    /**
+     * @description Creates the users and a saved temporary access request used by the email tests.
+     * @return Context holding the request and the users involved.
+     */
     private static RequestContext lifeScienceRequest() {
         Profile lifeScienceProfile = lifeScienceProfile();
         User requesterManager = insertUser(lifeScienceProfile.Id, 'lsRmg', null);
@@ -370,6 +434,12 @@ private class LSTemporaryAccessEmailServiceTest {
         return context;
     }
 
+    /**
+     * @description Builds a PTO temporary access request that starts tomorrow and ends in 6 days.
+     * @param requesterId Id of the user the request is for.
+     * @param coverageRepId Id of the user providing coverage.
+     * @return Unsaved temporary access request.
+     */
     private static TemporaryAccessException__c newRequest(Id requesterId, Id coverageRepId) {
         return new TemporaryAccessException__c(
             Requester__c = requesterId,
@@ -380,6 +450,10 @@ private class LSTemporaryAccessEmailServiceTest {
         );
     }
 
+    /**
+     * @description Finds the Life Sciences Sales profile and asserts it exists in the org.
+     * @return Life Sciences Sales profile.
+     */
     private static Profile lifeScienceProfile() {
         List<Profile> profiles = [
             SELECT Id
@@ -391,6 +465,10 @@ private class LSTemporaryAccessEmailServiceTest {
         return profiles[0];
     }
 
+    /**
+     * @description Inserts a flow bypass setting so the temporary access flows do not run for the user.
+     * @param userId Id of the user the setting is created for.
+     */
     private static void stopTemporaryAccessFlows(Id userId) {
         System.runAs(new User(Id = UserInfo.getUserId())) {
             insert new Automation_Setting_Flow__c(
@@ -402,6 +480,10 @@ private class LSTemporaryAccessEmailServiceTest {
         }
     }
 
+    /**
+     * @description Finds a standard profile that is not the Life Sciences Sales profile.
+     * @return Id of a non Life Sciences profile.
+     */
     private static Id nonLifeScienceProfileId() {
         Profile runningUserProfile = [
             SELECT Name
@@ -422,6 +504,14 @@ private class LSTemporaryAccessEmailServiceTest {
 
     private static Integer userSequence = 0;
 
+    /**
+     * @description Inserts a test user and grants temporary access permissions when the profile is Life Sciences
+     *              Sales.
+     * @param profileId Id of the profile assigned to the user.
+     * @param aliasSeed Text used to build the alias, last name and username.
+     * @param managerId Id of the manager. Null when the user has no manager.
+     * @return Inserted user.
+     */
     private static User insertUser(Id profileId, String aliasSeed, Id managerId) {
         userSequence++;
         String token = String.valueOf(DateTime.now().getTime()) + userSequence + aliasSeed;
@@ -444,7 +534,6 @@ private class LSTemporaryAccessEmailServiceTest {
         return user;
     }
 
-    /** Gives the Life Sciences user create and edit on every writable request field. */
     private static void grantTemporaryAccessAccess(Id userId) {
         String name = 'LSTae' + String.valueOf(Math.abs(Crypto.getRandomInteger()));
         PermissionSet permissionSet = new PermissionSet(Name = name, Label = name);
@@ -477,10 +566,20 @@ private class LSTemporaryAccessEmailServiceTest {
         insert new PermissionSetAssignment(AssigneeId = userId, PermissionSetId = permissionSet.Id);
     }
 
+    /**
+     * @description Asserts the CC addresses match the expected addresses, ignoring case and order.
+     * @param actual CC addresses produced by the service.
+     * @param expected CC addresses the test expects.
+     */
     private static void assertCc(List<String> actual, List<String> expected) {
         System.assertEquals(lowerCase(expected), lowerCase(actual));
     }
 
+    /**
+     * @description Converts email addresses to lower case.
+     * @param addresses Email addresses to convert.
+     * @return Set of lower case email addresses.
+     */
     private static Set<String> lowerCase(List<String> addresses) {
         Set<String> values = new Set<String>();
         for (String address : addresses) {
@@ -489,6 +588,11 @@ private class LSTemporaryAccessEmailServiceTest {
         return values;
     }
 
+    /**
+     * @description Collects the recipient user Ids from the composed notifications.
+     * @param notifications Notifications built by the service.
+     * @return Set of recipient user Ids.
+     */
     private static Set<Id> recipientIds(List<LSTemporaryAccessExceptionEmailService.ComposedNotification> notifications) {
         Set<Id> recipients = new Set<Id>();
         for (LSTemporaryAccessExceptionEmailService.ComposedNotification notification : notifications) {

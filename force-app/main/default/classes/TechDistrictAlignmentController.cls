@@ -2,7 +2,8 @@
  * @author Sagar Anand
  * @date 2026-11-05
  * @description GW-2707: Aura entry point for the techDistrictAlignment LWC (technician-to-district realignment).
- *              Relays requests to TechDistrictAlignmentService; errors are handled (and logged) here only.
+ *              Relays requests to TechDistrictAlignmentService, which logs errors; here they are turned into
+ *              user messages.
  * @group Field Service
  * @see TechDistrictAlignmentService
  */
@@ -57,14 +58,12 @@ public with sharing class TechDistrictAlignmentController {
 	}
 
 	/**
-	 * @description User-facing messages (AuraHandledException) pass through; anything else is logged first.
+	 * @description User-facing messages (AuraHandledException) pass through; anything else (already logged by the
+	 *              service) is turned into a user message.
 	 */
 	private static AuraHandledException toAuraException(Exception e) {
-		if (e instanceof AuraHandledException) {
-			return (AuraHandledException) e;
-		}
-		Logger.error('Tech District Alignment failed', e).addTags(TechDistrictAlignmentService.LOG_TAGS);
-		Logger.saveLog();
-		return PlatformUtilities.buildAuraException(PlatformUtilities.resolveExceptionMessage(e));
+		return e instanceof AuraHandledException
+			? (AuraHandledException) e
+			: PlatformUtilities.buildAuraException(PlatformUtilities.resolveExceptionMessage(e));
 	}
 }

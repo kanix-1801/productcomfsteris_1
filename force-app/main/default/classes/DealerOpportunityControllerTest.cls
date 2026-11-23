@@ -12,32 +12,21 @@ private class DealerOpportunityControllerTest {
 
     @TestSetup
     static void setupData() {
-        bypassOpportunityTrigger();
+        TestDataFactory.bypassDealerOpportunityTrigger();
 
-        Account dealerAccount = new Account(Name = 'Authorized Dealer Midwest');
-        insert dealerAccount;
+        Account dealerAccount = TestDataFactory.insertDealerAccount('Authorized Dealer Midwest');
+        User dealerManager = TestDataFactory.insertDealerUser('Dana', 'Manager', 'dmgr');
+        TestDataFactory.insertDealerTeamMember(dealerAccount.Id, dealerManager.Id, teamRole());
 
-        User dealerManager = insertUser('Dana', 'Manager', 'dmgr');
-        insert new AccountTeamMember(
-            AccountId = dealerAccount.Id,
-            UserId = dealerManager.Id,
-            TeamMemberRole = teamRole(),
-            AccountAccessLevel = 'Edit',
-            OpportunityAccessLevel = 'Edit',
-            CaseAccessLevel = 'Read',
-            ContactAccessLevel = 'Read'
-        );
-
-        List<Opportunity> opportunities = new List<Opportunity>{
-            buildOpportunity(dealerAccount, 'Recent Hospital Project', 'Evaluation', 15000, Date.today().addDays(10), Date.today().addDays(-3)),
-            buildOpportunity(dealerAccount, 'Older Capital Project', 'Proposal', 27500, Date.today().addDays(20), Date.today().addDays(-1)),
-            buildOpportunity(dealerAccount, 'Won Sterilizer', 'Closed Won', 23000, Date.today().addDays(-5), Date.today().addDays(-20)),
-            buildOpportunity(dealerAccount, 'Future Ship Project', 'Commit', 16450, Date.today().addDays(40), Date.today().addDays(15))
-        };
-        insert opportunities;
-
-        // Org automation resets the stage to Evaluation on insert, so apply the intended stage by update.
-        update opportunities;
+        List<Opportunity> opportunities = TestDataFactory.insertDealerOpportunities(new List<Opportunity>{
+            TestDataFactory.buildDealerOpportunity(dealerAccount.Id, 'Recent Hospital Project', 'Evaluation', 15000, Date.today().addDays(10), Date.today().addDays(-3)),
+            TestDataFactory.buildDealerOpportunity(dealerAccount.Id, 'Older Capital Project', 'Proposal', 27500, Date.today().addDays(20), Date.today().addDays(-1)),
+            TestDataFactory.buildDealerOpportunity(dealerAccount.Id, 'Won Sterilizer', 'Closed Won', 23000, Date.today().addDays(5), Date.today().addDays(-20)),
+            TestDataFactory.buildDealerOpportunity(dealerAccount.Id, 'Future Ship Project', 'Commit', 16450, Date.today().addDays(40), Date.today().addDays(15))
+        });
+        // The close date rule blocks past close dates on open stages, so move the closed-won date back after the stage is set.
+        opportunities[2].CloseDate = Date.today().addDays(-5);
+        update opportunities[2];
     }
 
     @IsTest
@@ -131,7 +120,7 @@ private class DealerOpportunityControllerTest {
         Test.stopTest();
 
         Opportunity createdOpportunity = [
-            SELECT OwnerId, StageName, CurrencyIsoCode, DealerSubmitter__c, DealerAccountName__c,
+            SELECT OwnerId, StageName, CurrencyIsoCode, DealerSubmitter__c,
                 EndCustomerName__c, HCBusinessUnit__c
             FROM Opportunity
             WHERE Id = :opportunityId
@@ -144,7 +133,6 @@ private class DealerOpportunityControllerTest {
         Assert.areEqual(businessUnit, createdOpportunity.HCBusinessUnit__c, 'The selected business unit should be saved.');
         Assert.areEqual('USD', createdOpportunity.CurrencyIsoCode, 'Currency should default from the request.');
         Assert.areEqual(UserInfo.getUserId(), createdOpportunity.DealerSubmitter__c, 'The creator is stored as the submitter.');
-        Assert.areEqual('Authorized Dealer Midwest', createdOpportunity.DealerAccountName__c, 'The dealer name should be stamped.');
         Assert.areEqual('Cleveland Clinic', createdOpportunity.EndCustomerName__c, 'The end customer should be stored.');
     }
 
@@ -190,7 +178,7 @@ private class DealerOpportunityControllerTest {
         Assert.isFalse(context.stages.contains('Discovery'), 'Discovery is not a Dealer record type stage.');
         Assert.isFalse(context.businessUnits.isEmpty(), 'Business Unit choices should be available on create.');
         Assert.areEqual(
-            dealerRecordTypeId(),
+            TestDataFactory.dealerOpportunityRecordTypeId(),
             context.recordTypeId,
             'The standard form should open on the Dealer record type.'
         );
@@ -198,18 +186,17 @@ private class DealerOpportunityControllerTest {
 
     @IsTest
     static void shareServiceLeavesOwnerWhenNoDealerManagerIsAssigned() {
-        Account dealerAccount = new Account(Name = 'Dealer Without Manager');
-        insert dealerAccount;
-        Opportunity opportunityRecord = new Opportunity(
-            Name = 'Unassigned Dealer Opportunity',
-            AccountId = dealerAccount.Id,
-            RecordTypeId = dealerRecordTypeId(),
-            StageName = 'Evaluation',
-            CloseDate = Date.today().addDays(12),
-            ForecastConfidenceLevel__c = 'Pipeline',
-            CurrencyIsoCode = 'USD'
-        );
-        insert opportunityRecord;
+        Account dealerAccount = TestDataFactory.insertDealerAccount('Dealer Without Manager');
+        Opportunity opportunityRecord = TestDataFactory.insertDealerOpportunities(new List<Opportunity>{
+            TestDataFactory.buildDealerOpportunity(
+                dealerAccount.Id,
+                'Unassigned Dealer Opportunity',
+                'Evaluation',
+                null,
+                Date.today().addDays(12),
+                null
+            )
+        })[0];
 
         Test.startTest();
         DealerOpportunityShareService.assignOwnerAndShare(opportunityRecord.Id, UserInfo.getUserId());
@@ -305,12 +292,12 @@ private class DealerOpportunityControllerTest {
         Account dealerAccount = [SELECT Id, Name FROM Account WHERE Name = 'Authorized Dealer Midwest' LIMIT 1];
         String businessUnit = activeBusinessUnit();
         List<Opportunity> extraOpportunities = new List<Opportunity>{
-            buildOpportunity(dealerAccount, 'January Pipeline', 'Evaluation', 5000, Date.newInstance(Date.today().year(), 1, 15), Date.today().addDays(5)),
-            buildOpportunity(dealerAccount, 'June Pipeline', 'Evaluation', 5000, Date.newInstance(Date.today().year(), 6, 15), Date.today().addDays(6)),
-            buildOpportunity(dealerAccount, 'Next Year Pipeline', 'Evaluation', 8000, Date.newInstance(Date.today().year() + 1, 2, 15), Date.today().addDays(7))
+            TestDataFactory.buildDealerOpportunity(dealerAccount.Id, 'Near Term Pipeline', 'Evaluation', 5000, Date.today().addDays(30), Date.today().addDays(5)),
+            TestDataFactory.buildDealerOpportunity(dealerAccount.Id, 'Later Pipeline', 'Evaluation', 5000, Date.today().addDays(120), Date.today().addDays(6)),
+            TestDataFactory.buildDealerOpportunity(dealerAccount.Id, 'Next Year Pipeline', 'Evaluation', 8000, Date.newInstance(Date.today().year() + 1, 2, 15), Date.today().addDays(7))
         };
         extraOpportunities[0].HCBusinessUnit__c = businessUnit;
-        insert extraOpportunities;
+        TestDataFactory.insertDealerOpportunities(extraOpportunities);
 
         DealerOpportunitySelector.OpportunityFilter emptySearch = new DealerOpportunitySelector.OpportunityFilter();
         emptySearch.search = '13/40/2026';
@@ -367,19 +354,17 @@ private class DealerOpportunityControllerTest {
     @IsTest
     static void finalizeCreatedOpportunityCoversMissingAndUnchangedRecords() {
         Account dealerAccount = [SELECT Id, Name FROM Account WHERE Name = 'Authorized Dealer Midwest' LIMIT 1];
-        Opportunity unnamed = buildOpportunity(
-            dealerAccount,
+        Opportunity unnamed = TestDataFactory.buildDealerOpportunity(
+            dealerAccount.Id,
             'Needs Dealer Name',
             'Evaluation',
             1000,
             Date.today().addDays(9),
             Date.today().addDays(12)
         );
-        unnamed.DealerAccountName__c = null;
         unnamed.ForecastConfidenceLevel__c = null;
-        insert unnamed;
-        Opportunity finished = buildOpportunity(
-            dealerAccount,
+        Opportunity finished = TestDataFactory.buildDealerOpportunity(
+            dealerAccount.Id,
             'Already Finished',
             'Evaluation',
             1100,
@@ -387,16 +372,19 @@ private class DealerOpportunityControllerTest {
             Date.today().addDays(13)
         );
         finished.DealerSubmitter__c = UserInfo.getUserId();
-        insert finished;
-        Opportunity removedOpportunity = buildOpportunity(
-            dealerAccount,
+        Opportunity removedOpportunity = TestDataFactory.buildDealerOpportunity(
+            dealerAccount.Id,
             'Removed Opportunity',
             'Evaluation',
             1200,
             Date.today().addDays(12),
             Date.today().addDays(14)
         );
-        insert removedOpportunity;
+        TestDataFactory.insertDealerOpportunities(new List<Opportunity>{
+            unnamed,
+            finished,
+            removedOpportunity
+        });
         Id removedOpportunityId = removedOpportunity.Id;
         delete removedOpportunity;
 
@@ -424,18 +412,17 @@ private class DealerOpportunityControllerTest {
         Test.stopTest();
 
         Opportunity reloaded = [
-            SELECT DealerAccountName__c, DealerSubmitter__c, ForecastConfidenceLevel__c
+            SELECT DealerSubmitter__c, ForecastConfidenceLevel__c
             FROM Opportunity
             WHERE Id = :unnamed.Id
         ];
-        Assert.areEqual('Authorized Dealer Midwest', reloaded.DealerAccountName__c, 'The dealer name should be stamped.');
         Assert.areEqual(UserInfo.getUserId(), reloaded.DealerSubmitter__c, 'The submitter should be stamped.');
         Assert.areEqual('Pipeline', reloaded.ForecastConfidenceLevel__c, 'Confidence should default to Pipeline.');
     }
 
     @IsTest
     static void controllerReportsAQueryFailure() {
-        User limitedUser = insertUser('Limited', 'Reader', 'lrd', 'Minimum Access - Salesforce');
+        User limitedUser = TestDataFactory.insertDealerUser('Limited', 'Reader', 'lrd', 'Minimum Access - Salesforce');
 
         System.runAs(limitedUser) {
             Test.startTest();
@@ -451,61 +438,61 @@ private class DealerOpportunityControllerTest {
 
     @IsTest
     static void shareServiceCoversMissingAccountsManagersAndRoles() {
-        User teammate = insertUser('Pat', 'Teammate', 'ptm');
-        Account plainAccount = new Account(Name = 'Plain Dealer Team');
-        Account removedAccount = new Account(Name = 'Removed Dealer');
+        User teammate = TestDataFactory.insertDealerUser('Pat', 'Teammate', 'ptm');
         Opportunity plainOpportunity;
         Opportunity sharedOpportunity;
         Opportunity unlinkedOpportunity;
         Id removedAccountId;
 
-        UserRole portalRole = [
+        // Partner portal roles only exist in orgs where an Account has been enabled as a partner, so do not
+        // assume one is present (it is missing in CBMQA).
+        List<UserRole> portalRoles = [
             SELECT PortalAccountId
             FROM UserRole
             WHERE PortalType = 'Partner'
             AND PortalAccountId != null
             LIMIT 1
         ];
+        Boolean hasPortalRole = !portalRoles.isEmpty();
         System.runAs(new User(Id = UserInfo.getUserId())) {
-            insert new List<Account>{ plainAccount, removedAccount };
+            Account plainAccount = TestDataFactory.insertDealerAccount('Plain Dealer Team');
+            Account removedAccount = TestDataFactory.insertDealerAccount('Removed Dealer');
             removedAccountId = removedAccount.Id;
             delete removedAccount;
-            insert new AccountTeamMember(
-                AccountId = plainAccount.Id,
-                UserId = teammate.Id,
-                TeamMemberRole = teamRoleWithoutDealerManager(),
-                AccountAccessLevel = 'Edit',
-                OpportunityAccessLevel = 'Edit',
-                CaseAccessLevel = 'Read',
-                ContactAccessLevel = 'Read'
+            TestDataFactory.insertDealerTeamMember(
+                plainAccount.Id,
+                teammate.Id,
+                teamRoleWithoutDealerManager()
             );
-            plainOpportunity = buildOpportunity(
-                plainAccount,
+            plainOpportunity = TestDataFactory.buildDealerOpportunity(
+                plainAccount.Id,
                 'Plain Team Opportunity',
                 'Evaluation',
                 2200,
                 Date.today().addDays(14),
                 Date.today().addDays(16)
             );
-            insert plainOpportunity;
-            sharedOpportunity = buildOpportunity(
-                new Account(Id = portalRole.PortalAccountId, Name = 'Portal Dealer'),
+            sharedOpportunity = TestDataFactory.buildDealerOpportunity(
+                hasPortalRole ? portalRoles[0].PortalAccountId : plainAccount.Id,
                 'Portal Role Opportunity',
                 'Evaluation',
                 2400,
                 Date.today().addDays(18),
                 Date.today().addDays(20)
             );
-            insert sharedOpportunity;
-            unlinkedOpportunity = new Opportunity(
-                Name = 'Unlinked Opportunity',
-                RecordTypeId = dealerRecordTypeId(),
-                StageName = 'Evaluation',
-                CloseDate = Date.today().addDays(21),
-                ForecastConfidenceLevel__c = 'Pipeline',
-                CurrencyIsoCode = 'USD'
+            unlinkedOpportunity = TestDataFactory.buildDealerOpportunity(
+                null,
+                'Unlinked Opportunity',
+                'Evaluation',
+                null,
+                Date.today().addDays(21),
+                null
             );
-            insert unlinkedOpportunity;
+            TestDataFactory.insertDealerOpportunities(new List<Opportunity>{
+                plainOpportunity,
+                sharedOpportunity,
+                unlinkedOpportunity
+            });
         }
 
         Test.startTest();
@@ -525,7 +512,9 @@ private class DealerOpportunityControllerTest {
         ];
         Assert.areEqual(teammate.Id, reloaded.OwnerId, 'A standard team member should own the opportunity when no Dealer Manager is assigned.');
         Assert.isNull(missingName, 'A deleted account has no name.');
-        Assert.isFalse(shares.isEmpty(), 'The dealer organisation role should receive a manual share.');
+        if (hasPortalRole) {
+            Assert.isFalse(shares.isEmpty(), 'The dealer organisation role should receive a manual share.');
+        }
     }
 
     private static String createRequest(String businessUnits, String currencyCode, String accountId) {
@@ -579,37 +568,6 @@ private class DealerOpportunityControllerTest {
         return null;
     }
 
-    private static Opportunity buildOpportunity(
-        Account dealerAccount,
-        String opportunityName,
-        String stageName,
-        Decimal amount,
-        Date closeDate,
-        Date expectedShipDate
-    ) {
-        return new Opportunity(
-            Name = opportunityName,
-            AccountId = dealerAccount.Id,
-            RecordTypeId = dealerRecordTypeId(),
-            StageName = stageName,
-            Amount = amount,
-            CloseDate = closeDate,
-            Expected_Ship_Date__c = expectedShipDate,
-            EndCustomerName__c = opportunityName + ' Customer',
-            DealerAccountName__c = dealerAccount.Name,
-            Country__c = 'United States',
-            ForecastConfidenceLevel__c = 'Pipeline',
-            CurrencyIsoCode = 'USD'
-        );
-    }
-
-    private static Id dealerRecordTypeId() {
-        return Schema.SObjectType.Opportunity
-            .getRecordTypeInfosByDeveloperName()
-            .get(DealerOpportunitySelector.RECORD_TYPE_NAME)
-            .getRecordTypeId();
-    }
-
     private static Integer discoveryCount(DealerOpportunityController.Summary summary) {
         for (DealerOpportunityController.StageMetric stageMetric : summary.stages) {
             if (stageMetric.stageName == 'Discovery') {
@@ -631,38 +589,5 @@ private class DealerOpportunityControllerTest {
             }
         }
         return 'Dealer Manager';
-    }
-
-    private static User insertUser(String firstName, String lastName, String aliasPrefix) {
-        return insertUser(firstName, lastName, aliasPrefix, 'System Administrator');
-    }
-
-    private static User insertUser(String firstName, String lastName, String aliasPrefix, String profileName) {
-        Profile adminProfile = [SELECT Id FROM Profile WHERE Name = :profileName LIMIT 1];
-        String suffix = String.valueOf(Math.abs(Crypto.getRandomInteger()));
-        User userRecord = new User(
-            FirstName = firstName,
-            LastName = lastName,
-            Alias = (aliasPrefix + suffix).left(8),
-            Email = aliasPrefix + '.' + suffix + '@test.com',
-            Username = aliasPrefix + '.' + suffix + '@steris.test',
-            CommunityNickname = aliasPrefix + suffix,
-            TimeZoneSidKey = 'America/Los_Angeles',
-            LocaleSidKey = 'en_US',
-            EmailEncodingKey = 'UTF-8',
-            LanguageLocaleKey = 'en_US',
-            ProfileId = adminProfile.Id,
-            EmployeeNumber__c = suffix.left(8),
-            IsActive = true
-        );
-        insert userRecord;
-        return userRecord;
-    }
-
-    private static void bypassOpportunityTrigger() {
-        insert new Automation_Setting_Trigger__c(
-            SetupOwnerId = UserInfo.getOrganizationId(),
-            OpportunityTriggerByPass__c = true
-        );
     }
 }

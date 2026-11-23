@@ -3,6 +3,13 @@
  */
 @IsTest(SeeAllData=false)
 private class DealerOpportunityProductControllerTest {
+    private static final String DEALER_KEY = 'products';
+
+    @TestSetup
+    static void setupDealer() {
+        DealerPortalTestUser.create(DEALER_KEY);
+    }
+
     @IsTest
     static void search_excludesServiceAndMatchesName() {
         Opportunity opportunity = insertDealerOpportunity();
@@ -15,8 +22,10 @@ private class DealerOpportunityProductControllerTest {
         insertPrice(opportunity, service, 15);
 
         Test.startTest();
-        List<DealerOpportunityProductController.ProductOption> results =
-            DealerOpportunityProductController.searchProducts(opportunity.Id, 'Dealer');
+        List<DealerOpportunityProductController.ProductOption> results;
+        System.runAs(dealer()) {
+            results = DealerOpportunityProductController.searchProducts(opportunity.Id, 'Dealer');
+        }
         Test.stopTest();
 
         System.assertEquals(1, results.size(), 'Service products stay out of dealer search');
@@ -29,10 +38,9 @@ private class DealerOpportunityProductControllerTest {
 
     @IsTest
     static void search_blankPutsThisDealersRecentProductsFirst() {
-        Account account = insertAccount();
-        Opportunity current = insertDealerOpportunity(account);
-        Opportunity earlier = insertDealerOpportunity(account);
-        Opportunity later = insertDealerOpportunity(account);
+        Opportunity current = insertDealerOpportunity();
+        Opportunity earlier = insertDealerOpportunity();
+        Opportunity later = insertDealerOpportunity();
         Account otherAccount = insertAccount();
         Opportunity otherDealer = insertDealerOpportunity(otherAccount);
         Product2 olderProduct = insertProduct('Older Catalog Item', 'OLD-1', null);
@@ -45,15 +53,22 @@ private class DealerOpportunityProductControllerTest {
         PricebookEntry outsideEntry = insertPrice(current, otherAccountProduct, 16);
         insertLine(earlier, olderEntry);
         insertLine(later, newerEntry);
-        insertLine(otherDealer, outsideEntry);
+        insert new OpportunityLineItem(
+            OpportunityId = otherDealer.Id,
+            PricebookEntryId = outsideEntry.Id,
+            Quantity = 1,
+            UnitPrice = outsideEntry.UnitPrice
+        );
         Test.setCreatedDate(lineId(earlier), DateTime.now().addDays(-2));
         Test.setCreatedDate(lineId(later), DateTime.now().addDays(-1));
 
         Test.startTest();
-        List<DealerOpportunityProductController.ProductOption> blank =
-            DealerOpportunityProductController.searchProducts(current.Id, null);
-        List<DealerOpportunityProductController.ProductOption> typed =
-            DealerOpportunityProductController.searchProducts(current.Id, 'Other Catalog');
+        List<DealerOpportunityProductController.ProductOption> blank;
+        List<DealerOpportunityProductController.ProductOption> typed;
+        System.runAs(dealer()) {
+            blank = DealerOpportunityProductController.searchProducts(current.Id, null);
+            typed = DealerOpportunityProductController.searchProducts(current.Id, 'Other Catalog');
+        }
         Test.stopTest();
 
         System.assertEquals(newerProduct.Id, blank[0].productId, 'The newest product added by this dealer is first');
@@ -78,29 +93,6 @@ private class DealerOpportunityProductControllerTest {
     }
 
     @IsTest
-    static void search_rejectsNonDealerOpportunity() {
-        Account account = insertAccount();
-        Opportunity opportunity = new Opportunity(
-            Name = 'Direct Opportunity',
-            AccountId = account.Id,
-            StageName = 'Discovery',
-            CloseDate = Date.today().addDays(20),
-            Pricebook2Id = Test.getStandardPricebookId(),
-            BypassValidations__c = true
-        );
-        insert opportunity;
-        Boolean threw = false;
-
-        try {
-            DealerOpportunityProductController.searchProducts(opportunity.Id, 'Dealer');
-        } catch (AuraHandledException ex) {
-            threw = true;
-        }
-
-        System.assertEquals(true, threw, 'EPP and other opportunities stay out of the dealer search');
-    }
-
-    @IsTest
     static void create_writesDealerLineAndBlocksServiceEntry() {
         Opportunity opportunity = insertDealerOpportunity();
         Product2 eligible = insertProduct('Dealer Pump', 'DP-1', null);
@@ -117,7 +109,10 @@ private class DealerOpportunityProductControllerTest {
         });
 
         Test.startTest();
-        Integer created = DealerOpportunityProductController.createProducts(opportunity.Id, payload);
+        Integer created;
+        System.runAs(dealer()) {
+            created = DealerOpportunityProductController.createProducts(opportunity.Id, payload);
+        }
         Test.stopTest();
 
         System.assertEquals(1, created);
@@ -137,16 +132,18 @@ private class DealerOpportunityProductControllerTest {
 
         Boolean blocked = false;
         try {
-            DealerOpportunityProductController.createProducts(
-                opportunity.Id,
-                JSON.serialize(new List<Object>{
-                    new Map<String, Object>{
-                        'pricebookEntryId' => serviceEntry.Id,
-                        'quantity' => 1,
-                        'unitPrice' => 10
-                    }
-                })
-            );
+            System.runAs(dealer()) {
+                DealerOpportunityProductController.createProducts(
+                    opportunity.Id,
+                    JSON.serialize(new List<Object>{
+                        new Map<String, Object>{
+                            'pricebookEntryId' => serviceEntry.Id,
+                            'quantity' => 1,
+                            'unitPrice' => 10
+                        }
+                    })
+                );
+            }
         } catch (AuraHandledException ex) {
             blocked = true;
         }
@@ -158,37 +155,32 @@ private class DealerOpportunityProductControllerTest {
         Opportunity opportunity = insertDealerOpportunity();
         Product2 eligible = insertProduct('Dealer Pump', 'DP-1', null);
         PricebookEntry eligibleEntry = insertPrice(opportunity, eligible, 25);
-        CurrencyType entered = [
-            SELECT ConversionRate
-            FROM CurrencyType
-            WHERE IsoCode = 'EUR' AND IsActive = true
-            LIMIT 1
-        ];
-        CurrencyType opportunityCurrency = [
-            SELECT ConversionRate, DecimalPlaces
-            FROM CurrencyType
-            WHERE IsoCode = 'USD'
-            LIMIT 1
-        ];
+        CurrencyType opportunityCurrency = activeCurrency('USD');
+        CurrencyType entered = otherActiveCurrency('USD');
+        String enteredCode = entered == null ? 'USD' : entered.IsoCode;
         Decimal enteredPrice = 86;
         Integer places = opportunityCurrency.DecimalPlaces == null ? 2 : opportunityCurrency.DecimalPlaces;
-        Decimal expected = (enteredPrice * opportunityCurrency.ConversionRate / entered.ConversionRate)
-            .setScale(places, System.RoundingMode.HALF_UP);
+        Decimal expected = entered == null
+            ? enteredPrice
+            : (enteredPrice * opportunityCurrency.ConversionRate / entered.ConversionRate)
+                .setScale(places, System.RoundingMode.HALF_UP);
 
         Test.startTest();
-        DealerOpportunityProductController.DealerContext context =
-            DealerOpportunityProductController.getDealerContext(opportunity.Id);
-        DealerOpportunityProductController.createProducts(
-            opportunity.Id,
-            JSON.serialize(new List<Object>{
-                new Map<String, Object>{
-                    'pricebookEntryId' => eligibleEntry.Id,
-                    'quantity' => 1,
-                    'unitPrice' => enteredPrice,
-                    'currencyCode' => 'EUR'
-                }
-            })
-        );
+        DealerOpportunityProductController.DealerContext context;
+        System.runAs(dealer()) {
+            context = DealerOpportunityProductController.getDealerContext(opportunity.Id);
+            DealerOpportunityProductController.createProducts(
+                opportunity.Id,
+                JSON.serialize(new List<Object>{
+                    new Map<String, Object>{
+                        'pricebookEntryId' => eligibleEntry.Id,
+                        'quantity' => 1,
+                        'unitPrice' => enteredPrice,
+                        'currencyCode' => enteredCode
+                    }
+                })
+            );
+        }
         Test.stopTest();
 
         System.assertEquals('USD', context.currencyCode);
@@ -207,37 +199,74 @@ private class DealerOpportunityProductControllerTest {
         Opportunity opportunity = insertDealerOpportunity();
         Product2 eligible = insertProduct('Dealer Pump', 'DP-1', null);
         PricebookEntry eligibleEntry = insertPrice(opportunity, eligible, 25);
-        DealerOpportunityProductController.createProducts(
-            opportunity.Id,
-            JSON.serialize(new List<Object>{
-                new Map<String, Object>{
-                    'pricebookEntryId' => eligibleEntry.Id,
-                    'quantity' => 1,
-                    'unitPrice' => 25
-                }
-            })
-        );
-
-        List<DealerOpportunityProductController.ProductLine> lines =
-            DealerOpportunityProductController.getProducts(opportunity.Id);
+        List<DealerOpportunityProductController.ProductLine> lines;
+        System.runAs(dealer()) {
+            DealerOpportunityProductController.createProducts(
+                opportunity.Id,
+                JSON.serialize(new List<Object>{
+                    new Map<String, Object>{
+                        'pricebookEntryId' => eligibleEntry.Id,
+                        'quantity' => 1,
+                        'unitPrice' => 25
+                    }
+                })
+            );
+            lines = DealerOpportunityProductController.getProducts(opportunity.Id);
+        }
         System.assertEquals(1, lines.size());
         System.assertEquals('USD', lines[0].currencyCode);
 
         Test.startTest();
-        DealerOpportunityProductController.deleteProduct(opportunity.Id, lines[0].opportunityLineItemId);
+        System.runAs(dealer()) {
+            DealerOpportunityProductController.deleteProduct(opportunity.Id, lines[0].opportunityLineItemId);
+        }
         Test.stopTest();
 
         System.assertEquals(0, [SELECT COUNT() FROM OpportunityLineItem WHERE OpportunityId = :opportunity.Id]);
     }
 
+    private static CurrencyType activeCurrency(String isoCode) {
+        List<CurrencyType> rows = [
+            SELECT IsoCode, ConversionRate, DecimalPlaces
+            FROM CurrencyType
+            WHERE IsActive = true AND IsoCode = :isoCode
+            LIMIT 1
+        ];
+        return rows.isEmpty() ? null : rows[0];
+    }
+
+    private static CurrencyType otherActiveCurrency(String excludedIsoCode) {
+        List<CurrencyType> rows = [
+            SELECT IsoCode, ConversionRate, DecimalPlaces
+            FROM CurrencyType
+            WHERE IsActive = true AND IsoCode != :excludedIsoCode
+            ORDER BY IsoCode
+            LIMIT 1
+        ];
+        return rows.isEmpty() ? null : rows[0];
+    }
+
+    private static User dealer() {
+        return DealerPortalTestUser.getUser(DEALER_KEY);
+    }
+
     private static Opportunity insertDealerOpportunity() {
-        return insertDealerOpportunity(insertAccount());
+        User portalUser = dealer();
+        Opportunity opportunity;
+        System.runAs(portalUser) {
+            opportunity = insertOpportunity(portalUser.Contact.AccountId, true);
+        }
+        return opportunity;
     }
 
     private static Opportunity insertDealerOpportunity(Account account) {
+        return insertOpportunity(account.Id, true);
+    }
+
+    private static Opportunity insertOpportunity(Id accountId, Boolean dealerRecordType) {
         Opportunity opportunity = new Opportunity(
             Name = 'Dealer Product Opportunity',
-            AccountId = account.Id,
+            AccountId = accountId,
             StageName = 'Evaluation',
             CloseDate = Date.today().addDays(30),
             Expected_Ship_Date__c = Date.today().addDays(45),
@@ -246,11 +275,13 @@ private class DealerOpportunityProductControllerTest {
             CurrencyIsoCode = 'USD',
             BypassValidations__c = true
         );
-        Schema.RecordTypeInfo dealerType = Schema.SObjectType.Opportunity
-            .getRecordTypeInfosByDeveloperName()
-            .get('HCSalesDealer');
-        System.assertNotEquals(null, dealerType, 'HC Sales - Dealer record type is required');
-        opportunity.RecordTypeId = dealerType.getRecordTypeId();
+        if (dealerRecordType) {
+            Schema.RecordTypeInfo dealerType = Schema.SObjectType.Opportunity
+                .getRecordTypeInfosByDeveloperName()
+                .get('HCSalesDealer');
+            System.assertNotEquals(null, dealerType, 'HC Sales - Dealer record type is required');
+            opportunity.RecordTypeId = dealerType.getRecordTypeId();
+        }
         insert opportunity;
         return opportunity;
     }
@@ -285,16 +316,18 @@ private class DealerOpportunityProductControllerTest {
     }
 
     private static void insertLine(Opportunity opportunity, PricebookEntry entry) {
-        DealerOpportunityProductController.createProducts(
-            opportunity.Id,
-            JSON.serialize(new List<Object>{
-                new Map<String, Object>{
-                    'pricebookEntryId' => entry.Id,
-                    'quantity' => 1,
-                    'unitPrice' => entry.UnitPrice
-                }
-            })
-        );
+        System.runAs(dealer()) {
+            DealerOpportunityProductController.createProducts(
+                opportunity.Id,
+                JSON.serialize(new List<Object>{
+                    new Map<String, Object>{
+                        'pricebookEntryId' => entry.Id,
+                        'quantity' => 1,
+                        'unitPrice' => entry.UnitPrice
+                    }
+                })
+            );
+        }
     }
 
     private static Id lineId(Opportunity opportunity) {

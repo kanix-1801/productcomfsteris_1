@@ -9,7 +9,7 @@
  *              Processes only IPTLS, Low Temp, Procedural and Endoscopy territories.
  *              Invalid rows are skipped and written to a user-specific error file, which is emailed to the
  *              uploader. "-" is treated as blank; name columns are reference-only.
- *              User-facing problems are thrown as AuraHandledException; the controller handles the rest.
+ *              User-facing problems are thrown as AuraHandledException; unexpected errors are logged here.
  * @group Field Service
  * @see TechDistrictAlignmentController
  */
@@ -128,21 +128,28 @@ public with sharing class TechDistrictAlignmentService {
 	 * @throws AuraHandledException When neither a stored template nor the packaged template exists.
 	 */
 	public static Id ensureTemplateDocumentId() {
-		FieldServiceBackofficeConfig__c config = FieldServiceBackofficeConfig__c.getOrgDefaults();
-		String storedId = config.TechDistrictAlignmentTemplateId__c;
-		Id documentId = PlatformUtilities.parseId(PlatformUtilities.trimToNull(storedId));
-		if (isAccessibleDocument(documentId)) {
+		try {
+			FieldServiceBackofficeConfig__c config = FieldServiceBackofficeConfig__c.getOrgDefaults();
+			String storedId = config.TechDistrictAlignmentTemplateId__c;
+			Id documentId = PlatformUtilities.parseId(PlatformUtilities.trimToNull(storedId));
+			if (isAccessibleDocument(documentId)) {
+				return documentId;
+			}
+			List<ContentDocument> titledDocs = ContentDocumentsSelector.selectLatestByTitle(TEMPLATE_TITLE);
+			documentId = titledDocs.isEmpty() ? createTemplateDocument() : titledDocs[0].Id;
+			if (config.Id == null) {
+				config.SetupOwnerId = UserInfo.getOrganizationId();
+			}
+			config.TechDistrictAlignmentTemplateId__c = documentId;
+			// System mode: back-office users have no edit access to custom settings.
+			Database.upsert(config, AccessLevel.SYSTEM_MODE);
 			return documentId;
+		} catch (Exception e) {
+			logUnexpectedError(e);
+			throw e;
+		} finally {
+			Logger.saveLog();
 		}
-		List<ContentDocument> titledDocs = ContentDocumentsSelector.selectLatestByTitle(TEMPLATE_TITLE);
-		documentId = titledDocs.isEmpty() ? createTemplateDocument() : titledDocs[0].Id;
-		if (config.Id == null) {
-			config.SetupOwnerId = UserInfo.getOrganizationId();
-		}
-		config.TechDistrictAlignmentTemplateId__c = documentId;
-		// System mode: back-office users have no edit access to custom settings.
-		Database.upsert(config, AccessLevel.SYSTEM_MODE);
-		return documentId;
 	}
 
 	/**
@@ -150,9 +157,16 @@ public with sharing class TechDistrictAlignmentService {
 	 * @return ContentDocument Id, or null.
 	 */
 	public static Id errorFileDocumentId() {
-		String storedId = FieldServiceBackofficeConfig__c.getInstance().TechDistrictAlignmentErrorFileId__c;
-		Id documentId = PlatformUtilities.parseId(PlatformUtilities.trimToNull(storedId));
-		return isAccessibleDocument(documentId) ? documentId : null;
+		try {
+			String storedId = FieldServiceBackofficeConfig__c.getInstance().TechDistrictAlignmentErrorFileId__c;
+			Id documentId = PlatformUtilities.parseId(PlatformUtilities.trimToNull(storedId));
+			return isAccessibleDocument(documentId) ? documentId : null;
+		} catch (Exception e) {
+			logUnexpectedError(e);
+			throw e;
+		} finally {
+			Logger.saveLog();
+		}
 	}
 
 	private static Id createTemplateDocument() {
@@ -191,7 +205,8 @@ public with sharing class TechDistrictAlignmentService {
 	 *              when it is still ahead, otherwise next year's.
 	 * @return Next fiscal year start date.
 	 */
-	public static Date nextFiscalYearStart() {
+	@TestVisible
+	private static Date nextFiscalYearStart() {
 		Organization org = (Organization) SoqlQueryBuilder.fromObject('Organization')
 			.selectField('FiscalYearStartMonth')
 			.first();
@@ -219,38 +234,55 @@ public with sharing class TechDistrictAlignmentService {
 	 */
 	public static ProcessResult processUpload(Id contentDocumentId) {
 		Logger.setScenario(LOG_SCENARIO);
-		List<List<String>> table = readUploadedFile(contentDocumentId);
-		List<AlignmentRow> rows = toRows(table);
-		ProcessResult result = new ProcessResult();
-		result.processedCount = rows.size();
-		result.nextFiscalYearStart = nextFiscalYearStart();
-		applyRows(rows, result);
+		try {
+			List<List<String>> table = readUploadedFile(contentDocumentId);
+			List<AlignmentRow> rows = toRows(table);
+			ProcessResult result = new ProcessResult();
+			result.processedCount = rows.size();
+			result.nextFiscalYearStart = nextFiscalYearStart();
+			applyRows(rows, result);
 
-		for (AlignmentRow row : rows) {
-			if (row.errorMessage != null) {
-				result.skippedCount++;
-				List<Object> rowErrorParams = new List<Object>{ String.valueOf(row.rowNumber), row.errorMessage };
-				result.errors.add(String.format(Label.TDA_RowError, rowErrorParams));
+			for (AlignmentRow row : rows) {
+				if (row.errorMessage != null) {
+					result.skippedCount++;
+					List<Object> rowErrorParams = new List<Object>{ String.valueOf(row.rowNumber), row.errorMessage };
+					result.errors.add(String.format(Label.TDA_RowError, rowErrorParams));
+				}
 			}
+			result.summary = String.format(
+				Label.TDA_Summary,
+				new List<Object>{
+					String.valueOf(result.processedCount),
+					String.valueOf(result.movedCount),
+					String.valueOf(result.territoryCreatedCount),
+					String.valueOf(result.managerUpdatedCount),
+					String.valueOf(result.unchangedCount),
+					String.valueOf(result.skippedCount)
+				}
+			);
+
+			ContentVersion errorFile = writeErrorFile(table[0], rows);
+			result.errorFileDocumentId = errorFile.ContentDocumentId;
+			result.emailSent = sendResultEmail(result, errorFile.Id);
+			Logger.info('Tech District Alignment ' + result.summary).addTags(LOG_TAGS);
+			return result;
+		} catch (Exception e) {
+			logUnexpectedError(e);
+			throw e;
+		} finally {
+			Logger.saveLog();
 		}
-		result.summary = String.format(
-			Label.TDA_Summary,
-			new List<Object>{
-				String.valueOf(result.processedCount),
-				String.valueOf(result.movedCount),
-				String.valueOf(result.territoryCreatedCount),
-				String.valueOf(result.managerUpdatedCount),
-				String.valueOf(result.unchangedCount),
-				String.valueOf(result.skippedCount)
-			}
-		);
+	}
 
-		ContentVersion errorFile = writeErrorFile(table[0], rows);
-		result.errorFileDocumentId = errorFile.ContentDocumentId;
-		result.emailSent = sendResultEmail(result, errorFile.Id);
-		Logger.info('Tech District Alignment ' + result.summary).addTags(LOG_TAGS);
-		Logger.saveLog();
-		return result;
+	/**
+	 * @description Logs an unexpected error. User messages (AuraHandledException) are shown to the user in the
+	 *              screen they're using, so they aren't logged.
+	 */
+	private static void logUnexpectedError(Exception e) {
+		if (!(e instanceof AuraHandledException)) {
+			Logger.setScenario(LOG_SCENARIO);
+			Logger.error('Tech District Alignment failed', e).addTags(LOG_TAGS);
+		}
 	}
 
 	/**

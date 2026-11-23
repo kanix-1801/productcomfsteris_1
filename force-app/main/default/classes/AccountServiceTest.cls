@@ -291,6 +291,7 @@
         Account activeShipTo = new Account(
             Name = 'Active Ship To',
             ParentId = customer.Id,
+            RecordTypeId = recordTypeId('Customer'),
             Type = 'Address',
             ShiptoAddressStatus__c = 'Active',
             SourceSystemID__c = 'SHIPTO-ACTIVE-4786',
@@ -303,6 +304,7 @@
         Account inactiveShipTo = new Account(
             Name = 'Inactive Ship To',
             ParentId = customer.Id,
+            RecordTypeId = recordTypeId('Customer'),
             Type = 'Address',
             ShiptoAddressStatus__c = 'Inactive',
             SourceSystemID__c = 'SHIPTO-INACTIVE-4786'
@@ -513,11 +515,12 @@
             customerAccount.Type = 'Customer';
             Account prospectAccount = newDealerAccount('GC3617 Prospect');
             prospectAccount.RecordTypeId = recordTypeId('Prospect');
+            prospectAccount.OrgIDs__c = '83';
             prospectAccount.BillingStreet = '1 Main St';
             prospectAccount.BillingCity = 'Mentor';
-            prospectAccount.BillingState = 'OH';
+            prospectAccount.BillingStateCode = 'OH';
             prospectAccount.BillingPostalCode = '44060';
-            prospectAccount.BillingCountry = 'US';
+            prospectAccount.BillingCountryCode = 'US';
 
             Test.startTest();
             insert new List<Account>{ customerAccount, prospectAccount };

@@ -974,6 +974,24 @@ public static List<CaseContactRole> getReceivingAndInstallContacts(Id caseId) {
         }
     }
     
+    public static List<OrderItem> equipmentScheduledDetails(Id caseId) {
+        try {
+            // Return an empty list if Case Id is not provided.
+            if (caseId == null) {
+                return new List<OrderItem>();
+            }
+
+            // Used to simulate exception scenarios during test execution, if applicable.
+            throwIfTestException(caseId);
+            List<OrderItem> orderItem = OrderItemSelector.orderItemPreShipRecord(caseId);
+            return orderItem;
+        } catch (Exception ex) {
+            // Log exception details for troubleshooting and rethrow to preserve existing behavior.
+            ErrorLogger.logException(ex, 'EmailControllerHelper', 'equipmentScheduledDetails');
+            throw ex;
+        }
+    }
+    
     /**
      * @description Retrieves firstFirst non pre-install schedule date with the given Case.
      *              This method returns Date time,

@@ -39,6 +39,11 @@ private class WoDebriefIMSSummaryControllerTest {
 		Id instrumentRtId = instrumentRecordTypeId();
 		Account account = new Account(Name = 'Summary Count Account');
 		insert account;
+		Product2 deviceType = new Product2(
+			Name = 'Device Type',
+			ProductCode = 'DT-100',
+			IsActive = true
+		);
 		Product2 obrProduct = new Product2(
 			Name = 'Beyond Repair Code',
 			ProductCode = 'SC.OBR-OCB1',
@@ -49,7 +54,22 @@ private class WoDebriefIMSSummaryControllerTest {
 			ProductCode = 'SC.ONL.130',
 			IsActive = true
 		);
-		insert new List<Product2>{ obrProduct, normalProduct };
+		insert new List<Product2>{ deviceType, obrProduct, normalProduct };
+
+		Id pricebookId = Test.getStandardPricebookId();
+		PricebookEntry obrEntry = new PricebookEntry(
+			Pricebook2Id = pricebookId,
+			Product2Id = obrProduct.Id,
+			UnitPrice = 1,
+			IsActive = true
+		);
+		PricebookEntry normalEntry = new PricebookEntry(
+			Pricebook2Id = pricebookId,
+			Product2Id = normalProduct.Id,
+			UnitPrice = 1,
+			IsActive = true
+		);
+		insert new List<PricebookEntry>{ obrEntry, normalEntry };
 
 		WorkOrder parent = new WorkOrder(
 			AccountId = account.Id,
@@ -61,7 +81,8 @@ private class WoDebriefIMSSummaryControllerTest {
 		WorkOrder child = new WorkOrder(
 			AccountId = account.Id,
 			Subject = 'Tray WO',
-			ParentWorkOrderId = parent.Id
+			ParentWorkOrderId = parent.Id,
+			Pricebook2Id = pricebookId
 		);
 		insert child;
 
@@ -72,7 +93,8 @@ private class WoDebriefIMSSummaryControllerTest {
 				LineType__c = 'Instrument',
 				Status = 'Completed',
 				BillingType__c = 'Contract',
-				RepairCode__c = obrProduct.Id,
+				Instrument__c = deviceType.Id,
+				PricebookEntryId = obrEntry.Id,
 				RepairLevel__c = '1'
 			),
 			new WorkOrderLineItem(
@@ -81,7 +103,8 @@ private class WoDebriefIMSSummaryControllerTest {
 				LineType__c = 'Instrument',
 				Status = 'Completed',
 				BillingType__c = 'Contract',
-				RepairCode__c = obrProduct.Id,
+				Instrument__c = deviceType.Id,
+				PricebookEntryId = obrEntry.Id,
 				RepairLevel__c = '1',
 				EndOfDayReportRepairCenter__c = true
 			),
@@ -97,7 +120,8 @@ private class WoDebriefIMSSummaryControllerTest {
 				LineType__c = 'Instrument',
 				Status = 'Completed',
 				BillingType__c = 'Contract',
-				RepairCode__c = normalProduct.Id,
+				Instrument__c = deviceType.Id,
+				PricebookEntryId = normalEntry.Id,
 				RepairLevel__c = '0'
 			)
 		};
@@ -300,17 +324,17 @@ private class WoDebriefIMSSummaryControllerTest {
 	static void isBeyondRepair_requiresObrProductCodeAndNotOffSite() {
 		WorkOrderLineItem obr = new WorkOrderLineItem();
 		obr.EndOfDayReportRepairCenter__c = false;
-		obr.RepairCode__r = new Product2(ProductCode = 'SC.OBR-OCB1');
+		obr.Product2 = new Product2(ProductCode = 'SC.OBR-OCB1');
 		System.assertEquals(true, WoDebriefIMSSummaryController.isBeyondRepair(obr));
 
 		WorkOrderLineItem offSite = new WorkOrderLineItem();
 		offSite.EndOfDayReportRepairCenter__c = true;
-		offSite.RepairCode__r = new Product2(ProductCode = 'SC.OBR-OCB1');
+		offSite.Product2 = new Product2(ProductCode = 'SC.OBR-OCB1');
 		System.assertEquals(false, WoDebriefIMSSummaryController.isBeyondRepair(offSite));
 
 		WorkOrderLineItem normal = new WorkOrderLineItem();
 		normal.EndOfDayReportRepairCenter__c = false;
-		normal.RepairCode__r = new Product2(ProductCode = 'SC.ONL.130');
+		normal.Product2 = new Product2(ProductCode = 'SC.ONL.130');
 		System.assertEquals(false, WoDebriefIMSSummaryController.isBeyondRepair(normal));
 	}
 

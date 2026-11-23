@@ -65,7 +65,7 @@ public class QuickActionDefaultsHandler implements QuickAction.QuickActionDefaul
 
             }
             
-            if(c.EmailType__c == 'CREDITMEMO') {
+            if(c.EmailType__c == 'CREDITMEMO_US') {
                 EmailAddressDefaultController.defaultSDNEmailAddresses(sendEmailDefaults, c,'Credit Notification Trade In');
 
             }

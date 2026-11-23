@@ -70,6 +70,7 @@ import WOLI_USAGES_EXCEPTION from '@salesforce/schema/WorkOrderLineItem.UsagesEx
 import WOLI_QUANTITY from '@salesforce/schema/WorkOrderLineItem.Quantity';
 import WOLI_PRICEBOOK_ENTRY from '@salesforce/schema/WorkOrderLineItem.PricebookEntryId';
 import WOLI_RECORD_TYPE from '@salesforce/schema/WorkOrderLineItem.RecordTypeId';
+import WOLI_ASSETID from '@salesforce/schema/WorkOrderLineItem.AssetId';
 import WO_TOTAL_SERVICED_INSTRUMENTS from '@salesforce/schema/WorkOrder.TotalServicedInstruments__c';
 import WO_STATUS from '@salesforce/schema/WorkOrder.Status';
 import WOLI_LINE_STATUS from '@salesforce/schema/WorkOrderLineItem.Status';
@@ -351,6 +352,7 @@ const WORK_ORDER_QUERY = gql`
 								Id
 								Name { value }
 							}
+							AssetId { value }
 							Asset {
 								Id
 								Name { value }
@@ -411,6 +413,7 @@ const WORK_ORDER_QUERY = gql`
 										DeviceType__c { value }
 										RepairLevel__c { value }
 										Model__c { value }
+										AssetId { value }
 										Quantity { value }
 										PricebookEntryId { value }
 										Product2Id { value }
@@ -1345,7 +1348,15 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 	 * @description Asset Id used to load Tray Planner records.
 	 */
 	get trayPlannerAssetId() {
-		return this._workOrder?.Asset?.Id || undefined;
+		return this.woAssetId || undefined;
+	}
+	/**
+	 * @description Child Work Order Asset Id stamped onto instrument lines.
+	 */
+	get woAssetId() {
+		return this._workOrder?.AssetId?.value
+			|| this._workOrder?.Asset?.Id
+			|| null;
 	}
 	/**
 	 * @description Account Id used to load departments for the repair-center form.
@@ -4139,13 +4150,12 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 	_buildInstrumentLineModel(l, edit, state) {
 		const deviceTypeId = state.deviceTypeId
 			?? edit?.deviceTypeId
-			?? l.Product2Id?.value
-			?? l.Product2?.Id
+			?? this._savedInstrumentDeviceTypeId(l)
 			?? null;
 		const deviceType = state.deviceType
 			?? edit?.deviceType
 			?? l.DeviceType__c?.value
-			?? l.Product2?.ProductCode?.value
+			?? l.Instrument__r?.ProductCode?.value
 			?? this._productCodeByProduct2Id[deviceTypeId]
 			?? '';
 		const repairLevel = state.repairLevel
@@ -4158,11 +4168,10 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 			?? '';
 		const serviceCodeId = state.serviceCodeId
 			?? edit?.serviceCodeId
-			?? l.RepairCode__c?.value
-			?? this._savedServiceCodeId(deviceTypeId, repairLevel, this._repairCenterByLineId[l.Id])
+			?? this._savedInstrumentServiceCodeId(l, deviceTypeId, repairLevel)
 			?? null;
 		const billingType = this._resolveBillingType(edit, state, l.BillingType__c?.value);
-		const productName = l.Product2?.Name?.value
+		const productName = l.Instrument__r?.Name?.value
 			|| this._productNameByProduct2Id[deviceTypeId]
 			|| '';
 		void this.productMetaVersion;
@@ -4978,7 +4987,7 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 			};
 		}
 		if (schema === 'instrument') {
-			const deviceTypeId = line.Product2Id?.value ?? line.Product2?.Id ?? null;
+			const deviceTypeId = this._savedInstrumentDeviceTypeId(line);
 			const repairLevel = line.RepairLevel__c?.value ?? '';
 			return {
 				_schema: 'instrument',
@@ -4986,11 +4995,10 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 				_lineType: INSTRUMENT_LINE_TYPE,
 				deviceTypeId,
 				deviceType: line.DeviceType__c?.value
-					?? line.Product2?.ProductCode?.value
+					?? line.Instrument__r?.ProductCode?.value
+					?? this._productCodeByProduct2Id[deviceTypeId]
 					?? '',
-				// GW-6193: Prefer the saved Service Code Product2; fall back to level reconstruction.
-				serviceCodeId: line.RepairCode__c?.value
-					?? this._savedServiceCodeId(deviceTypeId, repairLevel, this._repairCenterByLineId[line.Id]),
+				serviceCodeId: this._savedInstrumentServiceCodeId(line, deviceTypeId, repairLevel),
 				repairLevel,
 				quantity: line.Quantity?.value ?? '',
 				status: line.Status?.value ?? 'New',
@@ -6296,7 +6304,9 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 		if (!this._isFullDiscountBillingType(payload?.billingType)) {
 			return;
 		}
-		const product2Id = payload?.deviceTypeId || this._partsProduct2Id(payload);
+		const product2Id = payload?.serviceCodeId
+			|| payload?.deviceTypeId
+			|| this._partsProduct2Id(payload);
 		const pricebookEntryId = fields[WOLI_PRICEBOOK_ENTRY.fieldApiName]
 			|| (product2Id ? await this._resolvePricebookEntryIdForProduct(product2Id) : null);
 		if (!pricebookEntryId) {
@@ -6377,11 +6387,12 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 			|| this._repairLevelFromServiceCodeId(instrument.serviceCodeId)
 			|| '';
 		return {
+			// Device Type Product2 on Instrument; text code kept on DeviceType__c for display/reports.
+			[WOLI_INSTRUMENT.fieldApiName]: instrument.deviceTypeId || null,
 			[WOLI_DEVICE_TYPE.fieldApiName]: deviceType,
 			[WOLI_REPAIR_LEVEL.fieldApiName]: repairLevel,
-			// GW-6193: Persist the selected Service Code Product2 so site visit summary
-			// can count OBR codes (e.g. SC.OBR-OCB1) without reconstructing from Repair Level.
-			[WOLI_REPAIRCODE.fieldApiName]: instrument.serviceCodeId || null,
+			// Child Work Order Asset on the instrument line.
+			[WOLI_ASSETID.fieldApiName]: this.woAssetId,
 			...(instrument?.status ? { [WOLI_LINE_STATUS.fieldApiName]: instrument.status } : {}),
 			...this._repairCenterPersistFields(instrument)
 		};
@@ -6618,13 +6629,15 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 	}
 
 	/**
-	 * @description Record Type, Quantity, Line Type, and Device Type Pricebook Entry.
-	 *              Product2Id is read-only on WorkOrderLineItem and is set from PricebookEntryId.
-	 * @param {{ deviceTypeId: string, quantity: * }} instrument Staged instrument line
+	 * @description Record Type, Quantity, Line Type, Instrument (Device Type), and Service Code
+	 *              Pricebook Entry. Product2Id is read-only and is set from PricebookEntryId, so the
+	 *              Service Code Product2 is what lands on Product2Id.
+	 * @param {{ deviceTypeId: string, serviceCodeId: string, quantity: * }} instrument Staged line
 	 * @return {Promise<Object>} Fields to merge into create/update
 	 */
 	async _instrumentProductPersistFields(instrument) {
 		const deviceTypeId = instrument?.deviceTypeId;
+		const serviceCodeId = instrument?.serviceCodeId;
 		const fields = {
 			[WOLI_QUANTITY.fieldApiName]: Number(instrument?.quantity),
 			[WOLI_LINETYPE.fieldApiName]: INSTRUMENT_LINE_TYPE
@@ -6635,9 +6648,13 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 		if (!deviceTypeId) {
 			throw new Error('Device Type is required.');
 		}
-		const pricebookEntryId = await this._resolvePricebookEntryIdForProduct(deviceTypeId);
+		if (!serviceCodeId) {
+			throw new Error('Service Code is required.');
+		}
+		fields[WOLI_INSTRUMENT.fieldApiName] = deviceTypeId;
+		const pricebookEntryId = await this._resolvePricebookEntryIdForProduct(serviceCodeId);
 		if (!pricebookEntryId) {
-			throw new Error('No pricebook entry found for the selected Device Type.');
+			throw new Error('No pricebook entry found for the selected Service Code.');
 		}
 		fields[WOLI_PRICEBOOK_ENTRY.fieldApiName] = pricebookEntryId;
 		const deviceType = await this._resolveDeviceTypeCode(instrument);
@@ -6670,8 +6687,8 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 	}
 
 	/**
-	 * @description Active PricebookEntry for a Device Type from the GraphQL @wire cache.
-	 * @param {string} product2Id Device Type Product2 Id
+	 * @description Active PricebookEntry for a Product2 from the GraphQL @wire cache.
+	 * @param {string} product2Id Product2 Id (Service Code for instruments)
 	 * @return {Promise<string|null>} PricebookEntry Id, or null when none match
 	 */
 	async _resolvePricebookEntryIdForProduct(product2Id) {
@@ -6969,6 +6986,52 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 		return markedRepairCenter
 			? (repairCenter ?? otherBeyondRepair ?? null)
 			: (otherBeyondRepair ?? repairCenter ?? null);
+	}
+
+	/**
+	 * @description Device Type Product2 Id from a saved instrument line.
+	 *              New lines store it on Instrument__c. Legacy lines used Product2Id.
+	 * @param {Object} line GraphQL Work Order Line Item node
+	 * @return {string|null}
+	 */
+	_savedInstrumentDeviceTypeId(line) {
+		const instrumentId = line?.Instrument__c?.value ?? line?.Instrument__r?.Id ?? null;
+		if (instrumentId) {
+			return instrumentId;
+		}
+		const product2Id = line?.Product2Id?.value ?? line?.Product2?.Id ?? null;
+		const serviceCodeId = line?.RepairCode__c?.value ?? null;
+		// Legacy: Device Type was on Product2Id / PricebookEntry before Service Code moved there.
+		if (product2Id && (!serviceCodeId || product2Id !== serviceCodeId)) {
+			return product2Id;
+		}
+		return null;
+	}
+
+	/**
+	 * @description Service Code Product2 Id from a saved instrument line.
+	 *              Prefers Product2Id when Instrument__c holds the Device Type (current save path).
+	 *              Falls back to RepairCode__c for older lines, then repair-level reconstruction.
+	 * @param {Object} line GraphQL Work Order Line Item node
+	 * @param {string|null} deviceTypeId Resolved Device Type Id
+	 * @param {string} repairLevel Saved repair level digit
+	 * @return {string|null}
+	 */
+	_savedInstrumentServiceCodeId(line, deviceTypeId, repairLevel) {
+		const product2Id = line?.Product2Id?.value ?? line?.Product2?.Id ?? null;
+		const instrumentId = line?.Instrument__c?.value ?? line?.Instrument__r?.Id ?? null;
+		if (product2Id && instrumentId && product2Id !== instrumentId) {
+			return product2Id;
+		}
+		const repairCodeId = line?.RepairCode__c?.value ?? null;
+		if (repairCodeId) {
+			return repairCodeId;
+		}
+		return this._savedServiceCodeId(
+			deviceTypeId,
+			repairLevel,
+			this._repairCenterByLineId[line?.Id]
+		);
 	}
 
 	/**
@@ -7302,7 +7365,7 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 		const edit = this._pendingEdits[lineId];
 		if (edit?.deviceTypeId) return edit.deviceTypeId;
 		const line = this._serverLines.find(l => l.Id === lineId);
-		return line?.Product2Id?.value ?? line?.Product2?.Id ?? null;
+		return this._savedInstrumentDeviceTypeId(line);
 	}
 
 	/**

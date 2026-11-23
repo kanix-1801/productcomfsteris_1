@@ -243,12 +243,11 @@ public without sharing class WoDebriefIMSSummaryController {
 						Discount,
 						TotalPrice,
 						Description,
+						Product2Id,
 						Product2.Name,
+						Product2.ProductCode,
 						SendToRepairCenter__c,
-						EndOfDayReportRepairCenter__c,
-						RepairCode__c,
-						RepairCode__r.ProductCode,
-						RepairCode__r.Name
+						EndOfDayReportRepairCenter__c
 					FROM WorkOrderLineItems
 					WHERE Status != 'Canceled'
 					ORDER BY LineItemNumber
@@ -747,15 +746,16 @@ public without sharing class WoDebriefIMSSummaryController {
 	}
 
 	/**
-	 * @description True when the line's saved Service Code Product Code contains OBR
-	 *              and the line was not forwarded to the Repair Center.
+	 * @description True when the line's Service Code on Product2 contains OBR
+	 *              (e.g. SC.OBR-OCB1) and the line was not forwarded to the Repair Center.
+	 *              Instrument save puts the Service Code on PricebookEntryId / Product2Id.
 	 */
 	@TestVisible
 	private static Boolean isBeyondRepair(WorkOrderLineItem line) {
 		if (line == null || isOffSite(line)) {
 			return false;
 		}
-		String productCode = line.RepairCode__r != null ? line.RepairCode__r.ProductCode : null;
+		String productCode = line.Product2 != null ? line.Product2.ProductCode : null;
 		return String.isNotBlank(productCode)
 			&& productCode.toUpperCase().contains(OBR_PRODUCT_CODE_TOKEN);
 	}

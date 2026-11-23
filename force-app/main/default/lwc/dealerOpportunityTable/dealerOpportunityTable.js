@@ -31,7 +31,7 @@ const COLUMNS = {
     workspace: [
         { field: 'Name', label: 'Opportunity Name', type: 'name' },
         { field: 'EndCustomerName__c', label: 'Customer', type: 'text', value: 'endCustomerName' },
-        { field: 'DealerAccountName__c', label: 'Dealer Account', type: 'text', value: 'dealerAccountName' },
+        { field: 'Account.Name', label: 'Dealer Account', type: 'text', value: 'dealerAccountName' },
         { field: 'StageName', label: 'Stage', type: 'stage' },
         { field: 'CloseDate', label: 'Close Date', type: 'text', value: 'closeLabel' },
         { field: 'Amount', label: 'Amount', type: 'amount' }

@@ -1,6 +1,21 @@
+/**
+ * @description Tests for LSTemporaryAccessPendingService.
+ *
+ *              Responsibilities:
+ *              1. Verify the daily job rejects a pending request once its start date arrives.
+ *              2. Verify the manager receives a reminder 7 days after submission, unless the start date arrives
+ *                 first.
+ *              3. Verify a request submitted by the manager is approved immediately.
+ *              4. Verify the daily job can be executed and scheduled.
+ * @author      Surya Manindra
+ * @date        2026-11-23
+ */
 @IsTest
 private class LSTemporaryAccessPendingServiceTest {
 
+    /**
+     * @description Confirms the daily job rejects an approval requested request once its start date arrives.
+     */
     @IsTest
     static void pendingRequestRejectsWhenStartDateArrives() {
         User submitter = lifeScienceUser('rejSub', null);
@@ -24,6 +39,10 @@ private class LSTemporaryAccessPendingServiceTest {
         );
     }
 
+    /**
+     * @description Confirms a request submitted on its start date stays open until the daily job runs and then
+     *              rejects it.
+     */
     @IsTest
     static void sameDayRequestStaysOpenUntilTheDailyRun() {
         User submitter = lifeScienceUser('daySub', null);
@@ -51,6 +70,10 @@ private class LSTemporaryAccessPendingServiceTest {
         );
     }
 
+    /**
+     * @description Confirms the manager receives a reminder 7 days after submission and the request stays approval
+     *              requested.
+     */
     @IsTest
     static void reminderGoesOutSevenDaysAfterSubmission() {
         User manager = lifeScienceUser('remMgr', null);
@@ -80,6 +103,9 @@ private class LSTemporaryAccessPendingServiceTest {
         System.assert(emailsSent > 0, 'The manager should receive the 7 day reminder');
     }
 
+    /**
+     * @description Confirms no reminder is sent when the start date arrives before the 7 day reminder.
+     */
     @IsTest
     static void noReminderWhenStartDateArrivesFirst() {
         User submitter = lifeScienceUser('skpSub', null);
@@ -107,6 +133,10 @@ private class LSTemporaryAccessPendingServiceTest {
         System.assertEquals(0, emailsSent, 'No reminder when the Start Date arrives before day 7');
     }
 
+    /**
+     * @description Confirms the approval email goes to the coverage rep manager and the request is rejected once the
+     *              start date arrives.
+     */
     @IsTest
     static void approvalEmailGoesToCoverageManagerUntilStartDateRejects() {
         User approver = lifeScienceUser('aprGcl', null);
@@ -153,6 +183,9 @@ private class LSTemporaryAccessPendingServiceTest {
         );
     }
 
+    /**
+     * @description Confirms a request submitted by the requester manager is approved immediately.
+     */
     @IsTest
     static void managerSubmissionIsApprovedImmediately() {
         User manager = lifeScienceUser('ownMgr', null);
@@ -171,6 +204,10 @@ private class LSTemporaryAccessPendingServiceTest {
         );
     }
 
+    /**
+     * @description Confirms a request without a submission date is not due a reminder and the schedulable execute
+     *              method runs the daily check.
+     */
     @IsTest
     static void schedulableExecuteRunsTheDailyCheck() {
         System.assertEquals(
@@ -184,6 +221,9 @@ private class LSTemporaryAccessPendingServiceTest {
         Test.stopTest();
     }
 
+    /**
+     * @description Confirms the daily job can be scheduled and tolerates an already scheduled job.
+     */
     @IsTest
     static void dailyJobCanBeScheduled() {
         Test.startTest();
@@ -198,6 +238,13 @@ private class LSTemporaryAccessPendingServiceTest {
         Test.stopTest();
     }
 
+    /**
+     * @description Builds a PTO temporary access request that ends 5 days after its start date.
+     * @param requesterId Id of the user the request is for.
+     * @param coverageRepId Id of the user providing coverage.
+     * @param startDate Start date of the coverage period.
+     * @return Unsaved temporary access request.
+     */
     private static TemporaryAccessException__c newRequest(Id requesterId, Id coverageRepId, Date startDate) {
         return new TemporaryAccessException__c(
             Requester__c = requesterId,
@@ -208,6 +255,12 @@ private class LSTemporaryAccessPendingServiceTest {
         );
     }
 
+    /**
+     * @description Inserts a Life Sciences Sales user and grants temporary access permissions.
+     * @param aliasSeed Text used to build the alias, last name and username.
+     * @param managerId Id of the manager. Null when the user has no manager.
+     * @return Inserted user.
+     */
     private static User lifeScienceUser(String aliasSeed, Id managerId) {
         Profile lifeScienceProfile = [
             SELECT Id
@@ -233,7 +286,6 @@ private class LSTemporaryAccessPendingServiceTest {
         return user;
     }
 
-    /** Gives the Life Sciences user create and edit on every writable request field. */
     private static void grantTemporaryAccessAccess(Id userId) {
         String name = 'LSTae' + String.valueOf(Math.abs(Crypto.getRandomInteger()));
         PermissionSet permissionSet = new PermissionSet(Name = name, Label = name);
@@ -266,13 +318,16 @@ private class LSTemporaryAccessPendingServiceTest {
         insert new PermissionSetAssignment(AssigneeId = userId, PermissionSetId = permissionSet.Id);
     }
 
-    /** Runs the daily job outside the permission-set setup transaction. */
     private static void runDaily() {
         System.runAs(new User(Id = UserInfo.getUserId())) {
             LSTemporaryAccessPendingService.processDaily();
         }
     }
 
+    /**
+     * @description Inserts a flow bypass setting so the temporary access flows do not run for the user.
+     * @param userId Id of the user the setting is created for.
+     */
     private static void stopTemporaryAccessFlows(Id userId) {
         System.runAs(new User(Id = UserInfo.getUserId())) {
             insert new Automation_Setting_Flow__c(

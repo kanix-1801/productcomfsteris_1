@@ -23,7 +23,8 @@ const BILLING_OPTIONS = [
 ];
 
 export default class WoDebriefIMSSummary extends LightningElement {
-	@api recordId;
+	_recordId;
+	_loadStarted = false;
 
 	@track summary;
 	@track selectedPhotoIds = {};
@@ -38,6 +39,21 @@ export default class WoDebriefIMSSummary extends LightningElement {
 	errorMessage = '';
 	activeTab = 'summary';
 
+	/**
+	 * @description Screen actions set recordId after connectedCallback. Load once it arrives.
+	 */
+	@api
+	get recordId() {
+		return this._recordId;
+	}
+	set recordId(value) {
+		this._recordId = value;
+		if (value && !this._loadStarted) {
+			this._loadStarted = true;
+			this._load();
+		}
+	}
+
 	connectedCallback() {
 		this._onOnline = () => {
 			this.isOffline = false;
@@ -47,7 +63,11 @@ export default class WoDebriefIMSSummary extends LightningElement {
 		};
 		window.addEventListener('online', this._onOnline);
 		window.addEventListener('offline', this._onOffline);
-		this._load();
+		// Desktop/mobile Screen Actions often set recordId after connectedCallback.
+		if (this._recordId && !this._loadStarted) {
+			this._loadStarted = true;
+			this._load();
+		}
 	}
 
 	disconnectedCallback() {
@@ -342,7 +362,12 @@ export default class WoDebriefIMSSummary extends LightningElement {
 		this.isLoading = true;
 		this.errorMessage = '';
 		try {
-			const access = await getSummaryAccess({ workOrderId: this.recordId });
+			if (!this._recordId) {
+				this.accessAllowed = false;
+				this.blockMessage = 'Work order could not be identified. Open this action from a work order record.';
+				return;
+			}
+			const access = await getSummaryAccess({ workOrderId: this._recordId });
 			this.accessAllowed = !!access?.allowed;
 			this.blockMessage = access?.blockMessage || '';
 			if (!this.accessAllowed) {
@@ -357,7 +382,7 @@ export default class WoDebriefIMSSummary extends LightningElement {
 	}
 
 	async _loadSummaryOnly() {
-		const summary = await getSiteVisitSummary({ workOrderId: this.recordId });
+		const summary = await getSiteVisitSummary({ workOrderId: this._recordId });
 		this.summary = summary;
 		const selected = {};
 		for (const photo of summary?.photos || []) {

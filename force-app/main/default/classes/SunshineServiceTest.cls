@@ -152,8 +152,49 @@ private class SunshineServiceTest {
 
     private static CSC_Visit_Request__c insertVisit() {
         CSC_Visit_Request__c visit = (CSC_Visit_Request__c) populateRequiredFields(new CSC_Visit_Request__c());
+        // CSC_010_OpportunityRequiredForVisit and CSC_014_LocationRequiredForCscVisit
+        Account testAccount = new Account(Name = 'GC-3564 Test Account');
+        insert testAccount;
+        visit.put('Opportunity__c', insertOpportunity(testAccount.Id));
+        visit.put('VisitType__c', 'CSC');
+        visit.put('VisitLocation__c', 'Customer Solution Center (Mentor, OH)');
         insert visit;
         return [SELECT Id, Name FROM CSC_Visit_Request__c WHERE Id = :visit.Id];
+    }
+
+    // Opportunity record types restrict the Forecast Confidence picklist, so try each available record type
+    // until one accepts the insert.
+    private static Id insertOpportunity(Id accountId) {
+        String stageName = [
+            SELECT MasterLabel FROM OpportunityStage WHERE IsActive = true AND IsClosed = false ORDER BY SortOrder ASC LIMIT 1
+        ].MasterLabel;
+        List<Id> recordTypeIds = new List<Id>();
+        for (Schema.RecordTypeInfo info : Opportunity.SObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).getRecordTypeInfos()) {
+            if (info.isAvailable() && !info.isMaster()) {
+                if (info.getDeveloperName() == 'HCSalesConsumables') {
+                    recordTypeIds.add(0, info.getRecordTypeId());
+                } else {
+                    recordTypeIds.add(info.getRecordTypeId());
+                }
+            }
+        }
+        String lastError;
+        for (Id recordTypeId : recordTypeIds) {
+            Opportunity opp = new Opportunity(
+                Name = 'GC-3564 Test Opportunity',
+                AccountId = accountId,
+                StageName = stageName,
+                CloseDate = Date.today().addDays(30),
+                RecordTypeId = recordTypeId
+            );
+            Database.SaveResult result = Database.insert(opp, false);
+            if (result.isSuccess()) {
+                return opp.Id;
+            }
+            lastError = result.getErrors()[0].getMessage();
+        }
+        System.assert(false, 'Unable to create a test Opportunity: ' + lastError);
+        return null;
     }
 
     private static Boolean insertAttendee(Id visitId) {

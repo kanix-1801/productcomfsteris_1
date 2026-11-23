@@ -18,9 +18,9 @@ private class DealerPortalAccessControllerTest {
     }
 
     @IsTest
-    static void returnsFalseWhenOnlyDealerManagerIsAssigned() {
+    static void returnsFalseWhenNonDealerManagerIsAssigned() {
         User userRecord = createUser();
-        assignPermissionSet(userRecord.Id, 'DealerManager');
+        assignPermissionSet(userRecord.Id, 'DealerAdmin');
 
         System.runAs(userRecord) {
             System.assertEquals(false, DealerPortalAccessController.hasDealerQuoteAccess());

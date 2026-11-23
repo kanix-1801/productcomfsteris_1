@@ -150,7 +150,7 @@ public with sharing class C2EmailController {
         if (shippingLineItems == null) {
             shippingLineItems = new List<LineItem>();
             if (caseId != null) {
-                List<OrderItem> ship = EmailControllerHelper.equipmentScheduleDetails(caseId);
+                List<OrderItem> ship = EmailControllerHelper.equipmentScheduledDetails(caseId);
                 shippingLineItems = mapOrderItems(ship);
             }
         }

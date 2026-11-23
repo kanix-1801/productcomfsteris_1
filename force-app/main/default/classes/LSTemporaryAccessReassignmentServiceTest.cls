@@ -1,6 +1,23 @@
+/**
+ * @description Tests for LSTemporaryAccessReassignmentService.
+ *
+ *              Responsibilities:
+ *              1. Verify expiry returns covered records to the original rep and leaves other records with the
+ *                 coverage rep.
+ *              2. Verify an opportunity assigned directly on the request is returned even when it sits on another
+ *                 account.
+ *              3. Verify the handback ignores the Position In Funnel rule and removes the temporary validation
+ *                 switch.
+ * @author      Surya Manindra
+ * @date        2026-11-23
+ */
 @IsTest
 private class LSTemporaryAccessReassignmentServiceTest {
 
+    /**
+     * @description Confirms expiry returns covered opportunities, tasks, events and contacts to the original rep and
+     *              leaves other accounts with the coverage rep.
+     */
     @IsTest
     static void lifeScienceExpiryMovesOwnedRecordsBackToTheOriginalRep() {
         User originalRep = insertUser('orig');
@@ -90,6 +107,10 @@ private class LSTemporaryAccessReassignmentServiceTest {
         System.assertEquals(UserInfo.getUserId(), [SELECT CreatedById FROM Task WHERE Id = :completedTask.Id].CreatedById);
     }
 
+    /**
+     * @description Confirms an opportunity assigned on the request, and its tasks, return to the original rep even
+     *              when it sits on another account.
+     */
     @IsTest
     static void assignedOpportunityOnAnotherAccountReturnsToTheOriginalRep() {
         User originalRep = insertUser('orig2');
@@ -150,6 +171,10 @@ private class LSTemporaryAccessReassignmentServiceTest {
         System.assertEquals(originalRep.Id, [SELECT OwnerId FROM Task WHERE Id = :taskOnAssignedOpportunity.Id].OwnerId);
     }
 
+    /**
+     * @description Confirms the handback succeeds without a funnel position and removes the temporary validation
+     *              switch.
+     */
     @IsTest
     static void handbackIgnoresPositionInFunnelRuleAndRestoresTheSwitch() {
         User originalRep = insertUser('orig3');
@@ -194,6 +219,10 @@ private class LSTemporaryAccessReassignmentServiceTest {
         );
     }
 
+    /**
+     * @description Inserts a flow bypass setting so the temporary access flows do not run for the user.
+     * @param userId Id of the user the setting is created for.
+     */
     private static void stopTemporaryAccessFlows(Id userId) {
         insert new Automation_Setting_Flow__c(
             SetupOwnerId = userId,
@@ -204,6 +233,11 @@ private class LSTemporaryAccessReassignmentServiceTest {
 
     private static Integer userSequence = 0;
 
+    /**
+     * @description Inserts a test user with a unique username on the running user profile.
+     * @param aliasSeed Text used to build the alias, last name and username.
+     * @return Inserted user.
+     */
     private static User insertUser(String aliasSeed) {
         userSequence++;
         String token = String.valueOf(DateTime.now().getTime()) + userSequence;

@@ -1,0 +1,249 @@
+<template>
+    <div class="ppm">
+
+        <!-- ============================== LIST ============================== -->
+        <template lwc:if={isList}>
+            <section class="panel">
+                <div class="list-head">
+                    <h1 class="page-title">Pricing Programs <span class="muted">({filteredCount})</span></h1>
+                    <lightning-input class="list-search" type="search" label="Search programs" variant="label-hidden"
+                        placeholder="Search program name or number" value={searchTerm} onchange={handleSearch}></lightning-input>
+                    <lightning-combobox class="list-filter" label="Type" variant="label-hidden" value={typeFilter}
+                        options={typeFilterOptions} onchange={handleTypeFilter}></lightning-combobox>
+                    <lightning-combobox class="list-filter" label="Status" variant="label-hidden" value={statusFilter}
+                        options={statusFilterOptions} onchange={handleStatusFilter}></lightning-combobox>
+                    <lightning-button variant="brand" label="New Program" onclick={handleNew}></lightning-button>
+                </div>
+                <lightning-datatable key-field="id" data={filteredPrograms} columns={columns}
+                    hide-checkbox-column onrowaction={handleRowAction}></lightning-datatable>
+            </section>
+        </template>
+
+        <!-- ============================== EDITOR ============================== -->
+        <template lwc:else>
+            <section class="panel head">
+                <div class="head-row">
+                    <div class="grow">
+                        <button class="back-link" onclick={handleCancel}>‹ Pricing Programs</button>
+                        <h1 class="page-title">{titleText}</h1>
+                        <p class="sub">{subText}</p>
+                    </div>
+                    <span class={statusClass}>{statusText}</span>
+                </div>
+                <ol class="path" aria-label="Steps">
+                    <template for:each={pathSteps} for:item="s">
+                        <li key={s.key} class="path-item">
+                            <button class={s.cls} data-step={s.key} aria-current={s.current} onclick={handleStepClick}>{s.label}</button>
+                        </li>
+                    </template>
+                </ol>
+            </section>
+
+            <section class="panel body">
+                <div class="body-inner">
+                    <template lwc:if={errorMessage}>
+                        <div class="error-banner" role="alert">{errorMessage}</div>
+                    </template>
+
+                    <!-- ---------- STEP 1: PROGRAM + CODES ---------- -->
+                    <template lwc:if={onMain}>
+                        <div class="header-grid">
+                            <template lwc:if={isNew}>
+                                <lightning-combobox class="hdr" label="Type" required value={draft.programType}
+                                    options={typeOptions} onchange={handleTypeChange}></lightning-combobox>
+                            </template>
+                            <template lwc:else>
+                                <lightning-input label="Type" value={draft.programType} readonly></lightning-input>
+                            </template>
+                            <lightning-input class="hdr span-2" label="Program Name" required max-length="255"
+                                value={draft.programName} data-field="programName" onchange={handleHeaderChange}
+                                onblur={handleProgramNameBlur}></lightning-input>
+                            <lightning-input class="hdr span-2" label="Display Name" max-length="255"
+                                value={draft.displayName} data-field="displayName" onchange={handleHeaderChange}></lightning-input>
+                            <lightning-combobox class="hdr" label="Status" required value={draft.status}
+                                options={statusOptions} data-field="status" onchange={handleHeaderChange}></lightning-combobox>
+                            <lightning-input class="hdr" type="date" label="Start Date" required
+                                value={draft.startDate} data-field="startDate" onchange={handleHeaderChange}></lightning-input>
+                            <lightning-input class="hdr" type="date" label="End Date"
+                                value={draft.endDate} data-field="endDate" onchange={handleHeaderChange}></lightning-input>
+                        </div>
+
+                        <template lwc:if={hasCodes}>
+                            <div class="codes">
+                                <div class="codes-head">
+                                    <h2 class="section-title">{codesTitle} <span class="muted">({codeCount})</span></h2>
+                                    <lightning-button label="Paste a list of codes" onclick={handlePaste}></lightning-button>
+                                </div>
+                                <div class="code-add" onkeydown={handleCodeKeyDown}>
+                                    <lightning-input class="code-input" type="search" label={addLabel} variant="label-hidden"
+                                        placeholder={addLabel} value={codeTerm} onchange={handleCodeTerm}></lightning-input>
+                                    <template lwc:if={showCodeResults}>
+                                        <ul class="code-results" role="listbox" aria-label="Matching codes">
+                                            <template for:each={codeResultRows} for:item="m">
+                                                <li key={m.id} role="option">
+                                                    <button class={m.cls} data-id={m.id} onclick={handleAddResult}>
+                                                        <span class="code">{m.code}</span>
+                                                        <span class="grow">{m.name}</span>
+                                                    </button>
+                                                </li>
+                                            </template>
+                                        </ul>
+                                    </template>
+                                </div>
+                                <div class="code-list">
+                                    <template for:each={codeRows} for:item="c">
+                                        <div key={c.key} class="code-row">
+                                            <span class="code">{c.code}</span>
+                                            <span class="grow">{c.name}</span>
+                                            <lightning-button-icon icon-name="utility:close" variant="bare" size="small"
+                                                alternative-text={c.removeLabel} title="Remove" data-key={c.key}
+                                                onclick={handleRemoveCode}></lightning-button-icon>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                    </template>
+
+                    <!-- ---------- STEP 2: INCLUSIONS & EXCLUSIONS ---------- -->
+                    <template lwc:if={onRules}>
+                        <div class="rule-form">
+                            <h2 class="form-title">{ruleFormTitle}</h2>
+                            <div class="form-grid">
+                                <lightning-input label="Rule Type" value={ruleForm.kind} readonly></lightning-input>
+                                <lightning-input class="rule-field" type="date" label="Start Date" value={ruleForm.startDate}
+                                    data-field="startDate" onchange={handleRuleField}></lightning-input>
+                                <lightning-input class="rule-field" type="date" label="End Date" value={ruleForm.endDate}
+                                    data-field="endDate" onchange={handleRuleField}></lightning-input>
+                                <lightning-input class="rule-field" label="Department" max-length="50" placeholder="Any"
+                                    value={ruleForm.department} data-field="department" onchange={handleRuleField}></lightning-input>
+                                <lightning-combobox label="Product Line" placeholder="Any" value={ruleForm.productLine}
+                                    options={productLineOptions} data-field="productLine" onchange={handleRuleField}></lightning-combobox>
+                                <lightning-combobox label="Sub Product Line" placeholder="Any" value={ruleForm.subProductLine}
+                                    options={subProductLineOptions} data-field="subProductLine" onchange={handleRuleField}></lightning-combobox>
+                                <lightning-combobox label="Product Type" placeholder="Any" value={ruleForm.productType}
+                                    options={productTypeOptions} data-field="productType" onchange={handleRuleField}></lightning-combobox>
+                                <lightning-combobox label="Manufacturer" placeholder="Any" value={ruleForm.manufacturer}
+                                    options={manufacturerOptions} data-field="manufacturer" onchange={handleRuleField}></lightning-combobox>
+                                <lightning-input class="rule-field" label="Model" max-length="50" placeholder="Any"
+                                    value={ruleForm.model} data-field="model" onchange={handleRuleField}></lightning-input>
+                                <lightning-input class="rule-field" type="number" label="Max Quantity" min="0" step="1"
+                                    placeholder="No limit" value={ruleForm.maxQuantity} data-field="maxQuantity"
+                                    onchange={handleRuleField}></lightning-input>
+                                <div class="form-buttons">
+                                    <lightning-button label={ruleCancelLabel} onclick={handleRuleCancel}></lightning-button>
+                                    <lightning-button variant="brand" label={ruleSaveLabel} onclick={handleRuleSave}></lightning-button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="rules">
+                            <div class="rules-head">
+                                <h2 class="section-title grow">Rules <span class="muted">({ruleSummary})</span></h2>
+                                <lightning-button label="+ New Inclusion" onclick={handleNewInclusion}></lightning-button>
+                            </div>
+                            <ul class="rule-list">
+                                <template for:each={ruleRows} for:item="r">
+                                    <li key={r.key} class={r.cls}>
+                                        <span class={r.labelCls}>{r.label}</span>
+                                        <div class="grow rule-text">
+                                            <span class="rule-keys">{r.keys}</span>
+                                            <span class="rule-details">{r.details}</span>
+                                        </div>
+                                        <span class="rule-actions">
+                                            <template lwc:if={r.isInclusion}>
+                                                <button class="link-btn" data-id={r.id} onclick={handleAddExclusion}>Add Exclusion</button>
+                                            </template>
+                                            <button class="link-btn" data-id={r.id} onclick={handleEditRule}>Edit</button>
+                                            <button class="link-btn danger" data-id={r.id} onclick={handleDeleteRule}>Delete</button>
+                                        </span>
+                                    </li>
+                                </template>
+                                <template lwc:if={noRules}>
+                                    <li class="rule-row empty">No rules yet.</li>
+                                </template>
+                            </ul>
+                        </div>
+                    </template>
+
+                    <!-- ---------- REVIEW ---------- -->
+                    <template lwc:if={onReview}>
+                        <h2 class="section-title">Review &amp; Save</h2>
+                        <div class="review-top">
+                            <div class="review-box">
+                                <h3 class="box-title">Program</h3>
+                                <dl class="details">
+                                    <template for:each={reviewDetails} for:item="d">
+                                        <div key={d.label} class="detail">
+                                            <dt>{d.label}</dt>
+                                            <dd>{d.value}</dd>
+                                        </div>
+                                    </template>
+                                </dl>
+                            </div>
+                            <template lwc:if={hasCodes}>
+                                <div class="review-box codes-box">
+                                    <h3 class="box-title">{codesTitle} ({codeCount})</h3>
+                                    <ul class="codes-scroll">
+                                        <template for:each={codeRows} for:item="c">
+                                            <li key={c.key}><span class="code">{c.code}</span><span>{c.name}</span></li>
+                                        </template>
+                                    </ul>
+                                </div>
+                            </template>
+                        </div>
+                        <template lwc:if={hasRules}>
+                            <div class="review-box full">
+                                <h3 class="box-title">Inclusions &amp; Exclusions ({ruleSummary})</h3>
+                                <div class="table-wrap">
+                                    <table class="review-table">
+                                        <thead>
+                                            <tr>
+                                                <th scope="col">Rule</th>
+                                                <th scope="col">Product Line</th>
+                                                <th scope="col">Sub Product Line</th>
+                                                <th scope="col">Product Type</th>
+                                                <th scope="col">Manufacturer</th>
+                                                <th scope="col">Model</th>
+                                                <th scope="col">Department</th>
+                                                <th scope="col" class="num">Max Qty</th>
+                                                <th scope="col">Start Date</th>
+                                                <th scope="col">End Date</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <template for:each={reviewRuleRows} for:item="rr">
+                                                <tr key={rr.key} class={rr.rowCls}>
+                                                    <td class={rr.labelCls}>{rr.label}</td>
+                                                    <template for:each={rr.cells} for:item="c">
+                                                        <td key={c.key} class={c.cls}>{c.text}</td>
+                                                    </template>
+                                                </tr>
+                                            </template>
+                                            <template lwc:if={noRules}>
+                                                <tr><td class="cell muted" colspan="10">No rules.</td></tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </template>
+                    </template>
+                </div>
+
+                <footer class="footer">
+                    <lightning-button label="Cancel" onclick={handleCancel}></lightning-button>
+                    <span class="grow"></span>
+                    <template lwc:if={hasBack}>
+                        <lightning-button label="Back" onclick={handleBack}></lightning-button>
+                    </template>
+                    <lightning-button variant="brand" label={nextLabel} onclick={handleNext}></lightning-button>
+                </footer>
+            </section>
+        </template>
+
+        <template lwc:if={busy}>
+            <lightning-spinner alternative-text="Working" size="medium"></lightning-spinner>
+        </template>
+    </div>
+</template>

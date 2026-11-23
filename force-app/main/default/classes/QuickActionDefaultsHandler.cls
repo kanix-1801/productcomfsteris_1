@@ -45,6 +45,26 @@ public class QuickActionDefaultsHandler implements QuickAction.QuickActionDefaul
 
             }
             
+              if(c.EmailType__c == 'TRADEINREMINDER_30D') {
+                EmailAddressDefaultController.defaultSDNEmailAddresses(sendEmailDefaults, c,'Post Shipment Trade in Email');
+
+            }
+            
+              if(c.EmailType__c == 'TRADEINREMINDER_60D') {
+                EmailAddressDefaultController.defaultSDNEmailAddresses(sendEmailDefaults, c,'Post Shipment Trade in Email');
+
+            }
+            
+              if(c.EmailType__c == 'TRADEINREMINDER_90D') {
+                EmailAddressDefaultController.defaultSDNEmailAddresses(sendEmailDefaults, c,'Post Shipment Trade in Email');
+
+            }
+            
+              if(c.EmailType__c == 'TRADEINREMINDER_CAN') {
+                EmailAddressDefaultController.defaultSDNEmailAddresses(sendEmailDefaults, c,'Post Shipment Trade in Email Follow Up');
+
+            }
+            
             if(c.EmailType__c == 'CREDITMEMO') {
                 EmailAddressDefaultController.defaultSDNEmailAddresses(sendEmailDefaults, c,'Credit Notification Trade In');
 
@@ -52,6 +72,14 @@ public class QuickActionDefaultsHandler implements QuickAction.QuickActionDefaul
 
             if(c.EmailType__c == 'CREDITMEMOCAN') {
                 EmailAddressDefaultController.defaultSDNEmailAddresses(sendEmailDefaults, c,'Credit Notification Trade In CAN');
+            }
+
+            if (c.EmailType__c == 'TRADEINCANCEL_USA') {
+                EmailAddressDefaultController.defaultSDNEmailAddresses(sendEmailDefaults,c,'Trade In Cancellation USA');
+            }
+            
+            if (c.EmailType__c == 'TRADEINCANCEL_CAN') {
+                EmailAddressDefaultController.defaultSDNEmailAddresses(sendEmailDefaults,c,'Canadian Cancellation Email');
             }
             
             if (c.EmailType__c == 'COA Project' && c.EmailLanguage__c=='English'){

@@ -9,16 +9,16 @@
  */
 public without sharing class ActionLauncherService {
 
-    public static final String SCENARIO = 'Action Launcher';
-    public static final String LOGGER_TAG = 'ActionLauncher';
-    public static final String TYPE_QUICK_ACTION = 'QuickAction';
-    public static final String TYPE_WEB_LINK = 'WebLink';
-    public static final String OPEN_TYPE_NEW_WINDOW = 'newWindow';
+	public static final String SCENARIO = 'Action Launcher';
+	public static final String LOGGER_TAG = 'ActionLauncher';
+	public static final String TYPE_QUICK_ACTION = 'QuickAction';
+	public static final String TYPE_WEB_LINK = 'WebLink';
+	public static final String OPEN_TYPE_NEW_WINDOW = 'newWindow';
 
-    private static final Pattern MERGE_FIELD_PATTERN = Pattern.compile('\\{!([^}]+)\\}');
+	private static final Pattern MERGE_FIELD_PATTERN = Pattern.compile('\\{!([^}]+)\\}');
 
-    @TestVisible
-    private static String forcedExceptionMethodName;
+	@TestVisible
+	private static String forcedExceptionMethodName;
 
     /**
      * @description
@@ -29,43 +29,43 @@ public without sharing class ActionLauncherService {
      * @param actionApiNames Comma-separated action API names in display order.
      * @return Action metadata available to the current user.
      */
-    public static List<ActionLauncherController.LauncherAction> getActions(
-        String recordId,
-        String objectApiName,
-        String actionApiNames
-    ) {
-        try {
-            throwForcedTestExceptionIfRequested('getActions');
+	public static List<ActionLauncherController.LauncherAction> getActions(
+		String recordId,
+		String objectApiName,
+		String actionApiNames
+	) {
+		try {
+			throwForcedTestExceptionIfRequested('getActions');
 
-            List<String> qualifiedActionNameList = qualifyActionNames(objectApiName, actionApiNames);
+			List<String> qualifiedActionNameList = qualifyActionNames(objectApiName, actionApiNames);
 
-            if (qualifiedActionNameList.isEmpty()) {
-                return new List<ActionLauncherController.LauncherAction>();
-            }
+			if (qualifiedActionNameList.isEmpty()) {
+				return new List<ActionLauncherController.LauncherAction>();
+			}
 
-            Map<String, QuickAction.DescribeQuickActionResult> quickActionByNameMap =
-                describeQuickActions(qualifiedActionNameList);
-            List<String> unresolvedActionNameList =
-                getUnresolvedActionNames(qualifiedActionNameList, quickActionByNameMap);
-            Map<String, WebLink> webLinkByNameMap =
-                getWebLinksByQualifiedName(objectApiName, unresolvedActionNameList);
-            Map<String, String> mergeValueByTokenMap =
-                resolveMergeValues(webLinkByNameMap.values(), recordId, objectApiName);
+			Map<String, QuickAction.DescribeQuickActionResult> quickActionByNameMap =
+				describeQuickActions(qualifiedActionNameList);
+			List<String> unresolvedActionNameList =
+				getUnresolvedActionNames(qualifiedActionNameList, quickActionByNameMap);
+			Map<String, WebLink> webLinkByNameMap =
+				getWebLinksByQualifiedName(objectApiName, unresolvedActionNameList);
+			Map<String, String> mergeValueByTokenMap =
+				resolveMergeValues(webLinkByNameMap.values(), recordId, objectApiName);
 
-            return buildLauncherActions(
-                qualifiedActionNameList,
-                quickActionByNameMap,
-                webLinkByNameMap,
-                mergeValueByTokenMap
-            );
-        } catch (Exception exceptionValue) {
-            Logger.setScenario(SCENARIO);
-            Logger.error('Error resolving Action Launcher actions', exceptionValue).addTag(LOGGER_TAG);
-            throw new ActionLauncherException('Unable to resolve Action Launcher actions.');
-        } finally {
-            Logger.saveLog();
-        }
-    }
+			return buildLauncherActions(
+				qualifiedActionNameList,
+				quickActionByNameMap,
+				webLinkByNameMap,
+				mergeValueByTokenMap
+			);
+		} catch (Exception exceptionValue) {
+			Logger.setScenario(SCENARIO);
+			Logger.error('Error resolving Action Launcher actions', exceptionValue).addTag(LOGGER_TAG);
+			throw new ActionLauncherException('Unable to resolve Action Launcher actions.');
+		} finally {
+			Logger.saveLog();
+		}
+	}
 
     /**
      * @description
@@ -75,37 +75,37 @@ public without sharing class ActionLauncherService {
      * @param actionApiNames Comma-separated action API names.
      * @return Qualified action API names in configured order.
      */
-    private static List<String> qualifyActionNames(String objectApiName, String actionApiNames) {
-        List<String> qualifiedActionNameList = new List<String>();
+	private static List<String> qualifyActionNames(String objectApiName, String actionApiNames) {
+		List<String> qualifiedActionNameList = new List<String>();
 
-        if (String.isBlank(actionApiNames)) {
-            return qualifiedActionNameList;
-        }
+		if (String.isBlank(actionApiNames)) {
+			return qualifiedActionNameList;
+		}
 
-        Set<String> normalizedActionNameSet = new Set<String>();
+		Set<String> normalizedActionNameSet = new Set<String>();
 
-        for (String rawActionName : actionApiNames.split(',')) {
-            String actionName = rawActionName == null ? '' : rawActionName.trim();
+		for (String rawActionName : actionApiNames.split(',')) {
+			String actionName = rawActionName == null ? '' : rawActionName.trim();
 
-            if (String.isBlank(actionName)) {
-                continue;
-            }
+			if (String.isBlank(actionName)) {
+				continue;
+			}
 
-            if (!actionName.contains('.')) {
-                if (String.isBlank(objectApiName)) {
-                    continue;
-                }
+			if (!actionName.contains('.')) {
+				if (String.isBlank(objectApiName)) {
+					continue;
+				}
 
-                actionName = objectApiName.trim() + '.' + actionName;
-            }
+				actionName = objectApiName.trim() + '.' + actionName;
+			}
 
-            if (normalizedActionNameSet.add(actionName.toLowerCase())) {
-                qualifiedActionNameList.add(actionName);
-            }
-        }
+			if (normalizedActionNameSet.add(actionName.toLowerCase())) {
+				qualifiedActionNameList.add(actionName);
+			}
+		}
 
-        return qualifiedActionNameList;
-    }
+		return qualifiedActionNameList;
+	}
 
     /**
      * @description
@@ -114,36 +114,36 @@ public without sharing class ActionLauncherService {
      * @param qualifiedActionNameList Qualified action API names.
      * @return Quick action describe results keyed by API name.
      */
-    private static Map<String, QuickAction.DescribeQuickActionResult> describeQuickActions(
-        List<String> qualifiedActionNameList
-    ) {
-        Map<String, QuickAction.DescribeQuickActionResult> quickActionByNameMap =
-            new Map<String, QuickAction.DescribeQuickActionResult>();
+	private static Map<String, QuickAction.DescribeQuickActionResult> describeQuickActions(
+		List<String> qualifiedActionNameList
+	) {
+		Map<String, QuickAction.DescribeQuickActionResult> quickActionByNameMap =
+			new Map<String, QuickAction.DescribeQuickActionResult>();
 
-        try {
-            addQuickActionDescribeResults(
-                quickActionByNameMap,
-                QuickAction.describeQuickActions(qualifiedActionNameList)
-            );
-            return quickActionByNameMap;
-        } catch (Exception bulkDescribeException) {
-            quickActionByNameMap.clear();
-        }
+		try {
+			addQuickActionDescribeResults(
+				quickActionByNameMap,
+				QuickAction.describeQuickActions(qualifiedActionNameList)
+			);
+			return quickActionByNameMap;
+		} catch (Exception bulkDescribeException) {
+			quickActionByNameMap.clear();
+		}
 
-        for (String qualifiedActionName : qualifiedActionNameList) {
-            try {
-                addQuickActionDescribeResults(
-                    quickActionByNameMap,
-                    QuickAction.describeQuickActions(new List<String>{ qualifiedActionName })
-                );
-            } catch (Exception singleDescribeException) {
+		for (String qualifiedActionName : qualifiedActionNameList) {
+			try {
+				addQuickActionDescribeResults(
+					quickActionByNameMap,
+					QuickAction.describeQuickActions(new List<String>{ qualifiedActionName })
+				);
+			} catch (Exception singleDescribeException) {
                 // GC-3346 - The unresolved name may represent a URL custom button.
-                continue;
-            }
-        }
+				continue;
+			}
+		}
 
-        return quickActionByNameMap;
-    }
+		return quickActionByNameMap;
+	}
 
     /**
      * @description
@@ -153,20 +153,20 @@ public without sharing class ActionLauncherService {
      * @param describeResultList Quick action describe results.
      * @return void
      */
-    private static void addQuickActionDescribeResults(
-        Map<String, QuickAction.DescribeQuickActionResult> quickActionByNameMap,
-        List<QuickAction.DescribeQuickActionResult> describeResultList
-    ) {
-        if (describeResultList == null) {
-            return;
-        }
+	private static void addQuickActionDescribeResults(
+		Map<String, QuickAction.DescribeQuickActionResult> quickActionByNameMap,
+		List<QuickAction.DescribeQuickActionResult> describeResultList
+	) {
+		if (describeResultList == null) {
+			return;
+		}
 
-        for (QuickAction.DescribeQuickActionResult describeResult : describeResultList) {
-            if (describeResult != null && String.isNotBlank(describeResult.getName())) {
-                quickActionByNameMap.put(describeResult.getName(), describeResult);
-            }
-        }
-    }
+		for (QuickAction.DescribeQuickActionResult describeResult : describeResultList) {
+			if (describeResult != null && String.isNotBlank(describeResult.getName())) {
+				quickActionByNameMap.put(describeResult.getName(), describeResult);
+			}
+		}
+	}
 
     /**
      * @description
@@ -176,20 +176,20 @@ public without sharing class ActionLauncherService {
      * @param quickActionByNameMap Resolved quick actions.
      * @return Names to resolve as URL custom buttons.
      */
-    private static List<String> getUnresolvedActionNames(
-        List<String> qualifiedActionNameList,
-        Map<String, QuickAction.DescribeQuickActionResult> quickActionByNameMap
-    ) {
-        List<String> unresolvedActionNameList = new List<String>();
+	private static List<String> getUnresolvedActionNames(
+		List<String> qualifiedActionNameList,
+		Map<String, QuickAction.DescribeQuickActionResult> quickActionByNameMap
+	) {
+		List<String> unresolvedActionNameList = new List<String>();
 
-        for (String qualifiedActionName : qualifiedActionNameList) {
-            if (!quickActionByNameMap.containsKey(qualifiedActionName)) {
-                unresolvedActionNameList.add(qualifiedActionName);
-            }
-        }
+		for (String qualifiedActionName : qualifiedActionNameList) {
+			if (!quickActionByNameMap.containsKey(qualifiedActionName)) {
+				unresolvedActionNameList.add(qualifiedActionName);
+			}
+		}
 
-        return unresolvedActionNameList;
-    }
+		return unresolvedActionNameList;
+	}
 
     /**
      * @description
@@ -199,43 +199,43 @@ public without sharing class ActionLauncherService {
      * @param qualifiedActionNameList Unresolved qualified action names.
      * @return URL custom buttons keyed by qualified action name.
      */
-    private static Map<String, WebLink> getWebLinksByQualifiedName(
-        String objectApiName,
-        List<String> qualifiedActionNameList
-    ) {
-        Map<String, WebLink> webLinkByQualifiedNameMap = new Map<String, WebLink>();
+	private static Map<String, WebLink> getWebLinksByQualifiedName(
+		String objectApiName,
+		List<String> qualifiedActionNameList
+	) {
+		Map<String, WebLink> webLinkByQualifiedNameMap = new Map<String, WebLink>();
 
-        if (
-            String.isBlank(objectApiName) ||
-            qualifiedActionNameList == null ||
-            qualifiedActionNameList.isEmpty()
-        ) {
-            return webLinkByQualifiedNameMap;
-        }
+		if (
+			String.isBlank(objectApiName) ||
+			qualifiedActionNameList == null ||
+			qualifiedActionNameList.isEmpty()
+		) {
+			return webLinkByQualifiedNameMap;
+		}
 
-        Map<String, String> qualifiedNameByBareNameMap = new Map<String, String>();
+		Map<String, String> qualifiedNameByBareNameMap = new Map<String, String>();
 
-        for (String qualifiedActionName : qualifiedActionNameList) {
-            String bareActionName = qualifiedActionName.substringAfterLast('.');
+		for (String qualifiedActionName : qualifiedActionNameList) {
+			String bareActionName = qualifiedActionName.substringAfterLast('.');
 
-            if (String.isNotBlank(bareActionName)) {
-                qualifiedNameByBareNameMap.put(bareActionName, qualifiedActionName);
-            }
-        }
+			if (String.isNotBlank(bareActionName)) {
+				qualifiedNameByBareNameMap.put(bareActionName, qualifiedActionName);
+			}
+		}
 
-        for (WebLink webLinkRecord : ActionLauncherSelector.selectUrlWebLinks(
-            objectApiName.trim(),
-            qualifiedNameByBareNameMap.keySet()
-        )) {
-            String qualifiedActionName = qualifiedNameByBareNameMap.get(webLinkRecord.Name);
+		for (WebLink webLinkRecord : ActionLauncherSelector.selectUrlWebLinks(
+			objectApiName.trim(),
+			qualifiedNameByBareNameMap.keySet()
+		)) {
+			String qualifiedActionName = qualifiedNameByBareNameMap.get(webLinkRecord.Name);
 
-            if (qualifiedActionName != null) {
-                webLinkByQualifiedNameMap.put(qualifiedActionName, webLinkRecord);
-            }
-        }
+			if (qualifiedActionName != null) {
+				webLinkByQualifiedNameMap.put(qualifiedActionName, webLinkRecord);
+			}
+		}
 
-        return webLinkByQualifiedNameMap;
-    }
+		return webLinkByQualifiedNameMap;
+	}
 
     /**
      * @description
@@ -246,79 +246,79 @@ public without sharing class ActionLauncherService {
      * @param objectApiName Current record object API name.
      * @return URL-encoded record values keyed by merge token.
      */
-    private static Map<String, String> resolveMergeValues(
-        List<WebLink> webLinkList,
-        String recordId,
-        String objectApiName
-    ) {
-        Map<String, String> mergeValueByTokenMap = new Map<String, String>();
+	private static Map<String, String> resolveMergeValues(
+		List<WebLink> webLinkList,
+		String recordId,
+		String objectApiName
+	) {
+		Map<String, String> mergeValueByTokenMap = new Map<String, String>();
 
-        if (
-            webLinkList == null ||
-            webLinkList.isEmpty() ||
-            String.isBlank(recordId) ||
-            String.isBlank(objectApiName)
-        ) {
-            return mergeValueByTokenMap;
-        }
+		if (
+			webLinkList == null ||
+			webLinkList.isEmpty() ||
+			String.isBlank(recordId) ||
+			String.isBlank(objectApiName)
+		) {
+			return mergeValueByTokenMap;
+		}
 
-        Schema.SObjectType objectType = Schema.getGlobalDescribe().get(objectApiName.trim());
+		Schema.SObjectType objectType = Schema.getGlobalDescribe().get(objectApiName.trim());
 
-        if (objectType == null) {
-            return mergeValueByTokenMap;
-        }
+		if (objectType == null) {
+			return mergeValueByTokenMap;
+		}
 
-        Map<String, Schema.SObjectField> fieldByNameMap = objectType.getDescribe().fields.getMap();
-        Map<String, String> fieldNameByTokenMap = new Map<String, String>();
-        Set<String> fieldNameSet = new Set<String>{ 'Id' };
+		Map<String, Schema.SObjectField> fieldByNameMap = objectType.getDescribe().fields.getMap();
+		Map<String, String> fieldNameByTokenMap = new Map<String, String>();
+		Set<String> fieldNameSet = new Set<String>{ 'Id' };
 
-        for (WebLink webLinkRecord : webLinkList) {
-            Matcher mergeFieldMatcher =
-                MERGE_FIELD_PATTERN.matcher(webLinkRecord.Url == null ? '' : webLinkRecord.Url);
+		for (WebLink webLinkRecord : webLinkList) {
+			Matcher mergeFieldMatcher =
+				MERGE_FIELD_PATTERN.matcher(webLinkRecord.Url == null ? '' : webLinkRecord.Url);
 
-            while (mergeFieldMatcher.find()) {
-                String mergeToken = mergeFieldMatcher.group(0);
+			while (mergeFieldMatcher.find()) {
+				String mergeToken = mergeFieldMatcher.group(0);
 
-                if (fieldNameByTokenMap.containsKey(mergeToken)) {
-                    continue;
-                }
+				if (fieldNameByTokenMap.containsKey(mergeToken)) {
+					continue;
+				}
 
-                String fieldName = parseFieldName(mergeFieldMatcher.group(1), objectApiName);
-                Schema.SObjectField objectField =
-                    String.isBlank(fieldName) ? null : fieldByNameMap.get(fieldName.toLowerCase());
+				String fieldName = parseFieldName(mergeFieldMatcher.group(1), objectApiName);
+				Schema.SObjectField objectField =
+					String.isBlank(fieldName) ? null : fieldByNameMap.get(fieldName.toLowerCase());
 
-                if (objectField == null || !objectField.getDescribe().isAccessible()) {
-                    continue;
-                }
+				if (objectField == null || !objectField.getDescribe().isAccessible()) {
+					continue;
+				}
 
-                String resolvedFieldName = objectField.getDescribe().getName();
-                fieldNameByTokenMap.put(mergeToken, resolvedFieldName);
-                fieldNameSet.add(resolvedFieldName);
-            }
-        }
+				String resolvedFieldName = objectField.getDescribe().getName();
+				fieldNameByTokenMap.put(mergeToken, resolvedFieldName);
+				fieldNameSet.add(resolvedFieldName);
+			}
+		}
 
-        if (fieldNameByTokenMap.isEmpty()) {
-            return mergeValueByTokenMap;
-        }
+		if (fieldNameByTokenMap.isEmpty()) {
+			return mergeValueByTokenMap;
+		}
 
-        SObject sourceRecord = ActionLauncherSelector.selectRecordById(
-            recordId,
-            objectType.getDescribe().getName(),
-            fieldNameSet
-        );
+		SObject sourceRecord = ActionLauncherSelector.selectRecordById(
+			recordId,
+			objectType.getDescribe().getName(),
+			fieldNameSet
+		);
 
-        if (sourceRecord == null) {
-            return mergeValueByTokenMap;
-        }
+		if (sourceRecord == null) {
+			return mergeValueByTokenMap;
+		}
 
-        for (String mergeToken : fieldNameByTokenMap.keySet()) {
-            Object fieldValue = sourceRecord.get(fieldNameByTokenMap.get(mergeToken));
-            String stringValue = fieldValue == null ? '' : String.valueOf(fieldValue);
-            mergeValueByTokenMap.put(mergeToken, EncodingUtil.urlEncode(stringValue, 'UTF-8'));
-        }
+		for (String mergeToken : fieldNameByTokenMap.keySet()) {
+			Object fieldValue = sourceRecord.get(fieldNameByTokenMap.get(mergeToken));
+			String stringValue = fieldValue == null ? '' : String.valueOf(fieldValue);
+			mergeValueByTokenMap.put(mergeToken, EncodingUtil.urlEncode(stringValue, 'UTF-8'));
+		}
 
-        return mergeValueByTokenMap;
-    }
+		return mergeValueByTokenMap;
+	}
 
     /**
      * @description
@@ -328,38 +328,38 @@ public without sharing class ActionLauncherService {
      * @param objectApiName Current record object API name.
      * @return Field API name, or null when the expression is blank.
      */
-    private static String parseFieldName(String rawMergeExpression, String objectApiName) {
-        String mergeExpression = rawMergeExpression == null ? '' : rawMergeExpression.trim();
+	private static String parseFieldName(String rawMergeExpression, String objectApiName) {
+		String mergeExpression = rawMergeExpression == null ? '' : rawMergeExpression.trim();
 
-        if (String.isBlank(mergeExpression)) {
-            return null;
-        }
+		if (String.isBlank(mergeExpression)) {
+			return null;
+		}
 
-        if (
-            mergeExpression.toUpperCase().startsWith('CASESAFEID(') &&
-            mergeExpression.endsWith(')')
-        ) {
-            mergeExpression = mergeExpression.substring(
-                'CASESAFEID('.length(),
-                mergeExpression.length() - 1
-            ).trim();
-        }
+		if (
+			mergeExpression.toUpperCase().startsWith('CASESAFEID(') &&
+			mergeExpression.endsWith(')')
+		) {
+			mergeExpression = mergeExpression.substring(
+				'CASESAFEID('.length(),
+				mergeExpression.length() - 1
+			).trim();
+		}
 
-        if (mergeExpression.contains('.')) {
-            return mergeExpression.substringAfterLast('.');
-        }
+		if (mergeExpression.contains('.')) {
+			return mergeExpression.substringAfterLast('.');
+		}
 
-        String legacyObjectPrefix = objectApiName.trim() + '_';
+		String legacyObjectPrefix = objectApiName.trim() + '_';
 
-        if (
-            mergeExpression.length() > legacyObjectPrefix.length() &&
-            mergeExpression.startsWithIgnoreCase(legacyObjectPrefix)
-        ) {
-            return mergeExpression.substring(legacyObjectPrefix.length());
-        }
+		if (
+			mergeExpression.length() > legacyObjectPrefix.length() &&
+			mergeExpression.startsWithIgnoreCase(legacyObjectPrefix)
+		) {
+			return mergeExpression.substring(legacyObjectPrefix.length());
+		}
 
-        return mergeExpression;
-    }
+		return mergeExpression;
+	}
 
     /**
      * @description
@@ -371,41 +371,41 @@ public without sharing class ActionLauncherService {
      * @param mergeValueByTokenMap URL-encoded merge values.
      * @return Ordered launcher action wrappers.
      */
-    private static List<ActionLauncherController.LauncherAction> buildLauncherActions(
-        List<String> qualifiedActionNameList,
-        Map<String, QuickAction.DescribeQuickActionResult> quickActionByNameMap,
-        Map<String, WebLink> webLinkByNameMap,
-        Map<String, String> mergeValueByTokenMap
-    ) {
-        List<ActionLauncherController.LauncherAction> launcherActionList =
-            new List<ActionLauncherController.LauncherAction>();
+	private static List<ActionLauncherController.LauncherAction> buildLauncherActions(
+		List<String> qualifiedActionNameList,
+		Map<String, QuickAction.DescribeQuickActionResult> quickActionByNameMap,
+		Map<String, WebLink> webLinkByNameMap,
+		Map<String, String> mergeValueByTokenMap
+	) {
+		List<ActionLauncherController.LauncherAction> launcherActionList =
+			new List<ActionLauncherController.LauncherAction>();
 
-        for (String qualifiedActionName : qualifiedActionNameList) {
-            QuickAction.DescribeQuickActionResult describeResult =
-                quickActionByNameMap.get(qualifiedActionName);
+		for (String qualifiedActionName : qualifiedActionNameList) {
+			QuickAction.DescribeQuickActionResult describeResult =
+				quickActionByNameMap.get(qualifiedActionName);
 
-            if (describeResult != null) {
-                if (isQuickActionAccessible(describeResult)) {
-                    launcherActionList.add(buildQuickAction(describeResult));
-                }
-                continue;
-            }
+			if (describeResult != null) {
+				if (isQuickActionAccessible(describeResult)) {
+					launcherActionList.add(buildQuickAction(describeResult));
+				}
+				continue;
+			}
 
-            WebLink webLinkRecord = webLinkByNameMap.get(qualifiedActionName);
+			WebLink webLinkRecord = webLinkByNameMap.get(qualifiedActionName);
 
-            if (webLinkRecord != null) {
-                launcherActionList.add(
-                    buildWebLinkAction(
-                        qualifiedActionName,
-                        webLinkRecord,
-                        mergeValueByTokenMap
-                    )
-                );
-            }
-        }
+			if (webLinkRecord != null) {
+				launcherActionList.add(
+					buildWebLinkAction(
+						qualifiedActionName,
+						webLinkRecord,
+						mergeValueByTokenMap
+					)
+				);
+			}
+		}
 
-        return launcherActionList;
-    }
+		return launcherActionList;
+	}
 
     /**
      * @description
@@ -414,20 +414,20 @@ public without sharing class ActionLauncherService {
      * @param describeResult Quick action describe metadata.
      * @return Launcher action wrapper.
      */
-    private static ActionLauncherController.LauncherAction buildQuickAction(
-        QuickAction.DescribeQuickActionResult describeResult
-    ) {
-        ActionLauncherController.LauncherAction launcherAction =
-            new ActionLauncherController.LauncherAction();
-        launcherAction.apiName = describeResult.getName();
-        launcherAction.label = String.isBlank(describeResult.getLabel())
-            ? describeResult.getName()
-            : describeResult.getLabel();
-        launcherAction.actionType = TYPE_QUICK_ACTION;
-        launcherAction.targetSobjectType = describeResult.getTargetSobjectType();
-        launcherAction.opensInNewWindow = false;
-        return launcherAction;
-    }
+	private static ActionLauncherController.LauncherAction buildQuickAction(
+		QuickAction.DescribeQuickActionResult describeResult
+	) {
+		ActionLauncherController.LauncherAction launcherAction =
+			new ActionLauncherController.LauncherAction();
+		launcherAction.apiName = describeResult.getName();
+		launcherAction.label = String.isBlank(describeResult.getLabel())
+			? describeResult.getName()
+			: describeResult.getLabel();
+		launcherAction.actionType = TYPE_QUICK_ACTION;
+		launcherAction.targetSobjectType = describeResult.getTargetSobjectType();
+		launcherAction.opensInNewWindow = false;
+		return launcherAction;
+	}
 
     /**
      * @description
@@ -438,23 +438,23 @@ public without sharing class ActionLauncherService {
      * @param mergeValueByTokenMap URL-encoded merge values.
      * @return Launcher action wrapper.
      */
-    private static ActionLauncherController.LauncherAction buildWebLinkAction(
-        String qualifiedActionName,
-        WebLink webLinkRecord,
-        Map<String, String> mergeValueByTokenMap
-    ) {
-        ActionLauncherController.LauncherAction launcherAction =
-            new ActionLauncherController.LauncherAction();
-        launcherAction.apiName = qualifiedActionName;
-        launcherAction.label = String.isBlank(webLinkRecord.MasterLabel)
-            ? webLinkRecord.Name
-            : webLinkRecord.MasterLabel;
-        launcherAction.actionType = TYPE_WEB_LINK;
-        launcherAction.url = applyMergeValues(webLinkRecord.Url, mergeValueByTokenMap);
-        launcherAction.opensInNewWindow =
-            OPEN_TYPE_NEW_WINDOW.equalsIgnoreCase(webLinkRecord.OpenType);
-        return launcherAction;
-    }
+	private static ActionLauncherController.LauncherAction buildWebLinkAction(
+		String qualifiedActionName,
+		WebLink webLinkRecord,
+		Map<String, String> mergeValueByTokenMap
+	) {
+		ActionLauncherController.LauncherAction launcherAction =
+			new ActionLauncherController.LauncherAction();
+		launcherAction.apiName = qualifiedActionName;
+		launcherAction.label = String.isBlank(webLinkRecord.MasterLabel)
+			? webLinkRecord.Name
+			: webLinkRecord.MasterLabel;
+		launcherAction.actionType = TYPE_WEB_LINK;
+		launcherAction.url = applyMergeValues(webLinkRecord.Url, mergeValueByTokenMap);
+		launcherAction.opensInNewWindow =
+			OPEN_TYPE_NEW_WINDOW.equalsIgnoreCase(webLinkRecord.OpenType);
+		return launcherAction;
+	}
 
     /**
      * @description
@@ -464,22 +464,22 @@ public without sharing class ActionLauncherService {
      * @param mergeValueByTokenMap URL-encoded merge values.
      * @return Resolved URL.
      */
-    private static String applyMergeValues(
-        String url,
-        Map<String, String> mergeValueByTokenMap
-    ) {
-        if (String.isBlank(url)) {
-            return url;
-        }
+	private static String applyMergeValues(
+		String url,
+		Map<String, String> mergeValueByTokenMap
+	) {
+		if (String.isBlank(url)) {
+			return url;
+		}
 
-        String resolvedUrl = url;
+		String resolvedUrl = url;
 
-        for (String mergeToken : mergeValueByTokenMap.keySet()) {
-            resolvedUrl = resolvedUrl.replace(mergeToken, mergeValueByTokenMap.get(mergeToken));
-        }
+		for (String mergeToken : mergeValueByTokenMap.keySet()) {
+			resolvedUrl = resolvedUrl.replace(mergeToken, mergeValueByTokenMap.get(mergeToken));
+		}
 
-        return MERGE_FIELD_PATTERN.matcher(resolvedUrl).replaceAll('');
-    }
+		return MERGE_FIELD_PATTERN.matcher(resolvedUrl).replaceAll('');
+	}
 
     /**
      * @description
@@ -488,18 +488,18 @@ public without sharing class ActionLauncherService {
      * @param describeResult Quick action describe metadata.
      * @return True when the current user can access the action.
      */
-    private static Boolean isQuickActionAccessible(
-        QuickAction.DescribeQuickActionResult describeResult
-    ) {
-        String targetSobjectType = describeResult.getTargetSobjectType();
+	private static Boolean isQuickActionAccessible(
+		QuickAction.DescribeQuickActionResult describeResult
+	) {
+		String targetSobjectType = describeResult.getTargetSobjectType();
 
-        if (describeResult.getType() != 'Create' || String.isBlank(targetSobjectType)) {
-            return true;
-        }
+		if (describeResult.getType() != 'Create' || String.isBlank(targetSobjectType)) {
+			return true;
+		}
 
-        Schema.SObjectType objectType = Schema.getGlobalDescribe().get(targetSobjectType);
-        return objectType != null && objectType.getDescribe().isCreateable();
-    }
+		Schema.SObjectType objectType = Schema.getGlobalDescribe().get(targetSobjectType);
+		return objectType != null && objectType.getDescribe().isCreateable();
+	}
 
     /**
      * @description
@@ -508,10 +508,10 @@ public without sharing class ActionLauncherService {
      * @param methodName Current service method name.
      * @return void
      */
-    @SuppressWarnings('PMD.AvoidTestIsRunningTest')
-    private static void throwForcedTestExceptionIfRequested(String methodName) {
-        if (Test.isRunningTest() && forcedExceptionMethodName == methodName) {
-            throw new QueryException('Script-thrown exception');
-        }
-    }
+	@SuppressWarnings('PMD.AvoidTestIsRunningTest')
+	private static void throwForcedTestExceptionIfRequested(String methodName) {
+		if (Test.isRunningTest() && forcedExceptionMethodName == methodName) {
+			throw new QueryException('Script-thrown exception');
+		}
+	}
 }

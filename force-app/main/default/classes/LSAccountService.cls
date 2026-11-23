@@ -46,7 +46,7 @@ public with sharing class LSAccountService {
      * @description Handles Account after insert events and enqueues TAS processing for
      *              all eligible Life Sciences Prospect Accounts.
      * @param newAccounts List of newly inserted Account records from trigger context.
-     */
+     
     public static void assignTAStoProspect(List<Account> newAccounts) {
         try {
             Logger.info(CLASS_NAME + '.assignTAStoProspect: started');
@@ -88,105 +88,7 @@ public with sharing class LSAccountService {
         } finally {
             Logger.saveLog();
         }
-    }
-
-    /**
-     * @description Handles Account after insert events and enqueues TAS processing for
-     *              eligible Life Sciences Customer Accounts.
-     * @param newAccounts List of newly inserted Account records from trigger context.
-     */
-    public static void assignTAStoCustomer(List<Account> newAccounts) {
-        try {
-            Logger.info(CLASS_NAME + '.assignTAStoCustomer: started');
-
-            if (Test.isRunningTest() && throwTestException) {
-                throw new LSAccountServiceException(
-                    'Test exception for assignTAStoCustomer catch coverage'
-                );
-            }
-
-            Set<Id> eligibleAccountIds = collectEligibleCustomerIds(newAccounts, 'assignTAStoCustomer');
-            enqueueCustomerTasJob(eligibleAccountIds, 'assignTAStoCustomer');
-        } catch (Exception e) {
-            Logger.error(CLASS_NAME + '.assignTAStoCustomer', e);
-            throw e;
-        } finally {
-            Logger.saveLog();
-        }
-    }
-
-    /**
-     * @description Handles Account after update events and enqueues TAS processing when
-     *              a Life Sciences Customer stays eligible and a TAS field changed.
-     * @param newAccounts Updated Account records from trigger context.
-     * @param oldAccountMap Prior Account values from trigger context.
-     */
-    public static void assignTAStoCustomerUpdate(
-        List<Account> newAccounts,
-        Map<Id, Account> oldAccountMap
-    ) {
-        try {
-            Logger.info(CLASS_NAME + '.assignTAStoCustomerUpdate: started');
-
-            if (Test.isRunningTest() && throwTestException) {
-                throw new LSAccountServiceException(
-                    'Test exception for assignTAStoCustomerUpdate catch coverage'
-                );
-            }
-
-            if (newAccounts == null || newAccounts.isEmpty()) {
-                Logger.warn(CLASS_NAME + '.assignTAStoCustomerUpdate: newAccounts is null or empty');
-                return;
-            }
-
-            if (oldAccountMap == null || oldAccountMap.isEmpty()) {
-                Logger.warn(CLASS_NAME + '.assignTAStoCustomerUpdate: oldAccountMap is null or empty');
-                return;
-            }
-
-            Id customerRecordTypeId = getCustomerRecordTypeId();
-            if (customerRecordTypeId == null) {
-                Logger.warn(CLASS_NAME + '.assignTAStoCustomerUpdate: Customer record type not found');
-                return;
-            }
-
-            Set<Id> eligibleAccountIds = new Set<Id>();
-
-            for (Account acc : newAccounts) {
-                if (acc == null || acc.Id == null) {
-                    continue;
-                }
-
-                Account oldAcc = oldAccountMap.get(acc.Id);
-                if (oldAcc == null) {
-                    Logger.warn(
-                        CLASS_NAME + '.assignTAStoCustomerUpdate: old Account record not found for AccountId=' +
-                        acc.Id
-                    );
-                    continue;
-                }
-
-                if (
-                    isValidCustomerAccount(acc, customerRecordTypeId) &&
-                    hasRelevantCustomerFieldChanged(acc, oldAcc)
-                ) {
-                    eligibleAccountIds.add(acc.Id);
-                }
-            }
-
-            Logger.info(
-                CLASS_NAME + '.assignTAStoCustomerUpdate: eligibleAccountCount=' +
-                eligibleAccountIds.size()
-            );
-
-            enqueueCustomerTasJob(eligibleAccountIds, 'assignTAStoCustomerUpdate');
-        } catch (Exception e) {
-            Logger.error(CLASS_NAME + '.assignTAStoCustomerUpdate', e);
-            throw e;
-        } finally {
-            Logger.saveLog();
-        }
-    }
+    }*/
 
     /**
      * @description Flow input wrapper carrying the Account Id to retry.
@@ -231,8 +133,8 @@ public with sharing class LSAccountService {
                 return;
             }
 
-            Id prospectRecordTypeId = getProspectRecordTypeId();
-            Id customerRecordTypeId = getCustomerRecordTypeId();
+            Id prospectRecordTypeId = AccountService.getProspectRecordTypeId();
+            Id customerRecordTypeId = AccountService.getCustomerRecordTypeId();
             List<Account> accounts = AccountSelector.selectByIds(accountIds);
             Set<Id> eligibleProspectIds = new Set<Id>();
             Set<Id> eligibleCustomerIds = new Set<Id>();
@@ -274,9 +176,9 @@ public with sharing class LSAccountService {
             return;
         }
 
-        Id jobId = System.enqueueJob(new LSAccountProspectTasQueueable(eligibleAccountIds));
+        Id jobId = System.enqueueJob(new AccountProspectTasQueueable(eligibleAccountIds, 'SC'));
         Logger.info(
-            CLASS_NAME + '.' + sourceMethod + ': submitted LSAccountProspectTasQueueable, jobId=' +
+            CLASS_NAME + '.' + sourceMethod + ': submitted AccountCustomerTasQueueable, jobId=' +
             jobId
         );
     }
@@ -286,40 +188,14 @@ public with sharing class LSAccountService {
             return;
         }
 
-        Id jobId = System.enqueueJob(new LSAccountCustomerTasQueueable(eligibleAccountIds));
+        Id jobId = System.enqueueJob(new AccountCustomerTasQueueable(eligibleAccountIds));
         Logger.info(
-            CLASS_NAME + '.' + sourceMethod + ': submitted LSAccountCustomerTasQueueable, jobId=' +
+            CLASS_NAME + '.' + sourceMethod + ': submitted AccountCustomerTasQueueable	, jobId=' +
             jobId
         );
     }
 
-    private static Set<Id> collectEligibleCustomerIds(List<Account> newAccounts, String sourceMethod) {
-        if (newAccounts == null || newAccounts.isEmpty()) {
-            Logger.warn(CLASS_NAME + '.' + sourceMethod + ': newAccounts is null or empty');
-            return new Set<Id>();
-        }
-
-        Id customerRecordTypeId = getCustomerRecordTypeId();
-        if (customerRecordTypeId == null) {
-            Logger.warn(CLASS_NAME + '.' + sourceMethod + ': Customer record type not found');
-            return new Set<Id>();
-        }
-
-        Set<Id> eligibleAccountIds = new Set<Id>();
-        for (Account acc : newAccounts) {
-            if (isValidCustomerAccount(acc, customerRecordTypeId)) {
-                eligibleAccountIds.add(acc.Id);
-            }
-        }
-
-        Logger.info(
-            CLASS_NAME + '.' + sourceMethod + ': eligibleAccountCount=' +
-            eligibleAccountIds.size()
-        );
-        return eligibleAccountIds;
-    }
-
-    private static Id getProspectRecordTypeId() {
+    /*private static Id getProspectRecordTypeId() {
         Map<String, Schema.RecordTypeInfo> recordTypeInfoByDeveloperName =
             Schema.SObjectType.Account.getRecordTypeInfosByDeveloperName();
 
@@ -339,7 +215,7 @@ public with sharing class LSAccountService {
         }
 
         return recordTypeInfoByDeveloperName.get(CUSTOMER_RECORD_TYPE_DEV_NAME).getRecordTypeId();
-    }
+    }*/
 
     /**
      * @description Life Sciences Prospect eligibility. Price List is required.
@@ -392,22 +268,6 @@ public with sharing class LSAccountService {
         }
         return acc.SourceSystemID__c != null
             && acc.SourceSystemID__c.containsIgnoreCase('Oracle');
-    }
-
-    private static Boolean hasRelevantCustomerFieldChanged(Account acc, Account oldAcc) {
-        return acc.RecordTypeId != oldAcc.RecordTypeId
-            || acc.Name != oldAcc.Name
-            || acc.CustomerClassCode__c != oldAcc.CustomerClassCode__c
-            || acc.AccountSource != oldAcc.AccountSource
-            || acc.SourceSystemID__c != oldAcc.SourceSystemID__c
-            || acc.OracleAddressId__c != oldAcc.OracleAddressId__c
-            || acc.OrgIDs__c != oldAcc.OrgIDs__c
-            || acc.BillingStreet != oldAcc.BillingStreet
-            || acc.BillingCity != oldAcc.BillingCity
-            || acc.BillingCountry != oldAcc.BillingCountry
-            || acc.BillingState != oldAcc.BillingState
-            || acc.BillingPostalCode != oldAcc.BillingPostalCode
-            || acc.Price_List__c != oldAcc.Price_List__c;
     }
 
     public class LSAccountServiceException extends Exception {}

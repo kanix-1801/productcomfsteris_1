@@ -9,7 +9,7 @@
  */
 public with sharing class ActionLauncherSelector {
 
-    private static final String LINK_TYPE_URL = 'url';
+	private static final String LINK_TYPE_URL = 'url';
 
     /**
      * @description
@@ -19,32 +19,32 @@ public with sharing class ActionLauncherSelector {
      * @param webLinkNameSet Custom button API names without the object prefix.
      * @return Matching URL custom button records.
      */
-    public static List<WebLink> selectUrlWebLinks(
-        String objectApiName,
-        Set<String> webLinkNameSet
-    ) {
-        if (
-            String.isBlank(objectApiName) ||
-            webLinkNameSet == null ||
-            webLinkNameSet.isEmpty()
-        ) {
-            return new List<WebLink>();
-        }
+	public static List<WebLink> selectUrlWebLinks(
+		String objectApiName,
+		Set<String> webLinkNameSet
+	) {
+		if (
+			String.isBlank(objectApiName) ||
+			webLinkNameSet == null ||
+			webLinkNameSet.isEmpty()
+		) {
+			return new List<WebLink>();
+		}
 
-        return [
-            SELECT
-                Id,
-                Name,
-                MasterLabel,
-                Url,
-                LinkType,
-                OpenType
-            FROM WebLink
-            WHERE PageOrSobjectType = :objectApiName
-            AND Name IN :webLinkNameSet
-            AND LinkType = :LINK_TYPE_URL
-        ];
-    }
+		return [
+			SELECT
+				Id,
+				Name,
+				MasterLabel,
+				Url,
+				LinkType,
+				OpenType
+			FROM WebLink
+			WHERE PageOrSobjectType = :objectApiName
+			AND Name IN :webLinkNameSet
+			AND LinkType = :LINK_TYPE_URL
+		];
+	}
 
     /**
      * @description
@@ -55,28 +55,28 @@ public with sharing class ActionLauncherSelector {
      * @param fieldNameSet Validated and accessible field API names.
      * @return Source record used to resolve custom button merge fields.
      */
-    public static SObject selectRecordById(
-        String recordId,
-        String objectApiName,
-        Set<String> fieldNameSet
-    ) {
-        if (
-            String.isBlank(recordId) ||
-            String.isBlank(objectApiName) ||
-            fieldNameSet == null ||
-            fieldNameSet.isEmpty()
-        ) {
-            return null;
-        }
+	public static SObject selectRecordById(
+		String recordId,
+		String objectApiName,
+		Set<String> fieldNameSet
+	) {
+		if (
+			String.isBlank(recordId) ||
+			String.isBlank(objectApiName) ||
+			fieldNameSet == null ||
+			fieldNameSet.isEmpty()
+		) {
+			return null;
+		}
 
-        String queryString =
-            'SELECT ' + String.join(new List<String>(fieldNameSet), ', ') +
-            ' FROM ' + objectApiName +
-            ' WHERE Id = :recordId' +
-            ' WITH USER_MODE' +
-            ' LIMIT 1';
-        List<SObject> recordList = Database.query(queryString);
+		String queryString =
+			'SELECT ' + String.join(new List<String>(fieldNameSet), ', ') +
+			' FROM ' + objectApiName +
+			' WHERE Id = :recordId' +
+			' WITH USER_MODE' +
+			' LIMIT 1';
+		List<SObject> recordList = Database.query(queryString);
 
-        return recordList.isEmpty() ? null : recordList[0];
-    }
+		return recordList.isEmpty() ? null : recordList[0];
+	}
 }

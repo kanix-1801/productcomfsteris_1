@@ -751,7 +751,7 @@ public with sharing class WorkOrdersSelector extends SoqlQueryBuilder {
 			return new List<WorkOrder>();
 		}
 		return [
-			SELECT Id, WorkOrderNumber, Vendor__c
+			SELECT Id, WorkOrderNumber, Vendor__c, ParentWorkOrderId
 			FROM WorkOrder
 			WHERE Id IN :workOrderIds
 			WITH USER_MODE

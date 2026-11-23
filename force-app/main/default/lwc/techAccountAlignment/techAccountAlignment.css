@@ -1,0 +1,8 @@
+/* Shows the standard file upload 50% larger. The scale does not change the layout size, so the margin keeps the
+   content below from overlapping. */
+.file-upload {
+    display: inline-block;
+    transform: scale(1.5);
+    transform-origin: top left;
+    margin-bottom: 2rem;
+}

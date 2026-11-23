@@ -656,6 +656,12 @@ private class ProspectAccountScSyncServiceTest {
         String opportunityRecordType,
         String quoteRecordType
     ) {
+        Automation_Setting_Validation_Rule__c vrSetting =
+            Automation_Setting_Validation_Rule__c.getOrgDefaults();
+        vrSetting.SetupOwnerId = UserInfo.getOrganizationId();
+        vrSetting.disableAll__c = true;
+        upsert vrSetting;
+
         TestData data = new TestData();
         Price_List__c priceList = new Price_List__c(
             Name = 'GC-3441 Price List',

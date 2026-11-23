@@ -9,9 +9,14 @@ private class TechAccountAlignmentControllerTest {
     private static final String ORACLE_ADDRESS_NOT_SERVICEABLE = '2710004';
     private static final String ORACLE_ADDRESS_DISTRIBUTOR = '2710005';
     private static final String WORK_TYPE_NAME = 'GW2710 Installation';
+    private static final String TECH_HRIS = 'GW2710HRIS';
 
     @TestSetup
     static void setupData() {
+        System.runAs(new User(Id = UserInfo.getUserId())) {
+            update new User(Id = UserInfo.getUserId(), EmployeeNumber__c = TECH_HRIS);
+        }
+
         Account customer = new Account(
             Name = 'GW2710 Customer',
             AccountNumber = '2710-C',
@@ -55,7 +60,7 @@ private class TechAccountAlignmentControllerTest {
     static void processUpload_createsPreferredAssignment() {
         Id documentId = insertCsv(
             headerRow() +
-            csvRow(ORACLE_ADDRESS_VALID, UserInfo.getUserId(), 'Surgical', WORK_TYPE_NAME, 'Preferred')
+            csvRow(ORACLE_ADDRESS_VALID, TECH_HRIS, 'Surgical', WORK_TYPE_NAME, 'Preferred')
         );
 
         Test.startTest();
@@ -88,14 +93,13 @@ private class TechAccountAlignmentControllerTest {
 
     @IsTest
     static void processUpload_skipsAssignmentRuleViolations() {
-        String userId = UserInfo.getUserId();
         Id documentId = insertCsv(
             headerRow() +
-            csvRow(ORACLE_ADDRESS_BILL_TO, userId, 'IPTLS', '', 'Preferred') +
-            csvRow(ORACLE_ADDRESS_INACTIVE, userId, 'IPTLS', '', 'Preferred') +
-            csvRow(ORACLE_ADDRESS_NOT_SERVICEABLE, userId, 'IPTLS', '', 'Preferred') +
-            csvRow(ORACLE_ADDRESS_DISTRIBUTOR, userId, 'IPTLS', '', 'Preferred') +
-            csvRow('9999999', userId, 'IPTLS', '', 'Preferred') +
+            csvRow(ORACLE_ADDRESS_BILL_TO, TECH_HRIS, 'IPTLS', '', 'Preferred') +
+            csvRow(ORACLE_ADDRESS_INACTIVE, TECH_HRIS, 'IPTLS', '', 'Preferred') +
+            csvRow(ORACLE_ADDRESS_NOT_SERVICEABLE, TECH_HRIS, 'IPTLS', '', 'Preferred') +
+            csvRow(ORACLE_ADDRESS_DISTRIBUTOR, TECH_HRIS, 'IPTLS', '', 'Preferred') +
+            csvRow('9999999', TECH_HRIS, 'IPTLS', '', 'Preferred') +
             csvRow(ORACLE_ADDRESS_VALID, 'not-a-user-id', 'IPTLS', '', 'Preferred')
         );
 
@@ -112,21 +116,20 @@ private class TechAccountAlignmentControllerTest {
         Assert.isTrue(containsMessage(result.errors, 'No Equipment Here'));
         Assert.isTrue(containsMessage(result.errors, 'distributor'));
         Assert.isTrue(containsMessage(result.errors, 'No Address account found'));
-        Assert.isTrue(containsMessage(result.errors, 'User ID must match'));
+        Assert.isTrue(containsMessage(result.errors, 'No active user found'));
     }
 
     @IsTest
     static void processUpload_skipsDuplicatePreference() {
-        String userId = UserInfo.getUserId();
         Id firstDocumentId = insertCsv(
             headerRow() +
-            csvRow(ORACLE_ADDRESS_VALID, userId, 'Low Temp', '', 'Preferred')
+            csvRow(ORACLE_ADDRESS_VALID, TECH_HRIS, 'Low Temp', '', 'Preferred')
         );
         TechAccountAlignmentController.processUpload(firstDocumentId);
 
         Id secondDocumentId = insertCsv(
             headerRow() +
-            csvRow(ORACLE_ADDRESS_VALID, userId, 'Low Temp', '', 'Preferred')
+            csvRow(ORACLE_ADDRESS_VALID, TECH_HRIS, 'Low Temp', '', 'Preferred')
         );
 
         Test.startTest();
@@ -163,7 +166,7 @@ private class TechAccountAlignmentControllerTest {
             thrown = e;
         }
         Assert.isNotNull(thrown);
-        Assert.isTrue(thrown.getMessage().contains('Address ID and User ID'));
+        Assert.isTrue(thrown.getMessage().contains('ADDID and HRIS ID'));
     }
 
     @IsTest
@@ -180,20 +183,74 @@ private class TechAccountAlignmentControllerTest {
     }
 
     @IsTest
-    static void processUpload_coversRemainingSkipAndSuccessPaths() {
-        String userId = UserInfo.getUserId();
+    static void getErrorFileDownloadUrl_returnsFileAfterSkippedRow() {
+        AuraHandledException beforeProcessing;
+        try {
+            TechAccountAlignmentController.getErrorFileDownloadUrl();
+        } catch (AuraHandledException e) {
+            beforeProcessing = e;
+        }
+        Assert.isNotNull(beforeProcessing);
+        Assert.isTrue(beforeProcessing.getMessage().contains('No error file'));
+
         Id documentId = insertCsv(
-            'Address ID,User ID,Territory Type,Work Type,Preference Level,District Type,Preference Type\n' +
-            csvRow(ORACLE_ADDRESS_VALID, userId, '', '', '') +
-            csvRow(ORACLE_ADDRESS_VALID, userId, 'Surgical', '', '') +
-            csvRow(ORACLE_ADDRESS_VALID, userId, 'Surgical', '', 'Preferred') +
-            csvRow('', userId, 'Surgical', '', 'Preferred') +
+            headerRow() + csvRow(ORACLE_ADDRESS_VALID, 'missing-hris', 'IPTLS', '', 'Preferred')
+        );
+        TechAccountAlignmentController.processUpload(documentId);
+
+        Test.startTest();
+        String url = TechAccountAlignmentController.getErrorFileDownloadUrl();
+        Test.stopTest();
+
+        Assert.isTrue(url.startsWith('/sfc/servlet.shepherd/document/download/'));
+        Id errorDocumentId = Id.valueOf(url.substringAfterLast('/'));
+        String body = ContentVersionsSelector.selectLatestByContentDocumentId(errorDocumentId)[0].VersionData.toString();
+        Assert.isTrue(body.contains('missing-hris'));
+        Assert.isTrue(body.contains('No active user found'));
+    }
+
+    @IsTest
+    static void processUpload_skipsHrisWithoutServiceResource() {
+        String uniqueKey = String.valueOf(Math.abs(Crypto.getRandomInteger()));
+        adb_User otherUser = new adb_User()
+            .firstName('Gw2710b')
+            .lastName('Noresource')
+            .alias(('g' + uniqueKey).left(8))
+            .email('gw2710b.' + uniqueKey + '@example.invalid')
+            .username('gw2710b.' + uniqueKey + '@example.invalid');
+        otherUser.record.put('EmployeeNumber__c', 'GW2710NORSR');
+        otherUser.record.put('CommunityNickname', ('gw2710' + uniqueKey).left(40));
+        System.runAs(new User(Id = UserInfo.getUserId())) {
+            adb_DomainBuilder.save();
+        }
+
+        Id documentId = insertCsv(
+            headerRow() + csvRow(ORACLE_ADDRESS_VALID, 'GW2710NORSR', 'Surgical', '', 'Preferred')
+        );
+
+        Test.startTest();
+        TechAccountAlignmentService.ProcessResult result =
+            TechAccountAlignmentController.processUpload(documentId);
+        Test.stopTest();
+
+        Assert.areEqual(0, result.createdCount);
+        Assert.isTrue(containsMessage(result.errors, 'No active Service Resource'));
+    }
+
+    @IsTest
+    static void processUpload_coversRemainingSkipAndSuccessPaths() {
+        Id documentId = insertCsv(
+            'ADDID,HRIS ID,TYPE,Work Type,PREFERENCE TYPE,Territory Type,Preference Level\n' +
+            csvRow(ORACLE_ADDRESS_VALID, TECH_HRIS, '', '', '') +
+            csvRow(ORACLE_ADDRESS_VALID, TECH_HRIS, 'Surgical', '', '') +
+            csvRow(ORACLE_ADDRESS_VALID, TECH_HRIS, 'Surgical', '', 'Preferred') +
+            csvRow('', TECH_HRIS, 'Surgical', '', 'Preferred') +
             csvRow(ORACLE_ADDRESS_VALID, '', 'Surgical', '', 'Preferred') +
             csvRow(ORACLE_ADDRESS_VALID, '005000000000001AAA', 'Surgical', '', 'Preferred') +
-            csvRow(ORACLE_ADDRESS_VALID, userId, 'NotATerritory', '', 'Preferred') +
-            csvRow(ORACLE_ADDRESS_VALID, userId, 'Surgical', 'Missing Work Type', 'Preferred') +
-            csvRow(ORACLE_ADDRESS_VALID, userId, 'IPTLS', '', 'Maybe') +
-            '"' + ORACLE_ADDRESS_VALID + '","' + userId + '","Low Temp","' + WORK_TYPE_NAME + '","Preferred"\n'
+            csvRow(ORACLE_ADDRESS_VALID, TECH_HRIS, 'NotATerritory', '', 'Preferred') +
+            csvRow(ORACLE_ADDRESS_VALID, TECH_HRIS, 'Surgical', 'Missing Work Type', 'Preferred') +
+            csvRow(ORACLE_ADDRESS_VALID, TECH_HRIS, 'IPTLS', '', 'Maybe') +
+            '"' + ORACLE_ADDRESS_VALID + '","' + TECH_HRIS + '","Low Temp","' + WORK_TYPE_NAME + '","Preferred"\n'
         );
 
         Test.startTest();
@@ -202,9 +259,9 @@ private class TechAccountAlignmentControllerTest {
         Test.stopTest();
 
         Assert.isTrue(result.createdCount >= 2);
-        Assert.isTrue(containsMessage(result.errors, 'Address ID is required'));
-        Assert.isTrue(containsMessage(result.errors, 'User ID is required'));
-        Assert.isTrue(containsMessage(result.errors, 'active Service Resource'));
+        Assert.isTrue(containsMessage(result.errors, 'ADDID is required'));
+        Assert.isTrue(containsMessage(result.errors, 'HRIS ID is required'));
+        Assert.isTrue(containsMessage(result.errors, 'No active user found'));
         Assert.isTrue(containsMessage(result.errors, 'Territory Type is not valid'));
         Assert.isTrue(containsMessage(result.errors, 'Work Type not found'));
         Assert.isTrue(containsMessage(result.errors, 'Preference Level is not valid'));
@@ -217,7 +274,7 @@ private class TechAccountAlignmentControllerTest {
             'gw2710.xlsx',
             buildXlsx(
                 ORACLE_ADDRESS_VALID,
-                UserInfo.getUserId(),
+                TECH_HRIS,
                 'On Location',
                 WORK_TYPE_NAME,
                 'Required'
@@ -267,6 +324,31 @@ private class TechAccountAlignmentControllerTest {
     }
 
     @IsTest
+    static void getTemplateDownloadUrl_replacesOutdatedTemplate() {
+        String firstUrl = TechAccountAlignmentController.getTemplateDownloadUrl();
+        Id documentId = Id.valueOf(firstUrl.substringAfterLast('/'));
+        insert new ContentVersion(
+            ContentDocumentId = documentId,
+            Title = TechAccountAlignmentService.TEMPLATE_TITLE,
+            PathOnClient = TechAccountAlignmentService.TEMPLATE_FILE_NAME,
+            VersionData = Blob.valueOf('stale-template-with-sample-rows')
+        );
+
+        Test.startTest();
+        String secondUrl = TechAccountAlignmentController.getTemplateDownloadUrl();
+        Test.stopTest();
+
+        Assert.areEqual(String.valueOf(documentId), secondUrl.substringAfterLast('/'));
+        Blob latest = ContentVersionsSelector.selectLatestByContentDocumentId(documentId)[0].VersionData;
+        Blob packaged = [
+            SELECT Body
+            FROM StaticResource
+            WHERE Name = :TechAccountAlignmentService.TEMPLATE_RESOURCE_NAME
+        ].Body;
+        Assert.areEqual(EncodingUtil.base64Encode(packaged), EncodingUtil.base64Encode(latest));
+    }
+
+    @IsTest
     static void getTemplateDownloadUrl_reusesStoredDocument() {
         String firstUrl = TechAccountAlignmentController.getTemplateDownloadUrl();
         FieldServiceBackofficeConfig__c config = FieldServiceBackofficeConfig__c.getOrgDefaults();
@@ -286,7 +368,7 @@ private class TechAccountAlignmentControllerTest {
         Assert.areEqual(0, ServiceResourcesSelector.selectActiveByRelatedRecordIds(new Set<Id>()).size());
         Assert.areEqual(0, WorkTypesSelector.selectByNames(new Set<String>()).size());
         Assert.areEqual(0, AddressResourcePreferencesSelector.selectByAddressAccountIds(new Set<Id>()).size());
-        Assert.areEqual(0, ContentVersionsSelector.selectLatestByContentDocumentId(null).size());
+        Assert.areEqual(0, ContentVersionsSelector.selectLatestByContentDocumentId((Id) null).size());
         Assert.areEqual(0, ContentVersionsSelector.selectDocumentIdByVersionId(null).size());
         Assert.areEqual(0, ContentDocumentsSelector.selectIdAndTitleByIds(null).size());
         Assert.areEqual(0, ContentDocumentsSelector.selectLatestByTitle(null).size());
@@ -318,7 +400,7 @@ private class TechAccountAlignmentControllerTest {
     }
 
     private static String headerRow() {
-        return 'Address ID,User ID,Territory Type,Work Type,Preference Level\n';
+        return 'ADDID,HRIS ID,Territory Type,Work Type,PREFERENCE TYPE\n';
     }
 
     private static String csvRow(
@@ -369,11 +451,11 @@ private class TechAccountAlignmentControllerTest {
         String sharedStrings =
             '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
             '<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
-            '<si><t>Address ID</t></si>' +
-            '<si><t>User ID</t></si>' +
+            '<si><t>ADDID</t></si>' +
+            '<si><t>HRIS ID</t></si>' +
             '<si><t>Territory Type</t></si>' +
             '<si><t>Work Type</t></si>' +
-            '<si><t>Preference Level</t></si>' +
+            '<si><t>PREFERENCE TYPE</t></si>' +
             '<si><t>' + addressId + '</t></si>' +
             '<si><t>' + userId + '</t></si>' +
             '<si><t>' + territoryType + '</t></si>' +

@@ -737,6 +737,13 @@ public with sharing class WorkOrderLineItemsSelector extends SoqlQueryBuilder {
 				'Product2.Model__c',
 				'Product2.EvalCategory__c',
 				'Product2.Description',
+				'Product__c',
+				'Product__r.Name',
+				'Product__r.ProductCode',
+				'Product__r.Manufacturer__c',
+				'Product__r.Model__c',
+				'Product__r.EvalCategory__c',
+				'Product__r.Description',
 				'RepairCode__c',
 				'RepairCode__r.Name',
 				'RepairCode__r.ProductCode',
@@ -815,9 +822,9 @@ public with sharing class WorkOrderLineItemsSelector extends SoqlQueryBuilder {
 	}
 
 	/**
-	 * @description GW-3458 - Service Code children of one Product Serviced line.
+	 * @description GW-3458 - Service Code, Category Code, and Special Pricing children of one item.
 	 * @param parentLineItemId Product Serviced Work Order Line Item Id
-	 * @return Service Code lines parented to that item
+	 * @return Child lines that can inherit an Item and Service modifier
 	 */
 	public static List<WorkOrderLineItem> selectServiceCodeChildren(Id parentLineItemId) {
 		if (parentLineItemId == null) {
@@ -826,7 +833,11 @@ public with sharing class WorkOrderLineItemsSelector extends SoqlQueryBuilder {
 		return (List<WorkOrderLineItem>) new WorkOrderLineItemsSelector()
 			.selectFields(new List<String>{ 'Id', 'PricingModifier__c', 'LineType__c' })
 			.whereEquals('ParentWorkOrderLineItemId', parentLineItemId)
-			.whereEquals('LineType__c', 'Service Code')
+			.whereField(
+				'LineType__c',
+				'IN',
+				new List<String>{ 'Service Code', 'Category Code', 'Special Pricing' }
+			)
 			.execute();
 	}
 
@@ -1061,10 +1072,12 @@ public with sharing class WorkOrderLineItemsSelector extends SoqlQueryBuilder {
 	}
 
 	/**
-	 * @description GW-5310 - Repair Code lines, parent item, and product labels for signature override.
+	 * @description GW-5310 - Repair Code lines for signature override.
+	 *              Work Performed matches Device and Instrument Evaluation:
+	 *              Category Code, Special Pricing, and Service Code only.
 	 * @param workOrderId Work Order Id
 	 * @param repairCodeRtId Repair Code record type Id
-	 * @return Repair Code Work Order Line Items
+	 * @return Signable Repair Code Work Order Line Items
 	 */
 	public static List<WorkOrderLineItem> selectRepairCodesForSignatureOverride(
 		Id workOrderId,
@@ -1091,6 +1104,11 @@ public with sharing class WorkOrderLineItemsSelector extends SoqlQueryBuilder {
 			)
 			.whereEquals('WorkOrderId', workOrderId)
 			.whereEquals('RecordTypeId', repairCodeRtId)
+			.whereField(
+				'LineType__c',
+				'IN',
+				new List<String>{ 'Category Code', 'Special Pricing', 'Service Code' }
+			)
 			.orderBy('CreatedDate')
 			.limitTo(200)
 			.executeSystemMode();

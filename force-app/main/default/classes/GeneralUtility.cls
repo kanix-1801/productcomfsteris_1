@@ -49,14 +49,12 @@ public without sharing class GeneralUtility {
      * Description          : check if the user is HC or LS
     *****************************************************************************/
     public static void loadUserPermission() {
+        userPermission = HC_STR;    //Default to HC
         for (PermissionSetAssignment psa : [SELECT Id, PermissionSet.Name
                                             FROM PermissionSetAssignment
                                             WHERE AssigneeId = :UserInfo.getUserId()]) {
             if (psa.PermissionSet.Name.startsWith(LS_STR)) {
                 userPermission = LS_STR;
-                break;
-            } else if(psa.PermissionSet.Name.startsWith(HC_STR)) {
-                userPermission = HC_STR;
                 break;
             }
         }
@@ -98,16 +96,30 @@ public without sharing class GeneralUtility {
         loadUserProfileName();
         loadUserPermission();
         loadCurrentAppName();
+
+        //If the user is a Healthcare Sales user or a Healthcare Dealer user
+        //or the app name is Healthcare Sales or the user permission is HC,
+        //then the business line is HC.
+        //Otherwise, the business line is LS.
         if(userProfileName == HEALTHCARE_SALES_PROFILE_NAME
             || userProfileName == HEALTHCARE_DEALER_PROFILE_NAME
             || appName == HEALTHCARE_SALES_APP_NAME
             || userPermission == HC_STR) {
             currentBusinessLine = HC_STR;
+
         } else if(userProfileName == LIFESCIENCES_SALES_PROFILE_NAME || appName == LIFESCIENCES_SALES_APP_NAME || userPermission == LS_STR) {
             currentBusinessLine = LS_STR;
+            system.debug(':::currentBusinessLine::'+currentBusinessLine);
         }
     }
 
+    /*****************************************************************************
+     * Method Name       : getCurrentBusinessLine
+     * Author           : Sarthak Pani
+     * Date of Dev      : 16th November 2026
+     * Last Modified Date   : 16th November 2026
+     * Description          : get the current business line. This calculated only once and cached for the session.
+    *****************************************************************************/
     public static String getCurrentBusinessLine() {
         if(String.isBlank(currentBusinessLine)) {
             loadCurrentBusinessLine();

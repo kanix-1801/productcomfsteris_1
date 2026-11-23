@@ -187,4 +187,61 @@ private class ReturnOrderLineItemsSelectorTest {
         Assert.areEqual(true, lines[0].AdditionalServiceRepair__c);
     }
 
+    /**
+     * @description GW-5324 - Instrument Evaluation lines for a Return Order (null + match).
+     */
+    @IsTest
+    static void testSelectForInstrumentEvaluation_NullAndByReturnOrderId() {
+        ReturnOrderLineItem lineItem = [
+            SELECT Id, ReturnOrderId
+            FROM ReturnOrderLineItem
+            LIMIT 1
+        ];
+
+        Test.startTest();
+        List<ReturnOrderLineItem> none =
+            ReturnOrderLineItemsSelector.selectForInstrumentEvaluation(null);
+        List<ReturnOrderLineItem> lines =
+            ReturnOrderLineItemsSelector.selectForInstrumentEvaluation(lineItem.ReturnOrderId);
+        Test.stopTest();
+
+        Assert.areEqual(0, none.size(), 'Null Return Order should return no lines');
+        Assert.isFalse(lines.isEmpty(), 'Return Order lines should be returned for IE mapping');
+        Assert.areEqual(lineItem.Id, lines[0].Id);
+    }
+
+    /**
+     * @description GW-1509 - Open Return Order lines for an Asset (null asset + open status).
+     */
+    @IsTest
+    static void testSelectOpenByAssetId_NullAndOpenMatch() {
+        ReturnOrderLineItem lineItem = [
+            SELECT Id, ReturnOrderId, ReturnOrder.AccountId
+            FROM ReturnOrderLineItem
+            LIMIT 1
+        ];
+
+        adb_Asset assetBuilder = new adb_Asset().name('ROLISel Open Asset');
+        assetBuilder.set(Asset.AccountId, lineItem.ReturnOrder.AccountId);
+        Asset assetRecord = (Asset) assetBuilder.persist();
+        lineItem.AssetId = assetRecord.Id;
+        update lineItem;
+
+        Test.startTest();
+        List<ReturnOrderLineItem> none =
+            ReturnOrderLineItemsSelector.selectOpenByAssetId(null, new Set<String>{ 'Canceled' });
+        List<ReturnOrderLineItem> nullClosed =
+            ReturnOrderLineItemsSelector.selectOpenByAssetId(assetRecord.Id, null);
+        List<ReturnOrderLineItem> openLines = ReturnOrderLineItemsSelector.selectOpenByAssetId(
+            assetRecord.Id,
+            new Set<String>{ 'Canceled', 'Closed' }
+        );
+        Test.stopTest();
+
+        Assert.areEqual(0, none.size(), 'Null Asset should return no lines');
+        Assert.isFalse(nullClosed.isEmpty(), 'Null closed-status set should still return Asset lines');
+        Assert.isFalse(openLines.isEmpty(), 'Draft/open Return Order lines should match');
+        Assert.areEqual(lineItem.ReturnOrderId, openLines[0].ReturnOrderId);
+    }
+
 }

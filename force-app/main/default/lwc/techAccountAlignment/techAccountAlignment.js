@@ -2,6 +2,7 @@ import { LightningElement } from 'lwc';
 import { NavigationMixin } from 'lightning/navigation';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import getTemplateDownloadUrl from '@salesforce/apex/TechAccountAlignmentController.getTemplateDownloadUrl';
+import getErrorFileDownloadUrl from '@salesforce/apex/TechAccountAlignmentController.getErrorFileDownloadUrl';
 import processUpload from '@salesforce/apex/TechAccountAlignmentController.processUpload';
 
 const VISIBLE_ERROR_LIMIT = 20;
@@ -42,10 +43,35 @@ export default class TechAccountAlignment extends NavigationMixin(LightningEleme
         this.dispatchEvent(
             new ShowToastEvent({
                 title: 'File uploaded',
-                message: uploadedFile.name + ' is ready. Click Start Upload to process.',
+                message: uploadedFile.name + ' is ready. Click Process Data to process.',
                 variant: 'success'
             })
         );
+    }
+
+    handleDownloadErrorFile() {
+        this.isBusy = true;
+        getErrorFileDownloadUrl()
+            .then((url) => {
+                this[NavigationMixin.Navigate]({
+                    type: 'standard__webPage',
+                    attributes: {
+                        url
+                    }
+                });
+            })
+            .catch((error) => {
+                this.dispatchEvent(
+                    new ShowToastEvent({
+                        title: 'Error file download failed',
+                        message: this.reduceError(error),
+                        variant: 'error'
+                    })
+                );
+            })
+            .finally(() => {
+                this.isBusy = false;
+            });
     }
 
     handleDownloadTemplate() {
@@ -78,7 +104,7 @@ export default class TechAccountAlignment extends NavigationMixin(LightningEleme
             this.dispatchEvent(
                 new ShowToastEvent({
                     title: 'No file selected',
-                    message: 'Upload a file before clicking Start Upload.',
+                    message: 'Upload a file before clicking Process Data.',
                     variant: 'warning'
                 })
             );

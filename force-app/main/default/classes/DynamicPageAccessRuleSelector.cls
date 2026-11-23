@@ -17,8 +17,8 @@ public with sharing class DynamicPageAccessRuleSelector {
      * @description
      * Test-only mock access rule returned by getAccessRule.
      */
-    @TestVisible
-    private static DynamicPageAccessRule__mdt mockRule;
+	@TestVisible
+	private static DynamicPageAccessRule__mdt mockRule;
 
     /**
      * @description
@@ -28,25 +28,25 @@ public with sharing class DynamicPageAccessRuleSelector {
      * @param objectApiName SObject API name for the record page context.
      * @return Matching access rule metadata record, or null when none is configured.
      */
-    public static DynamicPageAccessRule__mdt getAccessRule(String pageName, String objectApiName) {
-        if (Test.isRunningTest() && mockRule != null) {
-            return mockRule;
-        }
+	public static DynamicPageAccessRule__mdt getAccessRule(String pageName, String objectApiName) {
+		if (Test.isRunningTest() && mockRule != null) {
+			return mockRule;
+		}
 
-        List<DynamicPageAccessRule__mdt> rules = [
-            SELECT
-                PageName__c,
-                ObjectAPIName__c,
-                AccessStrategy__c,
-                BaseAccessValue__c,
-                FullAccessValue__c,
-                StrategyParameter__c
-            FROM DynamicPageAccessRule__mdt
-            WHERE PageName__c = :pageName
-              AND ObjectAPIName__c = :objectApiName
-            LIMIT 1
-        ];
+		List<DynamicPageAccessRule__mdt> rules = [
+			SELECT
+				PageName__c,
+				ObjectAPIName__c,
+				AccessStrategy__c,
+				BaseAccessValue__c,
+				FullAccessValue__c,
+				StrategyParameter__c
+			FROM DynamicPageAccessRule__mdt
+			WHERE PageName__c = :pageName
+			  AND ObjectAPIName__c = :objectApiName
+			LIMIT 1
+		];
 
-        return rules.isEmpty() ? null : rules[0];
-    }
+		return rules.isEmpty() ? null : rules[0];
+	}
 }

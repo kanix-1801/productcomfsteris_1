@@ -47,18 +47,6 @@ public without sharing class AssetPendingInactivationService {
 	private static Boolean isEvaluatingInactivation = false;
 
 	/**
-	 * @description When true in tests, forces service methods onto the catch path.
-	 */
-	@TestVisible
-	private static Boolean forceExceptionForTest = false;
-
-	/**
-	 * @description When true in tests, treats Asset.Status as not updateable.
-	 */
-	@TestVisible
-	private static Boolean forceStatusNotUpdateableForTest = false;
-
-	/**
 	 * @description Result counters for a single evaluation chunk.
 	 */
 	public class EvaluationResult {
@@ -113,23 +101,11 @@ public without sharing class AssetPendingInactivationService {
 		List<InactivateResult> resultList = new List<InactivateResult>();
 		Set<Id> assetIdSet = new Set<Id>();
 		for (InactivateRequest request : requestList) {
-			InactivateResult result = new InactivateResult();
-			resultList.add(result);
-			if (request == null || request.assetId == null) {
-				result.errorMessage = 'Asset Id is required.';
-				continue;
-			}
+			resultList.add(new InactivateResult());
 			assetIdSet.add(request.assetId);
-		}
-		if (assetIdSet.isEmpty()) {
-			return resultList;
 		}
 
 		try {
-			if (forceExceptionForTest == true) {
-				throw new AssetPendingInactivationException('Forced inactivation failure for test');
-			}
-
 			Set<Id> blockedAssetIdSet = new Set<Id>();
 			blockedAssetIdSet.addAll(
 				AssetPendingInactivationSelector.selectAssetIdsWithOpenWorkOrders(assetIdSet)
@@ -142,9 +118,6 @@ public without sharing class AssetPendingInactivationService {
 			List<Integer> resultIndexList = new List<Integer>();
 			for (Integer index = 0; index < requestList.size(); index++) {
 				InactivateRequest request = requestList[index];
-				if (request == null || request.assetId == null) {
-					continue;
-				}
 				if (blockedAssetIdSet.contains(request.assetId)) {
 					resultList[index].errorMessage = OPEN_ITEMS_ERROR;
 					Logger.info('AssetPendingInactivationService: Asset ' + request.assetId + ' not inactivated from flow; open Work Order or active contract line found.');
@@ -163,17 +136,16 @@ public without sharing class AssetPendingInactivationService {
 			}
 
 			isEvaluatingInactivation = true;
-			List<Database.SaveResult> saveResultList =
-				Database.update(assetsToInactivate, false, AccessLevel.SYSTEM_MODE);
-			for (Integer index = 0; index < saveResultList.size(); index++) {
-				Database.SaveResult saveResult = saveResultList[index];
+			Map<Id, String> errorMessageByAssetId =
+				PlatformUtilities.updateAllowingPartialSuccess(assetsToInactivate, AccessLevel.SYSTEM_MODE);
+			for (Integer index = 0; index < assetsToInactivate.size(); index++) {
 				InactivateResult result = resultList[resultIndexList[index]];
 				Id assetId = assetsToInactivate[index].Id;
-				if (saveResult.isSuccess()) {
+				if (!errorMessageByAssetId.containsKey(assetId)) {
 					result.isSuccess = true;
 					Logger.info('AssetPendingInactivationService: Asset ' + assetId + ' set to ' + STATUS_SERVICE_INACTIVE + ' from flow. userId=' + UserInfo.getUserId());
 				} else {
-					result.errorMessage = saveResult.getErrors()[0].getMessage();
+					result.errorMessage = errorMessageByAssetId.get(assetId);
 					Logger.error('AssetPendingInactivationService: failed to inactivate Asset ' + assetId + ' from flow: ' + result.errorMessage);
 				}
 			}
@@ -234,13 +206,7 @@ public without sharing class AssetPendingInactivationService {
 		}
 
 		try {
-			if (forceExceptionForTest == true) {
-				throw new AssetPendingInactivationException('Forced evaluation failure for test');
-			}
-			if (
-				forceStatusNotUpdateableForTest == true ||
-				!Schema.sObjectType.Asset.fields.Status.isUpdateable()
-			) {
+			if (!Schema.sObjectType.Asset.fields.Status.isUpdateable()) {
 				throw new AssetPendingInactivationException(
 					'User does not have permission to update Asset.Status'
 				);
@@ -285,15 +251,14 @@ public without sharing class AssetPendingInactivationService {
 			}
 
 			isEvaluatingInactivation = true;
-			List<Database.SaveResult> saveResultList = Database.update(assetsToInactivate, false);
-			for (Integer index = 0; index < saveResultList.size(); index++) {
-				Database.SaveResult saveResult = saveResultList[index];
-				Asset updatedAsset = assetsToInactivate[index];
-				if (saveResult.isSuccess()) {
+			Map<Id, String> errorMessageByAssetId =
+				PlatformUtilities.updateAllowingPartialSuccess(assetsToInactivate, AccessLevel.SYSTEM_MODE);
+			for (Asset updatedAsset : assetsToInactivate) {
+				if (!errorMessageByAssetId.containsKey(updatedAsset.Id)) {
 					result.inactivatedCount++;
 					Logger.info('AssetPendingInactivationService: Asset ' + updatedAsset.Id + ' status ' + STATUS_PENDING_INACTIVATION + ' -> ' + STATUS_SERVICE_INACTIVE + '. timestamp=' + String.valueOf(System.now()) + ' userId=' + UserInfo.getUserId());
 				} else {
-					Logger.error('AssetPendingInactivationService: failed to inactivate Asset ' + updatedAsset.Id + ': ' + saveResult.getErrors()[0].getMessage());
+					Logger.error('AssetPendingInactivationService: failed to inactivate Asset ' + updatedAsset.Id + ': ' + errorMessageByAssetId.get(updatedAsset.Id));
 				}
 			}
 			return result;

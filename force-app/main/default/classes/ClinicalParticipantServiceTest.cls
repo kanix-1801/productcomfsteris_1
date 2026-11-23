@@ -13,7 +13,7 @@ private class ClinicalParticipantServiceTest {
         inputRow.participantsJson = '[{"name":"Ada Lovelace","email":"Ada@example.com"}]';
 
         Test.startTest();
-        ClinicalParticipantService.saveForReview(review.Id, inputRow.participantsJson);
+        ClinicalParticipantController.saveClinicalParticipantsForReview(review.Id, inputRow.participantsJson);
         Test.stopTest();
 
         ClinicalParticipant__c saved = [
@@ -22,7 +22,7 @@ private class ClinicalParticipantServiceTest {
             WHERE KeyAccountProcessReview__c = :review.Id
         ];
         System.assertEquals('Ada Lovelace', saved.Name);
-        System.assertEquals('Ada@example.com', saved.Email__c);
+        System.assertEquals('ada@example.com', saved.Email__c);
         System.assertEquals(true, saved.NotSalesforceUser__c);
     }
 
@@ -50,7 +50,7 @@ private class ClinicalParticipantServiceTest {
         inputRow.participantsJson = '[{"userId":"' + salesforceUser.Id + '","name":"","email":""}]';
 
         Test.startTest();
-        ClinicalParticipantService.saveParticipants(
+        ClinicalParticipantService.saveClinicalParticipants(
             new List<ClinicalParticipantService.ParticipantInput>{ inputRow }
         );
         Test.stopTest();
@@ -76,7 +76,7 @@ private class ClinicalParticipantServiceTest {
         inputRow.participantsJson = '';
 
         Test.startTest();
-        ClinicalParticipantService.saveParticipants(
+        ClinicalParticipantService.saveClinicalParticipants(
             new List<ClinicalParticipantService.ParticipantInput>{ inputRow }
         );
         Test.stopTest();
@@ -97,12 +97,13 @@ private class ClinicalParticipantServiceTest {
         inputRow.participantsJson = '[{"name":"Ada","email":"ada@example.com"},{"name":"Ada Two","email":"ADA@example.com"}]';
 
         try {
-            ClinicalParticipantService.saveParticipants(
-                new List<ClinicalParticipantService.ParticipantInput>{ inputRow }
+            ClinicalParticipantController.saveClinicalParticipantsForReview(
+                review.Id,
+                inputRow.participantsJson
             );
             System.assert(false, 'Expected the duplicate email to be rejected.');
-        } catch (ClinicalParticipantService.ClinicalParticipantException ex) {
-            System.assert(ex.getMessage().contains('only once'));
+        } catch (AuraHandledException ex) {
+            System.assert(ex.getMessage().contains('already on this Process Review'));
         }
     }
 
@@ -144,14 +145,14 @@ private class ClinicalParticipantServiceTest {
             );
             System.assert(false, 'Expected the duplicate email to be rejected.');
         } catch (DmlException ex) {
-            System.assert(ex.getDmlMessage(0).contains('only once'));
+            System.assert(ex.getDmlMessage(0).contains('already on this Process Review'));
         }
     }
 
     @IsTest
     static void returnsActiveSalesforceUser() {
-        User currentUser = ClinicalParticipantService.getSalesforceUser(UserInfo.getUserId());
+        User currentUser = ClinicalParticipantController.getActiveSalesforceUser(UserInfo.getUserId());
         System.assertEquals(UserInfo.getName(), currentUser.Name);
-        System.assertEquals(null, ClinicalParticipantService.getSalesforceUser(null));
+        System.assertEquals(null, ClinicalParticipantController.getActiveSalesforceUser(null));
     }
 }

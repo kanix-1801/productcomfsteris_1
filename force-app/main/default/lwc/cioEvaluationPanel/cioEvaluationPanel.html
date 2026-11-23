@@ -1,0 +1,64 @@
+<template>
+    <div class="cio-panel">
+        <template lwc:if={errorMessage}>
+            <div class="slds-text-color_error slds-m-bottom_small" role="alert">{errorMessage}</div>
+        </template>
+
+        <template lwc:if={isLoading}>
+            <div class="slds-is-relative slds-p-around_medium">
+                <lightning-spinner alternative-text="Loading" size="small"></lightning-spinner>
+            </div>
+        </template>
+        <template lwc:elseif={showCompleteButton}>
+            <lightning-button
+                label="Complete CIO Questionnaire"
+                variant="neutral"
+                onclick={handleCompleteClick}
+                disabled={isOpening}
+            ></lightning-button>
+        </template>
+        <template lwc:elseif={hasRows}>
+            <div class="slds-scrollable_x">
+                <table class="slds-table slds-table_cell-buffer slds-table_bordered">
+                    <thead>
+                        <tr class="slds-line-height_reset">
+                            <th scope="col">Name</th>
+                            <th scope="col">Confirmed Customer Reported Issue</th>
+                            <th scope="col">Identifiable Root Cause</th>
+                            <th scope="col">Issue Related to Previous Repair</th>
+                            <th scope="col">Signs of Damage/Wear/Failure</th>
+                            <th scope="col">Determine Extent of Usage</th>
+                            <th scope="col">Corrective Action Taken</th>
+                            <th scope="col">Technician</th>
+                            <th scope="col">Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template for:each={displayRows} for:item="row">
+                            <tr key={row.id}>
+                                <td>
+                                    <button
+                                        type="button"
+                                        class="slds-button slds-button_reset cio-name-button"
+                                        data-id={row.id}
+                                        onclick={handleEditClick}
+                                    >
+                                        {row.name}
+                                    </button>
+                                </td>
+                                <td>{row.confirmedCustomerReportedIssue}</td>
+                                <td>{row.identifiableRootCause}</td>
+                                <td>{row.issueRelatedToPreviousRepair}</td>
+                                <td>{row.signsOfDamageWearFailure}</td>
+                                <td>{row.determineExtentOfUsage}</td>
+                                <td>{row.correctiveActionTaken}</td>
+                                <td>{row.technicianName}</td>
+                                <td>{row.dateDisplay}</td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </template>
+    </div>
+</template>

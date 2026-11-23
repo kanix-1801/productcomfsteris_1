@@ -13,6 +13,10 @@
             <property name="transactionId" type="String" label="Transaction (Quote) Id"/>
             <property name="currentProductId" type="String" label="Current Product Id"/>
             <property name="currentTransactionLineId" type="String" label="Current Transaction Line Id"/>
+            <property name="currentProductName" type="String" label="Current Product Name"
+                description="Product on screen (S01_DataManager.header.name)."/>
+            <property name="allowedProducts" type="String" label="Allowed Products"
+                description="Comma-separated product names the card is shown for; blank shows it for every product."/>
         </targetConfig>
     </targetConfigs>
 </LightningComponentBundle>

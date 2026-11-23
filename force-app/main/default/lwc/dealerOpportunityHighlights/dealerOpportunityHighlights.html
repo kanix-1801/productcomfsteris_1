@@ -1,0 +1,55 @@
+<template>
+    <template lwc:if={showPlaceholder}>
+        <div class="slds-page-header slds-page-header_record-home highlights">
+            <p class="slds-text-color_weak">Opportunity highlights appear here on the opportunity page.</p>
+        </div>
+    </template>
+
+    <template lwc:elseif={errorMessage}>
+        <div class="slds-scoped-notification slds-media slds-media_center slds-scoped-notification_light" role="status">
+            <div class="slds-media__body">
+                <p>{errorMessage}</p>
+            </div>
+        </div>
+    </template>
+
+    <template lwc:elseif={isLoading}>
+        <div class="slds-page-header slds-page-header_record-home highlights slds-is-relative">
+            <lightning-spinner alternative-text="Loading opportunity" size="small"></lightning-spinner>
+        </div>
+    </template>
+
+    <template lwc:elseif={showHighlights}>
+        <article class="slds-page-header slds-page-header_record-home highlights">
+            <div class="slds-page-header__row">
+                <div class="slds-page-header__col-title">
+                    <div class="slds-media">
+                        <div class="slds-media__figure">
+                            <lightning-icon icon-name="standard:opportunity" size="medium" title={objectLabel}></lightning-icon>
+                        </div>
+                        <div class="slds-media__body">
+                            <p class="object-label slds-truncate">{objectLabel}</p>
+                            <div class="slds-page-header__name">
+                                <div class="slds-page-header__name-title">
+                                    <h1>
+                                        <span class="slds-page-header__title slds-truncate" title={primaryValue}>{primaryValue}</span>
+                                    </h1>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <template lwc:if={hasDetails}>
+                <ul class="detail-row">
+                    <template for:each={detailFields} for:item="field">
+                        <li key={field.apiName} class="detail-block">
+                            <div class="field-label slds-truncate" title={field.label}>{field.label}</div>
+                            <div class="field-value slds-truncate" title={field.displayValue}>{field.displayValue}</div>
+                        </li>
+                    </template>
+                </ul>
+            </template>
+        </article>
+    </template>
+</template>

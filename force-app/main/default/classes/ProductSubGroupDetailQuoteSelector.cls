@@ -13,22 +13,22 @@ public with sharing class ProductSubGroupDetailQuoteSelector {
      * @param quoteIds Quote Id set.
      * @return Map of Quote Id to related Opportunity Id.
      */
-    public static Map<Id, Id> selectOpportunityIdByQuoteId(Set<Id> quoteIds) {
-        Map<Id, Id> opportunityIdByQuoteId = new Map<Id, Id>();
-        if (quoteIds == null || quoteIds.isEmpty()) {
-            return opportunityIdByQuoteId;
-        }
+	public static Map<Id, Id> selectOpportunityIdByQuoteId(Set<Id> quoteIds) {
+		Map<Id, Id> opportunityIdByQuoteId = new Map<Id, Id>();
+		if (quoteIds == null || quoteIds.isEmpty()) {
+			return opportunityIdByQuoteId;
+		}
 
-        for (Quote quoteRecord : [
-            SELECT Id, OpportunityId
-            FROM Quote
-            WHERE Id IN :quoteIds
-            AND OpportunityId != NULL
-            WITH USER_MODE
-        ]) {
-            opportunityIdByQuoteId.put(quoteRecord.Id, quoteRecord.OpportunityId);
-        }
+		for (Quote quoteRecord : [
+			SELECT Id, OpportunityId
+			FROM Quote
+			WHERE Id IN :quoteIds
+			AND OpportunityId != NULL
+			WITH USER_MODE
+		]) {
+			opportunityIdByQuoteId.put(quoteRecord.Id, quoteRecord.OpportunityId);
+		}
 
-        return opportunityIdByQuoteId;
-    }
+		return opportunityIdByQuoteId;
+	}
 }

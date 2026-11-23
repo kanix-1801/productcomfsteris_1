@@ -35,7 +35,7 @@ private class CasesTest {
      */
     @IsTest
     static void testGetRecords_afterFilterOutNonInboxSupportRecords() {
-        Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Inbox Support')?.getRecordTypeId();
+        Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Customer and Technical Care')?.getRecordTypeId();
         Id otherRtId = Schema.SObjectType.Case.getRecordTypeInfosByName().get('CBM Case')?.getRecordTypeId();
         if (inboxRt == null || otherRtId == null || otherRtId == inboxRt) {
             return;
@@ -60,7 +60,7 @@ private class CasesTest {
      */
     @IsTest
     static void testFilterOutNonInboxSupportRecords_excludesBlankSuppliedEmail() {
-        Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Inbox Support')?.getRecordTypeId();
+        Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Customer and Technical Care')?.getRecordTypeId();
         if (inboxRt == null) {
             return;
         }
@@ -81,7 +81,7 @@ private class CasesTest {
      */
     @IsTest
     static void testFilterOutNonInboxSupportRecords_nullRecordTypeClearsList() {
-        Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Inbox Support')?.getRecordTypeId();
+        Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Customer and Technical Care')?.getRecordTypeId();
         if (inboxRt == null) {
             return;
         }

@@ -13,16 +13,16 @@ public with sharing class OpportunityLineItemSelector {
      * @param opportunityIds Opportunity Id set.
      * @return OpportunityLineItem rows with OpportunityId and Product2Id.
      */
-    public static List<OpportunityLineItem> selectByOpportunityIds(Set<Id> opportunityIds) {
-        if (opportunityIds == null || opportunityIds.isEmpty()) {
-            return new List<OpportunityLineItem>();
-        }
+	public static List<OpportunityLineItem> selectByOpportunityIds(Set<Id> opportunityIds) {
+		if (opportunityIds == null || opportunityIds.isEmpty()) {
+			return new List<OpportunityLineItem>();
+		}
 
-        return [
-            SELECT Id, OpportunityId, Product2Id
-            FROM OpportunityLineItem
-            WHERE OpportunityId IN :opportunityIds
-            WITH USER_MODE
-        ];
-    }
+		return [
+			SELECT Id, OpportunityId, Product2Id
+			FROM OpportunityLineItem
+			WHERE OpportunityId IN :opportunityIds
+			WITH USER_MODE
+		];
+	}
 }

@@ -1,0 +1,83 @@
+<template>
+  <section class="scan-panel">
+    <div class="scan-header">
+      <div>
+        <h1 class="slds-text-heading_large">Current Work Order Status</h1>
+        <p class="subtitle">
+          View the current status of Device and Instrument Work Orders.
+        </p>
+      </div>
+      <template lwc:if={showReturnToMenu}>
+        <lightning-button
+          label="Return to Actions Menu"
+          onclick={handleReturnToMenu}
+          disabled={isBusy}
+        ></lightning-button>
+      </template>
+    </div>
+
+    <template lwc:if={errorMessage}>
+      <div class="message message_error" role="alert">{errorMessage}</div>
+    </template>
+
+    <template lwc:if={isBusy}>
+      <div class="spinner-wrap">
+        <lightning-spinner
+          size="small"
+          alternative-text="Loading work orders"
+        ></lightning-spinner>
+      </div>
+    </template>
+    <template lwc:else>
+      <section class="summary-section" aria-label="Device Work Orders">
+        <h2 class="slds-text-heading_small">Device Work Orders</h2>
+        <template lwc:if={hasDeviceRows}>
+          <table class="summary-table">
+            <thead>
+              <tr>
+                <th>Work Order Number</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template for:each={deviceRows} for:item="row">
+                <tr key={row.id}>
+                  <td>{row.workOrderNumber}</td>
+                  <td>{row.status}</td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </template>
+        <template lwc:else>
+          <p class="summary-empty">No current Device Work Orders.</p>
+        </template>
+      </section>
+
+      <section class="summary-section" aria-label="Instrument Work Orders">
+        <h2 class="slds-text-heading_small">Instrument Work Orders</h2>
+        <template lwc:if={hasInstrumentRows}>
+          <table class="summary-table">
+            <thead>
+              <tr>
+                <th>Work Order Number</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template for:each={instrumentRows} for:item="row">
+                <tr key={row.id}>
+                  <td>{row.workOrderNumber}</td>
+                  <td>{row.status}</td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </template>
+        <template lwc:else>
+          <p class="summary-empty">No current Instrument Work Orders.</p>
+        </template>
+      </section>
+    </template>
+  </section>
+</template>

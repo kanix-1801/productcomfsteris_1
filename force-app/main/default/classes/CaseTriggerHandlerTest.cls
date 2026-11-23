@@ -447,7 +447,7 @@ private class CaseTriggerHandlerTest {
     static void testBeforeInsert_routingStampsCategoryViaTrigger() {
         beginGw1279RoutingHelpers();
 
-        Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Inbox Support')?.getRecordTypeId();
+        Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Customer and Technical Care')?.getRecordTypeId();
         if (inboxRt == null) {
             return;
         }
@@ -513,12 +513,12 @@ private class CaseTriggerHandlerTest {
     }
 
     /**
-     * @description Jira GW-1279 — Origin for routing tests where Category__c can be stamped on Inbox Support
+     * @description Jira GW-1279 — Origin for routing tests where Category__c can be stamped on Customer and Technical Care
      *              (prefers origins with stampable categories per ConnectApi dependency maps).
      */
     private static String routingTestCaseAssignment() {
         beginGw1279RoutingHelpers();
-        Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Inbox Support')?.getRecordTypeId();
+        Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Customer and Technical Care')?.getRecordTypeId();
         if (inboxRt == null) {
             return primaryCaseAssignmentMatchingOrigin();
         }
@@ -568,10 +568,10 @@ private class CaseTriggerHandlerTest {
     }
 
     /**
-     * @description Jira GW-1279 — First CategoryValue__c that resolves as stampable for Inbox Support + routing Origin.
+     * @description Jira GW-1279 — First CategoryValue__c that resolves as stampable for Customer and Technical Care + routing Origin.
      */
     private static String routingCategoryApiValue() {
-        Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Inbox Support')?.getRecordTypeId();
+        Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Customer and Technical Care')?.getRecordTypeId();
         if (inboxRt == null) {
             return null;
         }

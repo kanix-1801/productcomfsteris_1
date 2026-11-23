@@ -12,7 +12,7 @@
         <template lwc:if={hasRecords}>
             <div class="slds-var-m-horizontal_x-small">
                 <lightning-datatable
-                    key-field="id"
+                    key-field="rowKey"
                     data={accountTeamMembers}
                     columns={columns}
                     hide-checkbox-column>

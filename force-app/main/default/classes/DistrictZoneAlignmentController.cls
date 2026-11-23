@@ -3,7 +3,7 @@
  * @date 2026-11-06
  * @group Field Service Backoffice
  * @description GW-2706: LWC entry point for District Zone Alignment. Business logic is in
- *              DistrictZoneAlignmentService.
+ *              DistrictZoneAlignmentService, which also logs errors; here they are turned into user messages.
  */
 public with sharing class DistrictZoneAlignmentController {
 	/**
@@ -18,30 +18,29 @@ public with sharing class DistrictZoneAlignmentController {
 		try {
 			Id documentId = DistrictZoneAlignmentService.ensureTemplateDocumentId();
 			return DistrictZoneAlignmentService.DOWNLOAD_URL_PREFIX + documentId;
-		} catch (DistrictZoneAlignmentService.DistrictZoneAlignmentException e) {
-			throw toAuraException(e.getMessage());
+		} catch (Exception e) {
+			throw toAuraException(e);
 		}
 	}
 
 	/**
 	 * @description GW-2706: Download URL of the running user's latest error file.
 	 * @return Relative Salesforce Files download URL.
-	 * @throws AuraHandledException When the user has no error file yet.
+	 * @throws AuraHandledException When the user has not uploaded a file yet (no error file).
 	 * @example
 	 * String url = DistrictZoneAlignmentController.getErrorFileDownloadUrl();
 	 */
 	@AuraEnabled
 	public static String getErrorFileDownloadUrl() {
-		Id documentId;
 		try {
-			documentId = DistrictZoneAlignmentService.getErrorFileDocumentId();
-		} catch (DistrictZoneAlignmentService.DistrictZoneAlignmentException e) {
-			throw toAuraException(e.getMessage());
+			Id documentId = DistrictZoneAlignmentService.getErrorFileDocumentId();
+			if (documentId == null) {
+				throw PlatformUtilities.buildAuraException(Label.DZA_NoErrorFile);
+			}
+			return DistrictZoneAlignmentService.DOWNLOAD_URL_PREFIX + documentId;
+		} catch (Exception e) {
+			throw toAuraException(e);
 		}
-		if (documentId == null) {
-			throw toAuraException(Label.DZA_NoErrorFile);
-		}
-		return DistrictZoneAlignmentService.DOWNLOAD_URL_PREFIX + documentId;
 	}
 
 	/**
@@ -56,14 +55,18 @@ public with sharing class DistrictZoneAlignmentController {
 	public static DistrictZoneAlignmentService.ProcessResult processUpload(Id contentDocumentId) {
 		try {
 			return DistrictZoneAlignmentService.processUpload(contentDocumentId);
-		} catch (DistrictZoneAlignmentService.DistrictZoneAlignmentException e) {
-			throw toAuraException(e.getMessage());
+		} catch (Exception e) {
+			throw toAuraException(e);
 		}
 	}
 
-	private static AuraHandledException toAuraException(String message) {
-		AuraHandledException auraException = new AuraHandledException(message);
-		auraException.setMessage(message);
-		return auraException;
+	/**
+	 * @description User-facing messages (AuraHandledException) pass through; anything else (already logged by the
+	 *              service) is shown as a generic message.
+	 */
+	private static AuraHandledException toAuraException(Exception e) {
+		return e instanceof AuraHandledException
+			? (AuraHandledException) e
+			: PlatformUtilities.buildAuraException(Label.DZA_UnexpectedError);
 	}
 }

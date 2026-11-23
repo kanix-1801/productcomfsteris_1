@@ -4,7 +4,8 @@
             <lightning-spinner alternative-text="Loading photos" size="small"></lightning-spinner>
         </template>
 
-        <div class="photos-toolbar slds-m-bottom_small">
+        <h3 class="slds-text-heading_small slds-m-bottom_x-small">Photos</h3>
+        <div class="slds-m-bottom_small">
             <lightning-button
                 label="Take Photo"
                 icon-name="utility:photo"
@@ -12,7 +13,6 @@
                 onclick={handleTakePhotoClick}
                 disabled={isBusy}
             ></lightning-button>
-            <h3 class="slds-text-heading_small">Photos</h3>
         </div>
         <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_small">
             Photos taken here are stored on this Work Order. They are included on related Quotes.

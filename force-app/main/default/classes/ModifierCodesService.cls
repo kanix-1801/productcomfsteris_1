@@ -1,7 +1,8 @@
 /**
  * @description GW-3458 - Applies, removes, and inherits pricing modifiers on evaluation work order lines.
  *              A line holds one modifier. An Item and Service modifier on a Product Serviced line
- *              is copied onto Service Code children that do not already have a different modifier.
+ *              is copied onto Service Code, Category Code, and Special Pricing children
+ *              that do not already have a different modifier.
  */
 public with sharing class ModifierCodesService {
 	public static final String LEVEL_ITEM = 'Item';
@@ -20,8 +21,14 @@ public with sharing class ModifierCodesService {
 		LINE_CATEGORY_CODE,
 		LINE_SPECIAL_PRICING
 	};
-	private static final Set<String> ITEM_LEVELS = new Set<String>{ LEVEL_ITEM, LEVEL_ITEM_AND_SERVICE };
-	private static final Set<String> SERVICE_LEVELS = new Set<String>{ LEVEL_SERVICE, LEVEL_ITEM_AND_SERVICE };
+	private static final Set<String> ITEM_LEVELS = new Set<String>{
+		LEVEL_ITEM,
+		LEVEL_ITEM_AND_SERVICE
+	};
+	private static final Set<String> SERVICE_LEVELS = new Set<String>{
+		LEVEL_SERVICE,
+		LEVEL_ITEM_AND_SERVICE
+	};
 
 	public class ModifierCodesException extends Exception {
 	}
@@ -30,27 +37,44 @@ public with sharing class ModifierCodesService {
 	 * @description Tables for the Modifier Codes tab.
 	 */
 	public class Workspace {
-		@AuraEnabled public Boolean showOrderReference;
-		@AuraEnabled public List<LineRow> items = new List<LineRow>();
-		@AuraEnabled public List<LineRow> services = new List<LineRow>();
-		@AuraEnabled public List<ItemGroup> groups = new List<ItemGroup>();
+		@AuraEnabled
+		public Boolean showOrderReference;
+		@AuraEnabled
+		public List<LineRow> items = new List<LineRow>();
+		@AuraEnabled
+		public List<LineRow> services = new List<LineRow>();
+		@AuraEnabled
+		public List<ItemGroup> groups = new List<ItemGroup>();
 	}
 
 	/**
 	 * @description One Product Serviced item and the service lines beneath it.
 	 */
 	public class ItemGroup implements Comparable {
-		@AuraEnabled public String id;
-		@AuraEnabled public String title;
-		@AuraEnabled public String assetId;
-		@AuraEnabled public String modifierName;
-		@AuraEnabled public Boolean hasModifier;
-		@AuraEnabled public Boolean canAdd;
-		@AuraEnabled public String pricingModifierId;
-		@AuraEnabled public String modifierReasonCode;
-		@AuraEnabled public String orderReferenceId;
-		@AuraEnabled public Boolean hasServices;
-		@AuraEnabled public List<LineRow> services = new List<LineRow>();
+		@AuraEnabled
+		public String id;
+		@AuraEnabled
+		public String title;
+		@AuraEnabled
+		public String assetId;
+		@AuraEnabled
+		public String modifierName;
+		@AuraEnabled
+		public Boolean hasModifier;
+		@AuraEnabled
+		public Boolean canAdd;
+		@AuraEnabled
+		public String pricingModifierId;
+		@AuraEnabled
+		public String modifierLevel;
+		@AuraEnabled
+		public String modifierReasonCode;
+		@AuraEnabled
+		public String orderReferenceId;
+		@AuraEnabled
+		public Boolean hasServices;
+		@AuraEnabled
+		public List<LineRow> services = new List<LineRow>();
 		public String sortKey;
 
 		public Integer compareTo(Object other) {
@@ -63,24 +87,50 @@ public with sharing class ModifierCodesService {
 	 * @description One row in the Item or Services table.
 	 */
 	public class LineRow implements Comparable {
-		@AuraEnabled public String id;
-		@AuraEnabled public String assetId;
-		@AuraEnabled public String kind;
-		@AuraEnabled public String serialNumber;
-		@AuraEnabled public String productName;
-		@AuraEnabled public String model;
-		@AuraEnabled public String manufacturer;
-		@AuraEnabled public String category;
-		@AuraEnabled public String itemNumber;
-		@AuraEnabled public String description;
-		@AuraEnabled public String categoryCodeDiscount;
-		@AuraEnabled public String modifierName;
-		@AuraEnabled public Boolean hasModifier;
-		@AuraEnabled public Boolean canAdd;
-		@AuraEnabled public Boolean canEdit;
-		@AuraEnabled public String pricingModifierId;
-		@AuraEnabled public String modifierReasonCode;
-		@AuraEnabled public String orderReferenceId;
+		@AuraEnabled
+		public String id;
+		@AuraEnabled
+		public String assetId;
+		@AuraEnabled
+		public String kind;
+		@AuraEnabled
+		public String serialNumber;
+		@AuraEnabled
+		public String productName;
+		@AuraEnabled
+		public String model;
+		@AuraEnabled
+		public String manufacturer;
+		@AuraEnabled
+		public String category;
+		@AuraEnabled
+		public String itemNumber;
+		@AuraEnabled
+		public String description;
+		@AuraEnabled
+		public String categoryCodeDiscount;
+		@AuraEnabled
+		public String modifierName;
+		@AuraEnabled
+		public Boolean hasModifier;
+		@AuraEnabled
+		public Boolean canAdd;
+		@AuraEnabled
+		public Boolean canEdit;
+		@AuraEnabled
+		public String pricingModifierId;
+		@AuraEnabled
+		public String modifierLevel;
+		@AuraEnabled
+		public String modifierReasonCode;
+		@AuraEnabled
+		public String orderReferenceId;
+		@AuraEnabled
+		public String productId;
+		@AuraEnabled
+		public String parentLineId;
+		@AuraEnabled
+		public Boolean pending;
 		public String sortKey;
 
 		public Integer compareTo(Object other) {
@@ -93,19 +143,26 @@ public with sharing class ModifierCodesService {
 	 * @description Dropdown option. Value is a record Id.
 	 */
 	public class PickOption {
-		@AuraEnabled public String label;
-		@AuraEnabled public String value;
+		@AuraEnabled
+		public String label;
+		@AuraEnabled
+		public String value;
 	}
 
 	/**
 	 * @description Save payload from the Modifier Codes popup.
 	 */
 	public class SaveRequest {
-		@AuraEnabled public Id workOrderLineItemId;
-		@AuraEnabled public Id pricingModifierId;
-		@AuraEnabled public String modifierReasonCode;
-		@AuraEnabled public Id orderReferenceId;
-		@AuraEnabled public Boolean applyOrderReference;
+		@AuraEnabled
+		public Id workOrderLineItemId;
+		@AuraEnabled
+		public Id pricingModifierId;
+		@AuraEnabled
+		public String modifierReasonCode;
+		@AuraEnabled
+		public Id orderReferenceId;
+		@AuraEnabled
+		public Boolean applyOrderReference;
 	}
 
 	/**
@@ -122,10 +179,15 @@ public with sharing class ModifierCodesService {
 		Workspace workspace = new Workspace();
 		workspace.showOrderReference = !instrument;
 
-		List<WorkOrderLineItem> lines = WorkOrderLineItemsSelector.selectForModifierCodes(workOrderId);
+		List<WorkOrderLineItem> lines = WorkOrderLineItemsSelector.selectForModifierCodes(
+			workOrderId
+		);
 		Map<Id, ItemGroup> groupsById = new Map<Id, ItemGroup>();
 		for (WorkOrderLineItem line : lines) {
-			if (line.LineType__c == LINE_PRODUCT_SERVICED && line.IsAccessory__c != true) {
+			if (
+				line.LineType__c == LINE_PRODUCT_SERVICED &&
+				line.IsAccessory__c != true
+			) {
 				LineRow itemRow = toItemRow(line);
 				workspace.items.add(itemRow);
 				groupsById.put(line.Id, toGroup(line, itemRow));
@@ -137,7 +199,9 @@ public with sharing class ModifierCodesService {
 			}
 			LineRow serviceRow = toServiceRow(line);
 			workspace.services.add(serviceRow);
-			ItemGroup parentGroup = groupsById.get(line.ParentWorkOrderLineItemId);
+			ItemGroup parentGroup = groupsById.get(
+				line.ParentWorkOrderLineItemId
+			);
 			if (parentGroup != null) {
 				parentGroup.services.add(serviceRow);
 			}
@@ -163,7 +227,7 @@ public with sharing class ModifierCodesService {
 			? new List<String>{ LEVEL_SERVICE, LEVEL_ITEM_AND_SERVICE }
 			: new List<String>{ LEVEL_ITEM, LEVEL_ITEM_AND_SERVICE };
 		List<PickOption> options = new List<PickOption>();
-		for (PricingModifier__c modifier : PricingModifiersSelector.selectActiveByLevels(levels)) {
+		for (PricingModifier__c modifier : selectActiveModifiers(levels)) {
 			PickOption option = new PickOption();
 			option.label = pricingModifierLabel(modifier);
 			option.value = modifier.Id;
@@ -186,15 +250,25 @@ public with sharing class ModifierCodesService {
 
 	/**
 	 * @description Shipped work orders for the asset, completion date descending.
+	 *              The work order the user is on is left out of Order Reference.
 	 * @param assetId Asset on the line
-	 * @return Options for Modifier Reason Code and Order Reference
+	 * @param workOrderId Work order being evaluated
+	 * @return Options for Order Reference
 	 */
-	public static List<PickOption> getPriorWorkOrders(Id assetId) {
+	public static List<PickOption> getPriorWorkOrders(
+		Id assetId,
+		Id workOrderId
+	) {
 		List<PickOption> options = new List<PickOption>();
 		if (assetId == null) {
 			return options;
 		}
-		for (WorkOrder shipped : WorkOrdersSelector.selectShippedByAsset(assetId)) {
+		for (
+			WorkOrder shipped : WorkOrdersSelector.selectShippedByAsset(assetId)
+		) {
+			if (shipped.Id == workOrderId) {
+				continue;
+			}
 			PickOption option = new PickOption();
 			option.label = shippedWorkOrderLabel(shipped);
 			option.value = shipped.Id;
@@ -204,26 +278,9 @@ public with sharing class ModifierCodesService {
 	}
 
 	/**
-	 * @description GW-1162 reason codes. The org field is a restricted picklist, shown as a dropdown.
-	 * @return Active Modifier Reason Code values
-	 */
-	public static List<PickOption> getReasonCodeOptions() {
-		List<PickOption> options = new List<PickOption>();
-		for (Schema.PicklistEntry entry : WorkOrderLineItem.ModifierReasonCode__c.getDescribe().getPicklistValues()) {
-			if (!entry.isActive()) {
-				continue;
-			}
-			PickOption option = new PickOption();
-			option.label = entry.getLabel();
-			option.value = entry.getValue();
-			options.add(option);
-		}
-		return options;
-	}
-
-	/**
 	 * @description Saves the modifier on one line. Item and Service modifiers also stamp
-	 *              Service Code children that do not already have a different modifier.
+	 *              Service Code, Category Code, and Special Pricing children that do not
+	 *              already have a different modifier.
 	 * @param request Popup values
 	 */
 	public static void saveModifier(SaveRequest request) {
@@ -236,7 +293,9 @@ public with sharing class ModifierCodesService {
 		WorkOrderLineItem line = loadLine(request.workOrderLineItemId);
 		Boolean itemLine = isItemLine(line);
 		if (!itemLine && !SERVICE_LINE_TYPES.contains(line.LineType__c)) {
-			throw new ModifierCodesException('A modifier can only be applied to an item or a service line.');
+			throw new ModifierCodesException(
+				'A modifier can only be applied to an item or a service line.'
+			);
 		}
 		if (!itemLine && !hasModifier(line) && discountBlocksAdd(line)) {
 			throw new ModifierCodesException(
@@ -246,15 +305,25 @@ public with sharing class ModifierCodesService {
 
 		PricingModifier__c modifier = loadModifier(request.pricingModifierId);
 		Set<String> allowedLevels = itemLine ? ITEM_LEVELS : SERVICE_LEVELS;
-		if (modifier.Active__c != true || !allowedLevels.contains(modifier.ModifierLevel__c)) {
-			throw new ModifierCodesException('That pricing modifier is not available for this line.');
+		if (
+			modifier.Active__c != true ||
+			!allowedLevels.contains(modifier.ModifierLevel__c)
+		) {
+			throw new ModifierCodesException(
+				'That pricing modifier is not available for this line.'
+			);
 		}
 
 		Id assetId = resolveAssetId(line);
 		validateReasonCode(request.modifierReasonCode);
 		Boolean applyOrderReference = request.applyOrderReference == true;
 		if (applyOrderReference) {
-			validateReference(request.orderReferenceId, assetId, 'Order Reference');
+			validateReference(
+				request.orderReferenceId,
+				assetId,
+				line.WorkOrderId,
+				'Order Reference'
+			);
 		}
 
 		Id previousModifierId = line.PricingModifier__c;
@@ -269,8 +338,18 @@ public with sharing class ModifierCodesService {
 			)
 		);
 		if (itemLine && modifier.ModifierLevel__c == LEVEL_ITEM_AND_SERVICE) {
-			for (WorkOrderLineItem child : WorkOrderLineItemsSelector.selectServiceCodeChildren(line.Id)) {
-				if (isDifferentModifier(child.PricingModifier__c, previousModifierId, modifier.Id)) {
+			for (
+				WorkOrderLineItem child : WorkOrderLineItemsSelector.selectServiceCodeChildren(
+					line.Id
+				)
+			) {
+				if (
+					isDifferentModifier(
+						child.PricingModifier__c,
+						previousModifierId,
+						modifier.Id
+					)
+				) {
 					continue;
 				}
 				updates.add(
@@ -289,7 +368,7 @@ public with sharing class ModifierCodesService {
 
 	/**
 	 * @description Clears the modifier package. Removing an Item and Service modifier also
-	 *              clears Service Code children that still have that same modifier.
+	 *              clears service, category, and special pricing children that still have that same modifier.
 	 * @param workOrderLineItemId Line to clear
 	 */
 	public static void removeModifier(Id workOrderLineItemId) {
@@ -298,13 +377,19 @@ public with sharing class ModifierCodesService {
 		String removedLevel = line.PricingModifier__r == null
 			? null
 			: line.PricingModifier__r.ModifierLevel__c;
-		List<WorkOrderLineItem> updates = new List<WorkOrderLineItem>{ clearedLine(line.Id) };
+		List<WorkOrderLineItem> updates = new List<WorkOrderLineItem>{
+			clearedLine(line.Id)
+		};
 		if (
 			isItemLine(line) &&
 			removedModifierId != null &&
 			removedLevel == LEVEL_ITEM_AND_SERVICE
 		) {
-			for (WorkOrderLineItem child : WorkOrderLineItemsSelector.selectServiceCodeChildren(line.Id)) {
+			for (
+				WorkOrderLineItem child : WorkOrderLineItemsSelector.selectServiceCodeChildren(
+					line.Id
+				)
+			) {
 				if (child.PricingModifier__c == removedModifierId) {
 					updates.add(clearedLine(child.Id));
 				}
@@ -314,12 +399,14 @@ public with sharing class ModifierCodesService {
 	}
 
 	/**
-	 * @description Copies an Item and Service modifier onto newly inserted Service Code lines.
+	 * @description Copies an Item and Service modifier onto newly inserted service, category, and special pricing lines.
 	 *              Query failures are logged and skipped so unrelated line creation is unchanged.
 	 *              A failed update still rolls the insert back.
 	 * @param inserted Lines just inserted by WorkOrderLineItemsService
 	 */
-	public static void inheritItemAndServiceModifier(List<WorkOrderLineItem> inserted) {
+	public static void inheritItemAndServiceModifier(
+		List<WorkOrderLineItem> inserted
+	) {
 		if (inserted == null || inserted.isEmpty()) {
 			return;
 		}
@@ -328,7 +415,7 @@ public with sharing class ModifierCodesService {
 		for (WorkOrderLineItem line : inserted) {
 			if (
 				line.Id == null ||
-				line.LineType__c != LINE_SERVICE_CODE ||
+				!SERVICE_LINE_TYPES.contains(line.LineType__c) ||
 				line.ParentWorkOrderLineItemId == null ||
 				line.PricingModifier__c != null
 			) {
@@ -356,12 +443,15 @@ public with sharing class ModifierCodesService {
 
 		List<WorkOrderLineItem> updates = new List<WorkOrderLineItem>();
 		for (WorkOrderLineItem child : candidates) {
-			WorkOrderLineItem parent = parentsById.get(child.ParentWorkOrderLineItemId);
+			WorkOrderLineItem parent = parentsById.get(
+				child.ParentWorkOrderLineItemId
+			);
 			if (
 				parent == null ||
 				parent.PricingModifier__c == null ||
 				parent.PricingModifier__r == null ||
-				parent.PricingModifier__r.ModifierLevel__c != LEVEL_ITEM_AND_SERVICE
+				parent.PricingModifier__r.ModifierLevel__c !=
+				LEVEL_ITEM_AND_SERVICE
 			) {
 				continue;
 			}
@@ -389,17 +479,23 @@ public with sharing class ModifierCodesService {
 	}
 
 	private static WorkOrderLineItem loadLine(Id lineItemId) {
-		List<WorkOrderLineItem> lines = WorkOrderLineItemsSelector.selectForModifierUpdate(lineItemId);
+		List<WorkOrderLineItem> lines = WorkOrderLineItemsSelector.selectForModifierUpdate(
+			lineItemId
+		);
 		if (lines.isEmpty()) {
-			throw new ModifierCodesException('The work order line was not found.');
+			throw new ModifierCodesException(
+				'The work order line was not found.'
+			);
 		}
 		return lines[0];
 	}
 
 	private static PricingModifier__c loadModifier(Id pricingModifierId) {
-		List<PricingModifier__c> modifiers = PricingModifiersSelector.selectById(pricingModifierId);
+		List<PricingModifier__c> modifiers = selectModifier(pricingModifierId);
 		if (modifiers.isEmpty()) {
-			throw new ModifierCodesException('That pricing modifier is not available for this line.');
+			throw new ModifierCodesException(
+				'That pricing modifier is not available for this line.'
+			);
 		}
 		return modifiers[0];
 	}
@@ -408,54 +504,82 @@ public with sharing class ModifierCodesService {
 		if (String.isBlank(reasonCode)) {
 			return;
 		}
-		for (Schema.PicklistEntry entry : WorkOrderLineItem.ModifierReasonCode__c.getDescribe().getPicklistValues()) {
-			if (entry.isActive() && entry.getValue() == reasonCode) {
+		for (
+			PlatformUtilities.PicklistOption option : PlatformUtilities.getActivePicklistOptions(
+				WorkOrderLineItem.ModifierReasonCode__c
+			)
+		) {
+			if (option.value == reasonCode) {
 				return;
 			}
 		}
 		throw new ModifierCodesException('Select a modifier reason code.');
 	}
 
-	private static void validateReference(Id referenceWorkOrderId, Id assetId, String fieldLabel) {
+	private static void validateReference(
+		Id referenceWorkOrderId,
+		Id assetId,
+		Id currentWorkOrderId,
+		String fieldLabel
+	) {
 		if (referenceWorkOrderId == null) {
 			return;
 		}
-		if (assetId == null) {
-			throw new ModifierCodesException(fieldLabel + ' requires an asset on this line.');
+		if (referenceWorkOrderId == currentWorkOrderId) {
+			throw new ModifierCodesException(
+				fieldLabel + ' cannot be the work order you are on.'
+			);
 		}
-		List<WorkOrder> references = WorkOrdersSelector.selectForModifierReference(referenceWorkOrderId);
+		if (assetId == null) {
+			throw new ModifierCodesException(
+				fieldLabel + ' requires an asset on this line.'
+			);
+		}
+		List<WorkOrder> references = WorkOrdersSelector.selectForModifierReference(
+			referenceWorkOrderId
+		);
 		if (
 			references.isEmpty() ||
 			references[0].AssetId != assetId ||
 			references[0].ActualShipDate__c == null
 		) {
 			throw new ModifierCodesException(
-				'Select a shipped work order for this asset as the ' + fieldLabel + '.'
+				'Select a shipped work order for this asset as the ' +
+					fieldLabel +
+					'.'
 			);
 		}
 	}
 
 	private static Boolean isItemLine(WorkOrderLineItem line) {
-		return line.LineType__c == LINE_PRODUCT_SERVICED && line.IsAccessory__c != true;
+		return line.LineType__c == LINE_PRODUCT_SERVICED &&
+			line.IsAccessory__c != true;
 	}
 
 	private static Boolean hasModifier(WorkOrderLineItem line) {
-		return line.PricingModifier__c != null || String.isNotBlank(line.PricingModifierName__c);
+		return line.PricingModifier__c != null ||
+			String.isNotBlank(line.PricingModifierName__c);
 	}
 
 	private static Boolean discountBlocksAdd(WorkOrderLineItem line) {
-		return line.CategoryCodeDiscount__c != null && line.CategoryCodeDiscount__c != 0;
+		return line.CategoryCodeDiscount__c != null &&
+			line.CategoryCodeDiscount__c != 0;
 	}
 
 	/**
 	 * @description True when the child already has a modifier that is neither blank,
 	 *              the item's previous modifier, nor the modifier being saved.
 	 */
-	private static Boolean isDifferentModifier(Id childModifierId, Id previousModifierId, Id newModifierId) {
+	private static Boolean isDifferentModifier(
+		Id childModifierId,
+		Id previousModifierId,
+		Id newModifierId
+	) {
 		if (childModifierId == null) {
 			return false;
 		}
-		return childModifierId != previousModifierId && childModifierId != newModifierId;
+		return childModifierId != previousModifierId &&
+			childModifierId != newModifierId;
 	}
 
 	private static Id resolveAssetId(WorkOrderLineItem line) {
@@ -495,30 +619,48 @@ public with sharing class ModifierCodesService {
 
 	private static LineRow toItemRow(WorkOrderLineItem line) {
 		LineRow row = baseRow(line, KIND_ITEM);
-		row.serialNumber = firstNonBlank(
+		row.serialNumber = PlatformUtilities.firstNonBlank(
 			line.SerialNumber__c,
 			line.Asset == null ? null : line.Asset.SerialNumber,
-			line.WorkOrder == null || line.WorkOrder.Asset == null ? null : line.WorkOrder.Asset.SerialNumber
+			line.WorkOrder == null ||
+				line.WorkOrder.Asset == null
+				? null
+				: line.WorkOrder.Asset.SerialNumber
 		);
-		row.productName = firstNonBlank(
+		row.productName = PlatformUtilities.firstNonBlank(
 			line.Product2 == null ? null : line.Product2.Name,
-			line.ProductDescription__c, null);
-		row.model = firstNonBlank(
+			line.Product__r == null ? null : line.Product__r.Name,
+			line.ProductDescription__c
+		);
+		row.model = PlatformUtilities.firstNonBlank(
 			line.Model__c,
-			line.Product2 == null ? null : line.Product2.Model__c, null);
-		row.manufacturer = firstNonBlank(
+			line.Product2 == null ? null : line.Product2.Model__c,
+			line.Product__r == null ? null : line.Product__r.Model__c
+		);
+		row.manufacturer = PlatformUtilities.firstNonBlank(
 			line.Asset == null ? null : line.Asset.ManufacturerCalculated__c,
-			line.WorkOrder == null || line.WorkOrder.Asset == null
+			line.WorkOrder == null ||
+				line.WorkOrder.Asset == null
 				? null
 				: line.WorkOrder.Asset.ManufacturerCalculated__c,
-			line.Product2 == null ? null : line.Product2.Manufacturer__c
+			PlatformUtilities.firstNonBlank(
+				line.Product2 == null ? null : line.Product2.Manufacturer__c,
+				line.Product__r == null
+					? null
+					: line.Product__r.Manufacturer__c,
+				null
+			)
 		);
-		row.itemNumber = firstNonBlank(
+		row.itemNumber = PlatformUtilities.firstNonBlank(
 			line.ProductCodeWoli__c,
-			line.Product2 == null ? null : line.Product2.ProductCode, null);
-		row.description = firstNonBlank(
+			line.Product2 == null ? null : line.Product2.ProductCode,
+			line.Product__r == null ? null : line.Product__r.ProductCode
+		);
+		row.description = PlatformUtilities.firstNonBlank(
 			line.Product2 == null ? null : line.Product2.Name,
-			line.ProductDescription__c, null);
+			line.ProductDescription__c,
+			line.Product__r == null ? null : line.Product__r.Name
+		);
 		row.canEdit = false;
 		row.sortKey = (row.itemNumber == null ? '' : row.itemNumber) + row.id;
 		return row;
@@ -526,23 +668,32 @@ public with sharing class ModifierCodesService {
 
 	private static LineRow toServiceRow(WorkOrderLineItem line) {
 		LineRow row = baseRow(line, KIND_SERVICE);
-		row.category = firstNonBlank(
-			line.RepairCode__r == null ? null : line.RepairCode__r.EvalCategory__c,
-			line.Product2 == null ? null : line.Product2.EvalCategory__c, null);
-		row.itemNumber = firstNonBlank(
+		row.category = PlatformUtilities.firstNonBlank(
+			line.RepairCode__r == null
+				? null
+				: line.RepairCode__r.EvalCategory__c,
+			line.Product2 == null ? null : line.Product2.EvalCategory__c,
+			line.Product__r == null ? null : line.Product__r.EvalCategory__c
+		);
+		row.itemNumber = PlatformUtilities.firstNonBlank(
 			line.ProductCodeWoli__c,
 			line.Product2 == null ? null : line.Product2.ProductCode,
 			line.RepairCode__r == null ? null : line.RepairCode__r.ProductCode
 		);
-		row.description = firstNonBlank(
+		row.description = PlatformUtilities.firstNonBlank(
 			line.ProductDescription__c,
 			line.RepairCode__r == null ? null : line.RepairCode__r.Description,
 			line.RepairCode__r == null ? null : line.RepairCode__r.Name
 		);
-		row.categoryCodeDiscount = formatDiscount(line.CategoryCodeDiscount__c);
+		row.categoryCodeDiscount = PlatformUtilities.formatPercent(
+			line.CategoryCodeDiscount__c
+		);
 		row.canAdd = row.hasModifier != true && !discountBlocksAdd(line);
 		row.canEdit = row.hasModifier == true;
-		row.sortKey = (row.category == null ? '' : row.category) + (row.itemNumber == null ? '' : row.itemNumber) + row.id;
+		row.sortKey =
+			(row.category == null ? '' : row.category) +
+			(row.itemNumber == null ? '' : row.itemNumber) +
+			row.id;
 		return row;
 	}
 
@@ -552,9 +703,17 @@ public with sharing class ModifierCodesService {
 		row.assetId = resolveAssetId(line);
 		row.kind = kind;
 		row.pricingModifierId = line.PricingModifier__c;
+		row.modifierLevel = line.PricingModifier__r == null
+			? null
+			: line.PricingModifier__r.ModifierLevel__c;
 		row.modifierReasonCode = line.ModifierReasonCode__c;
 		row.orderReferenceId = line.OrderReference__c;
-		row.modifierName = line.PricingModifier__r != null && String.isNotBlank(line.PricingModifier__r.Name)
+		row.productId = line.RepairCode__c != null
+			? line.RepairCode__c
+			: line.Product__c;
+		row.parentLineId = line.ParentWorkOrderLineItemId;
+		row.modifierName = line.PricingModifier__r != null &&
+			String.isNotBlank(line.PricingModifier__r.Name)
 			? line.PricingModifier__r.Name
 			: line.PricingModifierName__c;
 		row.hasModifier = hasModifier(line);
@@ -571,39 +730,80 @@ public with sharing class ModifierCodesService {
 		itemGroup.hasModifier = itemRow.hasModifier;
 		itemGroup.canAdd = itemRow.canAdd;
 		itemGroup.pricingModifierId = itemRow.pricingModifierId;
+		itemGroup.modifierLevel = itemRow.modifierLevel;
 		itemGroup.modifierReasonCode = itemRow.modifierReasonCode;
 		itemGroup.orderReferenceId = itemRow.orderReferenceId;
-		String quantityLabel = line.Quantity == null ? '' : line.Quantity.stripTrailingZeros().toPlainString();
-		String titleName = firstNonBlank(itemRow.description, itemRow.productName, '');
+		String quantityLabel = line.Quantity == null
+			? ''
+			: line.Quantity.stripTrailingZeros().toPlainString();
+		String titleName = PlatformUtilities.firstNonBlank(
+			itemRow.description,
+			itemRow.productName,
+			''
+		);
 		String titleCode = itemRow.itemNumber == null ? '' : itemRow.itemNumber;
-		itemGroup.title = (titleCode + ' ' + titleName).trim() + ' (' + quantityLabel + ')';
+		itemGroup.title =
+			(titleCode + ' ' + titleName).trim() +
+			' (' +
+			quantityLabel +
+			')';
 		itemGroup.sortKey = itemGroup.title;
 		return itemGroup;
 	}
 
-	private static String formatDiscount(Decimal discount) {
-		if (discount == null || discount == 0) {
-			return '';
-		}
-		return discount.stripTrailingZeros().toPlainString() + '%';
-	}
-
 	private static String shippedWorkOrderLabel(WorkOrder shipped) {
-		String label = String.isNotBlank(shipped.WorkOrderNumber) ? shipped.WorkOrderNumber : String.valueOf(shipped.Id);
+		String label = String.isNotBlank(shipped.WorkOrderNumber)
+			? shipped.WorkOrderNumber
+			: String.valueOf(shipped.Id);
 		if (shipped.ActualShipDate__c != null) {
 			label += ' · ' + shipped.ActualShipDate__c.format();
 		}
 		return label;
 	}
 
-	private static String firstNonBlank(String first, String second, String third) {
-		if (String.isNotBlank(first)) {
-			return first;
+	private static List<PricingModifier__c> selectActiveModifiers(
+		List<String> levels
+	) {
+		if (levels == null || levels.isEmpty()) {
+			return new List<PricingModifier__c>();
 		}
-		if (String.isNotBlank(second)) {
-			return second;
+		return (List<PricingModifier__c>) new PricingModifiersSelector()
+			.selectFields(
+				new List<String>{
+					'Id',
+					'Name',
+					'ModifierDescription__c',
+					'ModifierLevel__c',
+					'ModifierValue__c',
+					'Active__c'
+				}
+			)
+			.whereEquals('Active__c', true)
+			.whereField('ModifierLevel__c', 'IN', levels)
+			.orderBy('Name')
+			.limitTo(200)
+			.execute();
+	}
+
+	private static List<PricingModifier__c> selectModifier(
+		Id pricingModifierId
+	) {
+		if (pricingModifierId == null) {
+			return new List<PricingModifier__c>();
 		}
-		return third;
+		return (List<PricingModifier__c>) new PricingModifiersSelector()
+			.selectFields(
+				new List<String>{
+					'Id',
+					'Name',
+					'ModifierLevel__c',
+					'ModifierValue__c',
+					'Active__c'
+				}
+			)
+			.whereEquals('Id', pricingModifierId)
+			.limitTo(1)
+			.execute();
 	}
 
 	private static Integer compareText(String left, String right) {

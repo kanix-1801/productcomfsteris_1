@@ -15,40 +15,41 @@
  */
 public with sharing class AccountProspectTasQueueable
 implements Queueable, Database.AllowsCallouts {
-    
-    private Set<Id> accountIds;
+    Public static String customerClassCode;
+	private Set<Id> accountIds;
     
     /**
      * @description Initializes the queueable with eligible Prospect Account Ids.
      * @param accountIds Set of Account Ids to process asynchronously.
      */
-    public AccountProspectTasQueueable(Set<Id> accountIds) {
-        this.accountIds = accountIds == null ? new Set<Id>() : new Set<Id>(accountIds);
-    }
+    public AccountProspectTasQueueable(Set<Id> accountIds, String customerClassCode) {
+		this.accountIds = accountIds == null ? new Set<Id>() : new Set<Id>(accountIds);
+        customerClassCode = customerClassCode;
+	}
     
-    public void execute(QueueableContext context) {
+	public void execute(QueueableContext context) {
         
-        try {
-            Logger.info('AccountProspectTasQueueable.execute: started');
+		try {
+			Logger.info('AccountProspectTasQueueable.execute: started');
             
-            if (accountIds == null || accountIds.isEmpty()) {
-                Logger.warn('AccountProspectTasQueueable.execute: accountIds is null or empty');
-                return;
-            }
+			if (accountIds == null || accountIds.isEmpty()) {
+				Logger.warn('AccountProspectTasQueueable.execute: accountIds is null or empty');
+				return;
+			}
             
-            List<Account> accounts = AccountSelector.selectByIds(accountIds);
+			List<Account> accounts = AccountSelector.selectByIds(accountIds);
             
-            if (accounts.isEmpty()) {
-                Logger.warn('AccountProspectTasQueueable.execute: no Account records found');
-                return;
-            }
+			if (accounts.isEmpty()) {
+				Logger.warn('AccountProspectTasQueueable.execute: no Account records found');
+				return;
+			}
             
-            AccountProspectTasIntegrationService.processAccounts(accounts);
-            Logger.info('AccountProspectTasQueueable.execute: completed');
-        } catch (Exception e) {
-            Logger.error('AccountProspectTasQueueable.execute', e);
-        } finally {
-            Logger.saveLog();
-        }
-    }
+			AccountProspectTasIntegrationService.processAccounts(accounts);
+			Logger.info('AccountProspectTasQueueable.execute: completed');
+		} catch (Exception e) {
+			Logger.error('AccountProspectTasQueueable.execute', e);
+		} finally {
+			Logger.saveLog();
+		}
+	}
 }

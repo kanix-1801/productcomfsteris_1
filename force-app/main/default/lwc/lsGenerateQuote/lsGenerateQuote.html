@@ -97,25 +97,24 @@
                                             <col class="quote-table-col" />
                                             <col class="quote-table-col" />
                                             <col class="quote-table-col" />
-                                            <col class="quote-table-col" />
-                                            <col class="quote-table-col" />
+                                            <!-- <col class="quote-table-col" />
+                                            <col class="quote-table-col" /> -->
                                         </colgroup>
 
                                         <thead>
                                             <tr>
                                                 <th class="col-quote">
                                                     <div class="quote-number-header">
-                                                        <span>Quote Number</span>
+                                                        <span>Quote Name</span>
                                                         <lightning-helptext content={quoteIdHelpText}>
                                                         </lightning-helptext>
                                                     </div>
                                                 </th>
                                                 <th class="col-status">Status</th>
-                                                <th class="col-approval">Approval Status</th>
-                                                <th class="col-forecast-confidence">Quote Forecast Confidence</th>
-                                                <th class="col-total">Total w/o Freight</th>
-                                                <th class="col-modified">Last Modified Date</th>
-                                                <th class="col-sync-confidence"></th>
+                                                <th class="col-approval">Total Revenue</th>
+                                                <th class="col-forecast-confidence">SC Date Created</th>
+                                                <th class="col-modified">SC Date Modified</th>
+                                                <!-- <th class="col-sync-confidence"></th> -->
                                             </tr>
                                         </thead>
 
@@ -164,14 +163,12 @@
                                                         </td>
 
                                                         <td>
-                                                            <div class="truncate" title={quote.approvalStatus}>
-                                                                {quote.approvalStatus}</div>
+                                                            <div class="truncate" title={quote.totalRevenue}>
+                                                                {quote.totalRevenue}</div>
                                                         </td>
 
-                                                        <td class="col-forecast-confidence">
-                                                            <!--GCL-291: Added 'disabled' to the Forecast Confidence functionality for LS.
-                                                            This is not needed at the moment; it might be used in the future.-->
-                                                            <select disabled key={quote.forecastConfidenceSelectKey}
+                                                        <!-- <td class="col-forecast-confidence">
+                                                            <select key={quote.forecastConfidenceSelectKey}
                                                                 class="slds-select forecast-confidence-select"
                                                                 data-id={quote.id} value={quote.quoteForecastConfidence}
                                                                 onchange={handleForecastConfidenceChange}
@@ -186,21 +183,27 @@
                                                                     </option>
                                                                 </template>
                                                             </select>
-                                                        </td>
+                                                        </td> -->
 
-                                                        <td>
+                                                        <!-- <td>
                                                             <div class="truncate" title={quote.totalWithoutFreight}>
                                                                 {quote.totalWithoutFreight}
                                                             </div>
-                                                        </td>
-
+                                                        </td> -->
+                                                        
                                                         <td>
-                                                            <div class="truncate" title={quote.lastModifiedDate}>
-                                                                {quote.lastModifiedDate}
+                                                            <div class="truncate" title={quote.scDateCreated}>
+                                                                {quote.scDateCreated}
                                                             </div>
                                                         </td>
 
-                                                        <td class="col-sync-confidence">
+                                                        <td>
+                                                            <div class="truncate" title={quote.scDateModified}>
+                                                                {quote.scDateModified}
+                                                            </div>
+                                                        </td>
+
+                                                        <!-- <td class="col-sync-confidence">
                                                             <div class="sync-action">
                                                                 <template if:true={quote.isSyncingForecastConfidence}>
                                                                     <lightning-spinner
@@ -230,7 +233,7 @@
                                                                     </template>
                                                                 </template>
                                                             </div>
-                                                        </td>
+                                                        </td> -->
                                                     </tr>
 
                                                     <!-- Child Row: Product Subgroup summary accordion -->
@@ -304,90 +307,49 @@
                                                                                                 <table
                                                                                                     class="slds-table slds-table_bordered slds-table_cell-buffer line-item-table">
                                                                                                     <colgroup>
-                                                                                                        <col
-                                                                                                            class="line-item-col-product" />
-                                                                                                        <col
-                                                                                                            class="line-item-col-uom" />
-                                                                                                        <col
-                                                                                                            class="line-item-col-qty" />
-                                                                                                        <col
-                                                                                                            class="line-item-col-unit" />
-                                                                                                        <col
-                                                                                                            class="line-item-col-total" />
+                                                                                                            <col class="line-item-col-number" />
+                                                                                                            <col class="line-item-col-description" />
+                                                                                                            <col class="line-item-col-uom" />
+                                                                                                            <col class="line-item-col-qty" />
+                                                                                                            <col class="line-item-col-unit" />
+                                                                                                            <col class="line-item-col-status" />
+                                                                                                            <col class="line-item-col-date" />
+                                                                                                            <col class="line-item-col-date" />
+                                                                                                            <col class="line-item-col-total" />
                                                                                                     </colgroup>
-                                                                                                    <thead>
-                                                                                                        <tr>
-                                                                                                            <th
-                                                                                                                scope="col">
-                                                                                                                <span
-                                                                                                                    class="line-item-header-label">Product
-                                                                                                                    Name</span>
-                                                                                                            </th>
-                                                                                                            <th scope="col"
-                                                                                                                class="line-item-col-uom">
-                                                                                                                <span
-                                                                                                                    class="line-item-header-label">UOM</span>
-                                                                                                            </th>
-                                                                                                            <th scope="col"
-                                                                                                                class="line-item-col-qty">
-                                                                                                                <span
-                                                                                                                    class="line-item-header-label">Quantity</span>
-                                                                                                            </th>
-                                                                                                            <th scope="col"
-                                                                                                                class="line-item-col-unit">
-                                                                                                                <span
-                                                                                                                    class="line-item-header-label">Unit
-                                                                                                                    Price</span>
-                                                                                                            </th>
-                                                                                                            <th scope="col"
-                                                                                                                class="line-item-col-total">
-                                                                                                                <span
-                                                                                                                    class="line-item-col-total-label">Extended
-                                                                                                                    Unit
-                                                                                                                    Price</span>
-                                                                                                            </th>
-                                                                                                        </tr>
-                                                                                                    </thead>
+                                                                                                   <thead>
+                                                                                                         <tr>
+                                                                                                                <th scope="col" class="line-item-col-number"><span class="line-item-header-label">Product Number</span></th>
+                                                                                                                <th scope="col" class="line-item-col-description"><span class="line-item-header-label">Product Description</span></th>
+                                                                                                                <th scope="col" class="line-item-col-uom"><span class="line-item-header-label">UOM</span></th>
+                                                                                                                <th scope="col" class="line-item-col-qty"><span class="line-item-header-label">Quantity</span></th>
+                                                                                                                <th scope="col" class="line-item-col-unit"><span class="line-item-header-label">Unit Price</span></th>
+                                                                                                                <th scope="col" class="line-item-col-status"><span class="line-item-header-label">Status</span></th>
+                                                                                                                <th scope="col" class="line-item-col-date"><span class="line-item-header-label">Expected Order Date</span></th>
+                                                                                                                <th scope="col" class="line-item-col-date"><span class="line-item-header-label">Expected Ship Date</span></th>
+                                                                                                                <th scope="col" class="line-item-col-total"><span class="line-item-col-total-label">Extended Price</span></th>
+                                                                                                                </tr>
+                                                                                                            </thead>
                                                                                                     <tbody>
                                                                                                         <template
                                                                                                             for:each={subgroup.quoteLines}
                                                                                                             for:item="line">
-                                                                                                            <tr
-                                                                                                                key={line.rowKey}>
-                                                                                                                <td class="truncate"
-                                                                                                                    title={line.productName}>
-                                                                                                                    <template
-                                                                                                                        if:true={line.hasRecordLink}>
-                                                                                                                        <a class="link-text truncate"
-                                                                                                                            href={line.recordUrl}
-                                                                                                                            title={line.productName}
-                                                                                                                            target="_blank"
-                                                                                                                            rel="noopener noreferrer">
-                                                                                                                            {line.productName}
-                                                                                                                        </a>
-                                                                                                                    </template>
-                                                                                                                    <template
-                                                                                                                        if:false={line.hasRecordLink}>
-                                                                                                                        {line.productName}
-                                                                                                                    </template>
-                                                                                                                </td>
-                                                                                                                <td
-                                                                                                                    class="line-item-col-uom">
-                                                                                                                    {line.uomDisplay}
-                                                                                                                </td>
-                                                                                                                <td
-                                                                                                                    class="line-item-col-qty">
-                                                                                                                    {line.quantityFormatted}
-                                                                                                                </td>
-                                                                                                                <td
-                                                                                                                    class="line-item-col-unit">
-                                                                                                                    {line.unitPriceFormatted}
-                                                                                                                </td>
-                                                                                                                <td
-                                                                                                                    class="line-item-col-total">
-                                                                                                                    {line.lineTotalFormatted}
-                                                                                                                </td>
-                                                                                                            </tr>
+                                                                                                            <tr key={line.rowKey}>
+                                                                                                                        <td class="truncate line-item-col-number" title={line.productNumber}>{line.productNumber}</td>
+                                                                                                                        <td class="truncate line-item-col-description" title={line.productDescription}>
+                                                                                                                            <template if:true={line.hasRecordLink}>
+                                                                                                                                <a class="link-text truncate" href={line.recordUrl} title={line.productDescription} target="_blank" rel="noopener noreferrer">{line.productDescription}</a>
+                                                                                                                            </template>
+                                                                                                                            <template if:false={line.hasRecordLink}>{line.productDescription}</template>
+                                                                                                                        </td>
+                                                                                                                        <td class="line-item-col-uom">{line.uomDisplay}</td>
+                                                                                                                        <td class="line-item-col-qty">{line.quantityFormatted}</td>
+                                                                                                                        <td class="line-item-col-unit">{line.unitPriceFormatted}</td>
+                                                                                                                        <td class="line-item-col-status">{line.lineStatus}</td>
+                                                                                                                        <td class="line-item-col-date">{line.expectedOrderDateFormatted}</td>
+                                                                                                                        <td class="line-item-col-date">{line.expectedShipDateFormatted}</td>
+                                                                                                                        <td class="line-item-col-total">{line.lineTotalFormatted}</td>
+                                                                                                                    </tr>
                                                                                                         </template>
                                                                                                     </tbody>
                                                                                                 </table>

@@ -18,10 +18,10 @@
 public with sharing class DynamicPageElementController {
 
     /** @description Nebula Logger scenario for metadata engine transactions. */
-    private static final String SCENARIO = 'Metadata Engine';
+	private static final String SCENARIO = 'Metadata Engine';
 
     /** @description Nebula Logger tag for this class. */
-    private static final String LOGGER_TAG = 'DynamicPageElementController';
+	private static final String LOGGER_TAG = 'DynamicPageElementController';
 
     /**
      * @description
@@ -32,32 +32,32 @@ public with sharing class DynamicPageElementController {
      * @param pageName PageName__c value used to retrieve matching DynamicPageElement metadata.
      * @return Page layout response containing access level and configured tab hierarchy.
      */
-    @AuraEnabled(cacheable=true)
-    public static DynamicPageElementService.DynamicPageElementResponse getPageLayout(
-        Id recordId,
-        String objectApiName,
-        String pageName
-    ) {
-        try {
-            return DynamicPageElementService.getPageLayout(recordId, objectApiName, pageName);
-        } catch (Exception exceptionRecord) {
-            Logger.setScenario(SCENARIO);
-            Logger.error(LOGGER_TAG + ': Unable to retrieve page layout.', exceptionRecord)
-                .addTag(LOGGER_TAG)
-                .addTag('MetadataEngine')
-                .addTag('GC-3183');
+	@AuraEnabled(cacheable=true)
+	public static DynamicPageElementService.DynamicPageElementResponse getPageLayout(
+		Id recordId,
+		String objectApiName,
+		String pageName
+	) {
+		try {
+			return DynamicPageElementService.getPageLayout(recordId, objectApiName, pageName);
+		} catch (Exception exceptionRecord) {
+			Logger.setScenario(SCENARIO);
+			Logger.error(LOGGER_TAG + ': Unable to retrieve page layout.', exceptionRecord)
+				.addTag(LOGGER_TAG)
+				.addTag('MetadataEngine')
+				.addTag('GC-3183');
 
-            if (exceptionRecord instanceof AuraHandledException) {
-                throw exceptionRecord;
-            }
+			if (exceptionRecord instanceof AuraHandledException) {
+				throw exceptionRecord;
+			}
 
-            throw new AuraHandledException('Unable to retrieve page layout.');
-        } finally {
-            try {
-                Logger.saveLog();
-            } catch (Exception loggingError) {
+			throw new AuraHandledException('Unable to retrieve page layout.');
+		} finally {
+			try {
+				Logger.saveLog();
+			} catch (Exception loggingError) {
                 // Do not fail the user transaction when Nebula Logger persistence is unavailable.
-            }
-        }
-    }
+			}
+		}
+	}
 }

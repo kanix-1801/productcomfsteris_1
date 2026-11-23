@@ -16,18 +16,18 @@ public without sharing class PermissionSetSelector {
      * @param permissionSetNames Permission set API names.
      * @return Matching permission sets.
      */
-    public static List<PermissionSet> selectByNames(Set<String> permissionSetNames) {
-        if (permissionSetNames == null || permissionSetNames.isEmpty()) {
-            return new List<PermissionSet>();
-        }
+	public static List<PermissionSet> selectByNames(Set<String> permissionSetNames) {
+		if (permissionSetNames == null || permissionSetNames.isEmpty()) {
+			return new List<PermissionSet>();
+		}
 
-        return [
-            SELECT Id, Name, Label
-            FROM PermissionSet
-            WHERE Name IN :permissionSetNames
-            AND IsOwnedByProfile = FALSE
-        ];
-    }
+		return [
+			SELECT Id, Name, Label
+			FROM PermissionSet
+			WHERE Name IN :permissionSetNames
+			AND IsOwnedByProfile = FALSE
+		];
+	}
 
     /**
      * @description
@@ -37,19 +37,19 @@ public without sharing class PermissionSetSelector {
      * @param permissionSetIds Permission set ids.
      * @return Matching permission set assignments.
      */
-    public static List<PermissionSetAssignment> selectAssignmentsByUserAndPermissionSetIds(
-        Id userId,
-        Set<Id> permissionSetIds
-    ) {
-        if (userId == null || permissionSetIds == null || permissionSetIds.isEmpty()) {
-            return new List<PermissionSetAssignment>();
-        }
+	public static List<PermissionSetAssignment> selectAssignmentsByUserAndPermissionSetIds(
+		Id userId,
+		Set<Id> permissionSetIds
+	) {
+		if (userId == null || permissionSetIds == null || permissionSetIds.isEmpty()) {
+			return new List<PermissionSetAssignment>();
+		}
 
-        return [
-            SELECT Id, PermissionSetId, AssigneeId
-            FROM PermissionSetAssignment
-            WHERE AssigneeId = :userId
-            AND PermissionSetId IN :permissionSetIds
-        ];
-    }
+		return [
+			SELECT Id, PermissionSetId, AssigneeId
+			FROM PermissionSetAssignment
+			WHERE AssigneeId = :userId
+			AND PermissionSetId IN :permissionSetIds
+		];
+	}
 }

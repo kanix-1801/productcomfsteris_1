@@ -17,7 +17,7 @@ public with sharing class OrderSelector {
             }
 
             List<Order> orderList = [
-                SELECT Id,
+                SELECT Id,OrderNumber__c,
                        FirstScheduledDateNonPreinstall__c, Country__c, IsTradInLineOpen__c
                 FROM Order
                 WHERE ParentCase__c = :caseId

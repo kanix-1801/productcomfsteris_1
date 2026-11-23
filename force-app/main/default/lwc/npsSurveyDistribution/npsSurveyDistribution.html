@@ -1,0 +1,75 @@
+<template>
+    <lightning-card title="NPS Survey Distribution" icon-name="standard:survey">
+        <div class="slds-p-horizontal_medium slds-p-bottom_medium">
+            <template if:true={blockedMessage}>
+                <div class="slds-text-color_error slds-m-bottom_small">{blockedMessage}</div>
+            </template>
+            <template if:true={canDistribute}>
+                <p class="slds-m-bottom_small">
+                    {surveyName} · {businessUnit}. Customers open the link without logging in.
+                    A new upload does not change an earlier distribution.
+                </p>
+                <lightning-input
+                    type="number"
+                    label="Expiration days"
+                    value={expirationDays}
+                    min="1"
+                    onchange={handleExpiration}
+                ></lightning-input>
+                <lightning-input
+                    type="number"
+                    label="Number of reminders"
+                    value={reminderCount}
+                    min="0"
+                    onchange={handleReminderCount}
+                ></lightning-input>
+                <lightning-input
+                    type="number"
+                    label="Days between reminders"
+                    value={reminderInterval}
+                    min="1"
+                    onchange={handleReminderInterval}
+                ></lightning-input>
+                <lightning-file-upload
+                    label="Recipient file"
+                    accept={acceptedFiles}
+                    record-id={recordId}
+                    onuploadfinished={handleUploadFinished}
+                ></lightning-file-upload>
+                <p class="slds-text-body_small slds-m-vertical_small">
+                    Required columns: First Name, Last Name, Email, Customer Number (Oracle), Business Unit.
+                    Language defaults to English.
+                </p>
+                <div class="slds-m-vertical_small">
+                    <lightning-button label="Send email invitations" onclick={sendEmails} disabled={noDistribution}></lightning-button>
+                    <lightning-button label="Generate anonymous link" onclick={generateLink} class="slds-m-left_x-small"></lightning-button>
+                    <lightning-button label="Refresh survey status" onclick={refreshStatus} class="slds-m-left_x-small"></lightning-button>
+                </div>
+                <template if:true={anonymousLink}>
+                    <p class="slds-m-bottom_small"><strong>Anonymous link:</strong> {anonymousLink}</p>
+                </template>
+                <template if:true={statusMessage}>
+                    <p class="slds-m-bottom_small">{statusMessage}</p>
+                </template>
+                <template if:true={distributionId}>
+                    <p class="slds-m-bottom_x-small">
+                        Recipients {recipientCount} · Sent {sentCount} · Failed {failedCount}
+                    </p>
+                    <lightning-datatable key-field="recipientId" data={rows} columns={columns} hide-checkbox-column></lightning-datatable>
+                </template>
+                <lightning-input label="Find a Sales, Service, or survey Contact" value={searchText} onchange={handleSearchText}></lightning-input>
+                <lightning-button label="Search" onclick={search}></lightning-button>
+                <template if:true={searchRows.length}>
+                    <lightning-datatable
+                        key-field="contactId"
+                        data={searchRows}
+                        columns={searchColumns}
+                        onrowselection={selectContact}
+                        class="slds-m-top_small"
+                    ></lightning-datatable>
+                    <lightning-button label="Record survey opt-out" onclick={recordOptOut} class="slds-m-top_small"></lightning-button>
+                </template>
+            </template>
+        </div>
+    </lightning-card>
+</template>

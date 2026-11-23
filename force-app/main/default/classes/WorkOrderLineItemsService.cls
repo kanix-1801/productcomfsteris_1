@@ -853,13 +853,13 @@ public with sharing class WorkOrderLineItemsService {
 
 	/**
 	 * @description GW-3400 - Updates quantity on the Product Serviced line and its child Repair
-	 *              Code lines, and adds any missing repair-code WOLIs (used when Item Summary
-	 *              edits are Quick Saved).
+	 *              Code lines. A repair-code list is the desired set: missing codes are added
+	 *              and codes left off the list are removed. Null leaves existing codes unchanged.
 	 * @param workOrder Parent Work Order
 	 * @param productServicedId Existing Product Serviced WOLI Id
 	 * @param productId Instrument Product2 Id (must match the Product Serviced line)
 	 * @param quantity Updated quantity
-	 * @param repairCodeProductIds Desired repair-code Product Ids (existing codes are kept)
+	 * @param repairCodeProductIds Desired repair-code Product Ids; null leaves existing codes unchanged
 	 * @return The Product Serviced Id
 	 * @throws WorkOrderLineItemsServiceException for validation or unexpected failures
 	 */
@@ -886,7 +886,7 @@ public with sharing class WorkOrderLineItemsService {
 	 * @param productServicedId Existing Product Serviced WOLI Id
 	 * @param productId Instrument Product2 Id
 	 * @param quantity Updated quantity
-	 * @param repairCodeProductIds Desired repair-code Product Ids
+	 * @param repairCodeProductIds Desired repair-code Product Ids; null leaves existing codes unchanged
 	 * @param returnOrderLineItems Comma-separated Return Order Line Item numbers; null keeps current
 	 * @return Product Serviced WOLI Id
 	 */
@@ -959,6 +959,25 @@ public with sharing class WorkOrderLineItemsService {
 				);
 			}
 
+			// A provided list is the desired set for this item. Null means the caller
+			// is not changing codes (quantity or RO Line mapping only).
+			Set<Id> desiredRepairCodeIds = null;
+			if (repairCodeProductIds != null) {
+				desiredRepairCodeIds = new Set<Id>(repairCodeProductIds);
+				desiredRepairCodeIds.remove(null);
+			}
+			Set<Id> repairCodeLineIdsToDelete = new Set<Id>();
+			if (desiredRepairCodeIds != null) {
+				for (WorkOrderLineItem repairCodeLine : existingRepairCodeLines) {
+					if (
+						repairCodeLine.Product2Id != null &&
+						!desiredRepairCodeIds.contains(repairCodeLine.Product2Id)
+					) {
+						repairCodeLineIdsToDelete.add(repairCodeLine.Id);
+					}
+				}
+			}
+
 			Boolean quantityChanged =
 				productServicedLine.Quantity == null ||
 				productServicedLine.Quantity != resolvedQuantity;
@@ -975,6 +994,9 @@ public with sharing class WorkOrderLineItemsService {
 			}
 			if (quantityChanged) {
 				for (WorkOrderLineItem repairCodeLine : existingRepairCodeLines) {
+					if (repairCodeLineIdsToDelete.contains(repairCodeLine.Id)) {
+						continue;
+					}
 					if (
 						repairCodeLine.Quantity == null ||
 						repairCodeLine.Quantity != resolvedQuantity
@@ -988,11 +1010,15 @@ public with sharing class WorkOrderLineItemsService {
 				updateLineItems(linesToUpdate);
 			}
 
-			Set<Id> selectedRepairCodeIds = new Set<Id>();
-			if (repairCodeProductIds != null) {
-				selectedRepairCodeIds.addAll(repairCodeProductIds);
+			if (!repairCodeLineIdsToDelete.isEmpty()) {
+				deleteRepairCenterTeamMembersForLineItems(repairCodeLineIdsToDelete);
+				deleteLineItems(repairCodeLineIdsToDelete);
 			}
-			selectedRepairCodeIds.remove(null);
+
+			Set<Id> selectedRepairCodeIds = new Set<Id>();
+			if (desiredRepairCodeIds != null) {
+				selectedRepairCodeIds.addAll(desiredRepairCodeIds);
+			}
 			selectedRepairCodeIds.removeAll(existingRepairCodeProductIds);
 			if (selectedRepairCodeIds.isEmpty()) {
 				return productServicedId;

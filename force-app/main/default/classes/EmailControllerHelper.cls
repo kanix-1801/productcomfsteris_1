@@ -805,26 +805,7 @@ public static List<CaseContactRole> getReceivingAndInstallContacts(Id caseId) {
             List<OrderItem> result = new List<OrderItem>();
         
                 if (caseId == null) return result;
-    
-                
-    
-                result = [
-                    SELECT id,LineNumber__c,
-                           Product2.ProductCode,
-                           Product2.Description,
-                           Quantity,
-                           ActualShipmentDate__c,
-                    	   MailSent__c, 
-                           ShipToAddressID__r.Street, ShipToAddressID__r.City, ShipToAddressID__r.State, ShipToAddressID__r.PostalCode, ShipToAddressID__r.Country
-
-                    FROM OrderItem
-                    WHERE  OrderLineType__c = 'Trade In Lines'                  
-                      AND MailSent__c = false
-                      AND Order.ParentCase__c = :caseId
-                      AND OrderLineStatus__c = 'Closed'
-                      AND orderLineNumber__C !=0 order by orderLineNumber__C ASC
-                ];
-                
+                result = OrderItemSelector.orderItemTradeInLinesRecord(caseId);
                 if(result==null){
                 return new list<orderitem>();
             }
@@ -841,6 +822,41 @@ public static List<CaseContactRole> getReceivingAndInstallContacts(Id caseId) {
                     throw ex;
                 }
             }
+
+    /**
+    * @description Retrieves cancelled Trade-In Order Items for CBM-1416.
+    * @param caseId Case Id used to identify related Trade-In lines.
+    * @return List<OrderItem> Cancelled Trade-In Order Items.
+    */
+    public static List<OrderItem> cancelledTradeInEquipmentDetails(
+        Id caseId
+    ) {
+        try {
+            if (caseId == null) {
+                return new List<OrderItem>();
+            }
+
+            List<OrderItem> cancelledTradeInLines =
+                OrderItemSelector.orderItemCancelledTradeInLinesRecord(
+                    caseId
+                );
+
+            if (cancelledTradeInLines == null) {
+                return new List<OrderItem>();
+            }
+
+            throwIfTestException(caseId);
+
+            return cancelledTradeInLines;
+        } catch (Exception ex) {
+            ErrorLogger.logException(
+                ex,
+                'EmailControllerHelper',
+                'cancelledTradeInEquipmentDetails'
+            );
+            throw ex;
+        }
+    }
  
     public static DateTime calculateActualShipDate(Id caseId) {
         try {

@@ -2,10 +2,15 @@ import { LightningElement, api, wire } from 'lwc';
 import { NavigationMixin } from 'lightning/navigation';
 import getSiblings from '@salesforce/apex/RelatedCasesByRegistrationCtrl.getSiblings';
 import getAllByRegistration from '@salesforce/apex/RelatedCasesByRegistrationCtrl.getAllByRegistration';
+import { getRecord, getFieldValue } from 'lightning/uiRecordApi';
+import CASE_SUBJECT from '@salesforce/schema/Case.Subject';
 
 export default class RelatedCasesSameReg extends NavigationMixin(LightningElement) {
     @api recordId;
 
+    // Current Case Subject
+    caseSubject;
+    
     // Card (compact)
     loading = true;
     collapsed = false;
@@ -16,7 +21,7 @@ export default class RelatedCasesSameReg extends NavigationMixin(LightningElemen
     loadingAll = false;
     allRows = [];
 
-    // Datatable columns in the exact order you requested
+    // Datatable columns
     columns = [
         {
             label: 'Case Number',
@@ -29,6 +34,22 @@ export default class RelatedCasesSameReg extends NavigationMixin(LightningElemen
         { label: 'First Scheduled Ship Date', fieldName: 'FirstNonPreInstallScheduledShipDate__c', type: 'date' },
         { label: 'Stage', fieldName: 'Status' } // Fix A: Stage is Case.Status
     ];
+
+    /**
+     * Retrieves the Subject of the current Case.
+     */
+    @wire(getRecord, {
+        recordId: '$recordId',
+        fields: [CASE_SUBJECT]
+    })
+    wiredCase({ data, error }) {
+        if (data) {
+            this.caseSubject = getFieldValue(data, CASE_SUBJECT);
+        } else if (error) {
+            this.caseSubject = undefined;
+            console.error('Error retrieving Case Subject:', error);
+        }
+    }
 
     // --- Card data ---
     @wire(getSiblings, { caseId: '$recordId' })

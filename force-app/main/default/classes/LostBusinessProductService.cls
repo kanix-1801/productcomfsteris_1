@@ -17,13 +17,13 @@ public with sharing class LostBusinessProductService {
      * @description
      * GC-3574 - Constants used in the class.
      */
-    public static final String SCENARIO = 'Lost Business Products';
-    public static final String LOGGER_TAG = 'LostBusinessProduct';
-    public static final Integer CONTRACT_MAX_LENGTH = 18;
-    public static final Integer COMMENTS_MAX_LENGTH = 250;
+	public static final String SCENARIO = 'Lost Business Products';
+	public static final String LOGGER_TAG = 'LostBusinessProduct';
+	public static final Integer CONTRACT_MAX_LENGTH = 18;
+	public static final Integer COMMENTS_MAX_LENGTH = 250;
 
-    @TestVisible
-    private static Boolean throwTestException = false;
+	@TestVisible
+	private static Boolean throwTestException = false;
 
     /**
      * @description
@@ -36,40 +36,40 @@ public with sharing class LostBusinessProductService {
      * @example
      * LostBusinessProductService.getOriginatingProducts(originatingOpportunityId);
      */
-    public static List<LostBusinessProductController.OriginatingProductRow> getOriginatingProducts(
-        String originatingOpportunityId
-    ) {
-        try {
-            if (Test.isRunningTest() && throwTestException) {
-                throw new QueryException('Forced test exception');
-            }
+	public static List<LostBusinessProductController.OriginatingProductRow> getOriginatingProducts(
+		String originatingOpportunityId
+	) {
+		try {
+			if (Test.isRunningTest() && throwTestException) {
+				throw new QueryException('Forced test exception');
+			}
 
-            if (String.isBlank(originatingOpportunityId)) {
-                return new List<LostBusinessProductController.OriginatingProductRow>();
-            }
+			if (String.isBlank(originatingOpportunityId)) {
+				return new List<LostBusinessProductController.OriginatingProductRow>();
+			}
 
-            Id opportunityId = parseId(
-                originatingOpportunityId,
-                'The originating Opportunity Id provided is not valid.'
-            );
+			Id opportunityId = parseId(
+				originatingOpportunityId,
+				'The originating Opportunity Id provided is not valid.'
+			);
 
-            List<LostBusinessProductController.OriginatingProductRow> productRowList =
-                new List<LostBusinessProductController.OriginatingProductRow>();
+			List<LostBusinessProductController.OriginatingProductRow> productRowList =
+				new List<LostBusinessProductController.OriginatingProductRow>();
 
-            for (OpportunityLineItem lineItem : LostBusinessProductSelector.selectLinesByOpportunityId(opportunityId)) {
-                productRowList.add(toOriginatingRow(lineItem));
-            }
+			for (OpportunityLineItem lineItem : LostBusinessProductSelector.selectLinesByOpportunityId(opportunityId)) {
+				productRowList.add(toOriginatingRow(lineItem));
+			}
 
-            return productRowList;
-        } catch (LostBusinessProductException validationException) {
-            throw validationException;
-        } catch (Exception exceptionValue) {
-            Logger.error('Error loading originating Lost Business products', exceptionValue).addTag(LOGGER_TAG);
-            throw new LostBusinessProductException('Unable to load products from the originating opportunity.');
-        } finally {
-            Logger.saveLog();
-        }
-    }
+			return productRowList;
+		} catch (LostBusinessProductException validationException) {
+			throw validationException;
+		} catch (Exception exceptionValue) {
+			Logger.error('Error loading originating Lost Business products', exceptionValue).addTag(LOGGER_TAG);
+			throw new LostBusinessProductException('Unable to load products from the originating opportunity.');
+		} finally {
+			Logger.saveLog();
+		}
+	}
 
     /**
      * @description
@@ -82,38 +82,38 @@ public with sharing class LostBusinessProductService {
      * @example
      * LostBusinessProductService.searchProducts(searchKey, lostBusinessOpportunityId);
      */
-    public static List<LostBusinessProductController.ProductWrapper> searchProducts(
-        String searchKey,
-        String lostBusinessOpportunityId
-    ) {
-        try {
-            if (Test.isRunningTest() && throwTestException) {
-                throw new QueryException('Forced test exception');
-            }
+	public static List<LostBusinessProductController.ProductWrapper> searchProducts(
+		String searchKey,
+		String lostBusinessOpportunityId
+	) {
+		try {
+			if (Test.isRunningTest() && throwTestException) {
+				throw new QueryException('Forced test exception');
+			}
 
-            List<Product2> productList = Product2Selector.selectActiveBySearchKey(searchKey);
-            Map<Id, Decimal> unitPriceByProductId = unitPriceByProductId(productList, lostBusinessOpportunityId);
-            List<LostBusinessProductController.ProductWrapper> productWrapperList =
-                new List<LostBusinessProductController.ProductWrapper>();
+			List<Product2> productList = Product2Selector.selectActiveBySearchKey(searchKey);
+			Map<Id, Decimal> unitPriceByProductId = unitPriceByProductId(productList, lostBusinessOpportunityId);
+			List<LostBusinessProductController.ProductWrapper> productWrapperList =
+				new List<LostBusinessProductController.ProductWrapper>();
 
-            for (Product2 product : productList) {
-                LostBusinessProductController.ProductWrapper productWrapper =
-                    new LostBusinessProductController.ProductWrapper();
-                productWrapper.productId = product.Id;
-                productWrapper.productName = product.Name;
-                productWrapper.productCode = product.ProductCode;
-                productWrapper.unitPrice = unitPriceByProductId.get(product.Id);
-                productWrapperList.add(productWrapper);
-            }
+			for (Product2 product : productList) {
+				LostBusinessProductController.ProductWrapper productWrapper =
+					new LostBusinessProductController.ProductWrapper();
+				productWrapper.productId = product.Id;
+				productWrapper.productName = product.Name;
+				productWrapper.productCode = product.ProductCode;
+				productWrapper.unitPrice = unitPriceByProductId.get(product.Id);
+				productWrapperList.add(productWrapper);
+			}
 
-            return productWrapperList;
-        } catch (Exception exceptionValue) {
-            Logger.error('Error searching products for Lost Business', exceptionValue).addTag(LOGGER_TAG);
-            throw new LostBusinessProductException('Unable to search products.');
-        } finally {
-            Logger.saveLog();
-        }
-    }
+			return productWrapperList;
+		} catch (Exception exceptionValue) {
+			Logger.error('Error searching products for Lost Business', exceptionValue).addTag(LOGGER_TAG);
+			throw new LostBusinessProductException('Unable to search products.');
+		} finally {
+			Logger.saveLog();
+		}
+	}
 
     /**
      * @description
@@ -126,45 +126,45 @@ public with sharing class LostBusinessProductService {
      * @example
      * unitPriceByProductId(productList, lostBusinessOpportunityId);
      */
-    private static Map<Id, Decimal> unitPriceByProductId(
-        List<Product2> productList,
-        String lostBusinessOpportunityId
-    ) {
-        Map<Id, Decimal> unitPriceByProductId = new Map<Id, Decimal>();
+	private static Map<Id, Decimal> unitPriceByProductId(
+		List<Product2> productList,
+		String lostBusinessOpportunityId
+	) {
+		Map<Id, Decimal> unitPriceByProductId = new Map<Id, Decimal>();
 
-        if (productList == null || productList.isEmpty() || String.isBlank(lostBusinessOpportunityId)) {
-            return unitPriceByProductId;
-        }
+		if (productList == null || productList.isEmpty() || String.isBlank(lostBusinessOpportunityId)) {
+			return unitPriceByProductId;
+		}
 
-        Id lostOpportunityId;
+		Id lostOpportunityId;
 
-        try {
-            lostOpportunityId = Id.valueOf(lostBusinessOpportunityId);
-        } catch (Exception invalidIdException) {
-            return unitPriceByProductId;
-        }
+		try {
+			lostOpportunityId = Id.valueOf(lostBusinessOpportunityId);
+		} catch (Exception invalidIdException) {
+			return unitPriceByProductId;
+		}
 
-        Opportunity lostOpportunity = LostBusinessProductSelector.selectOpportunityById(lostOpportunityId);
+		Opportunity lostOpportunity = LostBusinessProductSelector.selectOpportunityById(lostOpportunityId);
 
-        if (lostOpportunity == null) {
-            return unitPriceByProductId;
-        }
+		if (lostOpportunity == null) {
+			return unitPriceByProductId;
+		}
 
-        Id pricebookId = lostOpportunity.Pricebook2Id == null
-            ? LostBusinessProductSelector.selectStandardPricebookId()
-            : lostOpportunity.Pricebook2Id;
-        Set<Id> productIds = new Map<Id, Product2>(productList).keySet();
+		Id pricebookId = lostOpportunity.Pricebook2Id == null
+			? LostBusinessProductSelector.selectStandardPricebookId()
+			: lostOpportunity.Pricebook2Id;
+		Set<Id> productIds = new Map<Id, Product2>(productList).keySet();
 
-        for (PricebookEntry pricebookEntry : LostBusinessProductSelector.selectActiveEntries(
-            pricebookId,
-            productIds,
-            lostOpportunity.CurrencyIsoCode
-        )) {
-            unitPriceByProductId.put(pricebookEntry.Product2Id, pricebookEntry.UnitPrice);
-        }
+		for (PricebookEntry pricebookEntry : LostBusinessProductSelector.selectActiveEntries(
+			pricebookId,
+			productIds,
+			lostOpportunity.CurrencyIsoCode
+		)) {
+			unitPriceByProductId.put(pricebookEntry.Product2Id, pricebookEntry.UnitPrice);
+		}
 
-        return unitPriceByProductId;
-    }
+		return unitPriceByProductId;
+	}
 
     /**
      * @description
@@ -181,83 +181,83 @@ public with sharing class LostBusinessProductService {
      * @example
      * LostBusinessProductService.createProducts(lostBusinessOpportunityId, originatingOpportunityId, productInputsJson);
      */
-    public static Integer createProducts(
-        String lostBusinessOpportunityId,
-        String originatingOpportunityId,
-        String productInputsJson
-    ) {
-        Savepoint savePointValue = Database.setSavepoint();
+	public static Integer createProducts(
+		String lostBusinessOpportunityId,
+		String originatingOpportunityId,
+		String productInputsJson
+	) {
+		Savepoint savePointValue = Database.setSavepoint();
 
-        try {
-            if (Test.isRunningTest() && throwTestException) {
-                throw new CalloutException('Forced test exception');
-            }
+		try {
+			if (Test.isRunningTest() && throwTestException) {
+				throw new CalloutException('Forced test exception');
+			}
 
-            Id lostOpportunityId = parseId(
-                lostBusinessOpportunityId,
-                'A Lost Business Opportunity is required before products can be added.',
-                'The Lost Business Opportunity Id provided is not valid.'
-            );
-            Id originatingOpportunityRecordId = String.isBlank(originatingOpportunityId)
-                ? null
-                : parseId(originatingOpportunityId, 'The originating Opportunity Id provided is not valid.');
+			Id lostOpportunityId = parseId(
+				lostBusinessOpportunityId,
+				'A Lost Business Opportunity is required before products can be added.',
+				'The Lost Business Opportunity Id provided is not valid.'
+			);
+			Id originatingOpportunityRecordId = String.isBlank(originatingOpportunityId)
+				? null
+				: parseId(originatingOpportunityId, 'The originating Opportunity Id provided is not valid.');
 
-            List<LostBusinessProductController.ProductInput> productInputs = parseProductInputs(productInputsJson);
+			List<LostBusinessProductController.ProductInput> productInputs = parseProductInputs(productInputsJson);
 
-            if (productInputs.isEmpty()) {
-                return 0;
-            }
+			if (productInputs.isEmpty()) {
+				return 0;
+			}
 
-            Opportunity lostOpportunity = LostBusinessProductSelector.selectOpportunityById(lostOpportunityId);
+			Opportunity lostOpportunity = LostBusinessProductSelector.selectOpportunityById(lostOpportunityId);
 
-            if (lostOpportunity == null) {
-                throw new LostBusinessProductException('The Lost Business Opportunity could not be found.');
-            }
+			if (lostOpportunity == null) {
+				throw new LostBusinessProductException('The Lost Business Opportunity could not be found.');
+			}
 
-            Id pricebookId = resolvePricebookId(lostOpportunity, originatingOpportunityRecordId);
-            ensurePricebook(lostOpportunity, pricebookId);
+			Id pricebookId = resolvePricebookId(lostOpportunity, originatingOpportunityRecordId);
+			ensurePricebook(lostOpportunity, pricebookId);
 
-            String currencyCode = lostOpportunity.CurrencyIsoCode;
-            Set<Id> existingPricebookEntryIds = LostBusinessProductSelector.selectPricebookEntryIds(lostOpportunityId);
-            List<OpportunityLineItem> lineItemList = new List<OpportunityLineItem>();
-            Set<Id> pricebookEntriesInThisSave = new Set<Id>();
+			String currencyCode = lostOpportunity.CurrencyIsoCode;
+			Set<Id> existingPricebookEntryIds = LostBusinessProductSelector.selectPricebookEntryIds(lostOpportunityId);
+			List<OpportunityLineItem> lineItemList = new List<OpportunityLineItem>();
+			Set<Id> pricebookEntriesInThisSave = new Set<Id>();
 
-            lineItemList.addAll(buildCopiedLines(
-                productInputs,
-                lostOpportunity.Id,
-                originatingOpportunityRecordId,
-                pricebookId,
-                currencyCode,
-                existingPricebookEntryIds,
-                pricebookEntriesInThisSave
-            ));
-            lineItemList.addAll(buildCatalogLines(
-                productInputs,
-                lostOpportunity.Id,
-                pricebookId,
-                currencyCode,
-                existingPricebookEntryIds,
-                pricebookEntriesInThisSave
-            ));
+			lineItemList.addAll(buildCopiedLines(
+				productInputs,
+				lostOpportunity.Id,
+				originatingOpportunityRecordId,
+				pricebookId,
+				currencyCode,
+				existingPricebookEntryIds,
+				pricebookEntriesInThisSave
+			));
+			lineItemList.addAll(buildCatalogLines(
+				productInputs,
+				lostOpportunity.Id,
+				pricebookId,
+				currencyCode,
+				existingPricebookEntryIds,
+				pricebookEntriesInThisSave
+			));
 
-            if (lineItemList.isEmpty()) {
-                return 0;
-            }
+			if (lineItemList.isEmpty()) {
+				return 0;
+			}
 
-            insert lineItemList;
-            return lineItemList.size();
-        } catch (LostBusinessProductException validationException) {
-            Database.rollback(savePointValue);
-            Logger.error('Lost Business product payload rejected: ' + productInputsJson).addTag(LOGGER_TAG);
-            throw validationException;
-        } catch (Exception exceptionValue) {
-            Database.rollback(savePointValue);
-            Logger.error('Error creating Lost Business Opportunity Products', exceptionValue).addTag(LOGGER_TAG);
-            throw new LostBusinessProductException(dmlOrFallbackMessage(exceptionValue));
-        } finally {
-            Logger.saveLog();
-        }
-    }
+			insert lineItemList;
+			return lineItemList.size();
+		} catch (LostBusinessProductException validationException) {
+			Database.rollback(savePointValue);
+			Logger.error('Lost Business product payload rejected: ' + productInputsJson).addTag(LOGGER_TAG);
+			throw validationException;
+		} catch (Exception exceptionValue) {
+			Database.rollback(savePointValue);
+			Logger.error('Error creating Lost Business Opportunity Products', exceptionValue).addTag(LOGGER_TAG);
+			throw new LostBusinessProductException(dmlOrFallbackMessage(exceptionValue));
+		} finally {
+			Logger.saveLog();
+		}
+	}
 
     /**
      * @description
@@ -272,78 +272,78 @@ public with sharing class LostBusinessProductService {
      * @example
      * LostBusinessProductService.copyOriginatingProducts(lostOpportunityIds);
      */
-    public static Integer copyOriginatingProducts(Set<Id> lostOpportunityIds) {
-        if (lostOpportunityIds == null || lostOpportunityIds.isEmpty()) {
-            return 0;
-        }
+	public static Integer copyOriginatingProducts(Set<Id> lostOpportunityIds) {
+		if (lostOpportunityIds == null || lostOpportunityIds.isEmpty()) {
+			return 0;
+		}
 
-        try {
-            if (Test.isRunningTest() && throwTestException) {
-                throw new CalloutException('Forced test exception');
-            }
+		try {
+			if (Test.isRunningTest() && throwTestException) {
+				throw new CalloutException('Forced test exception');
+			}
 
-            List<Opportunity> lostOpportunityList =
-                LostBusinessProductSelector.selectLostBusinessForProductCopy(lostOpportunityIds);
+			List<Opportunity> lostOpportunityList =
+				LostBusinessProductSelector.selectLostBusinessForProductCopy(lostOpportunityIds);
 
-            if (lostOpportunityList.isEmpty()) {
-                return 0;
-            }
+			if (lostOpportunityList.isEmpty()) {
+				return 0;
+			}
 
-            Map<Id, Id> pricebookIdByLostOpportunityId = resolveCopyPricebooks(lostOpportunityList);
-            Set<Id> originatingOpportunityIds = new Set<Id>();
+			Map<Id, Id> pricebookIdByLostOpportunityId = resolveCopyPricebooks(lostOpportunityList);
+			Set<Id> originatingOpportunityIds = new Set<Id>();
 
-            for (Opportunity lostOpportunity : lostOpportunityList) {
-                if (pricebookIdByLostOpportunityId.containsKey(lostOpportunity.Id)) {
-                    originatingOpportunityIds.add(lostOpportunity.OriginatingOpportunity__c);
-                }
-            }
+			for (Opportunity lostOpportunity : lostOpportunityList) {
+				if (pricebookIdByLostOpportunityId.containsKey(lostOpportunity.Id)) {
+					originatingOpportunityIds.add(lostOpportunity.OriginatingOpportunity__c);
+				}
+			}
 
-            Map<Id, List<OpportunityLineItem>> sourceLinesByOpportunityId = new Map<Id, List<OpportunityLineItem>>();
+			Map<Id, List<OpportunityLineItem>> sourceLinesByOpportunityId = new Map<Id, List<OpportunityLineItem>>();
 
-            for (OpportunityLineItem sourceLine : LostBusinessProductSelector.selectLinesByOpportunityIds(
-                originatingOpportunityIds
-            )) {
-                if (!sourceLinesByOpportunityId.containsKey(sourceLine.OpportunityId)) {
-                    sourceLinesByOpportunityId.put(sourceLine.OpportunityId, new List<OpportunityLineItem>());
-                }
-                sourceLinesByOpportunityId.get(sourceLine.OpportunityId).add(sourceLine);
-            }
+			for (OpportunityLineItem sourceLine : LostBusinessProductSelector.selectLinesByOpportunityIds(
+				originatingOpportunityIds
+			)) {
+				if (!sourceLinesByOpportunityId.containsKey(sourceLine.OpportunityId)) {
+					sourceLinesByOpportunityId.put(sourceLine.OpportunityId, new List<OpportunityLineItem>());
+				}
+				sourceLinesByOpportunityId.get(sourceLine.OpportunityId).add(sourceLine);
+			}
 
-            List<OpportunityLineItem> lineItemList = linesToCopy(
-                lostOpportunityList,
-                pricebookIdByLostOpportunityId,
-                sourceLinesByOpportunityId,
-                LostBusinessProductSelector.selectPricebookEntryIdsByOpportunity(
-                    pricebookIdByLostOpportunityId.keySet()
-                )
-            );
+			List<OpportunityLineItem> lineItemList = linesToCopy(
+				lostOpportunityList,
+				pricebookIdByLostOpportunityId,
+				sourceLinesByOpportunityId,
+				LostBusinessProductSelector.selectPricebookEntryIdsByOpportunity(
+					pricebookIdByLostOpportunityId.keySet()
+				)
+			);
 
-            if (lineItemList.isEmpty()) {
-                return 0;
-            }
+			if (lineItemList.isEmpty()) {
+				return 0;
+			}
 
-            Integer createdCount = 0;
+			Integer createdCount = 0;
 
-            for (Database.SaveResult saveResult : Database.insert(lineItemList, false)) {
-                if (saveResult.isSuccess()) {
-                    createdCount++;
-                    continue;
-                }
+			for (Database.SaveResult saveResult : Database.insert(lineItemList, false)) {
+				if (saveResult.isSuccess()) {
+					createdCount++;
+					continue;
+				}
 
-                Logger.error(
-                    'Lost Business product was not copied: ' + saveResult.getErrors()[0].getMessage()
-                ).addTag(LOGGER_TAG);
-            }
+				Logger.error(
+					'Lost Business product was not copied: ' + saveResult.getErrors()[0].getMessage()
+				).addTag(LOGGER_TAG);
+			}
 
-            return createdCount;
-        } catch (Exception exceptionValue) {
-            Logger.error('Error copying originating products onto Lost Business opportunities', exceptionValue)
-                .addTag(LOGGER_TAG);
-            return 0;
-        } finally {
-            Logger.saveLog();
-        }
-    }
+			return createdCount;
+		} catch (Exception exceptionValue) {
+			Logger.error('Error copying originating products onto Lost Business opportunities', exceptionValue)
+				.addTag(LOGGER_TAG);
+			return 0;
+		} finally {
+			Logger.saveLog();
+		}
+	}
 
     /**
      * @description
@@ -355,25 +355,25 @@ public with sharing class LostBusinessProductService {
      * @example
      * toOriginatingRow(lineItem);
      */
-    private static LostBusinessProductController.OriginatingProductRow toOriginatingRow(
-        OpportunityLineItem lineItem
-    ) {
-        LostBusinessProductController.OriginatingProductRow productRow =
-            new LostBusinessProductController.OriginatingProductRow();
-        productRow.sourceLineItemId = lineItem.Id;
-        productRow.productId = lineItem.PricebookEntry.Product2Id;
-        productRow.productName = lineItem.PricebookEntry.Product2.Name;
-        productRow.productSku = lineItem.PricebookEntry.Product2.ProductCode;
-        productRow.quantity = lineItem.Quantity;
-        productRow.consumptionFrequency = lineItem.ConsumptionFrequency__c;
-        productRow.unitPrice = lineItem.UnitPrice;
-        productRow.pricebookEntryId = lineItem.PricebookEntryId;
-        productRow.copyable = lineItem.PricebookEntry.IsActive == true;
-        productRow.unavailableReason = productRow.copyable
-            ? null
-            : 'This product cannot be copied because its price book entry is inactive.';
-        return productRow;
-    }
+	private static LostBusinessProductController.OriginatingProductRow toOriginatingRow(
+		OpportunityLineItem lineItem
+	) {
+		LostBusinessProductController.OriginatingProductRow productRow =
+			new LostBusinessProductController.OriginatingProductRow();
+		productRow.sourceLineItemId = lineItem.Id;
+		productRow.productId = lineItem.PricebookEntry.Product2Id;
+		productRow.productName = lineItem.PricebookEntry.Product2.Name;
+		productRow.productSku = lineItem.PricebookEntry.Product2.ProductCode;
+		productRow.quantity = lineItem.Quantity;
+		productRow.consumptionFrequency = lineItem.ConsumptionFrequency__c;
+		productRow.unitPrice = lineItem.UnitPrice;
+		productRow.pricebookEntryId = lineItem.PricebookEntryId;
+		productRow.copyable = lineItem.PricebookEntry.IsActive == true;
+		productRow.unavailableReason = productRow.copyable
+			? null
+			: 'This product cannot be copied because its price book entry is inactive.';
+		return productRow;
+	}
 
     /**
      * @description
@@ -391,121 +391,121 @@ public with sharing class LostBusinessProductService {
      * @example
      * buildCopiedLines(productInputs, lostOpportunityId, originatingOpportunityId, pricebookId, currencyCode, existingPricebookEntryIds, pricebookEntriesInThisSave);
      */
-    private static List<OpportunityLineItem> buildCopiedLines(
-        List<LostBusinessProductController.ProductInput> productInputs,
-        Id lostOpportunityId,
-        Id originatingOpportunityId,
-        Id pricebookId,
-        String currencyCode,
-        Set<Id> existingPricebookEntryIds,
-        Set<Id> pricebookEntriesInThisSave
-    ) {
-        Map<Id, LostBusinessProductController.ProductInput> inputByLineId =
-            new Map<Id, LostBusinessProductController.ProductInput>();
-        List<String> errorMessageList = new List<String>();
+	private static List<OpportunityLineItem> buildCopiedLines(
+		List<LostBusinessProductController.ProductInput> productInputs,
+		Id lostOpportunityId,
+		Id originatingOpportunityId,
+		Id pricebookId,
+		String currencyCode,
+		Set<Id> existingPricebookEntryIds,
+		Set<Id> pricebookEntriesInThisSave
+	) {
+		Map<Id, LostBusinessProductController.ProductInput> inputByLineId =
+			new Map<Id, LostBusinessProductController.ProductInput>();
+		List<String> errorMessageList = new List<String>();
 
-        for (LostBusinessProductController.ProductInput productInput : productInputs) {
-            if (productInput == null || String.isBlank(productInput.sourceLineItemId)) {
-                continue;
-            }
+		for (LostBusinessProductController.ProductInput productInput : productInputs) {
+			if (productInput == null || String.isBlank(productInput.sourceLineItemId)) {
+				continue;
+			}
 
-            if (productInput.quantity == null || productInput.quantity <= 0) {
-                errorMessageList.add('Quantity must be greater than zero for every selected product.');
-                continue;
-            }
+			if (productInput.quantity == null || productInput.quantity <= 0) {
+				errorMessageList.add('Quantity must be greater than zero for every selected product.');
+				continue;
+			}
 
-            try {
-                inputByLineId.put(Id.valueOf(productInput.sourceLineItemId), productInput);
-            } catch (System.StringException invalidIdException) {
-                errorMessageList.add('A selected product reference is not a valid Opportunity Product.');
-            }
-        }
+			try {
+				inputByLineId.put(Id.valueOf(productInput.sourceLineItemId), productInput);
+			} catch (System.StringException invalidIdException) {
+				errorMessageList.add('A selected product reference is not a valid Opportunity Product.');
+			}
+		}
 
-        throwIfErrors(errorMessageList);
+		throwIfErrors(errorMessageList);
 
-        if (inputByLineId.isEmpty()) {
-            return new List<OpportunityLineItem>();
-        }
+		if (inputByLineId.isEmpty()) {
+			return new List<OpportunityLineItem>();
+		}
 
-        if (originatingOpportunityId == null) {
-            throw new LostBusinessProductException(
-                'An originating Opportunity is required to copy products.'
-            );
-        }
+		if (originatingOpportunityId == null) {
+			throw new LostBusinessProductException(
+				'An originating Opportunity is required to copy products.'
+			);
+		}
 
-        Map<Id, OpportunityLineItem> sourceLineById = new Map<Id, OpportunityLineItem>(
-            LostBusinessProductSelector.selectLinesByIdsAndOpportunity(
-                inputByLineId.keySet(),
-                originatingOpportunityId
-            )
-        );
+		Map<Id, OpportunityLineItem> sourceLineById = new Map<Id, OpportunityLineItem>(
+			LostBusinessProductSelector.selectLinesByIdsAndOpportunity(
+				inputByLineId.keySet(),
+				originatingOpportunityId
+			)
+		);
 
-        Set<Id> productIdsNeedingEntry = new Set<Id>();
+		Set<Id> productIdsNeedingEntry = new Set<Id>();
 
-        for (Id lineItemId : inputByLineId.keySet()) {
-            OpportunityLineItem sourceLine = sourceLineById.get(lineItemId);
+		for (Id lineItemId : inputByLineId.keySet()) {
+			OpportunityLineItem sourceLine = sourceLineById.get(lineItemId);
 
-            if (sourceLine == null) {
-                errorMessageList.add('A selected product does not belong to the originating opportunity.');
-                continue;
-            }
+			if (sourceLine == null) {
+				errorMessageList.add('A selected product does not belong to the originating opportunity.');
+				continue;
+			}
 
-            if (!canReusePricebookEntry(sourceLine, pricebookId, currencyCode)) {
-                productIdsNeedingEntry.add(sourceLine.PricebookEntry.Product2Id);
-            }
-        }
+			if (!canReusePricebookEntry(sourceLine, pricebookId, currencyCode)) {
+				productIdsNeedingEntry.add(sourceLine.PricebookEntry.Product2Id);
+			}
+		}
 
-        throwIfErrors(errorMessageList);
+		throwIfErrors(errorMessageList);
 
-        Map<Id, PricebookEntry> entryByProductId = entryByProductId(
-            pricebookId,
-            productIdsNeedingEntry,
-            currencyCode
-        );
-        List<OpportunityLineItem> lineItemList = new List<OpportunityLineItem>();
+		Map<Id, PricebookEntry> entryByProductId = entryByProductId(
+			pricebookId,
+			productIdsNeedingEntry,
+			currencyCode
+		);
+		List<OpportunityLineItem> lineItemList = new List<OpportunityLineItem>();
 
-        for (Id lineItemId : inputByLineId.keySet()) {
-            OpportunityLineItem sourceLine = sourceLineById.get(lineItemId);
-            LostBusinessProductController.ProductInput productInput = inputByLineId.get(lineItemId);
-            PricebookEntry pricebookEntry = resolveCopyEntry(
-                sourceLine,
-                pricebookId,
-                currencyCode,
-                entryByProductId
-            );
+		for (Id lineItemId : inputByLineId.keySet()) {
+			OpportunityLineItem sourceLine = sourceLineById.get(lineItemId);
+			LostBusinessProductController.ProductInput productInput = inputByLineId.get(lineItemId);
+			PricebookEntry pricebookEntry = resolveCopyEntry(
+				sourceLine,
+				pricebookId,
+				currencyCode,
+				entryByProductId
+			);
 
-            if (pricebookEntry == null) {
-                errorMessageList.add(
-                    sourceLine.PricebookEntry.Product2.Name +
-                    ' cannot be copied because its price book entry is inactive.'
-                );
-                continue;
-            }
+			if (pricebookEntry == null) {
+				errorMessageList.add(
+					sourceLine.PricebookEntry.Product2.Name +
+					' cannot be copied because its price book entry is inactive.'
+				);
+				continue;
+			}
 
-            if (existingPricebookEntryIds.contains(pricebookEntry.Id)) {
-                continue;
-            }
+			if (existingPricebookEntryIds.contains(pricebookEntry.Id)) {
+				continue;
+			}
 
-            if (pricebookEntriesInThisSave.contains(pricebookEntry.Id)) {
-                errorMessageList.add(
-                    'Two selected products use the same price book entry and cannot both be added.'
-                );
-                continue;
-            }
+			if (pricebookEntriesInThisSave.contains(pricebookEntry.Id)) {
+				errorMessageList.add(
+					'Two selected products use the same price book entry and cannot both be added.'
+				);
+				continue;
+			}
 
-            pricebookEntriesInThisSave.add(pricebookEntry.Id);
-            lineItemList.add(new OpportunityLineItem(
-                OpportunityId = lostOpportunityId,
-                PricebookEntryId = pricebookEntry.Id,
-                Quantity = productInput.quantity,
-                UnitPrice = sourceLine.UnitPrice == null ? pricebookEntry.UnitPrice : sourceLine.UnitPrice,
-                ConsumptionFrequency__c = blankToNull(productInput.consumptionFrequency)
-            ));
-        }
+			pricebookEntriesInThisSave.add(pricebookEntry.Id);
+			lineItemList.add(new OpportunityLineItem(
+				OpportunityId = lostOpportunityId,
+				PricebookEntryId = pricebookEntry.Id,
+				Quantity = productInput.quantity,
+				UnitPrice = sourceLine.UnitPrice == null ? pricebookEntry.UnitPrice : sourceLine.UnitPrice,
+				ConsumptionFrequency__c = blankToNull(productInput.consumptionFrequency)
+			));
+		}
 
-        throwIfErrors(errorMessageList);
-        return lineItemList;
-    }
+		throwIfErrors(errorMessageList);
+		return lineItemList;
+	}
 
     /**
      * @description
@@ -522,111 +522,111 @@ public with sharing class LostBusinessProductService {
      * @example
      * buildCatalogLines(productInputs, lostOpportunityId, pricebookId, currencyCode, existingPricebookEntryIds, pricebookEntriesInThisSave);
      */
-    private static List<OpportunityLineItem> buildCatalogLines(
-        List<LostBusinessProductController.ProductInput> productInputs,
-        Id lostOpportunityId,
-        Id pricebookId,
-        String currencyCode,
-        Set<Id> existingPricebookEntryIds,
-        Set<Id> pricebookEntriesInThisSave
-    ) {
-        Map<Id, LostBusinessProductController.ProductInput> inputByProductId =
-            new Map<Id, LostBusinessProductController.ProductInput>();
-        List<String> errorMessageList = new List<String>();
+	private static List<OpportunityLineItem> buildCatalogLines(
+		List<LostBusinessProductController.ProductInput> productInputs,
+		Id lostOpportunityId,
+		Id pricebookId,
+		String currencyCode,
+		Set<Id> existingPricebookEntryIds,
+		Set<Id> pricebookEntriesInThisSave
+	) {
+		Map<Id, LostBusinessProductController.ProductInput> inputByProductId =
+			new Map<Id, LostBusinessProductController.ProductInput>();
+		List<String> errorMessageList = new List<String>();
 
-        for (LostBusinessProductController.ProductInput productInput : productInputs) {
-            if (productInput == null || String.isNotBlank(productInput.sourceLineItemId)) {
-                continue;
-            }
+		for (LostBusinessProductController.ProductInput productInput : productInputs) {
+			if (productInput == null || String.isNotBlank(productInput.sourceLineItemId)) {
+				continue;
+			}
 
-            if (String.isBlank(productInput.productId)) {
-                errorMessageList.add('A selected product is missing its product reference.');
-                continue;
-            }
+			if (String.isBlank(productInput.productId)) {
+				errorMessageList.add('A selected product is missing its product reference.');
+				continue;
+			}
 
-            if (productInput.quantity == null || productInput.quantity <= 0) {
-                errorMessageList.add('Quantity must be greater than zero for every selected product.');
-                continue;
-            }
+			if (productInput.quantity == null || productInput.quantity <= 0) {
+				errorMessageList.add('Quantity must be greater than zero for every selected product.');
+				continue;
+			}
 
-            if (productInput.unitPrice != null && productInput.unitPrice < 0) {
-                errorMessageList.add('Unit Price cannot be negative.');
-                continue;
-            }
+			if (productInput.unitPrice != null && productInput.unitPrice < 0) {
+				errorMessageList.add('Unit Price cannot be negative.');
+				continue;
+			}
 
-            if (blankToNull(productInput.contractValue) != null
-                && productInput.contractValue.trim().length() > CONTRACT_MAX_LENGTH) {
-                errorMessageList.add('Contract cannot be longer than 18 characters.');
-                continue;
-            }
+			if (blankToNull(productInput.contractValue) != null
+				&& productInput.contractValue.trim().length() > CONTRACT_MAX_LENGTH) {
+				errorMessageList.add('Contract cannot be longer than 18 characters.');
+				continue;
+			}
 
-            if (blankToNull(productInput.comments) != null
-                && productInput.comments.trim().length() > COMMENTS_MAX_LENGTH) {
-                errorMessageList.add('Comments cannot be longer than 250 characters.');
-                continue;
-            }
+			if (blankToNull(productInput.comments) != null
+				&& productInput.comments.trim().length() > COMMENTS_MAX_LENGTH) {
+				errorMessageList.add('Comments cannot be longer than 250 characters.');
+				continue;
+			}
 
-            try {
-                inputByProductId.put(Id.valueOf(productInput.productId), productInput);
-            } catch (System.StringException invalidIdException) {
-                errorMessageList.add('A selected product reference is not a valid product.');
-            }
-        }
+			try {
+				inputByProductId.put(Id.valueOf(productInput.productId), productInput);
+			} catch (System.StringException invalidIdException) {
+				errorMessageList.add('A selected product reference is not a valid product.');
+			}
+		}
 
-        throwIfErrors(errorMessageList);
+		throwIfErrors(errorMessageList);
 
-        if (inputByProductId.isEmpty()) {
-            return new List<OpportunityLineItem>();
-        }
+		if (inputByProductId.isEmpty()) {
+			return new List<OpportunityLineItem>();
+		}
 
-        Map<Id, Product2> activeProductById =
-            LostBusinessProductSelector.selectActiveProducts(inputByProductId.keySet());
-        Map<Id, PricebookEntry> entryByProductId = entryByProductId(
-            pricebookId,
-            inputByProductId.keySet(),
-            currencyCode
-        );
-        List<OpportunityLineItem> lineItemList = new List<OpportunityLineItem>();
+		Map<Id, Product2> activeProductById =
+			LostBusinessProductSelector.selectActiveProducts(inputByProductId.keySet());
+		Map<Id, PricebookEntry> entryByProductId = entryByProductId(
+			pricebookId,
+			inputByProductId.keySet(),
+			currencyCode
+		);
+		List<OpportunityLineItem> lineItemList = new List<OpportunityLineItem>();
 
-        for (Id productId : inputByProductId.keySet()) {
-            Product2 product = activeProductById.get(productId);
+		for (Id productId : inputByProductId.keySet()) {
+			Product2 product = activeProductById.get(productId);
 
-            if (product == null) {
-                errorMessageList.add('One or more selected products are no longer active.');
-                continue;
-            }
+			if (product == null) {
+				errorMessageList.add('One or more selected products are no longer active.');
+				continue;
+			}
 
-            PricebookEntry pricebookEntry = entryByProductId.get(productId);
+			PricebookEntry pricebookEntry = entryByProductId.get(productId);
 
-            if (pricebookEntry == null) {
-                errorMessageList.add(product.Name + ' is not available on the opportunity price book.');
-                continue;
-            }
+			if (pricebookEntry == null) {
+				errorMessageList.add(product.Name + ' is not available on the opportunity price book.');
+				continue;
+			}
 
-            if (existingPricebookEntryIds.contains(pricebookEntry.Id)
-                || pricebookEntriesInThisSave.contains(pricebookEntry.Id)) {
-                continue;
-            }
+			if (existingPricebookEntryIds.contains(pricebookEntry.Id)
+				|| pricebookEntriesInThisSave.contains(pricebookEntry.Id)) {
+				continue;
+			}
 
-            LostBusinessProductController.ProductInput productInput = inputByProductId.get(productId);
-            pricebookEntriesInThisSave.add(pricebookEntry.Id);
-            lineItemList.add(new OpportunityLineItem(
-                OpportunityId = lostOpportunityId,
-                PricebookEntryId = pricebookEntry.Id,
-                Quantity = productInput.quantity,
-                UnitPrice = productInput.unitPrice == null ? pricebookEntry.UnitPrice : productInput.unitPrice,
-                ConsumptionFrequency__c = blankToNull(productInput.consumptionFrequency),
-                Status__c = blankToNull(productInput.status),
-                ConfidenceLevel__c = blankToNull(productInput.confidenceLevel),
-                ExpectedShipDate_ConsumptionStart__c = productInput.expectedShipDate,
-                Contract__c = blankToNull(productInput.contractValue),
-                Comments__c = blankToNull(productInput.comments)
-            ));
-        }
+			LostBusinessProductController.ProductInput productInput = inputByProductId.get(productId);
+			pricebookEntriesInThisSave.add(pricebookEntry.Id);
+			lineItemList.add(new OpportunityLineItem(
+				OpportunityId = lostOpportunityId,
+				PricebookEntryId = pricebookEntry.Id,
+				Quantity = productInput.quantity,
+				UnitPrice = productInput.unitPrice == null ? pricebookEntry.UnitPrice : productInput.unitPrice,
+				ConsumptionFrequency__c = blankToNull(productInput.consumptionFrequency),
+				Status__c = blankToNull(productInput.status),
+				ConfidenceLevel__c = blankToNull(productInput.confidenceLevel),
+				ExpectedShipDate_ConsumptionStart__c = productInput.expectedShipDate,
+				Contract__c = blankToNull(productInput.contractValue),
+				Comments__c = blankToNull(productInput.comments)
+			));
+		}
 
-        throwIfErrors(errorMessageList);
-        return lineItemList;
-    }
+		throwIfErrors(errorMessageList);
+		return lineItemList;
+	}
 
     /**
      * @description
@@ -639,48 +639,48 @@ public with sharing class LostBusinessProductService {
      * @example
      * resolveCopyPricebooks(lostOpportunityList);
      */
-    private static Map<Id, Id> resolveCopyPricebooks(List<Opportunity> lostOpportunityList) {
-        Map<Id, Id> pricebookIdByLostOpportunityId = new Map<Id, Id>();
-        List<Opportunity> pricebookUpdates = new List<Opportunity>();
-        Id standardPricebookId;
+	private static Map<Id, Id> resolveCopyPricebooks(List<Opportunity> lostOpportunityList) {
+		Map<Id, Id> pricebookIdByLostOpportunityId = new Map<Id, Id>();
+		List<Opportunity> pricebookUpdates = new List<Opportunity>();
+		Id standardPricebookId;
 
-        for (Opportunity lostOpportunity : lostOpportunityList) {
-            Id pricebookId = lostOpportunity.Pricebook2Id;
+		for (Opportunity lostOpportunity : lostOpportunityList) {
+			Id pricebookId = lostOpportunity.Pricebook2Id;
 
-            if (pricebookId == null && lostOpportunity.OriginatingOpportunity__r != null) {
-                pricebookId = lostOpportunity.OriginatingOpportunity__r.Pricebook2Id;
-            }
+			if (pricebookId == null && lostOpportunity.OriginatingOpportunity__r != null) {
+				pricebookId = lostOpportunity.OriginatingOpportunity__r.Pricebook2Id;
+			}
 
-            if (pricebookId == null) {
-                if (standardPricebookId == null) {
-                    standardPricebookId = LostBusinessProductSelector.selectStandardPricebookId();
-                }
-                pricebookId = standardPricebookId;
-            }
+			if (pricebookId == null) {
+				if (standardPricebookId == null) {
+					standardPricebookId = LostBusinessProductSelector.selectStandardPricebookId();
+				}
+				pricebookId = standardPricebookId;
+			}
 
-            if (pricebookId == null) {
-                continue;
-            }
+			if (pricebookId == null) {
+				continue;
+			}
 
-            pricebookIdByLostOpportunityId.put(lostOpportunity.Id, pricebookId);
+			pricebookIdByLostOpportunityId.put(lostOpportunity.Id, pricebookId);
 
-            if (lostOpportunity.Pricebook2Id != null) {
-                continue;
-            }
+			if (lostOpportunity.Pricebook2Id != null) {
+				continue;
+			}
 
-            pricebookUpdates.add(new Opportunity(
-                Id = lostOpportunity.Id,
-                Pricebook2Id = pricebookId
-            ));
-            lostOpportunity.Pricebook2Id = pricebookId;
-        }
+			pricebookUpdates.add(new Opportunity(
+				Id = lostOpportunity.Id,
+				Pricebook2Id = pricebookId
+			));
+			lostOpportunity.Pricebook2Id = pricebookId;
+		}
 
-        if (!pricebookUpdates.isEmpty()) {
-            update pricebookUpdates;
-        }
+		if (!pricebookUpdates.isEmpty()) {
+			update pricebookUpdates;
+		}
 
-        return pricebookIdByLostOpportunityId;
-    }
+		return pricebookIdByLostOpportunityId;
+	}
 
     /**
      * @description
@@ -696,124 +696,124 @@ public with sharing class LostBusinessProductService {
      * @example
      * linesToCopy(lostOpportunityList, pricebookIdByLostOpportunityId, sourceLinesByOpportunityId, existingPricebookEntryIdsByOpportunityId);
      */
-    private static List<OpportunityLineItem> linesToCopy(
-        List<Opportunity> lostOpportunityList,
-        Map<Id, Id> pricebookIdByLostOpportunityId,
-        Map<Id, List<OpportunityLineItem>> sourceLinesByOpportunityId,
-        Map<Id, Set<Id>> existingPricebookEntryIdsByOpportunityId
-    ) {
-        Map<Id, Map<String, Set<Id>>> productIdsByPricebook = new Map<Id, Map<String, Set<Id>>>();
+	private static List<OpportunityLineItem> linesToCopy(
+		List<Opportunity> lostOpportunityList,
+		Map<Id, Id> pricebookIdByLostOpportunityId,
+		Map<Id, List<OpportunityLineItem>> sourceLinesByOpportunityId,
+		Map<Id, Set<Id>> existingPricebookEntryIdsByOpportunityId
+	) {
+		Map<Id, Map<String, Set<Id>>> productIdsByPricebook = new Map<Id, Map<String, Set<Id>>>();
 
-        for (Opportunity lostOpportunity : lostOpportunityList) {
-            Id pricebookId = pricebookIdByLostOpportunityId.get(lostOpportunity.Id);
-            List<OpportunityLineItem> sourceLines =
-                sourceLinesByOpportunityId.get(lostOpportunity.OriginatingOpportunity__c);
+		for (Opportunity lostOpportunity : lostOpportunityList) {
+			Id pricebookId = pricebookIdByLostOpportunityId.get(lostOpportunity.Id);
+			List<OpportunityLineItem> sourceLines =
+				sourceLinesByOpportunityId.get(lostOpportunity.OriginatingOpportunity__c);
 
-            if (pricebookId == null || sourceLines == null) {
-                continue;
-            }
+			if (pricebookId == null || sourceLines == null) {
+				continue;
+			}
 
-            String currencyMapKey = lostOpportunity.CurrencyIsoCode == null ? '' : lostOpportunity.CurrencyIsoCode;
-            Map<String, Set<Id>> productIdsByCurrency = productIdsByPricebook.get(pricebookId);
+			String currencyMapKey = lostOpportunity.CurrencyIsoCode == null ? '' : lostOpportunity.CurrencyIsoCode;
+			Map<String, Set<Id>> productIdsByCurrency = productIdsByPricebook.get(pricebookId);
 
-            if (productIdsByCurrency == null) {
-                productIdsByCurrency = new Map<String, Set<Id>>();
-                productIdsByPricebook.put(pricebookId, productIdsByCurrency);
-            }
+			if (productIdsByCurrency == null) {
+				productIdsByCurrency = new Map<String, Set<Id>>();
+				productIdsByPricebook.put(pricebookId, productIdsByCurrency);
+			}
 
-            Set<Id> productIds = productIdsByCurrency.get(currencyMapKey);
+			Set<Id> productIds = productIdsByCurrency.get(currencyMapKey);
 
-            if (productIds == null) {
-                productIds = new Set<Id>();
-                productIdsByCurrency.put(currencyMapKey, productIds);
-            }
+			if (productIds == null) {
+				productIds = new Set<Id>();
+				productIdsByCurrency.put(currencyMapKey, productIds);
+			}
 
-            for (OpportunityLineItem sourceLine : sourceLines) {
-                if (sourceLine.PricebookEntry != null && sourceLine.PricebookEntry.Product2Id != null) {
-                    productIds.add(sourceLine.PricebookEntry.Product2Id);
-                }
-            }
-        }
+			for (OpportunityLineItem sourceLine : sourceLines) {
+				if (sourceLine.PricebookEntry != null && sourceLine.PricebookEntry.Product2Id != null) {
+					productIds.add(sourceLine.PricebookEntry.Product2Id);
+				}
+			}
+		}
 
-        Map<Id, Map<String, Map<Id, PricebookEntry>>> entriesByPricebook =
-            new Map<Id, Map<String, Map<Id, PricebookEntry>>>();
+		Map<Id, Map<String, Map<Id, PricebookEntry>>> entriesByPricebook =
+			new Map<Id, Map<String, Map<Id, PricebookEntry>>>();
 
-        for (Id pricebookId : productIdsByPricebook.keySet()) {
-            Map<String, Map<Id, PricebookEntry>> entriesByCurrency = new Map<String, Map<Id, PricebookEntry>>();
-            entriesByPricebook.put(pricebookId, entriesByCurrency);
+		for (Id pricebookId : productIdsByPricebook.keySet()) {
+			Map<String, Map<Id, PricebookEntry>> entriesByCurrency = new Map<String, Map<Id, PricebookEntry>>();
+			entriesByPricebook.put(pricebookId, entriesByCurrency);
 
-            for (String currencyMapKey : productIdsByPricebook.get(pricebookId).keySet()) {
-                entriesByCurrency.put(
-                    currencyMapKey,
-                    entryByProductId(
-                        pricebookId,
-                        productIdsByPricebook.get(pricebookId).get(currencyMapKey),
-                        currencyMapKey
-                    )
-                );
-            }
-        }
+			for (String currencyMapKey : productIdsByPricebook.get(pricebookId).keySet()) {
+				entriesByCurrency.put(
+					currencyMapKey,
+					entryByProductId(
+						pricebookId,
+						productIdsByPricebook.get(pricebookId).get(currencyMapKey),
+						currencyMapKey
+					)
+				);
+			}
+		}
 
-        List<OpportunityLineItem> lineItemList = new List<OpportunityLineItem>();
-        Set<String> pricebookEntriesInThisSave = new Set<String>();
+		List<OpportunityLineItem> lineItemList = new List<OpportunityLineItem>();
+		Set<String> pricebookEntriesInThisSave = new Set<String>();
 
-        for (Opportunity lostOpportunity : lostOpportunityList) {
-            Id pricebookId = pricebookIdByLostOpportunityId.get(lostOpportunity.Id);
-            List<OpportunityLineItem> sourceLines =
-                sourceLinesByOpportunityId.get(lostOpportunity.OriginatingOpportunity__c);
+		for (Opportunity lostOpportunity : lostOpportunityList) {
+			Id pricebookId = pricebookIdByLostOpportunityId.get(lostOpportunity.Id);
+			List<OpportunityLineItem> sourceLines =
+				sourceLinesByOpportunityId.get(lostOpportunity.OriginatingOpportunity__c);
 
-            if (pricebookId == null || sourceLines == null) {
-                continue;
-            }
+			if (pricebookId == null || sourceLines == null) {
+				continue;
+			}
 
-            Set<Id> existingPricebookEntryIds = existingPricebookEntryIdsByOpportunityId.containsKey(lostOpportunity.Id)
-                ? existingPricebookEntryIdsByOpportunityId.get(lostOpportunity.Id)
-                : new Set<Id>();
-            Map<String, Map<Id, PricebookEntry>> entriesByCurrency = entriesByPricebook.get(pricebookId);
-            String currencyMapKey = lostOpportunity.CurrencyIsoCode == null ? '' : lostOpportunity.CurrencyIsoCode;
-            Map<Id, PricebookEntry> entryByProduct = entriesByCurrency == null
-                ? null
-                : entriesByCurrency.get(currencyMapKey);
+			Set<Id> existingPricebookEntryIds = existingPricebookEntryIdsByOpportunityId.containsKey(lostOpportunity.Id)
+				? existingPricebookEntryIdsByOpportunityId.get(lostOpportunity.Id)
+				: new Set<Id>();
+			Map<String, Map<Id, PricebookEntry>> entriesByCurrency = entriesByPricebook.get(pricebookId);
+			String currencyMapKey = lostOpportunity.CurrencyIsoCode == null ? '' : lostOpportunity.CurrencyIsoCode;
+			Map<Id, PricebookEntry> entryByProduct = entriesByCurrency == null
+				? null
+				: entriesByCurrency.get(currencyMapKey);
 
-            if (entryByProduct == null) {
-                entryByProduct = new Map<Id, PricebookEntry>();
-            }
+			if (entryByProduct == null) {
+				entryByProduct = new Map<Id, PricebookEntry>();
+			}
 
-            for (OpportunityLineItem sourceLine : sourceLines) {
-                if (sourceLine.Quantity == null || sourceLine.Quantity <= 0) {
-                    continue;
-                }
+			for (OpportunityLineItem sourceLine : sourceLines) {
+				if (sourceLine.Quantity == null || sourceLine.Quantity <= 0) {
+					continue;
+				}
 
-                PricebookEntry pricebookEntry = resolveCopyEntry(
-                    sourceLine,
-                    pricebookId,
-                    lostOpportunity.CurrencyIsoCode,
-                    entryByProduct
-                );
+				PricebookEntry pricebookEntry = resolveCopyEntry(
+					sourceLine,
+					pricebookId,
+					lostOpportunity.CurrencyIsoCode,
+					entryByProduct
+				);
 
-                if (pricebookEntry == null || existingPricebookEntryIds.contains(pricebookEntry.Id)) {
-                    continue;
-                }
+				if (pricebookEntry == null || existingPricebookEntryIds.contains(pricebookEntry.Id)) {
+					continue;
+				}
 
-                String saveKey = String.valueOf(lostOpportunity.Id) + String.valueOf(pricebookEntry.Id);
+				String saveKey = String.valueOf(lostOpportunity.Id) + String.valueOf(pricebookEntry.Id);
 
-                if (pricebookEntriesInThisSave.contains(saveKey)) {
-                    continue;
-                }
+				if (pricebookEntriesInThisSave.contains(saveKey)) {
+					continue;
+				}
 
-                pricebookEntriesInThisSave.add(saveKey);
-                lineItemList.add(new OpportunityLineItem(
-                    OpportunityId = lostOpportunity.Id,
-                    PricebookEntryId = pricebookEntry.Id,
-                    Quantity = sourceLine.Quantity,
-                    UnitPrice = sourceLine.UnitPrice == null ? pricebookEntry.UnitPrice : sourceLine.UnitPrice,
-                    ConsumptionFrequency__c = blankToNull(sourceLine.ConsumptionFrequency__c)
-                ));
-            }
-        }
+				pricebookEntriesInThisSave.add(saveKey);
+				lineItemList.add(new OpportunityLineItem(
+					OpportunityId = lostOpportunity.Id,
+					PricebookEntryId = pricebookEntry.Id,
+					Quantity = sourceLine.Quantity,
+					UnitPrice = sourceLine.UnitPrice == null ? pricebookEntry.UnitPrice : sourceLine.UnitPrice,
+					ConsumptionFrequency__c = blankToNull(sourceLine.ConsumptionFrequency__c)
+				));
+			}
+		}
 
-        return lineItemList;
-    }
+		return lineItemList;
+	}
 
     /**
      * @description
@@ -827,22 +827,22 @@ public with sharing class LostBusinessProductService {
      * @example
      * resolvePricebookId(lostOpportunity, originatingOpportunityId);
      */
-    private static Id resolvePricebookId(Opportunity lostOpportunity, Id originatingOpportunityId) {
-        if (lostOpportunity.Pricebook2Id != null) {
-            return lostOpportunity.Pricebook2Id;
-        }
+	private static Id resolvePricebookId(Opportunity lostOpportunity, Id originatingOpportunityId) {
+		if (lostOpportunity.Pricebook2Id != null) {
+			return lostOpportunity.Pricebook2Id;
+		}
 
-        if (originatingOpportunityId != null) {
-            Opportunity originatingOpportunity =
-                LostBusinessProductSelector.selectOpportunityById(originatingOpportunityId);
+		if (originatingOpportunityId != null) {
+			Opportunity originatingOpportunity =
+				LostBusinessProductSelector.selectOpportunityById(originatingOpportunityId);
 
-            if (originatingOpportunity != null && originatingOpportunity.Pricebook2Id != null) {
-                return originatingOpportunity.Pricebook2Id;
-            }
-        }
+			if (originatingOpportunity != null && originatingOpportunity.Pricebook2Id != null) {
+				return originatingOpportunity.Pricebook2Id;
+			}
+		}
 
-        return LostBusinessProductSelector.selectStandardPricebookId();
-    }
+		return LostBusinessProductSelector.selectStandardPricebookId();
+	}
 
     /**
      * @description
@@ -854,21 +854,21 @@ public with sharing class LostBusinessProductService {
      * @example
      * ensurePricebook(lostOpportunity, pricebookId);
      */
-    private static void ensurePricebook(Opportunity lostOpportunity, Id pricebookId) {
-        if (pricebookId == null) {
-            throw new LostBusinessProductException('A price book is required before products can be added.');
-        }
+	private static void ensurePricebook(Opportunity lostOpportunity, Id pricebookId) {
+		if (pricebookId == null) {
+			throw new LostBusinessProductException('A price book is required before products can be added.');
+		}
 
-        if (lostOpportunity.Pricebook2Id != null) {
-            return;
-        }
+		if (lostOpportunity.Pricebook2Id != null) {
+			return;
+		}
 
-        update new Opportunity(
-            Id = lostOpportunity.Id,
-            Pricebook2Id = pricebookId
-        );
-        lostOpportunity.Pricebook2Id = pricebookId;
-    }
+		update new Opportunity(
+			Id = lostOpportunity.Id,
+			Pricebook2Id = pricebookId
+		);
+		lostOpportunity.Pricebook2Id = pricebookId;
+	}
 
     /**
      * @description
@@ -883,17 +883,17 @@ public with sharing class LostBusinessProductService {
      * @example
      * canReusePricebookEntry(sourceLine, pricebookId, currencyCode);
      */
-    private static Boolean canReusePricebookEntry(
-        OpportunityLineItem sourceLine,
-        Id pricebookId,
-        String currencyCode
-    ) {
-        PricebookEntry pricebookEntry = sourceLine.PricebookEntry;
-        return pricebookEntry != null
-            && pricebookEntry.IsActive == true
-            && pricebookEntry.Pricebook2Id == pricebookId
-            && pricebookEntry.CurrencyIsoCode == currencyCode;
-    }
+	private static Boolean canReusePricebookEntry(
+		OpportunityLineItem sourceLine,
+		Id pricebookId,
+		String currencyCode
+	) {
+		PricebookEntry pricebookEntry = sourceLine.PricebookEntry;
+		return pricebookEntry != null
+			&& pricebookEntry.IsActive == true
+			&& pricebookEntry.Pricebook2Id == pricebookId
+			&& pricebookEntry.CurrencyIsoCode == currencyCode;
+	}
 
     /**
      * @description
@@ -909,18 +909,18 @@ public with sharing class LostBusinessProductService {
      * @example
      * resolveCopyEntry(sourceLine, pricebookId, currencyCode, entryByProductId);
      */
-    private static PricebookEntry resolveCopyEntry(
-        OpportunityLineItem sourceLine,
-        Id pricebookId,
-        String currencyCode,
-        Map<Id, PricebookEntry> entryByProductId
-    ) {
-        if (canReusePricebookEntry(sourceLine, pricebookId, currencyCode)) {
-            return sourceLine.PricebookEntry;
-        }
+	private static PricebookEntry resolveCopyEntry(
+		OpportunityLineItem sourceLine,
+		Id pricebookId,
+		String currencyCode,
+		Map<Id, PricebookEntry> entryByProductId
+	) {
+		if (canReusePricebookEntry(sourceLine, pricebookId, currencyCode)) {
+			return sourceLine.PricebookEntry;
+		}
 
-        return entryByProductId.get(sourceLine.PricebookEntry.Product2Id);
-    }
+		return entryByProductId.get(sourceLine.PricebookEntry.Product2Id);
+	}
 
     /**
      * @description
@@ -934,23 +934,23 @@ public with sharing class LostBusinessProductService {
      * @example
      * entryByProductId(pricebookId, productIds, currencyCode);
      */
-    private static Map<Id, PricebookEntry> entryByProductId(
-        Id pricebookId,
-        Set<Id> productIds,
-        String currencyCode
-    ) {
-        Map<Id, PricebookEntry> entryByProductId = new Map<Id, PricebookEntry>();
+	private static Map<Id, PricebookEntry> entryByProductId(
+		Id pricebookId,
+		Set<Id> productIds,
+		String currencyCode
+	) {
+		Map<Id, PricebookEntry> entryByProductId = new Map<Id, PricebookEntry>();
 
-        for (PricebookEntry pricebookEntry : LostBusinessProductSelector.selectActiveEntries(
-            pricebookId,
-            productIds,
-            currencyCode
-        )) {
-            entryByProductId.put(pricebookEntry.Product2Id, pricebookEntry);
-        }
+		for (PricebookEntry pricebookEntry : LostBusinessProductSelector.selectActiveEntries(
+			pricebookId,
+			productIds,
+			currencyCode
+		)) {
+			entryByProductId.put(pricebookEntry.Product2Id, pricebookEntry);
+		}
 
-        return entryByProductId;
-    }
+		return entryByProductId;
+	}
 
     /**
      * @description
@@ -962,24 +962,24 @@ public with sharing class LostBusinessProductService {
      * @example
      * parseProductInputs(productInputsJson);
      */
-    private static List<LostBusinessProductController.ProductInput> parseProductInputs(String productInputsJson) {
-        if (String.isBlank(productInputsJson)) {
-            return new List<LostBusinessProductController.ProductInput>();
-        }
+	private static List<LostBusinessProductController.ProductInput> parseProductInputs(String productInputsJson) {
+		if (String.isBlank(productInputsJson)) {
+			return new List<LostBusinessProductController.ProductInput>();
+		}
 
-        try {
-            List<LostBusinessProductController.ProductInput> productInputs =
-                (List<LostBusinessProductController.ProductInput>) JSON.deserialize(
-                    productInputsJson,
-                    List<LostBusinessProductController.ProductInput>.class
-                );
-            return productInputs == null
-                ? new List<LostBusinessProductController.ProductInput>()
-                : productInputs;
-        } catch (Exception parseException) {
-            throw new LostBusinessProductException('The selected products could not be read.');
-        }
-    }
+		try {
+			List<LostBusinessProductController.ProductInput> productInputs =
+				(List<LostBusinessProductController.ProductInput>) JSON.deserialize(
+					productInputsJson,
+					List<LostBusinessProductController.ProductInput>.class
+				);
+			return productInputs == null
+				? new List<LostBusinessProductController.ProductInput>()
+				: productInputs;
+		} catch (Exception parseException) {
+			throw new LostBusinessProductException('The selected products could not be read.');
+		}
+	}
 
     /**
      * @description
@@ -993,13 +993,13 @@ public with sharing class LostBusinessProductService {
      * @example
      * parseId(recordId, blankMessage, invalidMessage);
      */
-    private static Id parseId(String recordId, String blankMessage, String invalidMessage) {
-        if (String.isBlank(recordId)) {
-            throw new LostBusinessProductException(blankMessage);
-        }
+	private static Id parseId(String recordId, String blankMessage, String invalidMessage) {
+		if (String.isBlank(recordId)) {
+			throw new LostBusinessProductException(blankMessage);
+		}
 
-        return parseId(recordId, invalidMessage);
-    }
+		return parseId(recordId, invalidMessage);
+	}
 
     /**
      * @description
@@ -1012,13 +1012,13 @@ public with sharing class LostBusinessProductService {
      * @example
      * parseId(recordId, invalidMessage);
      */
-    private static Id parseId(String recordId, String invalidMessage) {
-        try {
-            return Id.valueOf(recordId);
-        } catch (Exception invalidIdException) {
-            throw new LostBusinessProductException(invalidMessage);
-        }
-    }
+	private static Id parseId(String recordId, String invalidMessage) {
+		try {
+			return Id.valueOf(recordId);
+		} catch (Exception invalidIdException) {
+			throw new LostBusinessProductException(invalidMessage);
+		}
+	}
 
     /**
      * @description
@@ -1029,11 +1029,11 @@ public with sharing class LostBusinessProductService {
      * @example
      * throwIfErrors(errorMessageList);
      */
-    private static void throwIfErrors(List<String> errorMessageList) {
-        if (!errorMessageList.isEmpty()) {
-            throw new LostBusinessProductException(String.join(errorMessageList, '\n'));
-        }
-    }
+	private static void throwIfErrors(List<String> errorMessageList) {
+		if (!errorMessageList.isEmpty()) {
+			throw new LostBusinessProductException(String.join(errorMessageList, '\n'));
+		}
+	}
 
     /**
      * @description
@@ -1045,9 +1045,9 @@ public with sharing class LostBusinessProductService {
      * @example
      * blankToNull(fieldValue);
      */
-    private static String blankToNull(String fieldValue) {
-        return String.isBlank(fieldValue) ? null : fieldValue.trim();
-    }
+	private static String blankToNull(String fieldValue) {
+		return String.isBlank(fieldValue) ? null : fieldValue.trim();
+	}
 
     /**
      * @description
@@ -1059,15 +1059,15 @@ public with sharing class LostBusinessProductService {
      * @example
      * dmlOrFallbackMessage(exceptionValue);
      */
-    private static String dmlOrFallbackMessage(Exception exceptionValue) {
-        if (exceptionValue instanceof DmlException) {
-            DmlException dmlException = (DmlException) exceptionValue;
+	private static String dmlOrFallbackMessage(Exception exceptionValue) {
+		if (exceptionValue instanceof DmlException) {
+			DmlException dmlException = (DmlException) exceptionValue;
 
-            if (dmlException.getNumDml() > 0) {
-                return dmlException.getDmlMessage(0);
-            }
-        }
+			if (dmlException.getNumDml() > 0) {
+				return dmlException.getDmlMessage(0);
+			}
+		}
 
-        return 'Unable to add products to the Lost Business Opportunity.';
-    }
+		return 'Unable to add products to the Lost Business Opportunity.';
+	}
 }

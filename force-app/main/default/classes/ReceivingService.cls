@@ -33,7 +33,7 @@ public with sharing class ReceivingService {
 		'DUN-NORTHAMPTON (UK)',
 		'CAPITAL EQUIPMENT REPAIR CENTER (PLY)'
 	};
-	/** GW-6057 - Inbox Support Case for Missing Return Order. */
+	/** GW-6057 - Customer and Technical Care Case for Missing Return Order. */
 	private static final String CASE_RECORD_TYPE_INBOX_SUPPORT = 'InboxSupport';
 	private static final String CASE_STATUS_NEW = 'New';
 	private static final String CASE_ORIGIN_REPAIR_SUPPORT = 'Repair Support';
@@ -464,7 +464,7 @@ public with sharing class ReceivingService {
 	}
 
 	/**
-	 * @description GW-6057 - Creates an Inbox Support Case for a missing Return Order and
+	 * @description GW-6057 - Creates an Customer and Technical Care Case for a missing Return Order and
 	 *              attaches staged shipping-label photos.
 	 * @param request Form values and staged ContentDocument Ids
 	 * @return Created Case Id
@@ -604,7 +604,7 @@ public with sharing class ReceivingService {
 			?.getRecordTypeId();
 		if (recordTypeId == null) {
 			throw new ReceivingServiceException(
-				'Unable to create Missing Return Order Case: Inbox Support record type was not found.'
+				'Unable to create Missing Return Order Case: Customer and Technical Care record type was not found.'
 			);
 		}
 		return recordTypeId;

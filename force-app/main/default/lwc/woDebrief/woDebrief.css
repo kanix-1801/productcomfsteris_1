@@ -45,19 +45,28 @@
 
 .header-fields {
 	display: flex;
-	flex-wrap: wrap;
+	flex-wrap: nowrap;
 	gap: 0;
 }
 
 .header-field {
-	flex: 1 1 25%;
-	min-width: 7rem;
+	flex: 1 1 0;
+	min-width: 0;
 	padding: 0.5rem 0.75rem;
 	border-right: 1px solid #f0f0f0;
 }
 
 .header-field:last-child {
 	border-right: none;
+}
+
+.header-field_summary {
+	flex: 2 1 0;
+}
+
+.field-value_wrap {
+	white-space: normal;
+	overflow-wrap: anywhere;
 }
 
 .field-label {

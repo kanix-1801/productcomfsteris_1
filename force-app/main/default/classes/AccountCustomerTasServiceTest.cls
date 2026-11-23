@@ -743,8 +743,8 @@ public class AccountCustomerTasServiceTest {
                 OrgIDs__c = '82',
                 BillingStreet = '123 Main St',
                 BillingCity = 'Cleveland',
-                BillingState = 'Ohio',
-                BillingCountry = 'United States',
+                BillingState = 'OH',
+                BillingCountry = 'US',
                 BillingPostalCode = '44101'
             );
 
@@ -856,6 +856,95 @@ public class AccountCustomerTasServiceTest {
             saveResults[0].getErrors().size() > 0,
             'Failed SaveResult must contain Database.Error.'
         );
+    }
+
+    /**
+     * @description Covers the Life Sciences employee lookup branch.
+     */
+    @IsTest
+    static void testLifeSciencesAccountUsesLifeSciencesUserLookup() {
+        User runningUser = getRunningUser();
+        Id customerRecordTypeId = getCustomerRecordTypeId();
+        String suffix = uniqueSuffix();
+
+        System.runAs(runningUser) {
+            Account accountRecord = createCustomerAccount(
+                'Customer Life Sciences Lookup',
+                customerRecordTypeId,
+                suffix
+            );
+            accountRecord.CustomerClassCode__c = 'SC';
+            accountRecord.OracleAddressId__c = null;
+            insert accountRecord;
+
+            registerTasCalloutMock(buildInvalidEmployeeResponseJson(accountRecord.Id));
+
+            Test.startTest();
+            AccountCustomerTasIntegrationService.processAccounts(
+                AccountSelector.selectCustomerAccountsForTasByIds(new Set<Id>{ accountRecord.Id })
+            );
+            Test.stopTest();
+
+            System.assertEquals(
+                0,
+                [SELECT COUNT() FROM AccountTeamMember WHERE AccountId = :accountRecord.Id],
+                'An unmatched Life Sciences employee number must not create a team member.'
+            );
+        }
+    }
+
+    /**
+     * @description Covers the remaining Customer TAS branches: a query that cannot
+     *              build the request, an unmatched employee number, and a blank one.
+     */
+    @IsTest
+    static void testUnmatchedAndBlankEmployeeNumbersCreateNoTeamMember() {
+        User runningUser = getRunningUser();
+        Id customerRecordTypeId = getCustomerRecordTypeId();
+        String suffix = uniqueSuffix();
+
+        System.runAs(runningUser) {
+            AccountCustomerTasIntegrationService.logSaveResults('AccountTeamMember', null);
+
+            Account accountRecord = createCustomerAccount(
+                'Customer Unmatched Employee Test',
+                customerRecordTypeId,
+                suffix
+            );
+            insert accountRecord;
+
+            Account idOnlyAccount = [
+                SELECT Id
+                FROM Account
+                WHERE Id = :accountRecord.Id
+            ];
+            AccountCustomerTasIntegrationService.processAccounts(
+                new List<Account>{ idOnlyAccount }
+            );
+
+            User tasRep = [
+                SELECT FederationIdentifier
+                FROM User
+                WHERE Email LIKE 'custtasrep%'
+                ORDER BY Email
+                LIMIT 1
+            ];
+
+            Test.startTest();
+            registerTasCalloutMock(
+                buildMixedEmployeeResponseJson(accountRecord.Id, tasRep.FederationIdentifier)
+            );
+            AccountCustomerTasIntegrationService.processAccounts(
+                AccountSelector.selectCustomerAccountsForTasByIds(new Set<Id>{ accountRecord.Id })
+            );
+            Test.stopTest();
+
+            System.assertEquals(
+                1,
+                [SELECT COUNT() FROM AccountTeamMember WHERE AccountId = :accountRecord.Id],
+                'Only the matched TAS rep should be added when another employee number is blank or unknown.'
+            );
+        }
     }
 
     // =========================================================
@@ -1295,6 +1384,31 @@ public class AccountCustomerTasServiceTest {
      * @description Builds TAS response with an Employee Number
      *              that does not exist in Salesforce.
      */
+    private static String buildMixedEmployeeResponseJson(String prospectId, String validEmployeeNumber) {
+        return JSON.serialize(
+            new Map<String, Object>{
+                'prospectId' => prospectId,
+                'territoryData' => new List<Object>{
+                    new Map<String, Object>{
+                        'classCode' => 'HC',
+                        'salesRepEmployeeNumber' => '',
+                        'territoryNumber' => 'G66301'
+                    },
+                    new Map<String, Object>{
+                        'classCode' => 'HC',
+                        'salesRepEmployeeNumber' => 'INVALID_EMPLOYEE_NUMBER',
+                        'territoryNumber' => 'G66302'
+                    },
+                    new Map<String, Object>{
+                        'classCode' => 'HC',
+                        'salesRepEmployeeNumber' => validEmployeeNumber,
+                        'territoryNumber' => 'G66303'
+                    }
+                }
+            }
+        );
+    }
+
     private static String buildInvalidEmployeeResponseJson(
         String prospectId
     ) {
@@ -1466,8 +1580,7 @@ public class AccountCustomerTasServiceTest {
             SystemID__c = systemId,
             SourceSystemID__c =
                 systemId + 'Oracle',
-            CustomerClassCode__c =
-                'Healthcare',
+            CustomerClassCode__c = 'HC',
             OrgIDs__c = '82',
             OracleAddressId__c =
                 'ORADDR' + suffix,
@@ -1476,9 +1589,9 @@ public class AccountCustomerTasServiceTest {
             BillingCity =
                 'Cleveland',
             BillingState =
-                'Ohio',
+                'OH',
             BillingCountry =
-                'United States',
+                'US',
             BillingPostalCode =
                 '44101'
         );

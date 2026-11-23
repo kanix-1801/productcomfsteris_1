@@ -14,15 +14,15 @@ public with sharing class AccountPageVisibilitySelector {
      * @description
      * Test-only override for isCurrentUserAccountTeamMember query results.
      */
-    @TestVisible
-    private static Boolean mockIsTeamMember;
+	@TestVisible
+	private static Boolean mockIsTeamMember;
 
     /**
      * @description
      * Test-only mock visibility configuration metadata records.
      */
-    @TestVisible
-    private static List<Account_Page_Visibility_Config__mdt> mockConfigs;
+	@TestVisible
+	private static List<Account_Page_Visibility_Config__mdt> mockConfigs;
 
     /**
      * @description
@@ -33,28 +33,28 @@ public with sharing class AccountPageVisibilitySelector {
      * @param accessLevel Access level value, such as Full or Base.
      * @return List of Account page visibility configuration metadata records.
      */
-    public static List<Account_Page_Visibility_Config__mdt> getVisibilityConfigs(
-        String pageName,
-        String accessLevel
-    ) {
-        if (Test.isRunningTest() && mockConfigs != null) {
-            return mockConfigs;
-        }
+	public static List<Account_Page_Visibility_Config__mdt> getVisibilityConfigs(
+		String pageName,
+		String accessLevel
+	) {
+		if (Test.isRunningTest() && mockConfigs != null) {
+			return mockConfigs;
+		}
 
-        return [
-            SELECT
-                Access_Level__c,
-                PageName__c,
-                Element_Type__c,
-                TabAPIName__c,
-                ComponentAPIName__c,
-                IsVisible__c,
-                DisplayOrder__c
-            FROM Account_Page_Visibility_Config__mdt
-            WHERE PageName__c = :pageName AND Access_Level__c = :accessLevel
-            ORDER BY DisplayOrder__c ASC
-        ];
-    }
+		return [
+			SELECT
+				Access_Level__c,
+				PageName__c,
+				Element_Type__c,
+				TabAPIName__c,
+				ComponentAPIName__c,
+				IsVisible__c,
+				DisplayOrder__c
+			FROM Account_Page_Visibility_Config__mdt
+			WHERE PageName__c = :pageName AND Access_Level__c = :accessLevel
+			ORDER BY DisplayOrder__c ASC
+		];
+	}
 
     /**
      * @description
@@ -63,17 +63,17 @@ public with sharing class AccountPageVisibilitySelector {
      * @param accountId Account record Id.
      * @return TRUE when the current user is an Account Team Member; otherwise FALSE.
      */
-    public static Boolean isCurrentUserAccountTeamMember(Id accountId) {
-        if (Test.isRunningTest() && mockIsTeamMember != null) {
-            return mockIsTeamMember;
-        }
+	public static Boolean isCurrentUserAccountTeamMember(Id accountId) {
+		if (Test.isRunningTest() && mockIsTeamMember != null) {
+			return mockIsTeamMember;
+		}
 
-        return ![
-            SELECT Id
-            FROM AccountTeamMember
-            WHERE AccountId = :accountId
-            AND UserId = :UserInfo.getUserId()
-            LIMIT 1
-        ].isEmpty();
-    }
+		return ![
+			SELECT Id
+			FROM AccountTeamMember
+			WHERE AccountId = :accountId
+			AND UserId = :UserInfo.getUserId()
+			LIMIT 1
+		].isEmpty();
+	}
 }

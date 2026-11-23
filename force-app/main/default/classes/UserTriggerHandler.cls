@@ -9,10 +9,10 @@ public inherited sharing class UserTriggerHandler extends TriggerHandler {
     /**
      * @description Processes User after update events.
      */
-    public override void afterUpdate() {
-        UserService.processInactiveSalesUsers(
-            (List<User>) Trigger.new,
-            (Map<Id, User>) Trigger.oldMap
-        );
-    }
+	public override void afterUpdate() {
+		UserService.processInactiveSalesUsers(
+			(List<User>) Trigger.new,
+			(Map<Id, User>) Trigger.oldMap
+		);
+	}
 }

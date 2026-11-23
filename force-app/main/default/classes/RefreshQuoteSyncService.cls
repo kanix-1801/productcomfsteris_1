@@ -13,104 +13,104 @@ public with sharing class RefreshQuoteSyncService {
      * @param integrationQuotes Parsed integration quote rows.
      * @return Salesforce Quote Ids that were inserted or updated.
      */
-    public static Set<Id> syncIntegrationQuotes(
-        Id opportunityId,
-        List<GenerateQuoteController.QuoteWrapper> integrationQuotes
-    ) {
-        Set<Id> syncedQuoteIds = new Set<Id>();
+	public static Set<Id> syncIntegrationQuotes(
+		Id opportunityId,
+		List<GenerateQuoteController.QuoteWrapper> integrationQuotes
+	) {
+		Set<Id> syncedQuoteIds = new Set<Id>();
 
-        if (opportunityId == null || integrationQuotes == null || integrationQuotes.isEmpty()) {
-            return syncedQuoteIds;
-        }
+		if (opportunityId == null || integrationQuotes == null || integrationQuotes.isEmpty()) {
+			return syncedQuoteIds;
+		}
 
-        Opportunity opportunityRecord = OpportunitySelector.selectById(opportunityId);
-        if (opportunityRecord == null) {
-            throw new GenerateQuoteException('Opportunity record was not found.');
-        }
+		Opportunity opportunityRecord = OpportunitySelector.selectById(opportunityId);
+		if (opportunityRecord == null) {
+			throw new GenerateQuoteException('Opportunity record was not found.');
+		}
 
-        List<Quote> existingQuotes = QuoteSelector.selectByOpportunityIdWithLineItems(opportunityId);
-        Map<Id, Quote> oldQuoteMapById = buildOldQuoteMap(existingQuotes);
-        List<PricebookEntry> pricebookEntries = PricebookEntrySelector.selectActiveByPricebookId(
-            opportunityRecord.Pricebook2Id,
-            50,
-            opportunityRecord.CurrencyIsoCode
-        );
+		List<Quote> existingQuotes = QuoteSelector.selectByOpportunityIdWithLineItems(opportunityId);
+		Map<Id, Quote> oldQuoteMapById = buildOldQuoteMap(existingQuotes);
+		List<PricebookEntry> pricebookEntries = PricebookEntrySelector.selectActiveByPricebookId(
+			opportunityRecord.Pricebook2Id,
+			50,
+			opportunityRecord.CurrencyIsoCode
+		);
 
-        Savepoint savepointValue = Database.setSavepoint();
-        TriggerHandler.bypass('QuoteTriggerHandler');
-        TriggerHandler.bypass('QuoteLineItemTriggerHandler');
-        OpportunityLineItemService.setRecalculationDisabled(true);
+		Savepoint savepointValue = Database.setSavepoint();
+		TriggerHandler.bypass('QuoteTriggerHandler');
+		TriggerHandler.bypass('QuoteLineItemTriggerHandler');
+		OpportunityLineItemService.setRecalculationDisabled(true);
 
-        try {
-            List<QuoteSyncContext> syncContexts = new List<QuoteSyncContext>();
-            List<Quote> quotesToInsert = new List<Quote>();
-            List<Quote> quotesToUpdate = new List<Quote>();
+		try {
+			List<QuoteSyncContext> syncContexts = new List<QuoteSyncContext>();
+			List<Quote> quotesToInsert = new List<Quote>();
+			List<Quote> quotesToUpdate = new List<Quote>();
 
-            demoteOpenQuotesToDraft(existingQuotes, quotesToUpdate);
+			demoteOpenQuotesToDraft(existingQuotes, quotesToUpdate);
 
-            for (GenerateQuoteController.QuoteWrapper integrationQuote : integrationQuotes) {
-                QuoteSyncContext syncContext = new QuoteSyncContext();
-                syncContext.quoteRecord = resolveQuoteRecord(
-                    integrationQuote,
-                    existingQuotes,
-                    opportunityRecord
-                );
-                applyHeaderFields(
-                    syncContext.quoteRecord,
-                    integrationQuote,
-                    opportunityRecord
-                );
-                syncContext.integrationLines = collectIntegrationLines(
-                    integrationQuote.productSubgroupSummary
-                );
+			for (GenerateQuoteController.QuoteWrapper integrationQuote : integrationQuotes) {
+				QuoteSyncContext syncContext = new QuoteSyncContext();
+				syncContext.quoteRecord = resolveQuoteRecord(
+					integrationQuote,
+					existingQuotes,
+					opportunityRecord
+				);
+				applyHeaderFields(
+					syncContext.quoteRecord,
+					integrationQuote,
+					opportunityRecord
+				);
+				syncContext.integrationLines = collectIntegrationLines(
+					integrationQuote.productSubgroupSummary
+				);
 
-                if (syncContext.quoteRecord.Id == null) {
-                    quotesToInsert.add(syncContext.quoteRecord);
-                } else if (!quotesToUpdate.contains(syncContext.quoteRecord)) {
-                    quotesToUpdate.add(syncContext.quoteRecord);
-                }
+				if (syncContext.quoteRecord.Id == null) {
+					quotesToInsert.add(syncContext.quoteRecord);
+				} else if (!quotesToUpdate.contains(syncContext.quoteRecord)) {
+					quotesToUpdate.add(syncContext.quoteRecord);
+				}
 
-                syncContexts.add(syncContext);
-            }
+				syncContexts.add(syncContext);
+			}
 
-            QuoteService.applyStatusRulesBeforeSave(quotesToInsert, null);
-            QuoteService.applyStatusRulesBeforeSave(quotesToUpdate, oldQuoteMapById);
+			QuoteService.applyStatusRulesBeforeSave(quotesToInsert, null);
+			QuoteService.applyStatusRulesBeforeSave(quotesToUpdate, oldQuoteMapById);
 
-            insertQuotes(quotesToInsert);
-            updateQuotes(quotesToUpdate);
+			insertQuotes(quotesToInsert);
+			updateQuotes(quotesToUpdate);
 
-            for (QuoteSyncContext syncContext : syncContexts) {
-                syncQuoteLines(
-                    syncContext.quoteRecord,
-                    syncContext.integrationLines,
-                    pricebookEntries
-                );
-                syncedQuoteIds.add(syncContext.quoteRecord.Id);
-            }
+			for (QuoteSyncContext syncContext : syncContexts) {
+				syncQuoteLines(
+					syncContext.quoteRecord,
+					syncContext.integrationLines,
+					pricebookEntries
+				);
+				syncedQuoteIds.add(syncContext.quoteRecord.Id);
+			}
 
-            QuoteService.syncQuoteTotalWithoutFreightFromLines(syncedQuoteIds);
-            runPostSyncAutomation(opportunityId);
+			QuoteService.syncQuoteTotalWithoutFreightFromLines(syncedQuoteIds);
+			runPostSyncAutomation(opportunityId);
 
-            return syncedQuoteIds;
-        } catch (Exception exceptionValue) {
-            Database.rollback(savepointValue);
+			return syncedQuoteIds;
+		} catch (Exception exceptionValue) {
+			Database.rollback(savepointValue);
 
-            if (exceptionValue instanceof GenerateQuoteException) {
-                throw exceptionValue;
-            }
+			if (exceptionValue instanceof GenerateQuoteException) {
+				throw exceptionValue;
+			}
 
-            String syncErrorDetail = exceptionValue.getMessage();
-            throw new GenerateQuoteException(
-                String.isNotBlank(syncErrorDetail)
-                    ? 'Unable to sync refreshed quote data. ' + syncErrorDetail
-                    : 'Unable to sync refreshed quote data.'
-            );
-        } finally {
-            TriggerHandler.clearBypass('QuoteTriggerHandler');
-            TriggerHandler.clearBypass('QuoteLineItemTriggerHandler');
-            OpportunityLineItemService.setRecalculationDisabled(false);
-        }
-    }
+			String syncErrorDetail = exceptionValue.getMessage();
+			throw new GenerateQuoteException(
+				String.isNotBlank(syncErrorDetail)
+					? 'Unable to sync refreshed quote data. ' + syncErrorDetail
+					: 'Unable to sync refreshed quote data.'
+			);
+		} finally {
+			TriggerHandler.clearBypass('QuoteTriggerHandler');
+			TriggerHandler.clearBypass('QuoteLineItemTriggerHandler');
+			OpportunityLineItemService.setRecalculationDisabled(false);
+		}
+	}
 
     /**
      * @description Build Quote record instance.
@@ -119,54 +119,54 @@ public with sharing class RefreshQuoteSyncService {
      * @return Salesforce Quote Record Instance.
      */
 
-    private static Quote resolveQuoteRecord(
-        GenerateQuoteController.QuoteWrapper integrationQuote,
-        List<Quote> existingQuotes,
-        Opportunity opportunityRecord
-    ) {
-        if (integrationQuote.id != null) {
-            for (Quote existingQuote : existingQuotes) {
-                if (existingQuote.Id == integrationQuote.id) {
-                    return existingQuote;
-                }
-            }
-        }
+	private static Quote resolveQuoteRecord(
+		GenerateQuoteController.QuoteWrapper integrationQuote,
+		List<Quote> existingQuotes,
+		Opportunity opportunityRecord
+	) {
+		if (integrationQuote.id != null) {
+			for (Quote existingQuote : existingQuotes) {
+				if (existingQuote.Id == integrationQuote.id) {
+					return existingQuote;
+				}
+			}
+		}
 
-        String salesConnectionQuoteId = deriveSalesConnectionQuoteId(integrationQuote);
-        if (String.isNotBlank(salesConnectionQuoteId)) {
-            for (Quote existingQuote : existingQuotes) {
-                if (salesConnectionQuoteId.equalsIgnoreCase(existingQuote.SalesConnectionQuoteID__c)) {
-                    return existingQuote;
-                }
+		String salesConnectionQuoteId = deriveSalesConnectionQuoteId(integrationQuote);
+		if (String.isNotBlank(salesConnectionQuoteId)) {
+			for (Quote existingQuote : existingQuotes) {
+				if (salesConnectionQuoteId.equalsIgnoreCase(existingQuote.SalesConnectionQuoteID__c)) {
+					return existingQuote;
+				}
 
-                if (salesConnectionQuoteId.equalsIgnoreCase(existingQuote.Source_System_ID__c)) {
-                    return existingQuote;
-                }
-            }
-        }
+				if (salesConnectionQuoteId.equalsIgnoreCase(existingQuote.Source_System_ID__c)) {
+					return existingQuote;
+				}
+			}
+		}
 
-        if (String.isNotBlank(integrationQuote.quoteNumber)) {
-            for (Quote existingQuote : existingQuotes) {
-                if (integrationQuote.quoteNumber.equalsIgnoreCase(existingQuote.QuoteNumber__c)) {
-                    return existingQuote;
-                }
-            }
-        }
+		if (String.isNotBlank(integrationQuote.quoteNumber)) {
+			for (Quote existingQuote : existingQuotes) {
+				if (integrationQuote.quoteNumber.equalsIgnoreCase(existingQuote.QuoteNumber__c)) {
+					return existingQuote;
+				}
+			}
+		}
 
-        if (existingQuotes.size() == 1) {
-            return existingQuotes[0];
-        }
+		if (existingQuotes.size() == 1) {
+			return existingQuotes[0];
+		}
 
-        if (String.isNotBlank(integrationQuote.quoteName)) {
-            for (Quote existingQuote : existingQuotes) {
-                if (integrationQuote.quoteName.equalsIgnoreCase(existingQuote.Name)) {
-                    return existingQuote;
-                }
-            }
-        }
+		if (String.isNotBlank(integrationQuote.quoteName)) {
+			for (Quote existingQuote : existingQuotes) {
+				if (integrationQuote.quoteName.equalsIgnoreCase(existingQuote.Name)) {
+					return existingQuote;
+				}
+			}
+		}
 
-        return buildQuoteForInsert(opportunityRecord, integrationQuote);
-    }
+		return buildQuoteForInsert(opportunityRecord, integrationQuote);
+	}
     
     /**
      * @description Build Quote record instance.
@@ -175,35 +175,35 @@ public with sharing class RefreshQuoteSyncService {
      * @return Salesforce Quote Record Instance.
      */
 
-    private static Quote buildQuoteForInsert(
-        Opportunity opportunityRecord,
-        GenerateQuoteController.QuoteWrapper integrationQuote
-    ) {
-        if (opportunityRecord.Pricebook2Id == null) {
-            throw new GenerateQuoteException(
-                'Please add a Price Book to the Opportunity before syncing refreshed quotes.'
-            );
-        }
+	private static Quote buildQuoteForInsert(
+		Opportunity opportunityRecord,
+		GenerateQuoteController.QuoteWrapper integrationQuote
+	) {
+		if (opportunityRecord.Pricebook2Id == null) {
+			throw new GenerateQuoteException(
+				'Please add a Price Book to the Opportunity before syncing refreshed quotes.'
+			);
+		}
 
-        Quote quoteRecord = new Quote();
-        quoteRecord.OpportunityId = opportunityRecord.Id;
-        quoteRecord.Pricebook2Id = opportunityRecord.Pricebook2Id;
-        quoteRecord.Name = String.isNotBlank(integrationQuote.quoteName)
-            ? integrationQuote.quoteName
-            : 'Quote - ' + opportunityRecord.Name;
-        quoteRecord.ExpirationDate = integrationQuote.expirationDate == null
-            ? Date.today().addDays(30)
-            : integrationQuote.expirationDate;
-        quoteRecord.Status = GenerateQuoteService.QUOTE_STATUS_DRAFT;
+		Quote quoteRecord = new Quote();
+		quoteRecord.OpportunityId = opportunityRecord.Id;
+		quoteRecord.Pricebook2Id = opportunityRecord.Pricebook2Id;
+		quoteRecord.Name = String.isNotBlank(integrationQuote.quoteName)
+			? integrationQuote.quoteName
+			: 'Quote - ' + opportunityRecord.Name;
+		quoteRecord.ExpirationDate = integrationQuote.expirationDate == null
+			? Date.today().addDays(30)
+			: integrationQuote.expirationDate;
+		quoteRecord.Status = GenerateQuoteService.QUOTE_STATUS_DRAFT;
 
-        Id quoteRecordTypeId = GenerateQuoteService.resolveHcSalesQuoteRecordTypeId();
-        if (quoteRecordTypeId != null) {
-            quoteRecord.RecordTypeId = quoteRecordTypeId;
-        }
+		Id quoteRecordTypeId = GenerateQuoteService.resolveHcSalesQuoteRecordTypeId();
+		if (quoteRecordTypeId != null) {
+			quoteRecord.RecordTypeId = quoteRecordTypeId;
+		}
 
-        GenerateQuoteService.applyQuoteCurrencyFromOpportunity(quoteRecord, opportunityRecord);
-        return quoteRecord;
-    }
+		GenerateQuoteService.applyQuoteCurrencyFromOpportunity(quoteRecord, opportunityRecord);
+		return quoteRecord;
+	}
 
     /**
      * @description Maps integration quote header values to a Salesforce Quote*record.
@@ -211,40 +211,40 @@ public with sharing class RefreshQuoteSyncService {
      * @param integrationQuotes Parsed integration quote rows.
      */
 
-    private static void applyHeaderFields(
-        Quote quoteRecord,
-        GenerateQuoteController.QuoteWrapper integrationQuote,
-        Opportunity opportunityRecord
-    ) {
-        if (String.isNotBlank(integrationQuote.quoteName)) {
-            quoteRecord.Name = integrationQuote.quoteName;
-        }
+	private static void applyHeaderFields(
+		Quote quoteRecord,
+		GenerateQuoteController.QuoteWrapper integrationQuote,
+		Opportunity opportunityRecord
+	) {
+		if (String.isNotBlank(integrationQuote.quoteName)) {
+			quoteRecord.Name = integrationQuote.quoteName;
+		}
 
-        quoteRecord.Description = integrationQuote.description;
-        quoteRecord.Status = resolveRefreshQuoteStatus(integrationQuote.status);
-        quoteRecord.Approval_Status__c =
-            SalesConnectionQuoteMockService.resolveApprovalStatus(integrationQuote.approvalStatus);
+		quoteRecord.Description = integrationQuote.description;
+		quoteRecord.Status = resolveRefreshQuoteStatus(integrationQuote.status);
+		quoteRecord.Approval_Status__c =
+			SalesConnectionQuoteMockService.resolveApprovalStatus(integrationQuote.approvalStatus);
 
-        if (integrationQuote.expirationDate != null) {
-            quoteRecord.ExpirationDate = integrationQuote.expirationDate;
-        }
+		if (integrationQuote.expirationDate != null) {
+			quoteRecord.ExpirationDate = integrationQuote.expirationDate;
+		}
 
-        if (String.isNotBlank(integrationQuote.quoteNumber)) {
-            quoteRecord.QuoteNumber__c = GenerateQuoteService.normalizeQuoteNumberForStorage(
-                integrationQuote.quoteNumber
-            );
-        }
+		if (String.isNotBlank(integrationQuote.quoteNumber)) {
+			quoteRecord.QuoteNumber__c = GenerateQuoteService.normalizeQuoteNumberForStorage(
+				integrationQuote.quoteNumber
+			);
+		}
 
-        String salesConnectionQuoteId = deriveSalesConnectionQuoteId(integrationQuote);
-        salesConnectionQuoteId = GenerateQuoteService.normalizeSalesConnectionQuoteIdForStorage(
-            salesConnectionQuoteId
-        );
-        if (String.isNotBlank(salesConnectionQuoteId)) {
-            quoteRecord.SalesConnectionQuoteID__c = salesConnectionQuoteId;
-        }
+		String salesConnectionQuoteId = deriveSalesConnectionQuoteId(integrationQuote);
+		salesConnectionQuoteId = GenerateQuoteService.normalizeSalesConnectionQuoteIdForStorage(
+			salesConnectionQuoteId
+		);
+		if (String.isNotBlank(salesConnectionQuoteId)) {
+			quoteRecord.SalesConnectionQuoteID__c = salesConnectionQuoteId;
+		}
 
-        QuoteService.applyOpportunityForecastConfidenceIfBlank(quoteRecord, opportunityRecord);
-    }
+		QuoteService.applyOpportunityForecastConfidenceIfBlank(quoteRecord, opportunityRecord);
+	}
 
      /**
      * @description Resolves the Sales Connection quote identifier from an integration payload.
@@ -252,11 +252,11 @@ public with sharing class RefreshQuoteSyncService {
      * @return Sales Connection quote id when present.
      */
 
-    private static String deriveSalesConnectionQuoteId(
-        GenerateQuoteController.QuoteWrapper integrationQuote
-    ) {
-        return integrationQuote.salesConnectionQuoteId;
-    }
+	private static String deriveSalesConnectionQuoteId(
+		GenerateQuoteController.QuoteWrapper integrationQuote
+	) {
+		return integrationQuote.salesConnectionQuoteId;
+	}
 
     /**
      * @description Flattens all quote lines from the product subgroup hierarchy into a single list for processing.
@@ -264,26 +264,26 @@ public with sharing class RefreshQuoteSyncService {
      * @return List<GenerateQuoteController.QuoteLineDetailWrapper> Collection of quote linedetail wrappers.
      */
 
-    private static List<GenerateQuoteController.QuoteLineDetailWrapper> collectIntegrationLines(
-        List<GenerateQuoteController.ProductSubgroupSummaryWrapper> subgroupSummary
-    ) {
-        List<GenerateQuoteController.QuoteLineDetailWrapper> integrationLines =
-            new List<GenerateQuoteController.QuoteLineDetailWrapper>();
+	private static List<GenerateQuoteController.QuoteLineDetailWrapper> collectIntegrationLines(
+		List<GenerateQuoteController.ProductSubgroupSummaryWrapper> subgroupSummary
+	) {
+		List<GenerateQuoteController.QuoteLineDetailWrapper> integrationLines =
+			new List<GenerateQuoteController.QuoteLineDetailWrapper>();
 
-        if (subgroupSummary == null) {
-            return integrationLines;
-        }
+		if (subgroupSummary == null) {
+			return integrationLines;
+		}
 
-        for (GenerateQuoteController.ProductSubgroupSummaryWrapper subgroup : subgroupSummary) {
-            if (subgroup == null || subgroup.quoteLines == null) {
-                continue;
-            }
+		for (GenerateQuoteController.ProductSubgroupSummaryWrapper subgroup : subgroupSummary) {
+			if (subgroup == null || subgroup.quoteLines == null) {
+				continue;
+			}
 
-            integrationLines.addAll(subgroup.quoteLines);
-        }
+			integrationLines.addAll(subgroup.quoteLines);
+		}
 
-        return integrationLines;
-    }
+		return integrationLines;
+	}
 
     /**
      * @description Synchronizes Quote Line Items for a Quote by creating or updating records based on integration line data and exi*ting line mappings
@@ -292,81 +292,81 @@ public with sharing class RefreshQuoteSyncService {
      * @param pricebookEntries Available Pricebook Entries.
      */
 
-    private static void syncQuoteLines(
-        Quote quoteRecord,
-        List<GenerateQuoteController.QuoteLineDetailWrapper> integrationLines,
-        List<PricebookEntry> pricebookEntries
-    ) {
-        if (quoteRecord == null || quoteRecord.Id == null || integrationLines == null || integrationLines.isEmpty()) {
-            return;
-        }
+	private static void syncQuoteLines(
+		Quote quoteRecord,
+		List<GenerateQuoteController.QuoteLineDetailWrapper> integrationLines,
+		List<PricebookEntry> pricebookEntries
+	) {
+		if (quoteRecord == null || quoteRecord.Id == null || integrationLines == null || integrationLines.isEmpty()) {
+			return;
+		}
 
-        Map<String, QuoteLineItem> existingLinesByExternalId = indexExistingLines(quoteRecord.QuoteLineItems);
-        String lineIdPrefix = String.valueOf(quoteRecord.Id);
-        List<QuoteLineItem> linesToInsert = new List<QuoteLineItem>();
-        List<QuoteLineItem> linesToUpdate = new List<QuoteLineItem>();
-        Integer lineIndex = 0;
+		Map<String, QuoteLineItem> existingLinesByExternalId = indexExistingLines(quoteRecord.QuoteLineItems);
+		String lineIdPrefix = String.valueOf(quoteRecord.Id);
+		List<QuoteLineItem> linesToInsert = new List<QuoteLineItem>();
+		List<QuoteLineItem> linesToUpdate = new List<QuoteLineItem>();
+		Integer lineIndex = 0;
 
-        for (GenerateQuoteController.QuoteLineDetailWrapper integrationLine : integrationLines) {
-            if (integrationLine == null || String.isBlank(integrationLine.quoteLineId)) {
-                continue;
-            }
+		for (GenerateQuoteController.QuoteLineDetailWrapper integrationLine : integrationLines) {
+			if (integrationLine == null || String.isBlank(integrationLine.quoteLineId)) {
+				continue;
+			}
 
-            String externalLineId = SalesConnectionQuoteMockService.buildUniqueQuoteLineId(
-                integrationLine.quoteLineId,
-                lineIdPrefix
-            );
-            QuoteLineItem lineRecord = findExistingLine(
-                existingLinesByExternalId,
-                externalLineId,
-                integrationLine.quoteLineId
-            );
+			String externalLineId = SalesConnectionQuoteMockService.buildUniqueQuoteLineId(
+				integrationLine.quoteLineId,
+				lineIdPrefix
+			);
+			QuoteLineItem lineRecord = findExistingLine(
+				existingLinesByExternalId,
+				externalLineId,
+				integrationLine.quoteLineId
+			);
 
-            if (lineRecord == null) {
-                SalesConnectionQuoteMockService.PricebookEntryResolution pricebookEntryResolution =
-                    SalesConnectionQuoteMockService.resolvePricebookEntryResolution(
-                        integrationLine.productFAMCode,
-                        integrationLine.productName,
-                        lineIndex,
-                        pricebookEntries
-                    );
+			if (lineRecord == null) {
+				SalesConnectionQuoteMockService.PricebookEntryResolution pricebookEntryResolution =
+					SalesConnectionQuoteMockService.resolvePricebookEntryResolution(
+						integrationLine.productFAMCode,
+						integrationLine.productName,
+						lineIndex,
+						pricebookEntries
+					);
 
-                if (pricebookEntryResolution.pricebookEntryId == null) {
-                    lineIndex++;
-                    continue;
-                }
+				if (pricebookEntryResolution.pricebookEntryId == null) {
+					lineIndex++;
+					continue;
+				}
 
-                lineRecord = new QuoteLineItem();
-                lineRecord.QuoteId = quoteRecord.Id;
-                lineRecord.PricebookEntryId = pricebookEntryResolution.pricebookEntryId;
-                lineRecord.SalesConnectionQuoteLineID__c = externalLineId;
-                linesToInsert.add(lineRecord);
-            } else if (String.isBlank(lineRecord.SalesConnectionQuoteLineID__c)) {
-                lineRecord.SalesConnectionQuoteLineID__c = externalLineId;
-                linesToUpdate.add(lineRecord);
-            } else if (!linesToUpdate.contains(lineRecord)) {
-                linesToUpdate.add(lineRecord);
-            }
+				lineRecord = new QuoteLineItem();
+				lineRecord.QuoteId = quoteRecord.Id;
+				lineRecord.PricebookEntryId = pricebookEntryResolution.pricebookEntryId;
+				lineRecord.SalesConnectionQuoteLineID__c = externalLineId;
+				linesToInsert.add(lineRecord);
+			} else if (String.isBlank(lineRecord.SalesConnectionQuoteLineID__c)) {
+				lineRecord.SalesConnectionQuoteLineID__c = externalLineId;
+				linesToUpdate.add(lineRecord);
+			} else if (!linesToUpdate.contains(lineRecord)) {
+				linesToUpdate.add(lineRecord);
+			}
 
-            SalesConnectionQuoteMockService.PricebookEntryResolution linePricebookResolution =
-                SalesConnectionQuoteMockService.resolvePricebookEntryResolution(
-                    integrationLine.productFAMCode,
-                    integrationLine.productName,
-                    lineIndex,
-                    pricebookEntries
-                );
-            applyLineFields(lineRecord, integrationLine, pricebookEntries, linePricebookResolution);
-            lineIndex++;
-        }
+			SalesConnectionQuoteMockService.PricebookEntryResolution linePricebookResolution =
+				SalesConnectionQuoteMockService.resolvePricebookEntryResolution(
+					integrationLine.productFAMCode,
+					integrationLine.productName,
+					lineIndex,
+					pricebookEntries
+				);
+			applyLineFields(lineRecord, integrationLine, pricebookEntries, linePricebookResolution);
+			lineIndex++;
+		}
 
-        List<QuoteLineItem> linesNeedingPsam = new List<QuoteLineItem>();
-        linesNeedingPsam.addAll(linesToInsert);
-        linesNeedingPsam.addAll(linesToUpdate);
-        PsamQuoteLineGroupingService.applyPsamSubgroupDetailNames(linesNeedingPsam);
+		List<QuoteLineItem> linesNeedingPsam = new List<QuoteLineItem>();
+		linesNeedingPsam.addAll(linesToInsert);
+		linesNeedingPsam.addAll(linesToUpdate);
+		PsamQuoteLineGroupingService.applyPsamSubgroupDetailNames(linesNeedingPsam);
 
-        insertQuoteLines(linesToInsert);
-        updateQuoteLines(linesToUpdate);
-    }
+		insertQuoteLines(linesToInsert);
+		updateQuoteLines(linesToUpdate);
+	}
 
     /**
      * @description Creates a lookup map of existing Quote Line Items
@@ -375,26 +375,26 @@ public with sharing class RefreshQuoteSyncService {
      */
    
 
-    private static Map<String, QuoteLineItem> indexExistingLines(List<QuoteLineItem> existingLines) {
-        Map<String, QuoteLineItem> existingLinesByExternalId = new Map<String, QuoteLineItem>();
+	private static Map<String, QuoteLineItem> indexExistingLines(List<QuoteLineItem> existingLines) {
+		Map<String, QuoteLineItem> existingLinesByExternalId = new Map<String, QuoteLineItem>();
 
-        if (existingLines == null) {
-            return existingLinesByExternalId;
-        }
+		if (existingLines == null) {
+			return existingLinesByExternalId;
+		}
 
-        for (QuoteLineItem existingLine : existingLines) {
-            if (String.isBlank(existingLine.SalesConnectionQuoteLineID__c)) {
-                continue;
-            }
+		for (QuoteLineItem existingLine : existingLines) {
+			if (String.isBlank(existingLine.SalesConnectionQuoteLineID__c)) {
+				continue;
+			}
 
-            existingLinesByExternalId.put(
-                existingLine.SalesConnectionQuoteLineID__c.toLowerCase(),
-                existingLine
-            );
-        }
+			existingLinesByExternalId.put(
+				existingLine.SalesConnectionQuoteLineID__c.toLowerCase(),
+				existingLine
+			);
+		}
 
-        return existingLinesByExternalId;
-    }
+		return existingLinesByExternalId;
+	}
 
     /**
      * @description Finds an existing Quote Line Item using the generated external id.
@@ -404,25 +404,25 @@ public with sharing class RefreshQuoteSyncService {
      */
    
 
-    private static QuoteLineItem findExistingLine(
-        Map<String, QuoteLineItem> existingLinesByExternalId,
-        String externalLineId,
-        String templateLineId
-    ) {
-        QuoteLineItem existingLine = existingLinesByExternalId.get(externalLineId.toLowerCase());
-        if (existingLine != null) {
-            return existingLine;
-        }
+	private static QuoteLineItem findExistingLine(
+		Map<String, QuoteLineItem> existingLinesByExternalId,
+		String externalLineId,
+		String templateLineId
+	) {
+		QuoteLineItem existingLine = existingLinesByExternalId.get(externalLineId.toLowerCase());
+		if (existingLine != null) {
+			return existingLine;
+		}
 
-        String suffix = '-' + templateLineId;
-        for (QuoteLineItem candidateLine : existingLinesByExternalId.values()) {
-            if (candidateLine.SalesConnectionQuoteLineID__c.endsWithIgnoreCase(suffix)) {
-                return candidateLine;
-            }
-        }
+		String suffix = '-' + templateLineId;
+		for (QuoteLineItem candidateLine : existingLinesByExternalId.values()) {
+			if (candidateLine.SalesConnectionQuoteLineID__c.endsWithIgnoreCase(suffix)) {
+				return candidateLine;
+			}
+		}
 
-        return null;
-    }
+		return null;
+	}
 
     /**
      * @description Maps integration line values to a Salesforce Quote Line Item
@@ -430,31 +430,31 @@ public with sharing class RefreshQuoteSyncService {
      * @param integrationLine Integration quote line payload.
      */
 
-    private static void applyLineFields(
-        QuoteLineItem lineRecord,
-        GenerateQuoteController.QuoteLineDetailWrapper integrationLine,
-        List<PricebookEntry> pricebookEntries,
-        SalesConnectionQuoteMockService.PricebookEntryResolution pricebookEntryResolution
-    ) {
-        lineRecord.Description = SalesConnectionQuoteMockService.resolveQuoteLineDescription(
-            integrationLine.productName,
-            pricebookEntryResolution,
-            pricebookEntries
-        );
-        lineRecord.Product_FAM_Code__c = integrationLine.productFAMCode;
-        lineRecord.Product_Subgroup_Detail_Name__c = integrationLine.productSubgroupDetailName;
-        lineRecord.TerritoryID__c = integrationLine.territoryId;
-        lineRecord.SalesCategory__c = QuoteLineSalesCategoryService.resolveSalesCategoryFromIntegration(
-            integrationLine.tasSalesCategory,
-            integrationLine.salesCategoryDescription
-        );
-        lineRecord.UOM__c = integrationLine.uom;
-        lineRecord.Quantity = normalizeQuantity(integrationLine.quantity);
-        lineRecord.UnitPrice = integrationLine.unitPrice == null ? 0 : integrationLine.unitPrice;
-        lineRecord.Total_Unit_Price__c = integrationLine.lineTotal == null
-            ? lineRecord.Quantity * lineRecord.UnitPrice
-            : integrationLine.lineTotal;
-    }
+	private static void applyLineFields(
+		QuoteLineItem lineRecord,
+		GenerateQuoteController.QuoteLineDetailWrapper integrationLine,
+		List<PricebookEntry> pricebookEntries,
+		SalesConnectionQuoteMockService.PricebookEntryResolution pricebookEntryResolution
+	) {
+		lineRecord.Description = SalesConnectionQuoteMockService.resolveQuoteLineDescription(
+			integrationLine.productName,
+			pricebookEntryResolution,
+			pricebookEntries
+		);
+		lineRecord.Product_FAM_Code__c = integrationLine.productFAMCode;
+		lineRecord.Product_Subgroup_Detail_Name__c = integrationLine.productSubgroupDetailName;
+		lineRecord.TerritoryID__c = integrationLine.territoryId;
+		lineRecord.SalesCategory__c = QuoteLineSalesCategoryService.resolveSalesCategoryFromIntegration(
+			integrationLine.tasSalesCategory,
+			integrationLine.salesCategoryDescription
+		);
+		lineRecord.UOM__c = integrationLine.uom;
+		lineRecord.Quantity = normalizeQuantity(integrationLine.quantity);
+		lineRecord.UnitPrice = integrationLine.unitPrice == null ? 0 : integrationLine.unitPrice;
+		lineRecord.Total_Unit_Price__c = integrationLine.lineTotal == null
+			? lineRecord.Quantity * lineRecord.UnitPrice
+			: integrationLine.lineTotal;
+	}
 
     /**
      * @description Ensures a valid quantity value is assigned to a Quote Line Item.
@@ -462,13 +462,13 @@ public with sharing class RefreshQuoteSyncService {
      * @return Normalized quantity
      */
 
-    private static Decimal normalizeQuantity(Decimal quantity) {
-        if (quantity == null || quantity <= 0) {
-            return 1;
-        }
+	private static Decimal normalizeQuantity(Decimal quantity) {
+		if (quantity == null || quantity <= 0) {
+			return 1;
+		}
 
-        return quantity;
-    }
+		return quantity;
+	}
 
     /**
      * @description Refresh Quote should move every Open quote on the Opportunity to Draft
@@ -476,26 +476,26 @@ public with sharing class RefreshQuoteSyncService {
      * @param existingQuotes Current Opportunity quotes.
      * @param quotesToUpdate Mutable list receiving Quote rows to update.
      */
-    private static void demoteOpenQuotesToDraft(
-        List<Quote> existingQuotes,
-        List<Quote> quotesToUpdate
-    ) {
-        if (existingQuotes == null || existingQuotes.isEmpty()) {
-            return;
-        }
+	private static void demoteOpenQuotesToDraft(
+		List<Quote> existingQuotes,
+		List<Quote> quotesToUpdate
+	) {
+		if (existingQuotes == null || existingQuotes.isEmpty()) {
+			return;
+		}
 
-        for (Quote quoteRecord : existingQuotes) {
-            if (!QuoteService.isForecastableStatus(quoteRecord.Status)) {
-                continue;
-            }
+		for (Quote quoteRecord : existingQuotes) {
+			if (!QuoteService.isForecastableStatus(quoteRecord.Status)) {
+				continue;
+			}
 
-            quoteRecord.Status = GenerateQuoteService.QUOTE_STATUS_DRAFT;
+			quoteRecord.Status = GenerateQuoteService.QUOTE_STATUS_DRAFT;
 
-            if (quoteRecord.Id != null && !quotesToUpdate.contains(quoteRecord)) {
-                quotesToUpdate.add(quoteRecord);
-            }
-        }
-    }
+			if (quoteRecord.Id != null && !quotesToUpdate.contains(quoteRecord)) {
+				quotesToUpdate.add(quoteRecord);
+			}
+		}
+	}
 
     /**
      * @description Maps integration status to Salesforce status for Refresh Quote.
@@ -503,57 +503,57 @@ public with sharing class RefreshQuoteSyncService {
      * @param integrationStatus Status value from the integration payload.
      * @return Salesforce Quote Status picklist value.
      */
-    private static String resolveRefreshQuoteStatus(String integrationStatus) {
-        String resolvedStatus = SalesConnectionQuoteMockService.resolveQuoteStatus(integrationStatus);
+	private static String resolveRefreshQuoteStatus(String integrationStatus) {
+		String resolvedStatus = SalesConnectionQuoteMockService.resolveQuoteStatus(integrationStatus);
 
-        if (QuoteService.isForecastableStatus(resolvedStatus)) {
-            return GenerateQuoteService.QUOTE_STATUS_DRAFT;
-        }
+		if (QuoteService.isForecastableStatus(resolvedStatus)) {
+			return GenerateQuoteService.QUOTE_STATUS_DRAFT;
+		}
 
-        return resolvedStatus;
-    }
+		return resolvedStatus;
+	}
 
-    private static Map<Id, Quote> buildOldQuoteMap(List<Quote> existingQuotes) {
-        Map<Id, Quote> oldQuoteMapById = new Map<Id, Quote>();
+	private static Map<Id, Quote> buildOldQuoteMap(List<Quote> existingQuotes) {
+		Map<Id, Quote> oldQuoteMapById = new Map<Id, Quote>();
 
-        if (existingQuotes == null) {
-            return oldQuoteMapById;
-        }
+		if (existingQuotes == null) {
+			return oldQuoteMapById;
+		}
 
-        for (Quote quoteRecord : existingQuotes) {
-            if (quoteRecord.Id != null) {
-                oldQuoteMapById.put(quoteRecord.Id, quoteRecord.clone(true, true, true, true));
-            }
-        }
+		for (Quote quoteRecord : existingQuotes) {
+			if (quoteRecord.Id != null) {
+				oldQuoteMapById.put(quoteRecord.Id, quoteRecord.clone(true, true, true, true));
+			}
+		}
 
-        return oldQuoteMapById;
-    }
+		return oldQuoteMapById;
+	}
 
-    private static void runPostSyncAutomation(Id opportunityId) {
-        if (opportunityId == null) {
-            return;
-        }
+	private static void runPostSyncAutomation(Id opportunityId) {
+		if (opportunityId == null) {
+			return;
+		}
 
-        Set<Id> opportunityIds = new Set<Id>{ opportunityId };
-        OpportunityLineItemService.recalculateFromOpportunityIds(opportunityIds);
-        QuoteService.synchronizeForecastEligibleDesignation(opportunityIds);
-    }
+		Set<Id> opportunityIds = new Set<Id>{ opportunityId };
+		OpportunityLineItemService.recalculateFromOpportunityIds(opportunityIds);
+		QuoteService.synchronizeForecastEligibleDesignation(opportunityIds);
+	}
 
-    private static void insertQuotes(List<Quote> quoteRecords) {
-        persistRecords(quoteRecords, 'Quote', true);
-    }
+	private static void insertQuotes(List<Quote> quoteRecords) {
+		persistRecords(quoteRecords, 'Quote', true);
+	}
 
-    private static void updateQuotes(List<Quote> quoteRecords) {
-        persistRecords(quoteRecords, 'Quote', false);
-    }
+	private static void updateQuotes(List<Quote> quoteRecords) {
+		persistRecords(quoteRecords, 'Quote', false);
+	}
 
-    private static void insertQuoteLines(List<QuoteLineItem> quoteLineItems) {
-        persistRecords(quoteLineItems, 'QuoteLineItem', true);
-    }
+	private static void insertQuoteLines(List<QuoteLineItem> quoteLineItems) {
+		persistRecords(quoteLineItems, 'QuoteLineItem', true);
+	}
 
-    private static void updateQuoteLines(List<QuoteLineItem> quoteLineItems) {
-        persistRecords(quoteLineItems, 'QuoteLineItem', false);
-    }
+	private static void updateQuoteLines(List<QuoteLineItem> quoteLineItems) {
+		persistRecords(quoteLineItems, 'QuoteLineItem', false);
+	}
 
 /* @description Performs DML operations with CRUD validation and centralized
  *              error handling for Quote and Quote Line Item records.
@@ -562,33 +562,33 @@ public with sharing class RefreshQuoteSyncService {
  * @param isInsert True for insert, false for update.
  */
 
-    private static void persistRecords(List<SObject> records, String objectName, Boolean isInsert) {
-        if (records == null || records.isEmpty()) {
-            return;
-        }
+	private static void persistRecords(List<SObject> records, String objectName, Boolean isInsert) {
+		if (records == null || records.isEmpty()) {
+			return;
+		}
 
-        if (isInsert && !isCreateable(objectName)) {
-            throw new GenerateQuoteException('Current user cannot create ' + objectName + ' records.');
-        }
+		if (isInsert && !isCreateable(objectName)) {
+			throw new GenerateQuoteException('Current user cannot create ' + objectName + ' records.');
+		}
 
-        if (!isInsert && !isUpdateable(objectName)) {
-            throw new GenerateQuoteException('Current user cannot update ' + objectName + ' records.');
-        }
+		if (!isInsert && !isUpdateable(objectName)) {
+			throw new GenerateQuoteException('Current user cannot update ' + objectName + ' records.');
+		}
 
-        List<SObject> recordsToPersist = records;
-        Database.SaveResult[] saveResults = isInsert
-            ? Database.insert(recordsToPersist, false)
-            : Database.update(recordsToPersist, false);
+		List<SObject> recordsToPersist = records;
+		Database.SaveResult[] saveResults = isInsert
+			? Database.insert(recordsToPersist, false)
+			: Database.update(recordsToPersist, false);
 
-        for (Database.SaveResult saveResult : saveResults) {
-            if (!saveResult.isSuccess()) {
-                throw new GenerateQuoteException(
-                    objectName + ' ' + (isInsert ? 'insert' : 'update') + ' failed: ' +
-                    saveResult.getErrors()[0].getMessage()
-                );
-            }
-        }
-    }
+		for (Database.SaveResult saveResult : saveResults) {
+			if (!saveResult.isSuccess()) {
+				throw new GenerateQuoteException(
+					objectName + ' ' + (isInsert ? 'insert' : 'update') + ' failed: ' +
+					saveResult.getErrors()[0].getMessage()
+				);
+			}
+		}
+	}
 
 /**
  * @description Checks whether the running user has create access
@@ -597,17 +597,17 @@ public with sharing class RefreshQuoteSyncService {
  * @return True when create permission exists.
  */
 
-    private static Boolean isCreateable(String objectName) {
-        if (objectName == 'Quote') {
-            return Schema.sObjectType.Quote.isCreateable();
-        }
+	private static Boolean isCreateable(String objectName) {
+		if (objectName == 'Quote') {
+			return Schema.sObjectType.Quote.isCreateable();
+		}
 
-        if (objectName == 'QuoteLineItem') {
-            return Schema.sObjectType.QuoteLineItem.isCreateable();
-        }
+		if (objectName == 'QuoteLineItem') {
+			return Schema.sObjectType.QuoteLineItem.isCreateable();
+		}
 
-        return false;
-    }
+		return false;
+	}
 
 /**
  * @description Checks whether the running user has update access
@@ -616,25 +616,25 @@ public with sharing class RefreshQuoteSyncService {
  * @return True when update permission exists.
  */
 
-    private static Boolean isUpdateable(String objectName) {
-        if (objectName == 'Quote') {
-            return Schema.sObjectType.Quote.isUpdateable();
-        }
+	private static Boolean isUpdateable(String objectName) {
+		if (objectName == 'Quote') {
+			return Schema.sObjectType.Quote.isUpdateable();
+		}
 
-        if (objectName == 'QuoteLineItem') {
-            return Schema.sObjectType.QuoteLineItem.isUpdateable();
-        }
+		if (objectName == 'QuoteLineItem') {
+			return Schema.sObjectType.QuoteLineItem.isUpdateable();
+		}
 
-        return false;
-    }
+		return false;
+	}
 
 /**
 * @description Wrapper class used during quote synchronization to maintainthe Quote record
                and its related integration line data.
 */
 
-    private class QuoteSyncContext {
-        public Quote quoteRecord;
-        public List<GenerateQuoteController.QuoteLineDetailWrapper> integrationLines;
-    }
+	private class QuoteSyncContext {
+		public Quote quoteRecord;
+		public List<GenerateQuoteController.QuoteLineDetailWrapper> integrationLines;
+	}
 }

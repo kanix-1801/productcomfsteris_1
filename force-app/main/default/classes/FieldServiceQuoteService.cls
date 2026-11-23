@@ -8,11 +8,8 @@
  * @see FieldServiceQuoteController
  */
 public inherited sharing class FieldServiceQuoteService {
-	public static final String QUOTE_RECORD_TYPE = 'Field_Service';
 	public static final String OPPORTUNITY_RECORD_TYPE = 'Field_Service_Quote';
 	public static final String STAGE_OPEN = 'Open';
-	public static final String STATUS_DRAFT = 'Draft';
-	public static final String PRICING_NOT_PRICED = 'Not Priced';
 	public static final String PRICING_PRICED = 'Priced';
 	public static final String PRICING_REPRICING_REQUIRED = 'Repricing Required';
 	public static final String LINE_TYPE_PARTS = 'Parts';
@@ -23,6 +20,9 @@ public inherited sharing class FieldServiceQuoteService {
 	public static final Integer QUOTE_VALIDITY_DAYS = 30;
 
 	private static final Integer OPPORTUNITY_NAME_MAX = 120;
+	private static final Id OPPORTUNITY_RECORD_TYPE_ID = Schema.SObjectType.Opportunity.getRecordTypeInfosByDeveloperName()
+		.get(OPPORTUNITY_RECORD_TYPE)
+		.getRecordTypeId();
 
 	/**
 	 * @description Makes sure a Field Service quote has its parent opportunity (GW-6603), and links an
@@ -30,16 +30,12 @@ public inherited sharing class FieldServiceQuoteService {
 	 * @param quoteId Quote Id
 	 */
 	public static void ensureOpportunity(Id quoteId) {
-		List<Quote> quotes = [
+		Quote quoteRecord = [
 			SELECT Id, OpportunityId, OwnerId, CurrencyIsoCode, Pricebook2Id, ExpirationDate, WorkOrder__c,
 				WorkOrder__r.WorkOrderNumber, ShipToAccount__c, QuoteAccountId, Name
 			FROM Quote
 			WHERE Id = :quoteId
 		];
-		if (quotes.isEmpty()) {
-			return;
-		}
-		Quote quoteRecord = quotes[0];
 		if (quoteRecord.OpportunityId != null) {
 			new OpportunityGateway().linkWorkOrder(quoteRecord.OpportunityId, quoteRecord.WorkOrder__c);
 			return;
@@ -68,7 +64,7 @@ public inherited sharing class FieldServiceQuoteService {
 		Set<Id> productIds
 	) {
 		Map<Id, PricebookEntry> entryByProductId = new Map<Id, PricebookEntry>();
-		if (pricebookId == null || productIds == null || productIds.isEmpty()) {
+		if (pricebookId == null || productIds.isEmpty()) {
 			return entryByProductId;
 		}
 		for (PricebookEntry entry : [
@@ -85,22 +81,6 @@ public inherited sharing class FieldServiceQuoteService {
 	}
 
 	/**
-	 * @description Active record type Id by developer name.
-	 * @param objectType SObject type
-	 * @param developerName Record type developer name
-	 * @return Record type Id
-	 */
-	public static Id recordTypeId(SObjectType objectType, String developerName) {
-		Schema.RecordTypeInfo info = objectType.getDescribe().getRecordTypeInfosByDeveloperName().get(developerName);
-		if (info == null) {
-			throw new FieldServiceQuoteException(
-				'Record type ' + developerName + ' is missing on ' + objectType.getDescribe().getName() + '.'
-			);
-		}
-		return info.getRecordTypeId();
-	}
-
-	/**
 	 * @description GW-6603: Field Service opportunity access runs without sharing so the existing opportunity for a
 	 *              Work Order is reused even when the current user cannot see it (opportunities are private).
 	 */
@@ -110,12 +90,11 @@ public inherited sharing class FieldServiceQuoteService {
 		 *              Quotes without a Work Order get a new account-only opportunity.
 		 */
 		public Id findOrCreate(Quote quoteRecord, Id workOrderId, Id accountId, String reference) {
-			Id opportunityRecordTypeId = recordTypeId(Opportunity.SObjectType, OPPORTUNITY_RECORD_TYPE);
 			if (workOrderId != null) {
 				List<Opportunity> existing = [
 					SELECT Id
 					FROM Opportunity
-					WHERE WorkOrder__c = :workOrderId AND RecordTypeId = :opportunityRecordTypeId
+					WHERE WorkOrder__c = :workOrderId AND RecordTypeId = :OPPORTUNITY_RECORD_TYPE_ID
 					ORDER BY CreatedDate ASC
 					LIMIT 1
 				];
@@ -138,7 +117,7 @@ public inherited sharing class FieldServiceQuoteService {
 			}
 
 			Opportunity opportunityRecord = new Opportunity(
-				RecordTypeId = opportunityRecordTypeId,
+				RecordTypeId = OPPORTUNITY_RECORD_TYPE_ID,
 				Name = name.left(OPPORTUNITY_NAME_MAX),
 				AccountId = accountId,
 				WorkOrder__c = workOrderId,
@@ -155,14 +134,13 @@ public inherited sharing class FieldServiceQuoteService {
 		}
 
 		public void linkWorkOrder(Id opportunityId, Id workOrderId) {
-			if (opportunityId == null || workOrderId == null) {
+			if (workOrderId == null) {
 				return;
 			}
-			Id opportunityRecordTypeId = recordTypeId(Opportunity.SObjectType, OPPORTUNITY_RECORD_TYPE);
 			List<Opportunity> opportunities = [
 				SELECT Id
 				FROM Opportunity
-				WHERE Id = :opportunityId AND RecordTypeId = :opportunityRecordTypeId AND WorkOrder__c = NULL
+				WHERE Id = :opportunityId AND RecordTypeId = :OPPORTUNITY_RECORD_TYPE_ID AND WorkOrder__c = NULL
 			];
 			if (!opportunities.isEmpty()) {
 				update new Opportunity(Id = opportunityId, WorkOrder__c = workOrderId);

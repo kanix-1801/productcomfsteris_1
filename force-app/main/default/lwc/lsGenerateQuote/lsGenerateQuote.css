@@ -124,7 +124,7 @@
 }
 
 .custom-table col.quote-table-col {
-    width: 14.2857%;
+    width: 20%;
 }
 
 .col-forecast-confidence,
@@ -505,3 +505,11 @@
     padding: 0.75rem 1rem;
     box-sizing: border-box;
 }
+.line-item-table .line-item-col-number { width: 10%; }
+.line-item-table .line-item-col-description { width: 20%; }
+.line-item-table .line-item-col-uom { width: 6%; }
+.line-item-table .line-item-col-qty { width: 8%; }
+.line-item-table .line-item-col-unit { width: 10%; }
+.line-item-table .line-item-col-status { width: 8%; }
+.line-item-table .line-item-col-date { width: 12%; }
+.line-item-table .line-item-col-total { width: 14%; }

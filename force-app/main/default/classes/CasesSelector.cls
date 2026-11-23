@@ -22,7 +22,7 @@ public with sharing class CasesSelector {
      */
     private static final String EXTENDED_FIELDS = 
         BASE_FIELDS + ', ' +
-        'Customer_Want_Date__c, Order__c, OrderLine__c, Project__c, ' +
+        'Customer_Want_Date__c,EmailType__c, Order__c, OrderLine__c, Project__c, ' +
         'OverAll_GO_NOGODecision__c, MilestoneStatus, SlaStartDate, SlaExitDate';
     
     /**

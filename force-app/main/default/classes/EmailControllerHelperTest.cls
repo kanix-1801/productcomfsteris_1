@@ -2077,4 +2077,213 @@ static void test_firstNonPreInstallScheduleDate_selectorException() {
     );
 }
 
+    @IsTest
+    static void testCancelledTradeInEquipmentDetailsPositive() {
+
+        Case caseRecord = [
+            SELECT Id
+            FROM Case
+            WHERE Subject = 'Helper Main Case'
+            LIMIT 1
+        ];
+
+        Order orderRecord = [
+            SELECT Id,
+                Pricebook2Id
+            FROM Order
+            WHERE ParentCase__c = :caseRecord.Id
+            LIMIT 1
+        ];
+
+        Product2 tradeInProduct = new Product2(
+            Name = 'CBM-1416 Helper Trade-In Product',
+            ProductCode = 'CBM1416-HELP',
+            Description = 'Test Product Description',
+            IsActive = true,
+            SalesCategory__c = 'CAPEQUIP',
+            ItemID__c = 'CBM1416HELP',
+            InventoryOrgId__c = 'CBM1416H'
+        );
+
+        tradeInProduct.put(
+            'ItemType__c',
+            'TRADE-IN'
+        );
+
+        insert tradeInProduct;
+
+        PricebookEntry tradeInPricebookEntry =
+            new PricebookEntry(
+                Pricebook2Id = orderRecord.Pricebook2Id,
+                Product2Id = tradeInProduct.Id,
+                UnitPrice = 25,
+                IsActive = true
+            );
+
+        insert tradeInPricebookEntry;
+
+        OrderItem cancelledTradeInLine = new OrderItem(
+            OrderId = orderRecord.Id,
+            PricebookEntryId = tradeInPricebookEntry.Id,
+            Quantity = 2,
+            UnitPrice = 25,
+            OrderLineStatus__c = 'Cancelled',
+            LineNumber__c = '1416'
+        );
+
+        insert cancelledTradeInLine;
+
+        OrderItem insertedLine = [
+            SELECT Id,
+                OrderLineType__c,
+                OrderLineStatus__c,
+                LineNumber__c,
+                OrderLineNumber__c,
+                Product2.SalesCategory__c,
+                Product2.ItemType__c,
+                Product2.Description,
+                TotalPrice
+            FROM OrderItem
+            WHERE Id = :cancelledTradeInLine.Id
+        ];
+
+        System.assertEquals(
+            'CAPEQUIP',
+            insertedLine.Product2.SalesCategory__c,
+            'Product Sales Category must be CAPEQUIP.'
+        );
+
+        System.assertEquals(
+            'TRADE-IN',
+            insertedLine.Product2.ItemType__c,
+            'Product Item Type must be TRADE-IN.'
+        );
+
+        System.assertEquals(
+            'Trade In Lines',
+            insertedLine.OrderLineType__c,
+            'The flow must calculate OrderLineType__c as Trade In Lines.'
+        );
+
+        System.assertEquals(
+            'Cancelled',
+            insertedLine.OrderLineStatus__c,
+            'The Trade-In line must have Cancelled status.'
+        );
+
+        System.assertNotEquals(
+            null,
+            insertedLine.OrderLineNumber__c,
+            'Salesforce must generate OrderLineNumber__c.'
+        );
+
+        Test.startTest();
+
+        List<OrderItem> results =
+            EmailControllerHelper.cancelledTradeInEquipmentDetails(
+                caseRecord.Id
+            );
+
+        Test.stopTest();
+
+        System.assertNotEquals(
+            null,
+            results,
+            'Expected a non-null result list.'
+        );
+
+        System.assertEquals(
+            1,
+            results.size(),
+            'Expected one cancelled Trade-In line.'
+        );
+
+        System.assertEquals(
+            cancelledTradeInLine.Id,
+            results[0].Id,
+            'Expected the CBM-1416 cancelled Trade-In line.'
+        );
+
+        System.assertEquals(
+            '1416',
+            results[0].LineNumber__c,
+            'Expected LineNumber__c to be returned.'
+        );
+
+        System.assertEquals(
+            'Test Product Description',
+            results[0].Product2.Description,
+            'Expected the Product description.'
+        );
+
+        System.assertEquals(
+            Decimal.valueOf('50'),
+            results[0].TotalPrice,
+            'Expected Quantity multiplied by UnitPrice as TotalPrice.'
+        );
+    }
+
+     @IsTest
+    static void testCancelledTradeInEquipmentDetailsNullCaseId() {
+
+        Test.startTest();
+
+        List<OrderItem> results =
+            EmailControllerHelper.cancelledTradeInEquipmentDetails(
+                null
+            );
+
+        Test.stopTest();
+
+        System.assertNotEquals(
+            null,
+            results,
+            'Expected a non-null list.'
+        );
+
+        System.assertEquals(
+            0,
+            results.size(),
+            'Expected an empty list when Case Id is null.'
+        );
+    }
+
+    @IsTest
+    static void testCancelledTradeInEquipmentDetailsException() {
+
+        Boolean exceptionCaught = false;
+
+        Test.startTest();
+
+        try {
+
+            EmailControllerHelper.cancelledTradeInEquipmentDetails(
+                FORCE_EXCEPTION
+            );
+
+            System.assert(
+                false,
+                'Expected the forced exception.'
+            );
+
+        } catch (Exception ex) {
+
+            exceptionCaught = true;
+
+            System.assertEquals(
+                'Forced Exception for Unit Test',
+                ex.getMessage(),
+                'Expected the forced helper exception.'
+            );
+        }
+
+        Test.stopTest();
+
+        System.assertEquals(
+            true,
+            exceptionCaught,
+            'Expected the exception to be caught by the test.'
+        );
+    }
+
 }

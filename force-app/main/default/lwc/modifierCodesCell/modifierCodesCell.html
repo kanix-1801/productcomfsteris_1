@@ -13,15 +13,17 @@
                     <lightning-icon icon-name="utility:edit" size="x-small" alternative-text=""></lightning-icon>
                 </button>
             </template>
-            <button
-                type="button"
-                class="icon-button"
-                onclick={handleRemove}
-                title="Remove modifier"
-                aria-label="Remove modifier"
-            >
-                <lightning-icon icon-name="utility:delete" size="x-small" alternative-text=""></lightning-icon>
-            </button>
+            <template lwc:if={showRemove}>
+                <button
+                    type="button"
+                    class="icon-button"
+                    onclick={handleRemove}
+                    title="Remove modifier"
+                    aria-label="Remove modifier"
+                >
+                    <lightning-icon icon-name="utility:delete" size="x-small" alternative-text=""></lightning-icon>
+                </button>
+            </template>
         </template>
         <template lwc:elseif={showAdd}>
             <button type="button" class="add-button" onclick={handleAdd} title="Add modifier" aria-label="Add modifier">

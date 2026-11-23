@@ -15,8 +15,8 @@ public class TAEWorkItemException extends Exception {
      * @param message Text stored on the exception.
      * @return New TAEWorkItemException.
      */
-    public static TAEWorkItemException create(String message) {
-        TAEWorkItemException created = new TAEWorkItemException(message);
-        return created;
-    }
+	public static TAEWorkItemException create(String message) {
+		TAEWorkItemException created = new TAEWorkItemException(message);
+		return created;
+	}
 }

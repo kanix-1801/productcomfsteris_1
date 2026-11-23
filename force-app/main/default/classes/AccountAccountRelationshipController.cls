@@ -18,8 +18,8 @@ public with sharing class AccountAccountRelationshipController {
      * Added at the Controller level since the Service class cannot be
      * modified for this change.
      */
-    @TestVisible
-    private static Boolean forceExceptionForTest = false;
+	@TestVisible
+	private static Boolean forceExceptionForTest = false;
 
     /**
      * @description
@@ -30,17 +30,17 @@ public with sharing class AccountAccountRelationshipController {
      * @example
      * AccountAccountRelationshipController.getRelationships(accId);
      */
-    @AuraEnabled(cacheable=true)
-    public static List<AccountAccountRelationship__c> getRelationships(Id accountId) {
-        try {
-            return AccountAccountRelationshipService.getRelationshipsForAccount(accountId);
-        } catch (Exception e) {
-            throw new AuraHandledException(
-                'Unable to load Account Account Relationships. ' +
-                e.getTypeName() + ': ' + e.getMessage()
-            );
-        }
-    }
+	@AuraEnabled(cacheable=true)
+	public static List<AccountAccountRelationship__c> getRelationships(Id accountId) {
+		try {
+			return AccountAccountRelationshipService.getRelationshipsForAccount(accountId);
+		} catch (Exception e) {
+			throw new AuraHandledException(
+				'Unable to load Account Account Relationships. ' +
+				e.getTypeName() + ': ' + e.getMessage()
+			);
+		}
+	}
 
     /**
      * @description
@@ -52,20 +52,20 @@ public with sharing class AccountAccountRelationshipController {
      * @example
      * AccountAccountRelationshipController.getAccountType(accId);
      */
-    @AuraEnabled(cacheable=true)
-    public static String getAccountType(Id accountId) {
-        try {
-            if (Test.isRunningTest() && forceExceptionForTest) {
-                throw new AccountAccountRelationshipException('Forced exception for test coverage.');
-            }
-            return AccountAccountRelationshipService.getAccountType(accountId);
-        } catch (Exception e) {
-            throw new AuraHandledException(
-                'Unable to load Account details. ' +
-                e.getTypeName() + ': ' + e.getMessage()
-            );
-        }
-    }
+	@AuraEnabled(cacheable=true)
+	public static String getAccountType(Id accountId) {
+		try {
+			if (Test.isRunningTest() && forceExceptionForTest) {
+				throw new AccountAccountRelationshipException('Forced exception for test coverage.');
+			}
+			return AccountAccountRelationshipService.getAccountType(accountId);
+		} catch (Exception e) {
+			throw new AuraHandledException(
+				'Unable to load Account details. ' +
+				e.getTypeName() + ': ' + e.getMessage()
+			);
+		}
+	}
 
     /**
      * @description
@@ -76,18 +76,18 @@ public with sharing class AccountAccountRelationshipController {
      * @example
      * AccountAccountRelationshipController.isSystemAdministrator();
      */
-    @AuraEnabled(cacheable=true)
-    public static Boolean isSystemAdministrator() {
-        try {
-            if (Test.isRunningTest() && forceExceptionForTest) {
-                throw new AccountAccountRelationshipException('Forced exception for test coverage.');
-            }
-            return AccountAccountRelationshipService.isSystemAdministrator();
-        } catch (Exception e) {
-            throw new AuraHandledException(
-                'Unable to check user access. ' +
-                e.getTypeName() + ': ' + e.getMessage()
-            );
-        }
-    }
+	@AuraEnabled(cacheable=true)
+	public static Boolean isSystemAdministrator() {
+		try {
+			if (Test.isRunningTest() && forceExceptionForTest) {
+				throw new AccountAccountRelationshipException('Forced exception for test coverage.');
+			}
+			return AccountAccountRelationshipService.isSystemAdministrator();
+		} catch (Exception e) {
+			throw new AuraHandledException(
+				'Unable to check user access. ' +
+				e.getTypeName() + ': ' + e.getMessage()
+			);
+		}
+	}
 }

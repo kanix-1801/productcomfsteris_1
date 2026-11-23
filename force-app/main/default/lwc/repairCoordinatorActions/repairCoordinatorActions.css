@@ -309,6 +309,14 @@
     width: 12rem;
 }
 
+/* Device Work Performed: Category, Item Number, Description, Apply Signature. */
+.summary-table_device .summary-table__col-category,
+.summary-table_device .summary-table__col-item-number,
+.summary-table_device .summary-table__col-description,
+.summary-table_device .summary-table__col-signature {
+    width: 25%;
+}
+
 .summary-table th.summary-table__col-signature,
 .summary-table td.summary-table__col-signature {
     max-width: none;

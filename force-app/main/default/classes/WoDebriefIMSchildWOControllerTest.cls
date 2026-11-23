@@ -790,14 +790,18 @@ private class WoDebriefIMSchildWOControllerTest {
 			String.valueOf(workOrder.Id).toLowerCase(),
 			null
 		);
-		String missing = WoDebriefIMSchildWOController.findLatestProductServicedLineId(
+		String unmatchedAsset = WoDebriefIMSchildWOController.findLatestProductServicedLineId(
 			workOrder.Id,
 			'000000000000000AAA'
 		);
 		Test.stopTest();
 
 		System.assertEquals(String.valueOf(line.Id), found);
-		System.assertEquals(null, missing);
+		System.assertEquals(
+			String.valueOf(line.Id),
+			unmatchedAsset,
+			'An unmatched asset falls back to the newest Product Serviced line'
+		);
 		System.assertEquals(null, WoDebriefIMSchildWOController.findLatestProductServicedLineId(null, null));
 	}
 
@@ -1305,5 +1309,281 @@ private class WoDebriefIMSchildWOControllerTest {
 			WoDebriefIMSchildWOController.MICROSCOPE_PICTURE_TITLE,
 			WoDebriefIMSchildWOController.pictureTitle(details)
 		);
+	}
+
+	/**
+	 * @description GW-375 - Work order with one Product Serviced line for CRSS picture upload tests.
+	 * @param token Unique suffix
+	 * @return Inserted Product Serviced line, with WorkOrderId and LineItemNumber
+	 */
+	private static WorkOrderLineItem createCrssPictureLine(String token) {
+		Account account = new Account(
+			Name = 'Picture Upload ' + token,
+			SourceSystemID__c = 'ORACLE-PIC-UPL-' + token
+		);
+		insert account;
+		WorkOrder workOrder = new WorkOrder(
+			AccountId = account.Id,
+			Subject = 'Picture Upload ' + token
+		);
+		insert workOrder;
+		WorkOrderLineItem line = new WorkOrderLineItem(
+			WorkOrderId = workOrder.Id,
+			RecordTypeId = instrumentRecordTypeId(),
+			LineType__c = 'Product Serviced'
+		);
+		insert line;
+		return [SELECT Id, WorkOrderId, LineItemNumber FROM WorkOrderLineItem WHERE Id = :line.Id];
+	}
+
+	/**
+	 * @description GW-6437 - Saves a picture after Save All with a file name, work order, line id, and comment.
+	 */
+	@IsTest
+	static void saveMobileDevicePictureOnWorkOrderLineItem_savesCommentOnLine() {
+		WorkOrderLineItem line = createCrssPictureLine('direct');
+		String context = 'StagedPhoto.jpg||' + line.WorkOrderId + '::' + line.Id + '|||  First comment  ';
+
+		Test.startTest();
+		WoDebriefIMSchildWOController.MobileDevicePicture saved =
+			WoDebriefIMSchildWOController.saveMobileDevicePictureOnWorkOrderLineItem(
+				context,
+				EncodingUtil.base64Encode(Blob.valueOf('staged-line-photo'))
+			);
+		Test.stopTest();
+
+		System.assertEquals(line.Id, saved.linkedEntityId);
+		System.assertEquals('First comment', saved.comment);
+		ContentVersion version = [
+			SELECT MobileDevicePictureComment__c
+			FROM ContentVersion
+			WHERE ContentDocumentId = :saved.contentDocumentId AND IsLatest = true
+		];
+		System.assertEquals('First comment', version.MobileDevicePictureComment__c);
+	}
+
+	/**
+	 * @description GW-375 - Resolves the line by its line number when the mobile app replaces the line id
+	 *              in the saveKey|lineNumber|lineId reference with the work order id.
+	 */
+	@IsTest
+	static void saveMobileDevicePictureOnWorkOrderLineItem_matchesLineNumber() {
+		WorkOrderLineItem line = createCrssPictureLine('number');
+		String context = line.WorkOrderId + '::draft-key|' + line.LineItemNumber + '|' + line.WorkOrderId;
+
+		Test.startTest();
+		WoDebriefIMSchildWOController.MobileDevicePicture saved =
+			WoDebriefIMSchildWOController.saveMobileDevicePictureOnWorkOrderLineItem(
+				context,
+				EncodingUtil.base64Encode(Blob.valueOf('line-number-photo'))
+			);
+		Test.stopTest();
+
+		System.assertEquals(line.Id, saved.linkedEntityId);
+	}
+
+	/**
+	 * @description GW-375 - Resolves a lowercased line id against the work order in lineId|workOrderId|assetId.
+	 */
+	@IsTest
+	static void saveMobileDevicePictureOnWorkOrderLineItem_repairsDamagedLineId() {
+		WorkOrderLineItem line = createCrssPictureLine('damaged');
+		String damagedLineId = String.valueOf(line.Id).substring(0, 15).toLowerCase();
+		String damagedWorkOrderId = String.valueOf(line.WorkOrderId).toLowerCase();
+
+		Test.startTest();
+		WoDebriefIMSchildWOController.MobileDevicePicture saved =
+			WoDebriefIMSchildWOController.saveMobileDevicePictureOnWorkOrderLineItem(
+				damagedLineId + '|' + damagedWorkOrderId + '|',
+				EncodingUtil.base64Encode(Blob.valueOf('damaged-line-photo'))
+			);
+		Test.stopTest();
+
+		System.assertEquals(line.Id, saved.linkedEntityId);
+	}
+
+	/**
+	 * @description GW-375 - Falls back to the file name context when the mobile app drops the line payload.
+	 */
+	@IsTest
+	static void saveMobileDevicePictureOnWorkOrderLineItem_readsFileNameContext() {
+		WorkOrderLineItem line = createCrssPictureLine('filename');
+		String fileName = 'GW375;_new_1;' + line.WorkOrderId + ';;MobileDevicePicture.jpg';
+
+		Test.startTest();
+		WoDebriefIMSchildWOController.MobileDevicePicture saved =
+			WoDebriefIMSchildWOController.saveMobileDevicePictureOnWorkOrderLineItem(
+				fileName + '||',
+				EncodingUtil.base64Encode(Blob.valueOf('file-name-photo'))
+			);
+		Test.stopTest();
+
+		System.assertEquals(line.Id, saved.linkedEntityId);
+	}
+
+	/**
+	 * @description GW-375 - Rejects an upload that does not identify a line.
+	 */
+	@IsTest
+	static void saveMobileDevicePictureOnWorkOrderLineItem_unknownLine_throws() {
+		Boolean threw = false;
+		Test.startTest();
+		try {
+			WoDebriefIMSchildWOController.saveMobileDevicePictureOnWorkOrderLineItem(
+				'not-a-line',
+				EncodingUtil.base64Encode(Blob.valueOf('orphan-photo'))
+			);
+		} catch (AuraHandledException e) {
+			threw = true;
+		}
+		Test.stopTest();
+
+		System.assert(threw, 'An upload without a line should be rejected.');
+	}
+
+	/**
+	 * @description GW-6437 - Updates the comment on a saved picture and rejects other files.
+	 */
+	@IsTest
+	static void updateMobileDevicePictureComment_updatesPictureOnly() {
+		WorkOrderLineItem line = createCrssPictureLine('comment');
+		WoDebriefIMSchildWOController.MobileDevicePicture saved =
+			WoDebriefIMSchildWOController.saveMobileDevicePictureOnWorkOrderLineItem(
+				line.WorkOrderId + '::' + line.Id,
+				EncodingUtil.base64Encode(Blob.valueOf('comment-photo'))
+			);
+		ContentVersion otherFile = new ContentVersion(
+			Title = 'Other.pdf',
+			PathOnClient = 'Other.pdf',
+			VersionData = Blob.valueOf('not-a-picture')
+		);
+		insert otherFile;
+		Id otherDocumentId = [SELECT ContentDocumentId FROM ContentVersion WHERE Id = :otherFile.Id].ContentDocumentId;
+
+		Test.startTest();
+		WoDebriefIMSchildWOController.MobileDevicePicture updated =
+			WoDebriefIMSchildWOController.updateMobileDevicePictureComment(
+				String.valueOf(saved.contentDocumentId),
+				'  Updated comment  '
+			);
+		Boolean blankRejected = false;
+		try {
+			WoDebriefIMSchildWOController.updateMobileDevicePictureComment('', 'x');
+		} catch (AuraHandledException e) {
+			blankRejected = true;
+		}
+		Boolean otherFileRejected = false;
+		try {
+			WoDebriefIMSchildWOController.updateMobileDevicePictureComment(String.valueOf(otherDocumentId), 'x');
+		} catch (AuraHandledException e) {
+			otherFileRejected = true;
+		}
+		Test.stopTest();
+
+		System.assertEquals('Updated comment', updated.comment);
+		System.assertEquals(line.Id, updated.linkedEntityId);
+		System.assert(blankRejected, 'A blank picture id should be rejected.');
+		System.assert(otherFileRejected, 'Only Mobile Device Pictures can be updated.');
+	}
+
+	/**
+	 * @description GW-6437 - Saves a header picture with a comment from a lowercased work order id.
+	 */
+	@IsTest
+	static void saveWorkOrderHeaderMobileDevicePicture_savesCommentOnWorkOrder() {
+		WorkOrderLineItem line = createCrssPictureLine('header');
+		String damagedWorkOrderId = String.valueOf(line.WorkOrderId).toLowerCase();
+
+		Test.startTest();
+		WoDebriefIMSchildWOController.MobileDevicePicture saved =
+			WoDebriefIMSchildWOController.saveWorkOrderHeaderMobileDevicePicture(
+				damagedWorkOrderId + '|||Header note',
+				EncodingUtil.base64Encode(Blob.valueOf('header-photo'))
+			);
+		Boolean threw = false;
+		try {
+			WoDebriefIMSchildWOController.saveWorkOrderHeaderMobileDevicePicture(
+				'',
+				EncodingUtil.base64Encode(Blob.valueOf('header-photo'))
+			);
+		} catch (AuraHandledException e) {
+			threw = true;
+		}
+		Test.stopTest();
+
+		System.assertEquals(line.WorkOrderId, saved.linkedEntityId);
+		System.assertEquals('Header note', saved.comment);
+		System.assert(threw, 'A header picture needs a work order.');
+	}
+
+	/**
+	 * @description GW-375 - A blank primary id saves the picture on the work order header.
+	 */
+	@IsTest
+	static void saveMobileDevicePicture_blankPrimary_fallsBackToWorkOrder() {
+		WorkOrderLineItem line = createCrssPictureLine('fallback');
+
+		Test.startTest();
+		WoDebriefIMSchildWOController.MobileDevicePicture saved =
+			WoDebriefIMSchildWOController.saveMobileDevicePicture(
+				'',
+				null,
+				EncodingUtil.base64Encode(Blob.valueOf('fallback-photo')),
+				'MobileDevicePicture.jpg',
+				String.valueOf(line.WorkOrderId)
+			);
+		Test.stopTest();
+
+		System.assertEquals(line.WorkOrderId, saved.linkedEntityId);
+	}
+
+	/**
+	 * @description Resolves the active Price Book Entry for a product on the Work Order price book.
+	 */
+	@IsTest
+	static void resolvePricebookEntryId_returnsEntryOnWorkOrderPricebook() {
+		Product2 product = createProduct('PBE-PART', 'Part', null);
+		Id standardPricebookId = Test.getStandardPricebookId();
+		Account account = new Account(
+			Name = 'Pricebook Entry Test',
+			SourceSystemID__c = 'ORACLE-PBE-' + String.valueOf(Crypto.getRandomInteger()).replace('-', '')
+		);
+		insert account;
+		WorkOrder newWorkOrder = new WorkOrder(
+			AccountId = account.Id,
+			Subject = 'Pricebook Entry Test',
+			Pricebook2Id = standardPricebookId
+		);
+		insert newWorkOrder;
+		// Automation can replace the price book on insert, so use the one the Work Order kept.
+		WorkOrder workOrder = (WorkOrder) Database.query(
+			'SELECT Id, Pricebook2Id, CurrencyIsoCode FROM WorkOrder WHERE Id = \'' + newWorkOrder.Id + '\''
+		);
+		String currencyIso = (String) workOrder.get('CurrencyIsoCode');
+		PricebookEntry standardEntry = new PricebookEntry(
+			Pricebook2Id = standardPricebookId,
+			Product2Id = product.Id,
+			UnitPrice = 10,
+			IsActive = true
+		);
+		standardEntry.put('CurrencyIsoCode', currencyIso);
+		insert standardEntry;
+		PricebookEntry entry = standardEntry;
+		if (workOrder.Pricebook2Id != standardPricebookId) {
+			entry = new PricebookEntry(
+				Pricebook2Id = workOrder.Pricebook2Id,
+				Product2Id = product.Id,
+				UnitPrice = 10,
+				IsActive = true
+			);
+			entry.put('CurrencyIsoCode', currencyIso);
+			insert entry;
+		}
+
+		Test.startTest();
+		Id resolved = WoDebriefIMSchildWOController.resolvePricebookEntryId(workOrder.Id, product.Id);
+		Test.stopTest();
+
+		System.assertEquals(entry.Id, resolved);
 	}
 }

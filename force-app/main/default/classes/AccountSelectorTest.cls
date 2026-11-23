@@ -581,4 +581,31 @@ private class AccountSelectorTest {
 		Assert.areEqual(0, AccountSelector.selectByIds(new Set<Id>()).size());
 	}
 
+	/**
+	 * @description GW-4162 - Bill-To Address accounts under a parent (Active/Primary).
+	 */
+	@IsTest
+	static void selectBillToAddressAccountsByParentId_nullAndMatching() {
+		Assert.areEqual(0, AccountSelector.selectBillToAddressAccountsByParentId(null).size());
+
+		adb_Account parentBuilder = new adb_Account().name('GW4162 BillTo Parent');
+		Account parentAccount = (Account) parentBuilder.persist();
+
+		adb_Account billToBuilder = new adb_Account()
+			.name('GW4162 Primary Bill To')
+			.sourceSystemId('GW4162-BILL-SRC');
+		billToBuilder.set(Account.Type, 'Address');
+		billToBuilder.set(Account.ParentId, parentAccount.Id);
+		billToBuilder.set(Account.BilltoAddressStatus__c, 'Primary');
+		Account billTo = (Account) billToBuilder.persist();
+
+		Test.startTest();
+		List<Account> results = AccountSelector.selectBillToAddressAccountsByParentId(parentAccount.Id);
+		Test.stopTest();
+
+		Assert.areEqual(1, results.size());
+		Assert.areEqual(billTo.Id, results[0].Id);
+	}
+
+
 }

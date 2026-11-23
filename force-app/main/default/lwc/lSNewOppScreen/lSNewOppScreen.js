@@ -1,5 +1,5 @@
 /**
- * @description       : This faceless LWC is used to redirect the user
+ * @description       : [GCL-339]: This faceless LWC is used to redirect the user
  *                      from standard 'Select Opportunity Record Type' page to
  *                      the standard New Opportunity Screen,
  *                      with the Opportunity Name field pre-populated by default,

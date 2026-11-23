@@ -13,17 +13,17 @@ public with sharing class OppDealApprovalController {
      * @param opportunityId Opportunity record Id displayed on the record page.
      * @return Approval context DTO for the deal approval LWC.
      */
-    @AuraEnabled
-    public static OppDealApprovalService.ApprovalContext getApprovalContext(Id opportunityId) {
-        try {
-            return OppDealApprovalService.getApprovalContext(opportunityId);
-        } catch (AuraHandledException exceptionValue) {
-            throw exceptionValue;
-        } catch (Exception exceptionValue) {
-            ErrorLogger.logException(exceptionValue, 'OppDealApprovalController', 'getApprovalContext');
-            throw new AuraHandledException('Unable to load deal approval details.');
-        }
-    }
+	@AuraEnabled
+	public static OppDealApprovalService.ApprovalContext getApprovalContext(Id opportunityId) {
+		try {
+			return OppDealApprovalService.getApprovalContext(opportunityId);
+		} catch (AuraHandledException exceptionValue) {
+			throw exceptionValue;
+		} catch (Exception exceptionValue) {
+			ErrorLogger.logException(exceptionValue, 'OppDealApprovalController', 'getApprovalContext');
+			throw new AuraHandledException('Unable to load deal approval details.');
+		}
+	}
 
     /**
      * @description Records an approve or reject decision for the current user's pending approver row.
@@ -32,19 +32,19 @@ public with sharing class OppDealApprovalController {
      * @param comments Required when rejecting; optional approval notes otherwise.
      * @return Refreshed approval context after the decision is persisted.
      */
-    @AuraEnabled
-    public static OppDealApprovalService.ApprovalContext decide(
-        Id approverRecordId,
-        String decision,
-        String comments
-    ) {
-        try {
-            return OppDealApprovalService.decide(approverRecordId, decision, comments);
-        } catch (AuraHandledException exceptionValue) {
-            throw exceptionValue;
-        } catch (Exception exceptionValue) {
-            ErrorLogger.logException(exceptionValue, 'OppDealApprovalController', 'decide');
-            throw new AuraHandledException('Unable to record the approval decision.');
-        }
-    }
+	@AuraEnabled
+	public static OppDealApprovalService.ApprovalContext decide(
+		Id approverRecordId,
+		String decision,
+		String comments
+	) {
+		try {
+			return OppDealApprovalService.decide(approverRecordId, decision, comments);
+		} catch (AuraHandledException exceptionValue) {
+			throw exceptionValue;
+		} catch (Exception exceptionValue) {
+			ErrorLogger.logException(exceptionValue, 'OppDealApprovalController', 'decide');
+			throw new AuraHandledException('Unable to record the approval decision.');
+		}
+	}
 }

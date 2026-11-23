@@ -1,22 +1,22 @@
 /**
-* @author PWC Developer
-* @date 2026/11/02
-*
-* @group Dealer Portal
-*
-* @description
-* Dealer Portal R1 - Tests for dealer home metrics, workspace filters, and opportunity creation.
-*/
+ * @author PWC Developer
+ * @date 2026/11/02
+ *
+ * @group Dealer Portal
+ *
+ * @description
+ * GC-3603 Dealer Portal R1 - Tests for dealer home metrics, workspace filters, and opportunity creation.
+ */
 @IsTest(SeeAllData=false)
 private class DealerOpportunityControllerTest {
-    
+
     @TestSetup
     static void setupData() {
         bypassOpportunityTrigger();
-        
+
         Account dealerAccount = new Account(Name = 'Authorized Dealer Midwest');
         insert dealerAccount;
-        
+
         User dealerManager = insertUser('Dana', 'Manager', 'dmgr');
         insert new AccountTeamMember(
             AccountId = dealerAccount.Id,
@@ -27,25 +27,25 @@ private class DealerOpportunityControllerTest {
             CaseAccessLevel = 'Read',
             ContactAccessLevel = 'Read'
         );
-        
+
         List<Opportunity> opportunities = new List<Opportunity>{
             buildOpportunity(dealerAccount, 'Recent Hospital Project', 'Evaluation', 15000, Date.today().addDays(10), Date.today().addDays(-3)),
-                buildOpportunity(dealerAccount, 'Older Capital Project', 'Proposal', 27500, Date.today().addDays(20), Date.today().addDays(-1)),
-                buildOpportunity(dealerAccount, 'Won Sterilizer', 'Closed Won', 23000, Date.today().addDays(-5), Date.today().addDays(-20)),
-                buildOpportunity(dealerAccount, 'Future Ship Project', 'Commit', 16450, Date.today().addDays(40), Date.today().addDays(15))
-                };
-                    insert opportunities;
-        
+            buildOpportunity(dealerAccount, 'Older Capital Project', 'Proposal', 27500, Date.today().addDays(20), Date.today().addDays(-1)),
+            buildOpportunity(dealerAccount, 'Won Sterilizer', 'Closed Won', 23000, Date.today().addDays(-5), Date.today().addDays(-20)),
+            buildOpportunity(dealerAccount, 'Future Ship Project', 'Commit', 16450, Date.today().addDays(40), Date.today().addDays(15))
+        };
+        insert opportunities;
+
         // Org automation resets the stage to Evaluation on insert, so apply the intended stage by update.
         update opportunities;
     }
-    
+
     @IsTest
     static void getHomeReturnsOpenPipelineAndPastDue() {
         Test.startTest();
         DealerOpportunityController.HomeResponse response = DealerOpportunityController.getHome();
         Test.stopTest();
-        
+
         Assert.areEqual(3, response.summary.openCount, 'Evaluation, Proposal, and Commit are open.');
         Assert.areEqual(58950, response.summary.openPipelineValue.intValue(), 'Open value should be converted USD.');
         Assert.areEqual(1, response.summary.closedWonCount, 'Closed Won should be counted separately.');
@@ -53,20 +53,20 @@ private class DealerOpportunityControllerTest {
         Assert.isFalse(response.recentOpportunities.isEmpty(), 'Recent opportunities should be returned.');
         Assert.areEqual(0, discoveryCount(response.summary), 'Discovery is not a dealer stage metric.');
     }
-    
+
     @IsTest
     static void getWorkspaceFiltersByCustomerAndStage() {
         String filterJson = '{"search":"Sterilizer","stageName":"Closed Won","pageNumber":1,"pageSize":25}';
-        
+
         Test.startTest();
         DealerOpportunityController.WorkspaceResponse response = DealerOpportunityController.getWorkspace(filterJson);
         Test.stopTest();
-        
+
         Assert.areEqual(1, response.totalCount, 'The customer and stage filter should return one opportunity.');
         Assert.areEqual('Won Sterilizer', response.opportunities[0].name, 'The matching opportunity should be returned.');
         Assert.areEqual(4, response.summary.totalCount, 'Summary counts stay on the full dealer population.');
     }
-    
+
     @IsTest
     static void getWorkspaceSearchesCountryAmountAndDates() {
         Opportunity futureShip = [
@@ -75,7 +75,7 @@ private class DealerOpportunityControllerTest {
             WHERE Name = 'Future Ship Project'
             LIMIT 1
         ];
-        
+
         Test.startTest();
         DealerOpportunityController.WorkspaceResponse byAmount =
             DealerOpportunityController.getWorkspace('{"search":"$16,450","pageNumber":1,"pageSize":25}');
@@ -90,7 +90,7 @@ private class DealerOpportunityControllerTest {
                 '{"search":"' + String.valueOf(futureShip.Expected_Ship_Date__c) + '","pageNumber":1,"pageSize":25}'
             );
         Test.stopTest();
-        
+
         Assert.areEqual(1, byAmount.totalCount, 'A typed amount should match Opportunity Amount.');
         Assert.areEqual('Future Ship Project', byAmount.opportunities[0].name, 'The amount search should return that opportunity.');
         Assert.areEqual(4, byCountry.totalCount, 'Country search should match part of the country name.');
@@ -98,7 +98,7 @@ private class DealerOpportunityControllerTest {
         Assert.areEqual('Future Ship Project', byCloseDate.opportunities[0].name, 'The close date search should return that opportunity.');
         Assert.areEqual(1, byShipDate.totalCount, 'A ship date should match Expected Ship Date.');
     }
-    
+
     @IsTest
     static void createOpportunityAssignsDealerManager() {
         Account dealerAccount = [SELECT Id FROM Account WHERE Name = 'Authorized Dealer Midwest' LIMIT 1];
@@ -124,15 +124,15 @@ private class DealerOpportunityControllerTest {
             '"expectedShipDate":"' + String.valueOf(Date.today().addDays(45)) + '",' +
             '"installationDate":"' + String.valueOf(Date.today().addDays(60)) + '",' +
             '"accountId":"' + dealerAccount.Id + '"' +
-            '}';
-        
+        '}';
+
         Test.startTest();
         Id opportunityId = DealerOpportunityController.createOpportunity(requestJson);
         Test.stopTest();
-        
+
         Opportunity createdOpportunity = [
             SELECT OwnerId, StageName, CurrencyIsoCode, DealerSubmitter__c, DealerAccountName__c,
-            EndCustomerName__c, HCBusinessUnit__c
+                EndCustomerName__c, HCBusinessUnit__c
             FROM Opportunity
             WHERE Id = :opportunityId
         ];
@@ -147,7 +147,7 @@ private class DealerOpportunityControllerTest {
         Assert.areEqual('Authorized Dealer Midwest', createdOpportunity.DealerAccountName__c, 'The dealer name should be stamped.');
         Assert.areEqual('Cleveland Clinic', createdOpportunity.EndCustomerName__c, 'The end customer should be stored.');
     }
-    
+
     @IsTest
     static void finalizeCreatedOpportunityAssignsDealerManager() {
         AccountTeamMember dealerManager = [
@@ -164,11 +164,11 @@ private class DealerOpportunityControllerTest {
             WHERE Name = 'Future Ship Project'
             LIMIT 1
         ];
-        
+
         Test.startTest();
         DealerOpportunityController.finalizeCreatedOpportunity(opportunityRecord.Id);
         Test.stopTest();
-        
+
         Opportunity reloaded = [
             SELECT OwnerId, DealerSubmitter__c
             FROM Opportunity
@@ -177,13 +177,13 @@ private class DealerOpportunityControllerTest {
         Assert.areEqual(dealerManager.UserId, reloaded.OwnerId, 'The Dealer Manager should own the opportunity.');
         Assert.areEqual(UserInfo.getUserId(), reloaded.DealerSubmitter__c, 'The creator is stored as the submitter.');
     }
-    
+
     @IsTest
     static void getCreateContextDefaultsCurrencyToUsd() {
         Test.startTest();
         DealerOpportunityController.CreateContext context = DealerOpportunityController.getCreateContext();
         Test.stopTest();
-        
+
         Assert.areEqual('USD', context.defaultCurrency, 'New dealer opportunities default to USD.');
         Assert.areEqual(false, context.partnerUser, 'The running test user is an internal user.');
         Assert.isTrue(context.stages.contains('Evaluation'), 'Dealer stages should be offered on create.');
@@ -195,7 +195,7 @@ private class DealerOpportunityControllerTest {
             'The standard form should open on the Dealer record type.'
         );
     }
-    
+
     @IsTest
     static void shareServiceLeavesOwnerWhenNoDealerManagerIsAssigned() {
         Account dealerAccount = new Account(Name = 'Dealer Without Manager');
@@ -210,11 +210,11 @@ private class DealerOpportunityControllerTest {
             CurrencyIsoCode = 'USD'
         );
         insert opportunityRecord;
-        
+
         Test.startTest();
         DealerOpportunityShareService.assignOwnerAndShare(opportunityRecord.Id, UserInfo.getUserId());
         Test.stopTest();
-        
+
         Opportunity reloaded = [
             SELECT OwnerId
             FROM Opportunity
@@ -223,7 +223,7 @@ private class DealerOpportunityControllerTest {
         Assert.areEqual(UserInfo.getUserId(), reloaded.OwnerId, 'The owner stays unchanged when no Dealer Manager is assigned.');
         Assert.isNull(DealerOpportunityShareService.selectAccountName(null), 'A blank account has no name.');
     }
-    
+
     @IsTest
     static void getWorkspaceRejectsAnInvalidFilter() {
         Test.startTest();
@@ -235,7 +235,7 @@ private class DealerOpportunityControllerTest {
         }
         Test.stopTest();
     }
-    
+
     @IsTest
     static void createOpportunityRequiresTheEndCustomer() {
         Test.startTest();
@@ -250,7 +250,7 @@ private class DealerOpportunityControllerTest {
         }
         Test.stopTest();
     }
-    
+
     @IsTest
     static void getWorkspaceHonorsBlankAndFullFilters() {
         Opportunity futureShip = [
@@ -277,8 +277,8 @@ private class DealerOpportunityControllerTest {
             '"sortDirection":"DESC",' +
             '"pageNumber":1,' +
             '"pageSize":100' +
-            '}';
-        
+        '}';
+
         Test.startTest();
         DealerOpportunityController.WorkspaceResponse blankFilter =
             DealerOpportunityController.getWorkspace('');
@@ -289,7 +289,7 @@ private class DealerOpportunityControllerTest {
         DealerOpportunityController.WorkspaceResponse ignoredDates =
             DealerOpportunityController.getWorkspace('{"search":"???","closeDateFrom":"","shipDateFrom":"","pageNumber":200,"pageSize":0}');
         Test.stopTest();
-        
+
         Assert.areEqual(4, blankFilter.totalCount, 'A blank filter returns every dealer opportunity.');
         Assert.areEqual(1, blankFilter.pageNumber, 'A blank filter starts on the first page.');
         Assert.areEqual(25, blankFilter.pageSize, 'A blank filter uses the default page size.');
@@ -299,24 +299,24 @@ private class DealerOpportunityControllerTest {
         Assert.areEqual(2, pastDue.totalCount, 'Past due should return the two open opportunities with an earlier ship date.');
         Assert.areEqual(0, ignoredDates.opportunities.size(), 'An unusable search on a far page returns no rows.');
     }
-    
+
     @IsTest
     static void selectorCoversLimitsDatesAndCharts() {
         Account dealerAccount = [SELECT Id, Name FROM Account WHERE Name = 'Authorized Dealer Midwest' LIMIT 1];
         String businessUnit = activeBusinessUnit();
         List<Opportunity> extraOpportunities = new List<Opportunity>{
             buildOpportunity(dealerAccount, 'January Pipeline', 'Evaluation', 5000, Date.newInstance(Date.today().year(), 1, 15), Date.today().addDays(5)),
-                buildOpportunity(dealerAccount, 'June Pipeline', 'Evaluation', 5000, Date.newInstance(Date.today().year(), 6, 15), Date.today().addDays(6)),
-                buildOpportunity(dealerAccount, 'Next Year Pipeline', 'Evaluation', 8000, Date.newInstance(Date.today().year() + 1, 2, 15), Date.today().addDays(7))
-                };
-                    extraOpportunities[0].HCBusinessUnit__c = businessUnit;
+            buildOpportunity(dealerAccount, 'June Pipeline', 'Evaluation', 5000, Date.newInstance(Date.today().year(), 6, 15), Date.today().addDays(6)),
+            buildOpportunity(dealerAccount, 'Next Year Pipeline', 'Evaluation', 8000, Date.newInstance(Date.today().year() + 1, 2, 15), Date.today().addDays(7))
+        };
+        extraOpportunities[0].HCBusinessUnit__c = businessUnit;
         insert extraOpportunities;
-        
+
         DealerOpportunitySelector.OpportunityFilter emptySearch = new DealerOpportunitySelector.OpportunityFilter();
         emptySearch.search = '13/40/2026';
         emptySearch.pageNumber = 0;
         emptySearch.pageSize = -1;
-        
+
         Test.startTest();
         Integer everyRow = DealerOpportunitySelector.countByFilter(null);
         List<Opportunity> firstPage = DealerOpportunitySelector.selectByFilter(null);
@@ -325,7 +325,7 @@ private class DealerOpportunityControllerTest {
         Integer slashMisses = DealerOpportunitySelector.countByFilter(emptySearch);
         DealerOpportunityController.HomeResponse home = DealerOpportunityController.getHome();
         Test.stopTest();
-        
+
         Assert.isTrue(everyRow >= 4, 'A null filter counts the dealer opportunities.');
         Assert.isFalse(firstPage.isEmpty(), 'A null filter returns the first page.');
         Assert.isFalse(defaultPastDue.isEmpty(), 'A null past-due limit uses the default.');
@@ -335,12 +335,12 @@ private class DealerOpportunityControllerTest {
         Assert.isFalse(home.businessUnitChart.isEmpty(), 'Business unit totals should include the open pipeline.');
         Assert.isTrue(home.summary.stages.size() >= 8, 'Every workspace stage should be present in the summary.');
     }
-    
+
     @IsTest
     static void createOpportunityRejectsInvalidDetails() {
         Account dealerAccount = [SELECT Id FROM Account WHERE Name = 'Authorized Dealer Midwest' LIMIT 1];
         String validRequest = createRequest(activeBusinessUnit(), 'USD', dealerAccount.Id);
-        
+
         Test.startTest();
         assertCreateRejected('', 'Enter the opportunity details.');
         assertCreateRejected(validRequest.replace('"Proposal"', '"Discovery"'), 'Select a stage');
@@ -354,7 +354,7 @@ private class DealerOpportunityControllerTest {
             createRequest(activeBusinessUnit() + ';' + activeBusinessUnit() + '; ', '', dealerAccount.Id)
         );
         Test.stopTest();
-        
+
         Opportunity createdOpportunity = [
             SELECT CurrencyIsoCode, HCBusinessUnit__c
             FROM Opportunity
@@ -363,7 +363,7 @@ private class DealerOpportunityControllerTest {
         Assert.areEqual('USD', createdOpportunity.CurrencyIsoCode, 'A blank currency should default to USD.');
         Assert.areEqual(activeBusinessUnit(), createdOpportunity.HCBusinessUnit__c, 'Duplicate business units should be stored once.');
     }
-    
+
     @IsTest
     static void finalizeCreatedOpportunityCoversMissingAndUnchangedRecords() {
         Account dealerAccount = [SELECT Id, Name FROM Account WHERE Name = 'Authorized Dealer Midwest' LIMIT 1];
@@ -399,7 +399,7 @@ private class DealerOpportunityControllerTest {
         insert removedOpportunity;
         Id removedOpportunityId = removedOpportunity.Id;
         delete removedOpportunity;
-        
+
         Test.startTest();
         try {
             DealerOpportunityController.finalizeCreatedOpportunity(null);
@@ -422,7 +422,7 @@ private class DealerOpportunityControllerTest {
         DealerOpportunityController.finalizeCreatedOpportunity(unnamed.Id);
         DealerOpportunityController.finalizeCreatedOpportunity(finished.Id);
         Test.stopTest();
-        
+
         Opportunity reloaded = [
             SELECT DealerAccountName__c, DealerSubmitter__c, ForecastConfidenceLevel__c
             FROM Opportunity
@@ -432,11 +432,11 @@ private class DealerOpportunityControllerTest {
         Assert.areEqual(UserInfo.getUserId(), reloaded.DealerSubmitter__c, 'The submitter should be stamped.');
         Assert.areEqual('Pipeline', reloaded.ForecastConfidenceLevel__c, 'Confidence should default to Pipeline.');
     }
-    
+
     @IsTest
     static void controllerReportsAQueryFailure() {
         User limitedUser = insertUser('Limited', 'Reader', 'lrd', 'Minimum Access - Salesforce');
-        
+
         System.runAs(limitedUser) {
             Test.startTest();
             try {
@@ -448,7 +448,7 @@ private class DealerOpportunityControllerTest {
             Test.stopTest();
         }
     }
-    
+
     @IsTest
     static void shareServiceCoversMissingAccountsManagersAndRoles() {
         User teammate = insertUser('Pat', 'Teammate', 'ptm');
@@ -458,7 +458,7 @@ private class DealerOpportunityControllerTest {
         Opportunity sharedOpportunity;
         Opportunity unlinkedOpportunity;
         Id removedAccountId;
-        
+
         UserRole portalRole = [
             SELECT PortalAccountId
             FROM UserRole
@@ -468,7 +468,7 @@ private class DealerOpportunityControllerTest {
         ];
         System.runAs(new User(Id = UserInfo.getUserId())) {
             insert new List<Account>{ plainAccount, removedAccount };
-                removedAccountId = removedAccount.Id;
+            removedAccountId = removedAccount.Id;
             delete removedAccount;
             insert new AccountTeamMember(
                 AccountId = plainAccount.Id,
@@ -507,7 +507,7 @@ private class DealerOpportunityControllerTest {
             );
             insert unlinkedOpportunity;
         }
-        
+
         Test.startTest();
         DealerOpportunityShareService.assignOwnerAndShare(null, UserInfo.getUserId());
         DealerOpportunityShareService.assignOwnerAndShare(unlinkedOpportunity.Id, teammate.Id);
@@ -515,7 +515,7 @@ private class DealerOpportunityControllerTest {
         DealerOpportunityShareService.assignOwnerAndShare(sharedOpportunity.Id, UserInfo.getUserId());
         String missingName = DealerOpportunityShareService.selectAccountName(removedAccountId);
         Test.stopTest();
-        
+
         Opportunity reloaded = [SELECT OwnerId FROM Opportunity WHERE Id = :plainOpportunity.Id];
         List<OpportunityShare> shares = [
             SELECT Id
@@ -527,7 +527,7 @@ private class DealerOpportunityControllerTest {
         Assert.isNull(missingName, 'A deleted account has no name.');
         Assert.isFalse(shares.isEmpty(), 'The dealer organisation role should receive a manual share.');
     }
-    
+
     private static String createRequest(String businessUnits, String currencyCode, String accountId) {
         String businessUnitJson = businessUnits == null ? 'null' : JSON.serialize(businessUnits);
         String currencyJson = currencyCode == null ? 'null' : JSON.serialize(currencyCode);
@@ -545,9 +545,9 @@ private class DealerOpportunityControllerTest {
             '"expectedShipDate":"' + String.valueOf(Date.today().addDays(45)) + '",' +
             '"installationDate":"' + String.valueOf(Date.today().addDays(60)) + '",' +
             '"accountId":' + accountJson +
-            '}';
+        '}';
     }
-    
+
     private static void assertCreateRejected(String requestJson, String expectedText) {
         try {
             DealerOpportunityController.createOpportunity(requestJson);
@@ -559,7 +559,7 @@ private class DealerOpportunityControllerTest {
             );
         }
     }
-    
+
     private static String teamRoleWithoutDealerManager() {
         for (Schema.PicklistEntry picklistEntry : AccountTeamMember.TeamMemberRole.getDescribe().getPicklistValues()) {
             if (picklistEntry.isActive() && !picklistEntry.getValue().toLowerCase().contains('dealer manager')) {
@@ -568,7 +568,7 @@ private class DealerOpportunityControllerTest {
         }
         return teamRole();
     }
-    
+
     private static String activeBusinessUnit() {
         for (Schema.PicklistEntry entry : Opportunity.HCBusinessUnit__c.getDescribe().getPicklistValues()) {
             if (entry.isActive()) {
@@ -578,7 +578,7 @@ private class DealerOpportunityControllerTest {
         Assert.fail('Business Unit should have an active value.');
         return null;
     }
-    
+
     private static Opportunity buildOpportunity(
         Account dealerAccount,
         String opportunityName,
@@ -602,14 +602,14 @@ private class DealerOpportunityControllerTest {
             CurrencyIsoCode = 'USD'
         );
     }
-    
+
     private static Id dealerRecordTypeId() {
         return Schema.SObjectType.Opportunity
             .getRecordTypeInfosByDeveloperName()
             .get(DealerOpportunitySelector.RECORD_TYPE_NAME)
             .getRecordTypeId();
     }
-    
+
     private static Integer discoveryCount(DealerOpportunityController.Summary summary) {
         for (DealerOpportunityController.StageMetric stageMetric : summary.stages) {
             if (stageMetric.stageName == 'Discovery') {
@@ -618,7 +618,7 @@ private class DealerOpportunityControllerTest {
         }
         return 0;
     }
-    
+
     private static String teamRole() {
         for (Schema.PicklistEntry picklistEntry : AccountTeamMember.TeamMemberRole.getDescribe().getPicklistValues()) {
             if (picklistEntry.isActive() && picklistEntry.getValue().toLowerCase().contains('dealer manager')) {
@@ -632,11 +632,11 @@ private class DealerOpportunityControllerTest {
         }
         return 'Dealer Manager';
     }
-    
+
     private static User insertUser(String firstName, String lastName, String aliasPrefix) {
         return insertUser(firstName, lastName, aliasPrefix, 'System Administrator');
     }
-    
+
     private static User insertUser(String firstName, String lastName, String aliasPrefix, String profileName) {
         Profile adminProfile = [SELECT Id FROM Profile WHERE Name = :profileName LIMIT 1];
         String suffix = String.valueOf(Math.abs(Crypto.getRandomInteger()));
@@ -658,7 +658,7 @@ private class DealerOpportunityControllerTest {
         insert userRecord;
         return userRecord;
     }
-    
+
     private static void bypassOpportunityTrigger() {
         insert new Automation_Setting_Trigger__c(
             SetupOwnerId = UserInfo.getOrganizationId(),

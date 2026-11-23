@@ -113,12 +113,12 @@ private class CasesServiceTest {
 	}
 
 	/**
-	 * @description Jira GW-1279 — Origin for routing tests where Category__c can be stamped on Inbox Support
+	 * @description Jira GW-1279 — Origin for routing tests where Category__c can be stamped on Customer and Technical Care
 	 *              (prefers Loaners and other origins with stampable categories per dependency maps).
 	 */
 	private static String routingTestCaseAssignment() {
 		beginGw1279RoutingHelpers();
-		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Inbox Support')?.getRecordTypeId();
+		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Customer and Technical Care')?.getRecordTypeId();
 		if (inboxRt == null) {
 			return primaryCaseAssignmentMatchingOrigin();
 		}
@@ -168,7 +168,7 @@ private class CasesServiceTest {
 	}
 
 	/**
-	 * @description Jira GW-1279 — First CategoryValue__c that resolves as stampable for Inbox Support + routing Origin
+	 * @description Jira GW-1279 — First CategoryValue__c that resolves as stampable for Customer and Technical Care + routing Origin
 	 *              (respects Origin → Category dependency and CaseAssignment → Category rule picklist).
 	 */
 	private static String routingCategoryApiValue() {
@@ -179,7 +179,7 @@ private class CasesServiceTest {
 	 * @description GW-1279 — First stampable CategoryValue__c for a CaseAssignment (valid for rule DML and Case Origin).
 	 */
 	private static String routingCategoryApiValueForAssignment(String caseAssignment) {
-		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Inbox Support')?.getRecordTypeId();
+		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Customer and Technical Care')?.getRecordTypeId();
 		if (inboxRt == null || String.isBlank(caseAssignment)) {
 			return null;
 		}
@@ -238,10 +238,10 @@ private class CasesServiceTest {
 	}
 
 	/**
-	 * @description Jira GW-1279 — Category and CloseCode API values that both resolve for Inbox Support + primary Origin.
+	 * @description Jira GW-1279 — Category and CloseCode API values that both resolve for Customer and Technical Care + primary Origin.
 	 */
 	private static List<String> routingCategoryAndCloseApiValuesForInbox() {
-		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Inbox Support')?.getRecordTypeId();
+		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Customer and Technical Care')?.getRecordTypeId();
 		if (inboxRt == null) {
 			return null;
 		}
@@ -263,7 +263,7 @@ private class CasesServiceTest {
 	}
 
 	/**
-	 * @description Jira GW-1279 — First SubCategoryValue__c that resolves with a known category for Inbox Support + Origin.
+	 * @description Jira GW-1279 — First SubCategoryValue__c that resolves with a known category for Customer and Technical Care + Origin.
 	 */
 	private static String firstResolvedSubcategoryForCategory(Id inboxRt, String origin, String categoryApi) {
 		Case scratch = new Case(Origin = origin, RecordTypeId = inboxRt);
@@ -281,10 +281,10 @@ private class CasesServiceTest {
 	}
 
 	/**
-	 * @description Jira GW-1279 — Origin plus category, subcategory, and close API values that all resolve for Inbox Support.
+	 * @description Jira GW-1279 — Origin plus category, subcategory, and close API values that all resolve for Customer and Technical Care.
 	 */
 	private static List<String> routingCategorySubcategoryCloseForInbox() {
-		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Inbox Support')?.getRecordTypeId();
+		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Customer and Technical Care')?.getRecordTypeId();
 		if (inboxRt == null) {
 			return null;
 		}
@@ -379,7 +379,7 @@ private class CasesServiceTest {
 	 */
 	@IsTest
 	static void testApplyCaseRoutingRules_descriptionSearchMatches() {
-		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Inbox Support')?.getRecordTypeId();
+		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Customer and Technical Care')?.getRecordTypeId();
 		if (inboxRt == null) {
 			return;
 		}
@@ -425,7 +425,7 @@ private class CasesServiceTest {
 	 */
 	@IsTest
 	static void testApplyCaseRoutingRules_subjectMismatchSkipsStamp() {
-		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Inbox Support')?.getRecordTypeId();
+		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Customer and Technical Care')?.getRecordTypeId();
 		if (inboxRt == null) {
 			return;
 		}
@@ -470,7 +470,7 @@ private class CasesServiceTest {
 	 */
 	@IsTest
 	static void testApplyCaseRoutingRules_emailMismatchSkipsStamp() {
-		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Inbox Support')?.getRecordTypeId();
+		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Customer and Technical Care')?.getRecordTypeId();
 		if (inboxRt == null) {
 			return;
 		}
@@ -515,7 +515,7 @@ private class CasesServiceTest {
 	 */
 	@IsTest
 	static void testApplyCaseRoutingRules_secondRuleMatchesAfterFirstSkipped() {
-		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Inbox Support')?.getRecordTypeId();
+		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Customer and Technical Care')?.getRecordTypeId();
 		if (inboxRt == null) {
 			return;
 		}
@@ -573,7 +573,7 @@ private class CasesServiceTest {
 	 */
 	@IsTest
 	static void testApplyCaseRoutingRules_systemGeneratedStampsCaseSource() {
-		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Inbox Support')?.getRecordTypeId();
+		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Customer and Technical Care')?.getRecordTypeId();
 		if (inboxRt == null) {
 			return;
 		}
@@ -639,7 +639,7 @@ private class CasesServiceTest {
 	@IsTest
 	static void testApplyCaseRoutingRules_stampsFullMatchingRuleCombo() {
 		beginGw1279RoutingHelpers();
-		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Inbox Support')?.getRecordTypeId();
+		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Customer and Technical Care')?.getRecordTypeId();
 		if (inboxRt == null) {
 			return;
 		}
@@ -732,7 +732,7 @@ private class CasesServiceTest {
 	 */
 	@IsTest
 	static void testApplyCaseRoutingRules_stampsCaseFromActiveRule() {
-		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Inbox Support')?.getRecordTypeId();
+		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Customer and Technical Care')?.getRecordTypeId();
 		if (inboxRt == null) {
 			return;
 		}
@@ -768,7 +768,7 @@ private class CasesServiceTest {
 		List<Case> routed = CasesService.applyCaseRoutingRules(new List<Case>{ candidate });
 		Test.stopTest();
 
-		System.Assert.areEqual(1, routed.size(), 'Inbox Support + email should survive filter');
+		System.Assert.areEqual(1, routed.size(), 'Customer and Technical Care + email should survive filter');
 		System.Assert.areEqual(categoryApi, routed[0].Category__c);
 	}
 
@@ -858,11 +858,11 @@ private class CasesServiceTest {
 	}
 
 	/**
-	 * @description Jira GW-1279 — applyCaseRoutingRules returns no rows when Case is not Inbox Support record type
+	 * @description Jira GW-1279 — applyCaseRoutingRules returns no rows when Case is not Customer and Technical Care record type
 	 */
 	@IsTest
 	static void testApplyCaseRoutingRules_filtersOutNonInboxSupport() {
-		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Inbox Support')?.getRecordTypeId();
+		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Customer and Technical Care')?.getRecordTypeId();
 		Id cbmRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('CBM Case')?.getRecordTypeId();
 		if (inboxRt == null || cbmRt == null || cbmRt == inboxRt) {
 			return;
@@ -879,7 +879,7 @@ private class CasesServiceTest {
 		Test.startTest();
 		List<Case> routed = CasesService.applyCaseRoutingRules(new List<Case>{ cbmCase });
 		Test.stopTest();
-		System.Assert.isTrue(routed.isEmpty(), 'Non Inbox Support cases should be removed from routing set');
+		System.Assert.isTrue(routed.isEmpty(), 'Non Customer and Technical Care cases should be removed from routing set');
 	}
 
 	/**
@@ -891,7 +891,7 @@ private class CasesServiceTest {
 		if (restricted == null) {
 			return;
 		}
-		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Inbox Support')?.getRecordTypeId();
+		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Customer and Technical Care')?.getRecordTypeId();
 		if (inboxRt == null) {
 			return;
 		}
@@ -935,7 +935,7 @@ private class CasesServiceTest {
 	 */
 	@IsTest
 	static void testApplyCaseRoutingRules_noActiveRulesForOriginSkipsStamp() {
-		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Inbox Support')?.getRecordTypeId();
+		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Customer and Technical Care')?.getRecordTypeId();
 		if (inboxRt == null) {
 			return;
 		}
@@ -963,7 +963,7 @@ private class CasesServiceTest {
 	 */
 	@IsTest
 	static void testApplyCaseRoutingRules_closeCodeSetsStatusClosed() {
-		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Inbox Support')?.getRecordTypeId();
+		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Customer and Technical Care')?.getRecordTypeId();
 		if (inboxRt == null) {
 			return;
 		}
@@ -1012,7 +1012,7 @@ private class CasesServiceTest {
 	 */
 	@IsTest
 	static void testApplyCaseRoutingRules_stampsSubcategoryFromRule() {
-		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Inbox Support')?.getRecordTypeId();
+		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Customer and Technical Care')?.getRecordTypeId();
 		if (inboxRt == null) {
 			return;
 		}
@@ -1062,7 +1062,7 @@ private class CasesServiceTest {
 	 */
 	@IsTest
 	static void testApplyCaseRoutingRules_stampsLabelFromRule() {
-		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Inbox Support')?.getRecordTypeId();
+		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Customer and Technical Care')?.getRecordTypeId();
 		if (inboxRt == null) {
 			return;
 		}
@@ -1111,7 +1111,7 @@ private class CasesServiceTest {
 	 */
 	@IsTest
 	static void testApplyCaseRoutingRules_originMismatchSkipsRule() {
-		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Inbox Support')?.getRecordTypeId();
+		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Customer and Technical Care')?.getRecordTypeId();
 		if (inboxRt == null) {
 			return;
 		}
@@ -1158,7 +1158,7 @@ private class CasesServiceTest {
 	 */
 	@IsTest
 	static void testApplyCaseRoutingRules_blankDescriptionSkipsWhenRuleRequiresDescription() {
-		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Inbox Support')?.getRecordTypeId();
+		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Customer and Technical Care')?.getRecordTypeId();
 		if (inboxRt == null) {
 			return;
 		}
@@ -1203,7 +1203,7 @@ private class CasesServiceTest {
 	 */
 	@IsTest
 	static void testApplyCaseRoutingRules_emailMatchIsCaseInsensitive() {
-		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Inbox Support')?.getRecordTypeId();
+		Id inboxRt = Schema.SObjectType.Case.getRecordTypeInfosByName().get('Customer and Technical Care')?.getRecordTypeId();
 		if (inboxRt == null) {
 			return;
 		}

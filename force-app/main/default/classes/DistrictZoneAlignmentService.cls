@@ -10,6 +10,7 @@
  *                where they differ.
  *              Districts and zones are found by Region Number. A zone is a Van Region or Zone territory.
  *              Skipped rows are written to the running user's error file, which is emailed to them.
+ *              User-facing problems are thrown as AuraHandledException; the controller handles the rest.
  */
 public with sharing class DistrictZoneAlignmentService {
 	public static final String TEMPLATE_TITLE = 'District Zone Alignment Template';
@@ -19,11 +20,11 @@ public with sharing class DistrictZoneAlignmentService {
 	public static final String ERROR_FILE_NAME = 'District_Zone_Alignment_Errors.csv';
 	public static final String DOWNLOAD_URL_PREFIX = '/sfc/servlet.shepherd/document/download/';
 	public static final Set<String> ZONE_TERRITORY_TYPES = new Set<String>{ 'Van Region', 'Zone' };
+	public static final String LOG_TAG = 'Service Territory';
 	@TestVisible
 	private static final Integer MAX_ROWS = 2000;
 	private static final Integer NAME_MAX_LENGTH = 80;
 	private static final String SCENARIO = 'District Zone Alignment';
-	private static final String LOG_TAG = 'Service Territory';
 	private static final String COLUMN_CURRENT_DISTRICT = 'Current District #';
 	private static final String COLUMN_FUTURE_DISTRICT = 'Future District #';
 	private static final String COLUMN_FUTURE_ASM = 'Future ASM Names';
@@ -47,13 +48,7 @@ public with sharing class DistrictZoneAlignmentService {
 	private static final List<String> USER_FIELDS = new List<String>{ 'Id', 'Name', 'Username', 'Email' };
 
 	/**
-	 * @description GW-2706: Thrown with a user-facing message when the upload, template or error file
-	 *              can't be processed.
-	 */
-	public class DistrictZoneAlignmentException extends Exception {}
-
-	/**
-	 * @description GW-2706: Counts, row errors and error file returned to the LWC after Start Upload.
+	 * @description GW-2706: Counts, row errors and error file returned to the LWC after Process Data.
 	 */
 	public class ProcessResult {
 		@AuraEnabled
@@ -91,43 +86,47 @@ public with sharing class DistrictZoneAlignmentService {
 	 * @description GW-2706: Returns the template file, copying the packaged template into Salesforce Files
 	 *              and sharing it with all internal users the first time.
 	 * @return ContentDocument Id of the template file.
-	 * @throws DistrictZoneAlignmentException When the template is not available.
+	 * @throws AuraHandledException When the template is not available.
 	 * @example
 	 * Id templateId = DistrictZoneAlignmentService.ensureTemplateDocumentId();
 	 */
 	public static Id ensureTemplateDocumentId() {
 		try {
-			Id storedId = toId(FieldServiceBackofficeConfig__c.getOrgDefaults().DistrictZoneAlignmentTemplateId__c);
-			if (isAccessibleDocument(storedId)) {
-				return storedId;
+			FieldServiceBackofficeConfig__c config = FieldServiceBackofficeConfig__c.getOrgDefaults();
+			Id documentId = config.DistrictZoneAlignmentTemplateId__c;
+			if (isAccessibleDocument(documentId)) {
+				return documentId;
 			}
 			List<ContentDocument> titledDocumentList = ContentDocumentsSelector.selectLatestByTitle(TEMPLATE_TITLE);
-			if (!titledDocumentList.isEmpty()) {
-				saveTemplateDocumentId(titledDocumentList[0].Id);
-				return titledDocumentList[0].Id;
+			documentId = titledDocumentList.isEmpty() ? createTemplateDocument() : titledDocumentList[0].Id;
+			if (config.Id == null) {
+				config.SetupOwnerId = UserInfo.getOrganizationId();
 			}
-			return createTemplateDocument();
+			config.DistrictZoneAlignmentTemplateId__c = documentId;
+			// System mode: back-office users have no edit access to custom settings.
+			Database.upsert(config, AccessLevel.SYSTEM_MODE);
+			return documentId;
 		} catch (Exception e) {
-			throw toAlignmentException(e);
+			logUnexpectedError(e);
+			throw e;
 		} finally {
 			Logger.saveLog();
 		}
 	}
 
 	/**
-	 * @description GW-2706: The running user's error file, or null when they haven't uploaded a file yet.
+	 * @description GW-2706: The running user's error file, or null before their first upload.
 	 * @return ContentDocument Id, or null.
-	 * @throws DistrictZoneAlignmentException When the error file can't be read.
 	 * @example
 	 * Id errorFileId = DistrictZoneAlignmentService.getErrorFileDocumentId();
 	 */
 	public static Id getErrorFileDocumentId() {
 		try {
-			FieldServiceBackofficeConfig__c config = FieldServiceBackofficeConfig__c.getValues(UserInfo.getUserId());
-			Id storedId = toId(config == null ? null : config.DistrictZoneAlignmentErrorFileId__c);
-			return isAccessibleDocument(storedId) ? storedId : null;
+			Id documentId = FieldServiceBackofficeConfig__c.getInstance().DistrictZoneAlignmentErrorFileId__c;
+			return isAccessibleDocument(documentId) ? documentId : null;
 		} catch (Exception e) {
-			throw toAlignmentException(e);
+			logUnexpectedError(e);
+			throw e;
 		} finally {
 			Logger.saveLog();
 		}
@@ -138,24 +137,19 @@ public with sharing class DistrictZoneAlignmentService {
 	 *              and emails it to them.
 	 * @param contentDocumentId Salesforce Files document Id from lightning-file-upload.
 	 * @return Counts, row errors and the error file Id.
-	 * @throws DistrictZoneAlignmentException When the file is missing, unreadable or has the wrong columns.
+	 * @throws AuraHandledException When the file is missing, unreadable or has the wrong columns.
 	 * @example
 	 * DistrictZoneAlignmentService.ProcessResult result = DistrictZoneAlignmentService.processUpload(documentId);
 	 */
 	public static ProcessResult processUpload(Id contentDocumentId) {
 		Logger.setScenario(SCENARIO);
 		try {
-			if (contentDocumentId == null) {
-				throw new DistrictZoneAlignmentException(Label.DZA_FileRequired);
-			}
 			List<List<String>> table = readUploadedFile(contentDocumentId);
 			List<AlignmentRow> rowList = toRows(table);
 
 			ProcessResult result = new ProcessResult();
 			result.processedCount = rowList.size();
-			if (!rowList.isEmpty()) {
-				applyRows(rowList, result);
-			}
+			applyRows(rowList, result);
 			for (AlignmentRow row : rowList) {
 				if (row.errorMessage != null) {
 					result.skippedCount++;
@@ -180,34 +174,41 @@ public with sharing class DistrictZoneAlignmentService {
 			Logger.info(result.summary).addTag(LOG_TAG);
 			return result;
 		} catch (Exception e) {
-			throw toAlignmentException(e);
+			logUnexpectedError(e);
+			throw e;
 		} finally {
 			Logger.saveLog();
 		}
 	}
 
+	/**
+	 * @description GW-2706: Logs an unexpected error. User messages (AuraHandledException) are shown to the user
+	 *              in the screen they're using, so they aren't logged.
+	 */
+	private static void logUnexpectedError(Exception e) {
+		if (!(e instanceof AuraHandledException)) {
+			Logger.setScenario(SCENARIO);
+			Logger.error('District Zone Alignment failed.', e).addTag(LOG_TAG);
+		}
+	}
+
 	private static List<List<String>> readUploadedFile(Id contentDocumentId) {
 		List<ContentVersion> versionList = ContentVersionsSelector.selectLatestByContentDocumentId(contentDocumentId);
-		if (
-			versionList.isEmpty() ||
-			versionList[0].VersionData == null ||
-			versionList[0].FileExtension?.toLowerCase() != 'xlsx'
-		) {
-			throw new DistrictZoneAlignmentException(Label.DZA_FileUnreadable);
+		if (versionList.isEmpty() || versionList[0].FileExtension?.toLowerCase() != 'xlsx') {
+			throw PlatformUtilities.buildAuraException(Label.DZA_FileUnreadable);
 		}
 		try {
 			return ExcelFileParser.readFirstSheet(versionList[0].VersionData);
 		} catch (ExcelFileParser.ParseException e) {
-			throw new DistrictZoneAlignmentException(Label.DZA_FileUnreadable, e);
+			throw PlatformUtilities.buildAuraException(Label.DZA_FileUnreadable);
 		}
 	}
 
 	private static List<AlignmentRow> toRows(List<List<String>> table) {
 		Map<String, Integer> columnIndexByHeaderMap = new Map<String, Integer>();
-		if (!table.isEmpty()) {
-			for (Integer i = 0; i < table[0].size(); i++) {
-				columnIndexByHeaderMap.put(headerKey(table[0][i]), i);
-			}
+		List<String> header = table.isEmpty() ? new List<String>() : table[0];
+		for (Integer i = 0; i < header.size(); i++) {
+			columnIndexByHeaderMap.put(headerKey(header[i]), i);
 		}
 		List<String> missingColumnList = new List<String>();
 		for (String column : REQUIRED_COLUMNS) {
@@ -216,14 +217,13 @@ public with sharing class DistrictZoneAlignmentService {
 			}
 		}
 		if (!missingColumnList.isEmpty()) {
-			throw new DistrictZoneAlignmentException(
+			throw PlatformUtilities.buildAuraException(
 				String.format(Label.DZA_MissingColumns, new List<Object>{ String.join(missingColumnList, ', ') })
 			);
 		}
 		if (table.size() - 1 > MAX_ROWS) {
-			throw new DistrictZoneAlignmentException(
-				String.format(Label.DZA_TooManyRows, new List<Object>{ MAX_ROWS })
-			);
+			String message = String.format(Label.DZA_TooManyRows, new List<Object>{ MAX_ROWS });
+			throw PlatformUtilities.buildAuraException(message);
 		}
 
 		List<AlignmentRow> rowList = new List<AlignmentRow>();
@@ -236,12 +236,12 @@ public with sharing class DistrictZoneAlignmentService {
 			row.futureAsm = cellValue(row.cells, columnIndexByHeaderMap, COLUMN_FUTURE_ASM);
 			row.futureDistrictName = cellValue(row.cells, columnIndexByHeaderMap, COLUMN_FUTURE_DISTRICT_NAME);
 			row.futureZone = cellValue(row.cells, columnIndexByHeaderMap, COLUMN_FUTURE_ZONE);
-			Boolean isBlankRow =
-				row.currentDistrict == null &&
-				row.futureDistrict == null &&
-				row.futureAsm == null &&
-				row.futureZone == null;
-			if (!isBlankRow) {
+			if (
+				row.currentDistrict != null ||
+				row.futureDistrict != null ||
+				row.futureAsm != null ||
+				row.futureZone != null
+			) {
 				rowList.add(row);
 			}
 		}
@@ -257,11 +257,8 @@ public with sharing class DistrictZoneAlignmentService {
 	 */
 	private static String cellValue(List<String> cells, Map<String, Integer> columnIndexByHeaderMap, String column) {
 		Integer index = columnIndexByHeaderMap.get(headerKey(column));
-		if (index == null || index >= cells.size() || cells[index] == null) {
-			return null;
-		}
-		String value = cells[index].trim();
-		return String.isBlank(value.replaceAll('\\p{Pd}', '')) ? null : value;
+		String value = index != null && index < cells.size() ? cells[index]?.trim() : null;
+		return String.isBlank(value?.replaceAll('\\p{Pd}', '')) ? null : value;
 	}
 
 	private static void applyRows(List<AlignmentRow> rowList, ProcessResult result) {
@@ -270,32 +267,34 @@ public with sharing class DistrictZoneAlignmentService {
 			row.errorMessage = row.currentDistrict == null ? plan.planCreate(row) : plan.planUpdate(row);
 		}
 		result.unchangedCount = plan.unchangedCount;
-		if (!plan.toInsertList.isEmpty()) {
-			List<Database.SaveResult> saveResultList = Database.insert(plan.toInsertList, false, AccessLevel.USER_MODE);
-			result.createdCount = recordSaveErrors(saveResultList, plan.insertRowList);
-		}
-		if (!plan.toUpdateList.isEmpty()) {
-			List<Database.SaveResult> saveResultList = Database.update(plan.toUpdateList, false, AccessLevel.USER_MODE);
-			result.updatedCount = recordSaveErrors(saveResultList, plan.updateRowList);
-		}
+		result.createdCount = savedCount(
+			Database.insert(plan.toInsertList, false, AccessLevel.USER_MODE),
+			plan.toInsertList,
+			plan.insertRowList
+		);
+		result.updatedCount = savedCount(
+			Database.update(plan.toUpdateList, false, AccessLevel.USER_MODE),
+			plan.toUpdateList,
+			plan.updateRowList
+		);
 	}
 
 	/**
-	 * @description Puts the save error on each failed row and returns the number of saved records.
+	 * @description Puts the save error on each failed row (for the error file) and returns the number of saved
+	 *              records. The failures are logged by PlatformUtilities.logSaveFailures.
 	 */
-	private static Integer recordSaveErrors(List<Database.SaveResult> saveResultList, List<AlignmentRow> rowList) {
-		Integer savedCount = 0;
+	private static Integer savedCount(
+		List<Database.SaveResult> saveResultList,
+		List<ServiceTerritory> territoryList,
+		List<AlignmentRow> rowList
+	) {
 		for (Integer i = 0; i < saveResultList.size(); i++) {
-			if (saveResultList[i].isSuccess()) {
-				savedCount++;
-			} else {
-				List<Database.Error> errorList = saveResultList[i].getErrors();
-				String message = errorList.isEmpty() ? '' : errorList[0].getMessage();
+			if (!saveResultList[i].isSuccess()) {
+				String message = saveResultList[i].getErrors()[0].getMessage();
 				rowList[i].errorMessage = String.format(Label.DZA_SaveFailed, new List<Object>{ message });
-				Logger.warn(rowList[i].errorMessage).addTag(LOG_TAG);
 			}
 		}
-		return savedCount;
+		return territoryList.size() - PlatformUtilities.logSaveFailures(territoryList, saveResultList);
 	}
 
 	/**
@@ -317,34 +316,37 @@ public with sharing class DistrictZoneAlignmentService {
 			Set<String> regionNumberSet = new Set<String>();
 			Set<String> userKeySet = new Set<String>();
 			for (AlignmentRow row : rowList) {
-				addIfPresent(regionNumberSet, row.currentDistrict);
-				addIfPresent(regionNumberSet, row.futureDistrict);
-				addIfPresent(regionNumberSet, row.futureZone);
-				addIfPresent(userKeySet, row.futureAsm);
+				regionNumberSet.addAll(new List<String>{ row.currentDistrict, row.futureDistrict, row.futureZone });
+				userKeySet.add(row.futureAsm);
 			}
-			List<ServiceTerritory> territoryList = ServiceTerritoriesSelector.selectByRegionNumbers(
-				regionNumberSet,
-				TERRITORY_FIELDS
-			);
+			regionNumberSet.remove(null);
+			userKeySet.remove(null);
+			List<ServiceTerritory> territoryList = (List<ServiceTerritory>) new ServiceTerritoriesSelector()
+				.selectFields(TERRITORY_FIELDS)
+				.whereIn('RegionNumber__c', new List<String>(regionNumberSet))
+				.execute();
 			for (ServiceTerritory territory : territoryList) {
 				territoryByRegionNumberMap.put(territory.RegionNumber__c.toLowerCase(), territory);
 			}
-			for (User activeUser : selectActiveUsers(userKeySet)) {
-				addUser(activeUser.Name, activeUser);
-				addUser(activeUser.Username, activeUser);
-				addUser(activeUser.Email, activeUser);
+			// Active users whose full name, username or email matches an ASM value from the file.
+			List<String> userKeyList = new List<String>(userKeySet);
+			List<User> userList = (List<User>) SoqlQueryBuilder.fromObject('User')
+				.selectFields(USER_FIELDS)
+				.whereEquals('IsActive', true)
+				.whereIn('Name', userKeyList)
+				.whereIn('Username', userKeyList)
+				.whereIn('Email', userKeyList)
+				.withFilterLogic('1 AND (2 OR 3 OR 4)')
+				.execute();
+			for (User activeUser : userList) {
+				for (String key : new List<String>{ activeUser.Name, activeUser.Username, activeUser.Email }) {
+					if (String.isNotBlank(key)) {
+						Map<Id, User> userById = usersByKeyMap.get(key.toLowerCase()) ?? new Map<Id, User>();
+						userById.put(activeUser.Id, activeUser);
+						usersByKeyMap.put(key.toLowerCase(), userById);
+					}
+				}
 			}
-		}
-
-		void addUser(String key, User activeUser) {
-			if (String.isBlank(key)) {
-				return;
-			}
-			String userKey = key.toLowerCase();
-			if (!usersByKeyMap.containsKey(userKey)) {
-				usersByKeyMap.put(userKey, new Map<Id, User>());
-			}
-			usersByKeyMap.get(userKey).put(activeUser.Id, activeUser);
 		}
 
 		String planCreate(AlignmentRow row) {
@@ -364,17 +366,17 @@ public with sharing class DistrictZoneAlignmentService {
 				return asmError;
 			}
 
-			User asm = findAsm(row.futureAsm);
-			ServiceTerritory district = new ServiceTerritory(
-				Name = (row.futureDistrictName ?? row.futureDistrict).left(NAME_MAX_LENGTH),
-				RegionNumber__c = row.futureDistrict,
-				ParentTerritoryId = zone.Id,
-				OperatingHoursId = zone.OperatingHoursId,
-				TerritoryManager__c = asm?.Id,
-				IsActive = true
-			);
 			claimedNumberSet.add(row.futureDistrict.toLowerCase());
-			toInsertList.add(district);
+			toInsertList.add(
+				new ServiceTerritory(
+					Name = (row.futureDistrictName ?? row.futureDistrict).left(NAME_MAX_LENGTH),
+					RegionNumber__c = row.futureDistrict,
+					ParentTerritoryId = zone.Id,
+					OperatingHoursId = zone.OperatingHoursId,
+					TerritoryManager__c = findAsm(row.futureAsm)?.Id,
+					IsActive = true
+				)
+			);
 			insertRowList.add(row);
 			return null;
 		}
@@ -407,25 +409,21 @@ public with sharing class DistrictZoneAlignmentService {
 			touchedDistrictIdSet.add(district.Id);
 			User asm = findAsm(row.futureAsm);
 			ServiceTerritory changes = new ServiceTerritory(Id = district.Id);
-			Boolean isChanged = false;
 			if (asm != null && asm.Id != district.TerritoryManager__c) {
 				changes.TerritoryManager__c = asm.Id;
-				isChanged = true;
 			}
 			if (zone.Id != district.ParentTerritoryId) {
 				changes.ParentTerritoryId = zone.Id;
-				isChanged = true;
 			}
 			if (isRenumbered) {
 				changes.RegionNumber__c = row.futureDistrict;
 				claimedNumberSet.add(row.futureDistrict.toLowerCase());
-				isChanged = true;
 			}
-			if (row.futureDistrictName != null && row.futureDistrictName.left(NAME_MAX_LENGTH) != district.Name) {
-				changes.Name = row.futureDistrictName.left(NAME_MAX_LENGTH);
-				isChanged = true;
+			String futureName = row.futureDistrictName?.left(NAME_MAX_LENGTH);
+			if (futureName != null && futureName != district.Name) {
+				changes.Name = futureName;
 			}
-			if (!isChanged) {
+			if (changes.getPopulatedFieldsAsMap().size() == 1) {
 				unchangedCount++;
 				return null;
 			}
@@ -449,29 +447,24 @@ public with sharing class DistrictZoneAlignmentService {
 
 		ServiceTerritory findZone(String zoneNumber) {
 			ServiceTerritory territory = territoryByRegionNumberMap.get(zoneNumber.toLowerCase());
-			return territory != null && ZONE_TERRITORY_TYPES.contains(territory.TerritoryType__c) ? territory : null;
+			return ZONE_TERRITORY_TYPES.contains(territory?.TerritoryType__c) ? territory : null;
 		}
 
 		Boolean isNumberTaken(String districtNumber, Id ownDistrictId) {
 			String key = districtNumber.toLowerCase();
-			if (claimedNumberSet.contains(key)) {
-				return true;
-			}
 			ServiceTerritory existing = territoryByRegionNumberMap.get(key);
-			return existing != null && existing.Id != ownDistrictId;
+			return claimedNumberSet.contains(key) || (existing != null && existing.Id != ownDistrictId);
 		}
 
 		String asmError(String asmValue) {
 			if (asmValue == null) {
 				return null;
 			}
-			Integer matchCount = usersByKeyMap.containsKey(asmValue.toLowerCase())
-				? usersByKeyMap.get(asmValue.toLowerCase()).size()
-				: 0;
-			if (matchCount == 0) {
+			Map<Id, User> matchById = usersByKeyMap.get(asmValue.toLowerCase()) ?? new Map<Id, User>();
+			if (matchById.isEmpty()) {
 				return String.format(Label.DZA_AsmNotFound, new List<Object>{ asmValue });
 			}
-			if (matchCount > 1) {
+			if (matchById.size() > 1) {
 				return String.format(Label.DZA_AsmAmbiguous, new List<Object>{ asmValue });
 			}
 			return null;
@@ -489,11 +482,11 @@ public with sharing class DistrictZoneAlignmentService {
 	 */
 	private static ContentVersion writeErrorFile(List<String> header, List<AlignmentRow> rowList) {
 		List<String> lineList = new List<String>{
-			csvLine(Label.DZA_ErrorFileRowColumn, header, Label.DZA_ErrorFileErrorColumn, header.size())
+			errorFileLine(Label.DZA_ErrorFileRowColumn, header, Label.DZA_ErrorFileErrorColumn, header.size())
 		};
 		for (AlignmentRow row : rowList) {
 			if (row.errorMessage != null) {
-				lineList.add(csvLine(String.valueOf(row.rowNumber), row.cells, row.errorMessage, header.size()));
+				lineList.add(errorFileLine(String.valueOf(row.rowNumber), row.cells, row.errorMessage, header.size()));
 			}
 		}
 
@@ -509,33 +502,26 @@ public with sharing class DistrictZoneAlignmentService {
 
 		ContentVersion saved = ContentVersionsSelector.selectDocumentIdByVersionId(version.Id)[0];
 		if (saved.ContentDocumentId != existingDocumentId) {
-			FieldServiceBackofficeConfig__c config = FieldServiceBackofficeConfig__c.getValues(UserInfo.getUserId());
-			if (config == null) {
-				config = new FieldServiceBackofficeConfig__c(SetupOwnerId = UserInfo.getUserId());
-			}
+			FieldServiceBackofficeConfig__c config =
+				FieldServiceBackofficeConfig__c.getValues(UserInfo.getUserId()) ??
+				new FieldServiceBackofficeConfig__c(SetupOwnerId = UserInfo.getUserId());
 			config.DistrictZoneAlignmentErrorFileId__c = saved.ContentDocumentId;
-			saveConfig(config);
+			// System mode: back-office users have no edit access to custom settings.
+			Database.upsert(config, AccessLevel.SYSTEM_MODE);
 		}
 		return saved;
 	}
 
-	private static String csvLine(String first, List<String> cells, String last, Integer columnCount) {
-		List<String> valueList = new List<String>{ csvEscape(first) };
+	/**
+	 * @description One error file line: the first value, the row's cells padded to the header width, the last value.
+	 */
+	private static String errorFileLine(String first, List<String> cells, String last, Integer columnCount) {
+		List<String> valueList = new List<String>{ first };
 		for (Integer i = 0; i < columnCount; i++) {
-			valueList.add(csvEscape(i < cells.size() ? cells[i] : null));
+			valueList.add(i < cells.size() ? cells[i] : null);
 		}
-		valueList.add(csvEscape(last));
-		return String.join(valueList, ',');
-	}
-
-	private static String csvEscape(String value) {
-		if (value == null) {
-			return '';
-		}
-		if (value.containsAny(',"\n\r')) {
-			return '"' + value.replace('"', '""') + '"';
-		}
-		return value;
+		valueList.add(last);
+		return PlatformUtilities.toCsvLine(valueList);
 	}
 
 	private static Boolean sendResultEmail(String summary, Id errorFileVersionId) {
@@ -556,8 +542,8 @@ public with sharing class DistrictZoneAlignmentService {
 
 	private static Id createTemplateDocument() {
 		List<StaticResource> resourceList = StaticResourcesSelector.selectByName(TEMPLATE_RESOURCE_NAME);
-		if (resourceList.isEmpty() || resourceList[0].Body == null) {
-			throw new DistrictZoneAlignmentException(Label.DZA_TemplateUnavailable);
+		if (resourceList.isEmpty()) {
+			throw PlatformUtilities.buildAuraException(Label.DZA_TemplateUnavailable);
 		}
 		ContentVersion version = new ContentVersion(
 			Title = TEMPLATE_TITLE,
@@ -577,76 +563,11 @@ public with sharing class DistrictZoneAlignmentService {
 			),
 			AccessLevel.USER_MODE
 		);
-		saveTemplateDocumentId(documentId);
 		return documentId;
-	}
-
-	private static void saveTemplateDocumentId(Id documentId) {
-		FieldServiceBackofficeConfig__c config = FieldServiceBackofficeConfig__c.getOrgDefaults();
-		if (config.Id == null) {
-			config.SetupOwnerId = UserInfo.getOrganizationId();
-		}
-		config.DistrictZoneAlignmentTemplateId__c = documentId;
-		saveConfig(config);
-	}
-
-	/**
-	 * @description Custom setting rows are saved in system mode: back-office users have no edit access to
-	 *              custom settings, and only these two file Id fields are written.
-	 */
-	private static void saveConfig(FieldServiceBackofficeConfig__c config) {
-		Database.upsert(config, AccessLevel.SYSTEM_MODE);
-	}
-
-	/**
-	 * @description Active users whose full name, username or email matches an ASM value from the file.
-	 */
-	private static List<User> selectActiveUsers(Set<String> keySet) {
-		if (keySet.isEmpty()) {
-			return new List<User>();
-		}
-		List<String> keyList = new List<String>(keySet);
-		return (List<User>) SoqlQueryBuilder.fromObject('User')
-			.selectFields(USER_FIELDS)
-			.whereEquals('IsActive', true)
-			.whereIn('Name', keyList)
-			.whereIn('Username', keyList)
-			.whereIn('Email', keyList)
-			.withFilterLogic('1 AND (2 OR 3 OR 4)')
-			.execute();
 	}
 
 	private static Boolean isAccessibleDocument(Id documentId) {
 		return documentId != null &&
 			!ContentDocumentsSelector.selectIdAndTitleByIds(new Set<Id>{ documentId }).isEmpty();
-	}
-
-	private static void addIfPresent(Set<String> valueSet, String value) {
-		if (value != null) {
-			valueSet.add(value);
-		}
-	}
-
-	private static Id toId(String value) {
-		if (String.isBlank(value)) {
-			return null;
-		}
-		try {
-			return Id.valueOf(value.trim());
-		} catch (StringException e) {
-			return null;
-		}
-	}
-
-	/**
-	 * @description Logs the failure and returns an exception with a user-facing message.
-	 */
-	private static DistrictZoneAlignmentException toAlignmentException(Exception e) {
-		if (e instanceof DistrictZoneAlignmentException) {
-			Logger.warn(e.getMessage()).addTag(LOG_TAG);
-			return (DistrictZoneAlignmentException) e;
-		}
-		Logger.error('District Zone Alignment failed.', e).addTag(LOG_TAG);
-		return new DistrictZoneAlignmentException(Label.DZA_UnexpectedError, e);
 	}
 }

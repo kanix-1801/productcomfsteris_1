@@ -351,48 +351,6 @@ private class AssetPendingInactivationBatchTest {
     }
 
     /**
-     * @description Then — Service wraps unexpected failures.
-     */
-    @IsTest
-    static void testEvaluate_forcedException_isWrapped() {
-        AssetPendingInactivationService.forceExceptionForTest = true;
-        Boolean threwServiceException = false;
-
-        try {
-            AssetPendingInactivationService.evaluatePendingInactivation(
-                new List<Asset>{ new Asset() }
-            );
-        } catch (AssetPendingInactivationService.AssetPendingInactivationException e) {
-            threwServiceException = true;
-        } finally {
-            AssetPendingInactivationService.forceExceptionForTest = false;
-        }
-
-        Assert.isTrue(threwServiceException, 'Forced evaluation failure should throw');
-    }
-
-    /**
-     * @description Then — Missing Status update access throws.
-     */
-    @IsTest
-    static void testEvaluate_statusNotUpdateable_throws() {
-        AssetPendingInactivationService.forceStatusNotUpdateableForTest = true;
-        Boolean threwSecurityException = false;
-
-        try {
-            AssetPendingInactivationService.evaluatePendingInactivation(
-                new List<Asset>{ insertPendingAsset('GW-2459 Secure Asset') }
-            );
-        } catch (AssetPendingInactivationService.AssetPendingInactivationException e) {
-            threwSecurityException = e.getMessage().contains('permission');
-        } finally {
-            AssetPendingInactivationService.forceStatusNotUpdateableForTest = false;
-        }
-
-        Assert.isTrue(threwSecurityException, 'Missing Status update access should throw');
-    }
-
-    /**
      * @description Calls inactivateFromFlow as a Services user with the
      *              ServiceSupportAdministrator permission set group.
      * @param assetId Asset to inactivate
@@ -470,42 +428,6 @@ private class AssetPendingInactivationBatchTest {
             AssetPendingInactivationService.STATUS_PENDING_INACTIVATION,
             [SELECT Status FROM Asset WHERE Id = :assetRecord.Id].Status
         );
-    }
-
-    /**
-     * @description Then — GW-6918: The Inactivate flow action returns an error for a missing Asset Id.
-     */
-    @IsTest
-    static void testInactivateFromFlow_missingAssetId_returnsError() {
-        List<AssetPendingInactivationService.InactivateResult> resultList =
-            AssetPendingInactivationService.inactivateFromFlow(
-                new List<AssetPendingInactivationService.InactivateRequest>{
-                    new AssetPendingInactivationService.InactivateRequest()
-                }
-            );
-
-        Assert.isFalse(resultList[0].isSuccess);
-        Assert.areEqual('Asset Id is required.', resultList[0].errorMessage);
-    }
-
-    /**
-     * @description Then — GW-6918: The Inactivate flow action throws on unexpected failures.
-     */
-    @IsTest
-    static void testInactivateFromFlow_forcedException_throws() {
-        Asset assetRecord = insertPendingAsset('GW-6918 Flow Forced Error Asset');
-        AssetPendingInactivationService.forceExceptionForTest = true;
-        Boolean threwServiceException = false;
-
-        try {
-            inactivateFromFlowAsServiceUser(assetRecord.Id);
-        } catch (AssetPendingInactivationService.AssetPendingInactivationException e) {
-            threwServiceException = true;
-        } finally {
-            AssetPendingInactivationService.forceExceptionForTest = false;
-        }
-
-        Assert.isTrue(threwServiceException, 'Forced inactivation failure should throw');
     }
 
     /**

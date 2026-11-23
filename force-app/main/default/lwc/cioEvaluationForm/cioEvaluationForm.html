@@ -1,0 +1,179 @@
+<template>
+    <lightning-modal-header label="Continuous Improvement Opportunity"></lightning-modal-header>
+    <lightning-modal-body>
+        <lightning-record-edit-form
+            object-api-name="CIOEvaluation__c"
+            record-id={recordId}
+            record-type-id={recordTypeId}
+            onsubmit={handleSubmit}
+            onsuccess={handleSuccess}
+            onerror={handleError}
+        >
+            <lightning-messages></lightning-messages>
+
+            <div class="slds-hide">
+                <lightning-input-field field-name="WorkOrder__c" value={workOrderId}></lightning-input-field>
+                <template lwc:if={hasParentWorkOrder}>
+                    <lightning-input-field
+                        field-name="ParentWorkOrder__c"
+                        value={parentWorkOrderId}
+                    ></lightning-input-field>
+                </template>
+            </div>
+
+            <h3 class="slds-text-heading_small slds-m-bottom_small">Continuous Improvement Opportunity</h3>
+            <div class="slds-grid slds-wrap slds-gutters_small">
+                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                    <template lwc:if={isNew}>
+                        <lightning-input-field
+                            field-name="Technician__c"
+                            value={technicianId}
+                            required
+                        ></lightning-input-field>
+                        <lightning-input-field
+                            field-name="Date__c"
+                            value={evaluationDate}
+                            required
+                        ></lightning-input-field>
+                    </template>
+                    <template lwc:else>
+                        <lightning-input-field field-name="Technician__c" required></lightning-input-field>
+                        <lightning-input-field field-name="Date__c" required></lightning-input-field>
+                    </template>
+                </div>
+            </div>
+
+            <div class="slds-form-element slds-m-top_small">
+                <label class="slds-form-element__label">
+                    <abbr class="slds-required" title="required">*</abbr>
+                    {labelConfirmed}
+                </label>
+                <lightning-input-field
+                    field-name="ConfirmedCustomerReportedIssue__c"
+                    variant="label-hidden"
+                    required
+                ></lightning-input-field>
+            </div>
+            <div class="slds-form-element">
+                <label class="slds-form-element__label">
+                    <abbr class="slds-required" title="required">*</abbr>
+                    {labelRootCause}
+                </label>
+                <lightning-input-field
+                    field-name="IdentifiableRootCause__c"
+                    variant="label-hidden"
+                    required
+                ></lightning-input-field>
+            </div>
+            <div class="slds-form-element">
+                <label class="slds-form-element__label">
+                    <abbr class="slds-required" title="required">*</abbr>
+                    {labelRootCauseDetails}
+                </label>
+                <lightning-input-field
+                    field-name="IdentifiableRootCauseDetails__c"
+                    variant="label-hidden"
+                    required
+                ></lightning-input-field>
+            </div>
+            <div class="slds-form-element">
+                <label class="slds-form-element__label">
+                    <abbr class="slds-required" title="required">*</abbr>
+                    {labelPreviousRepair}
+                </label>
+                <lightning-input-field
+                    field-name="IssueRelatedToPreviousRepair__c"
+                    variant="label-hidden"
+                    required
+                ></lightning-input-field>
+            </div>
+            <div class="slds-form-element">
+                <label class="slds-form-element__label">
+                    <abbr class="slds-required" title="required">*</abbr>
+                    {labelPreviousRepairDetails}
+                </label>
+                <lightning-input-field
+                    field-name="PreviousRepairDeficiencyDetails__c"
+                    variant="label-hidden"
+                    required
+                ></lightning-input-field>
+            </div>
+            <div class="slds-form-element">
+                <label class="slds-form-element__label">
+                    <abbr class="slds-required" title="required">*</abbr>
+                    {labelDamage}
+                </label>
+                <lightning-input-field
+                    field-name="SignsOfDamageWearFailure__c"
+                    variant="label-hidden"
+                    required
+                ></lightning-input-field>
+            </div>
+            <div class="slds-form-element">
+                <label class="slds-form-element__label">
+                    <abbr class="slds-required" title="required">*</abbr>
+                    {labelDamageDetails}
+                </label>
+                <lightning-input-field
+                    field-name="SignsOfDamageWearFailureDetails__c"
+                    variant="label-hidden"
+                    required
+                ></lightning-input-field>
+            </div>
+            <div class="slds-form-element">
+                <label class="slds-form-element__label">
+                    <abbr class="slds-required" title="required">*</abbr>
+                    {labelUsage}
+                </label>
+                <lightning-input-field
+                    field-name="DetermineExtentOfUsage__c"
+                    variant="label-hidden"
+                    required
+                ></lightning-input-field>
+            </div>
+            <div class="slds-form-element">
+                <label class="slds-form-element__label">
+                    <abbr class="slds-required" title="required">*</abbr>
+                    {labelUsesLogged}
+                </label>
+                <lightning-input-field
+                    field-name="UsesLogged__c"
+                    variant="label-hidden"
+                    required
+                ></lightning-input-field>
+            </div>
+            <div class="slds-form-element">
+                <label class="slds-form-element__label">
+                    <abbr class="slds-required" title="required">*</abbr>
+                    {labelCorrectiveAction}
+                </label>
+                <lightning-input-field
+                    field-name="CorrectiveActionTaken__c"
+                    variant="label-hidden"
+                    required
+                ></lightning-input-field>
+            </div>
+            <div class="slds-form-element">
+                <label class="slds-form-element__label">
+                    <abbr class="slds-required" title="required">*</abbr>
+                    {labelCorrectiveActionDetails}
+                </label>
+                <lightning-input-field
+                    field-name="CorrectiveActionAdditionalDetails__c"
+                    variant="label-hidden"
+                    required
+                ></lightning-input-field>
+            </div>
+
+            <div class="slds-m-top_medium cio-form__actions">
+                <lightning-button label="Cancel" onclick={handleCancel} disabled={isSaving}></lightning-button>
+                <lightning-button
+                    type="submit"
+                    label="Save"
+                    variant="brand"
+                    disabled={isSaving}
+                ></lightning-button>
+            </div>
+        </lightning-record-edit-form>
+    </lightning-modal-body>
+</template>

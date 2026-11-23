@@ -150,6 +150,142 @@ private class GenerateQuoteControllerTest {
     }
 
 
+    @IsTest
+    static void testDealerPortalGetQuotesStripsPricingForUnapprovedQuotes() {
+        User runningUser = getRunningUser();
+
+        System.runAs(runningUser) {
+            Test.startTest();
+            configureSalesConnectionSettings();
+
+            Opportunity opportunityRecord = [
+                SELECT Id, Pricebook2Id
+                FROM Opportunity
+                WHERE Name = :TEST_OPPORTUNITY_NAME
+                LIMIT 1
+            ];
+            PricebookEntry pricebookEntryRecord = [
+                SELECT Id
+                FROM PricebookEntry
+                WHERE Pricebook2Id = :opportunityRecord.Pricebook2Id
+                LIMIT 1
+            ];
+
+            GenerateQuoteController.CreateQuoteResponse pendingResponse =
+                GenerateQuoteController.createQuote(opportunityRecord.Id, null, null, null);
+            GenerateQuoteController.CreateQuoteResponse approvedResponse =
+                GenerateQuoteController.createQuote(opportunityRecord.Id, null, null, null);
+
+            insert new List<QuoteLineItem>{
+                new QuoteLineItem(
+                    QuoteId = pendingResponse.quoteId,
+                    PricebookEntryId = pricebookEntryRecord.Id,
+                    Quantity = 1,
+                    UnitPrice = 100
+                ),
+                new QuoteLineItem(
+                    QuoteId = approvedResponse.quoteId,
+                    PricebookEntryId = pricebookEntryRecord.Id,
+                    Quantity = 1,
+                    UnitPrice = 100
+                )
+            };
+            update new Quote(Id = approvedResponse.quoteId, Approval_Status__c = 'Approved');
+
+            List<GenerateQuoteController.QuoteWrapper> portalQuotes = GenerateQuoteService.getQuotes(
+                opportunityRecord.Id,
+                null,
+                false,
+                null,
+                null,
+                true
+            );
+            Test.stopTest();
+
+            System.assertEquals(2, portalQuotes.size());
+            for (GenerateQuoteController.QuoteWrapper quoteWrapper : portalQuotes) {
+                if (quoteWrapper.id == pendingResponse.quoteId) {
+                    System.assertEquals(
+                        null,
+                        quoteWrapper.quoteTotalWithoutFreight,
+                        'Pricing should be hidden on the dealer portal until the quote is Approved.'
+                    );
+                }
+            }
+        }
+    }
+
+    @IsTest
+    static void testCreateGoodwillQuoteUsesGoodwillNameAndForecastRule() {
+        User runningUser = getRunningUser();
+
+        System.runAs(runningUser) {
+            configureSalesConnectionSettings();
+
+            Opportunity opportunityRecord = [
+                SELECT Id
+                FROM Opportunity
+                WHERE Name = :TEST_OPPORTUNITY_NAME
+                LIMIT 1
+            ];
+
+            GenerateQuoteController.CreateQuoteResponse response = GenerateQuoteController.createQuote(
+                opportunityRecord.Id,
+                GenerateQuoteService.QUOTE_TYPE_GOODWILL,
+                null,
+                null
+            );
+
+            Quote goodwillQuote = [
+                SELECT Name, QuoteType__c, IsForecastIneligible__c
+                FROM Quote
+                WHERE Id = :response.quoteId
+                LIMIT 1
+            ];
+
+            System.assertEquals(GenerateQuoteService.QUOTE_TYPE_GOODWILL, goodwillQuote.QuoteType__c);
+            System.assert(goodwillQuote.Name.startsWith('Goodwill Quote - '));
+            System.assertEquals(true, goodwillQuote.IsForecastIneligible__c);
+        }
+    }
+
+    @IsTest
+    static void testSyncForecastConfidenceRequiresQuoteAndValue() {
+        User runningUser = getRunningUser();
+
+        System.runAs(runningUser) {
+            configureSalesConnectionSettings();
+
+            Opportunity opportunityRecord = [
+                SELECT Id
+                FROM Opportunity
+                WHERE Name = :TEST_OPPORTUNITY_NAME
+                LIMIT 1
+            ];
+            GenerateQuoteController.CreateQuoteResponse response =
+                GenerateQuoteController.createQuote(opportunityRecord.Id, null, null, null);
+
+            Boolean missingQuoteRejected = false;
+            Boolean missingValueRejected = false;
+
+            Test.startTest();
+            try {
+                GenerateQuoteService.syncQuoteForecastConfidence(opportunityRecord.Id, null, 'Pipeline', false);
+            } catch (GenerateQuoteException exceptionValue) {
+                missingQuoteRejected = exceptionValue.getMessage().contains('Select a quote');
+            }
+            try {
+                GenerateQuoteService.syncQuoteForecastConfidence(opportunityRecord.Id, response.quoteId, null, false);
+            } catch (GenerateQuoteException exceptionValue) {
+                missingValueRejected = exceptionValue.getMessage().contains('Forecast Confidence');
+            }
+            Test.stopTest();
+
+            System.assertEquals(true, missingQuoteRejected);
+            System.assertEquals(true, missingValueRejected);
+        }
+    }
+
     private static PSAM__c buildPsamRecord(String name, String famCode, String detailName) {
         return new PSAM__c(
             Name = name,
@@ -169,8 +305,8 @@ private class GenerateQuoteControllerTest {
         Opportunity opportunityRecord = new Opportunity(
             Name = opportunityName,
             AccountId = accountId,
-            StageName = getValidStageName(),
-            ForecastConfidenceLevel__c = getValidForecastConfidenceLevel(),
+            StageName = 'Discovery',
+            ForecastConfidenceLevel__c = 'Pipeline',
             CloseDate = Date.today().addDays(30),
             Amount = 1000,
             Probability = 10,
@@ -510,6 +646,7 @@ static void testRefreshQuotesReturnsIntegrationPayload() {
             WHERE Name = :TEST_OPPORTUNITY_NAME
             LIMIT 1
         ];
+        clearOpportunityForecastConfidence(opportunityRecord.Id);
 
         Test.startTest();
         GenerateQuoteController.CreateQuoteResponse response =
@@ -564,6 +701,7 @@ static void testRefreshQuotesReturnsIntegrationPayload() {
             WHERE Name = :TEST_OPPORTUNITY_NAME
             LIMIT 1
         ];
+        clearOpportunityForecastConfidence(opportunityRecord.Id);
 
         addOpportunityTeamMember(opportunityRecord.Id, runningUser.Id, 'Edit');
 
@@ -620,6 +758,14 @@ static void testRefreshQuotesReturnsIntegrationPayload() {
             'Generate Sample Quote should not set the forecast change notification flag.'
         );
         }
+    }
+
+    private static void clearOpportunityForecastConfidence(Id opportunityId) {
+        update new Opportunity(
+            Id = opportunityId,
+            ForecastConfidenceLevel__c = null,
+            BypassValidations__c = true
+        );
     }
 
     private static String getValidSamplePurpose() {

@@ -18,40 +18,40 @@ public without sharing class TASTeamAccessBatch implements Database.Batchable<SO
      * @description
      * Fallback batch scope size when BatchProcessConfig__mdt is missing or invalid.
      */
-    public static final Integer DEFAULT_BATCH_SIZE = 200;
+	public static final Integer DEFAULT_BATCH_SIZE = 200;
 
     /**
      * @description
      * Platform flex queue capacity for batch jobs in Holding status (standard org limit).
      */
-    public static final Integer FLEX_QUEUE_MAX_BATCH_JOBS = 100;
+	public static final Integer FLEX_QUEUE_MAX_BATCH_JOBS = 100;
 
-    private String originalTransactionId;
+	private String originalTransactionId;
 
-    @TestVisible
-    private static Boolean isSkipFlexQueueCheckForTest = false;
+	@TestVisible
+	private static Boolean isSkipFlexQueueCheckForTest = false;
 
-    @TestVisible
-    private static Integer testFlexQueueHoldingCountOverride;
+	@TestVisible
+	private static Integer testFlexQueueHoldingCountOverride;
 
-    @TestVisible
-    private static Integer testBatchSizeOverride;
+	@TestVisible
+	private static Integer testBatchSizeOverride;
 
-    @TestVisible
-    private static Boolean isThrowInStart = false;
+	@TestVisible
+	private static Boolean isThrowInStart = false;
 
-    @TestVisible
-    private static Boolean isThrowInExecute = false;
+	@TestVisible
+	private static Boolean isThrowInExecute = false;
 
-    @TestVisible
-    private static Boolean isThrowInFinish = false;
+	@TestVisible
+	private static Boolean isThrowInFinish = false;
 
-    @TestVisible
-    private static Integer startCatchCount = 0;
-    @TestVisible
-    private static Integer executeCatchCount = 0;
-    @TestVisible
-    private static Integer finishCatchCount = 0;
+	@TestVisible
+	private static Integer startCatchCount = 0;
+	@TestVisible
+	private static Integer executeCatchCount = 0;
+	@TestVisible
+	private static Integer finishCatchCount = 0;
 
     /**
      * @description
@@ -59,8 +59,8 @@ public without sharing class TASTeamAccessBatch implements Database.Batchable<SO
      *
      * @return void
      */
-    public TASTeamAccessBatch() {
-    }
+	public TASTeamAccessBatch() {
+	}
 
     /**
      * @description
@@ -71,15 +71,15 @@ public without sharing class TASTeamAccessBatch implements Database.Batchable<SO
      * @example
      * Setup → Apex Classes → TASTeamAccessBatch → Schedule Apex.
      */
-    public void execute(SchedulableContext sc) {
-        Logger.info('TASTeamAccessBatch.execute (Schedulable): submitting batch');
-        try {
-            submitBatch();
-        } catch (Exception e) {
-            Logger.error('TASTeamAccessBatch.execute (Schedulable)', e);
-            throw e;
-        }
-    }
+	public void execute(SchedulableContext sc) {
+		Logger.info('TASTeamAccessBatch.execute (Schedulable): submitting batch');
+		try {
+			submitBatch();
+		} catch (Exception e) {
+			Logger.error('TASTeamAccessBatch.execute (Schedulable)', e);
+			throw e;
+		}
+	}
 
     /**
      * @description
@@ -89,16 +89,16 @@ public without sharing class TASTeamAccessBatch implements Database.Batchable<SO
      * @example
      * TASTeamAccessBatch.submitBatch();
      */
-    public static Id submitBatch() {
-        assertFlexQueueHasCapacity();
-        Integer batchSize = resolveBatchSize();
-        Id jobId = Database.executeBatch(new TASTeamAccessBatch(), batchSize);
-        Logger.info(
-            'TASTeamAccessBatch.submitBatch: submitted jobId=' + jobId +
-            ', batchSize=' + batchSize
-        );
-        return jobId;
-    }
+	public static Id submitBatch() {
+		assertFlexQueueHasCapacity();
+		Integer batchSize = resolveBatchSize();
+		Id jobId = Database.executeBatch(new TASTeamAccessBatch(), batchSize);
+		Logger.info(
+			'TASTeamAccessBatch.submitBatch: submitted jobId=' + jobId +
+			', batchSize=' + batchSize
+		);
+		return jobId;
+	}
 
     /**
      * @description
@@ -106,33 +106,33 @@ public without sharing class TASTeamAccessBatch implements Database.Batchable<SO
      *
      * @return Active configured batch size, or DEFAULT_BATCH_SIZE when config is absent or invalid
      */
-    public static Integer resolveBatchSize() {
-        Integer batchSize = DEFAULT_BATCH_SIZE;
-        if (Test.isRunningTest() && testBatchSizeOverride != null) {
-            batchSize = testBatchSizeOverride;
-        } else {
-            BatchProcessConfig__mdt config = BatchProcessConfigSelector.selectActiveByBatchClassName(
-                BatchProcessConfigSelector.OLC_TEAM_ACCESS_BATCH_CLASS_NAME
-            );
-            if (config != null && config.BatchSize__c != null) {
-                Integer configuredSize = config.BatchSize__c.intValue();
-                if (configuredSize > 0) {
-                    batchSize = configuredSize;
-                } else {
-                    Logger.warn(
-                        'TASTeamAccessBatch.resolveBatchSize: invalid BatchSize__c=' +
-                        configuredSize + '; using fallback=' + DEFAULT_BATCH_SIZE
-                    );
-                }
-            } else {
-                Logger.warn(
-                    'TASTeamAccessBatch.resolveBatchSize: no active BatchProcessConfig__mdt; using fallback=' +
-                    DEFAULT_BATCH_SIZE
-                );
-            }
-        }
-        return batchSize;
-    }
+	public static Integer resolveBatchSize() {
+		Integer batchSize = DEFAULT_BATCH_SIZE;
+		if (Test.isRunningTest() && testBatchSizeOverride != null) {
+			batchSize = testBatchSizeOverride;
+		} else {
+			BatchProcessConfig__mdt config = BatchProcessConfigSelector.selectActiveByBatchClassName(
+				BatchProcessConfigSelector.OLC_TEAM_ACCESS_BATCH_CLASS_NAME
+			);
+			if (config != null && config.BatchSize__c != null) {
+				Integer configuredSize = config.BatchSize__c.intValue();
+				if (configuredSize > 0) {
+					batchSize = configuredSize;
+				} else {
+					Logger.warn(
+						'TASTeamAccessBatch.resolveBatchSize: invalid BatchSize__c=' +
+						configuredSize + '; using fallback=' + DEFAULT_BATCH_SIZE
+					);
+				}
+			} else {
+				Logger.warn(
+					'TASTeamAccessBatch.resolveBatchSize: no active BatchProcessConfig__mdt; using fallback=' +
+					DEFAULT_BATCH_SIZE
+				);
+			}
+		}
+		return batchSize;
+	}
 
     /**
      * @description
@@ -140,21 +140,21 @@ public without sharing class TASTeamAccessBatch implements Database.Batchable<SO
      *
      * @return void
      */
-    public static void assertFlexQueueHasCapacity() {
-        if (!(Test.isRunningTest() && isSkipFlexQueueCheckForTest)) {
-            Integer flexQueueHoldingCount = resolveFlexQueueHoldingCount();
-            Logger.debug(
-                'TASTeamAccessBatch.assertFlexQueueHasCapacity: holdingJobs=' +
-                flexQueueHoldingCount + '/' + FLEX_QUEUE_MAX_BATCH_JOBS
-            );
-            if (flexQueueHoldingCount >= FLEX_QUEUE_MAX_BATCH_JOBS) {
-                throw new TASTeamAccessException(
-                    'Cannot submit batch: flex queue is full (' +
-                    flexQueueHoldingCount + ' Holding jobs, max ' + FLEX_QUEUE_MAX_BATCH_JOBS + ')'
-                );
-            }
-        }
-    }
+	public static void assertFlexQueueHasCapacity() {
+		if (!(Test.isRunningTest() && isSkipFlexQueueCheckForTest)) {
+			Integer flexQueueHoldingCount = resolveFlexQueueHoldingCount();
+			Logger.debug(
+				'TASTeamAccessBatch.assertFlexQueueHasCapacity: holdingJobs=' +
+				flexQueueHoldingCount + '/' + FLEX_QUEUE_MAX_BATCH_JOBS
+			);
+			if (flexQueueHoldingCount >= FLEX_QUEUE_MAX_BATCH_JOBS) {
+				throw new TASTeamAccessException(
+					'Cannot submit batch: flex queue is full (' +
+					flexQueueHoldingCount + ' Holding jobs, max ' + FLEX_QUEUE_MAX_BATCH_JOBS + ')'
+				);
+			}
+		}
+	}
 
     /**
      * @description
@@ -162,20 +162,20 @@ public without sharing class TASTeamAccessBatch implements Database.Batchable<SO
      *
      * @return Number of batch jobs currently in the flex queue
      */
-    private static Integer resolveFlexQueueHoldingCount() {
-        Integer flexQueueHoldingCount;
-        if (Test.isRunningTest() && testFlexQueueHoldingCountOverride != null) {
-            flexQueueHoldingCount = testFlexQueueHoldingCountOverride;
-        } else {
-            flexQueueHoldingCount = [
-                SELECT COUNT()
-                FROM AsyncApexJob
-                WHERE JobType = 'BatchApex'
-                  AND Status = 'Holding'
-            ];
-        }
-        return flexQueueHoldingCount;
-    }
+	private static Integer resolveFlexQueueHoldingCount() {
+		Integer flexQueueHoldingCount;
+		if (Test.isRunningTest() && testFlexQueueHoldingCountOverride != null) {
+			flexQueueHoldingCount = testFlexQueueHoldingCountOverride;
+		} else {
+			flexQueueHoldingCount = [
+				SELECT COUNT()
+				FROM AsyncApexJob
+				WHERE JobType = 'BatchApex'
+				  AND Status = 'Holding'
+			];
+		}
+		return flexQueueHoldingCount;
+	}
 
     /**
      * @description
@@ -184,23 +184,23 @@ public without sharing class TASTeamAccessBatch implements Database.Batchable<SO
      * @param bc Batchable context from the platform
      * @return Query locator for rows with Insert or Delete delta scenario
      */
-    public Database.QueryLocator start(Database.BatchableContext bc) {
-        this.originalTransactionId = Logger.getTransactionId();
-        try {
-            if (Test.isRunningTest() && isThrowInStart) {
-                throw new QueryException('Test start failure');
-            }
+	public Database.QueryLocator start(Database.BatchableContext bc) {
+		this.originalTransactionId = Logger.getTransactionId();
+		try {
+			if (Test.isRunningTest() && isThrowInStart) {
+				throw new QueryException('Test start failure');
+			}
             // GC-2596 - Abort batch when TAS_FreezeWindow is malformed; error is logged below with saveLog().
-            TASFreezeWindowUtil.validateFreezeWindowLabel();
-            return TASTeamAccessSelector.getOrderLineContactsQueryLocator();
-        } catch (Exception e) {
-            startCatchCount++;
-            Logger.error('TASTeamAccessBatch.start', e);
-            throw e;
-        } finally {
-            Logger.saveLog();
-        }
-    }
+			TASFreezeWindowUtil.validateFreezeWindowLabel();
+			return TASTeamAccessSelector.getOrderLineContactsQueryLocator();
+		} catch (Exception e) {
+			startCatchCount++;
+			Logger.error('TASTeamAccessBatch.start', e);
+			throw e;
+		} finally {
+			Logger.saveLog();
+		}
+	}
 
     /**
      * @description
@@ -210,21 +210,21 @@ public without sharing class TASTeamAccessBatch implements Database.Batchable<SO
      * @param scope List of OrderLineContact__c records in the current chunk
      * @return void
      */
-    public void execute(Database.BatchableContext bc, List<SObject> scope) {
-        try {
-            if (Test.isRunningTest() && isThrowInExecute) {
-                throw new TASTeamAccessException('Test execute failure');
-            }
+	public void execute(Database.BatchableContext bc, List<SObject> scope) {
+		try {
+			if (Test.isRunningTest() && isThrowInExecute) {
+				throw new TASTeamAccessException('Test execute failure');
+			}
 
-            List<OrderLineContact__c> olcScope = (List<OrderLineContact__c>) scope;
-            TASTeamAccessService.process(olcScope);
-        } catch (Exception e) {
-            executeCatchCount++;
-            Logger.error('TASTeamAccessBatch.execute', e);
-        } finally {
-            Logger.saveLog();
-        }
-    }
+			List<OrderLineContact__c> olcScope = (List<OrderLineContact__c>) scope;
+			TASTeamAccessService.process(olcScope);
+		} catch (Exception e) {
+			executeCatchCount++;
+			Logger.error('TASTeamAccessBatch.execute', e);
+		} finally {
+			Logger.saveLog();
+		}
+	}
 
     /**
      * @description
@@ -233,17 +233,17 @@ public without sharing class TASTeamAccessBatch implements Database.Batchable<SO
      * @param bc Batchable context from the platform
      * @return void
      */
-    public void finish(Database.BatchableContext bc) {
-        Logger.setParentLogTransactionId(this.originalTransactionId);
-        try {
-            if (Test.isRunningTest() && isThrowInFinish) {
-                throw new DmlException('Test finish failure');
-            }
-        } catch (Exception e) {
-            finishCatchCount++;
-            Logger.error('TASTeamAccessBatch.finish', e);
-        } finally {
-            Logger.saveLog();
-        }
-    }
+	public void finish(Database.BatchableContext bc) {
+		Logger.setParentLogTransactionId(this.originalTransactionId);
+		try {
+			if (Test.isRunningTest() && isThrowInFinish) {
+				throw new DmlException('Test finish failure');
+			}
+		} catch (Exception e) {
+			finishCatchCount++;
+			Logger.error('TASTeamAccessBatch.finish', e);
+		} finally {
+			Logger.saveLog();
+		}
+	}
 }

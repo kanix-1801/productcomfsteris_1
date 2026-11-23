@@ -11,7 +11,7 @@ private class ConnectApiPicklistProbeTest {
             WHERE SObjectType = 'Case' AND DeveloperName = 'InboxSupport'
             LIMIT 1
         ];
-        System.Assert.isFalse(recordTypes.isEmpty(), 'Inbox Support record type required');
+        System.Assert.isFalse(recordTypes.isEmpty(), 'Customer and Technical Care record type required');
         Id inboxRt = recordTypes[0].Id;
 
         ConnectApi.PicklistValuesCollection collection =

@@ -10,28 +10,28 @@ public class OrderLineContactTriggerHandler extends TriggerHandler{
     /**
      * @description Constructor - optionally configure recursion control
      */
-    public OrderLineContactTriggerHandler() {
-        super();
+	public OrderLineContactTriggerHandler() {
+		super();
         
-    }
+	}
 
-    protected override void afterDelete(){
-        if (!AutomationControl.isTriggerEnabled('OrderLineContactTrigger')) return;
-        OrderLineContactTriggerHelper.processOrders((List<OrderLineContact__c>) Trigger.old,null,true);
-        OrderLineContactTriggerHelper.processOrderLines((List<OrderLineContact__c>) Trigger.old,null,true);
-    }
+	protected override void afterDelete(){
+		if (!AutomationControl.isTriggerEnabled('OrderLineContactTrigger')) return;
+		OrderLineContactTriggerHelper.processOrders((List<OrderLineContact__c>) Trigger.old,null,true);
+		OrderLineContactTriggerHelper.processOrderLines((List<OrderLineContact__c>) Trigger.old,null,true);
+	}
    
-    protected override void afterInsert(){
-        if (!AutomationControl.isTriggerEnabled('OrderLineContactTrigger')) return;
-        OrderLineContactTriggerHelper.processOrders((List<OrderLineContact__c>) Trigger.new,null,false);
-        OrderLineContactTriggerHelper.processOrderLines((List<OrderLineContact__c>) Trigger.new,null,false);
-    }
+	protected override void afterInsert(){
+		if (!AutomationControl.isTriggerEnabled('OrderLineContactTrigger')) return;
+		OrderLineContactTriggerHelper.processOrders((List<OrderLineContact__c>) Trigger.new,null,false);
+		OrderLineContactTriggerHelper.processOrderLines((List<OrderLineContact__c>) Trigger.new,null,false);
+	}
     
-    protected override void afterUpdate(){
-        if (!AutomationControl.isTriggerEnabled('OrderLineContactTrigger')) return;
-        OrderLineContactTriggerHelper.processOrders((List<OrderLineContact__c>) Trigger.new,(Map<Id, OrderLineContact__c>) Trigger.oldMap,false);
-        OrderLineContactTriggerHelper.processOrderLines((List<OrderLineContact__c>) Trigger.new,(Map<Id, OrderLineContact__c>) Trigger.oldMap,false);
-    }
+	protected override void afterUpdate(){
+		if (!AutomationControl.isTriggerEnabled('OrderLineContactTrigger')) return;
+		OrderLineContactTriggerHelper.processOrders((List<OrderLineContact__c>) Trigger.new,(Map<Id, OrderLineContact__c>) Trigger.oldMap,false);
+		OrderLineContactTriggerHelper.processOrderLines((List<OrderLineContact__c>) Trigger.new,(Map<Id, OrderLineContact__c>) Trigger.oldMap,false);
+	}
 
      /**GC-3158
      * Handles before insert trigger events for OrderLineContact__c records.
@@ -39,14 +39,14 @@ public class OrderLineContactTriggerHandler extends TriggerHandler{
      * pre-insert processing to TASService.
      * @author Suraj Thapliyal
      */
-    @TestVisible
-    protected override void beforeInsert() {
-        if (!TriggerControl.enterBeforeInsert(OrderLineContact__c.SObjectType)) {
-            return;
-        }
+	@TestVisible
+	protected override void beforeInsert() {
+		if (!TriggerControl.enterBeforeInsert(OrderLineContact__c.SObjectType)) {
+			return;
+		}
 
-        TASService.processBeforeInsert((List<OrderLineContact__c>) Trigger.new);
-    }
+		TASService.processBeforeInsert((List<OrderLineContact__c>) Trigger.new);
+	}
 
     /**
      * Handles before update trigger events for OrderLineContact__c records.
@@ -54,15 +54,15 @@ public class OrderLineContactTriggerHandler extends TriggerHandler{
      * pre-update processing to TASService.
      * @author Suraj Thapliyal
      */
-    @TestVisible
-    protected override void beforeUpdate() {
-        if (!TriggerControl.enterBeforeUpdate(OrderLineContact__c.SObjectType)) {
-            return;
-        }
+	@TestVisible
+	protected override void beforeUpdate() {
+		if (!TriggerControl.enterBeforeUpdate(OrderLineContact__c.SObjectType)) {
+			return;
+		}
 
-        TASService.processBeforeUpdate(
-            (List<OrderLineContact__c>) Trigger.new,
-            (Map<Id, OrderLineContact__c>) Trigger.oldMap
-        );
-    }
+		TASService.processBeforeUpdate(
+			(List<OrderLineContact__c>) Trigger.new,
+			(Map<Id, OrderLineContact__c>) Trigger.oldMap
+		);
+	}
 }

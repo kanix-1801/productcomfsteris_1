@@ -4158,6 +4158,7 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 			?? '';
 		const serviceCodeId = state.serviceCodeId
 			?? edit?.serviceCodeId
+			?? l.RepairCode__c?.value
 			?? this._savedServiceCodeId(deviceTypeId, repairLevel, this._repairCenterByLineId[l.Id])
 			?? null;
 		const billingType = this._resolveBillingType(edit, state, l.BillingType__c?.value);
@@ -4987,7 +4988,9 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 				deviceType: line.DeviceType__c?.value
 					?? line.Product2?.ProductCode?.value
 					?? '',
-				serviceCodeId: this._savedServiceCodeId(deviceTypeId, repairLevel, this._repairCenterByLineId[line.Id]),
+				// GW-6193: Prefer the saved Service Code Product2; fall back to level reconstruction.
+				serviceCodeId: line.RepairCode__c?.value
+					?? this._savedServiceCodeId(deviceTypeId, repairLevel, this._repairCenterByLineId[line.Id]),
 				repairLevel,
 				quantity: line.Quantity?.value ?? '',
 				status: line.Status?.value ?? 'New',
@@ -6376,6 +6379,9 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 		return {
 			[WOLI_DEVICE_TYPE.fieldApiName]: deviceType,
 			[WOLI_REPAIR_LEVEL.fieldApiName]: repairLevel,
+			// GW-6193: Persist the selected Service Code Product2 so site visit summary
+			// can count OBR codes (e.g. SC.OBR-OCB1) without reconstructing from Repair Level.
+			[WOLI_REPAIRCODE.fieldApiName]: instrument.serviceCodeId || null,
 			...(instrument?.status ? { [WOLI_LINE_STATUS.fieldApiName]: instrument.status } : {}),
 			...this._repairCenterPersistFields(instrument)
 		};
@@ -8365,8 +8371,15 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 				byRecord[recordKey].push(picture);
 			}
 			Object.entries(this._mobilePicturesByRecordId).forEach(([recordKey, pictures]) => {
-				const listed = new Set((byRecord[recordKey] || []).map(picture => picture.contentDocumentId));
-				const notSynced = (pictures || []).filter(picture => picture.savedOnDevice && !listed.has(picture.contentDocumentId));
+				// The mobile file adapter returns a draft ContentDocument Id that changes when it syncs,
+				// so a synced device picture shows up as an unknown server picture, not as a matching Id.
+				const listedIds = new Set((byRecord[recordKey] || []).map(picture => picture.contentDocumentId));
+				const knownIds = new Set((pictures || []).map(picture => picture.contentDocumentId));
+				const newServerCount = (byRecord[recordKey] || [])
+					.filter(picture => !knownIds.has(picture.contentDocumentId)).length;
+				const notSynced = (pictures || [])
+					.filter(picture => picture.savedOnDevice && !listedIds.has(picture.contentDocumentId))
+					.slice(newServerCount);
 				if (notSynced.length) {
 					byRecord[recordKey] = [...(byRecord[recordKey] || []), ...notSynced];
 				}

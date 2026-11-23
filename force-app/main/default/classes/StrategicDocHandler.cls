@@ -4,15 +4,15 @@
  */
 public with sharing class StrategicDocHandler extends TriggerHandler {
 
-    public override void afterInsert() {
-        StrategicDocService.handleAfterInsert(
-            (List<ContentDocumentLink>) Trigger.new
-        );
-    }
+	public override void afterInsert() {
+		StrategicDocService.handleAfterInsert(
+			(List<ContentDocumentLink>) Trigger.new
+		);
+	}
 
-    public override void afterDelete() {
-        StrategicDocService.handleAfterDelete(
-            (List<ContentDocumentLink>) Trigger.old
-        );
-    }
+	public override void afterDelete() {
+		StrategicDocService.handleAfterDelete(
+			(List<ContentDocumentLink>) Trigger.old
+		);
+	}
 }

@@ -28,6 +28,8 @@ import renameStagedEvaluationPhoto from '@salesforce/apex/DeviceEvaluationContro
 import deleteStagedEvaluationPhoto from '@salesforce/apex/DeviceEvaluationController.deleteStagedEvaluationPhoto';
 import removeEvaluationPhoto from '@salesforce/apex/InstrumentEvaluationController.removeEvaluationPhoto';
 import getWarrantyRepairEvaluations from '@salesforce/apex/DeviceEvaluationController.getWarrantyRepairEvaluations';
+import getEvaluationPhotos from '@salesforce/apex/EvaluationPhotosController.getPhotos';
+import getCioEvaluations from '@salesforce/apex/CIOEvaluationsController.getEvaluations';
 
 const MODE_SCAN = 'scan';
 const BROWSER_TAB_LABEL = 'Instrument Evaluation & Repair';
@@ -77,6 +79,7 @@ const TAB_REPAIR_CODES = 'repairCodes';
 const TAB_PREFERENCES = 'customerPreferences';
 const TAB_NOTES = 'evaluationNotes';
 const TAB_PHOTOS = 'photos';
+const TAB_CIO = 'cioEvaluation';
 const TAB_ITEM_SUMMARY = 'itemSummary';
 const TAB_MODIFIER_CODES = 'modifierCodes';
 const TAB_WORK_PERFORMED = 'workPerformed';
@@ -102,6 +105,8 @@ const WOLI_STATUS_WAITING_APPROVAL = 'Waiting for Approval';
 const WOLI_STATUS_REJECTED = 'Rejected';
 const REPAIR_UNSIGNED_MESSAGE =
     'You cannot complete repair until all repair codes have been signed.';
+const CIO_REQUIRED_MESSAGE =
+    'You must complete the CIO Questionnaire before you can complete Evaluation.';
 const RO_LINE_REQUIRED_MESSAGE =
     'Please identify the RO line each item corresponds to before completing evaluation/repair.';
 const FILE_ACCEPT = '.jpg,.jpeg,.png,.gif,.bmp,.webp,.mp4,.mov,.pdf,.doc,.docx,.xls,.xlsx';
@@ -125,6 +130,8 @@ export default class InstrumentEvaluation extends LightningElement {
     /** GW-5677 - Quantity column width that lines services up with the modal title. */
     servicesLead;
     @track draftEntries = [];
+    /** Modifier choices made on codes that are not work order lines yet. */
+    pendingModifierChoices = {};
     @track warrantyRepairRows = [];
     wizardStep = WIZARD_CATEGORY;
     evalCategories = [];
@@ -495,6 +502,10 @@ export default class InstrumentEvaluation extends LightningElement {
         return this.selectedTab === TAB_PHOTOS;
     }
 
+    get isCioTab() {
+        return this.selectedTab === TAB_CIO;
+    }
+
     get isAddItemsTab() {
         return this.selectedTab === TAB_ADD_ITEMS;
     }
@@ -509,6 +520,50 @@ export default class InstrumentEvaluation extends LightningElement {
 
     get isModifierCodesTab() {
         return this.selectedTab === TAB_MODIFIER_CODES;
+    }
+
+    /**
+     * Codes currently selected on an item. Saved lines stay, unsaved lines appear,
+     * and a code that was unchecked is left out even before the evaluation is saved.
+     */
+    get pendingModifierLines() {
+        const eligible = new Set(['Service Code', 'Category Code', 'Special Pricing']);
+        const lines = [];
+        (this.draftEntries || []).forEach((entry) => {
+            if (!entry?.productServicedId) {
+                return;
+            }
+            (entry.repairCodes || []).forEach((code) => {
+                if (!code?.productId) {
+                    return;
+                }
+                if (code.codeType && !eligible.has(code.codeType)) {
+                    return;
+                }
+                lines.push({
+                    key: `${entry.productServicedId}-${code.productId}`,
+                    parentLineId: entry.productServicedId,
+                    productId: code.productId,
+                    lineType: code.codeType || 'Service Code',
+                    category: code.evalCategory || '',
+                    itemNumber: code.productCode || '',
+                    description: code.productName || '',
+                    modifierChoice: this.pendingModifierChoices?.[code.productId] || null
+                });
+            });
+        });
+        return lines;
+    }
+
+    handlePendingLineModifier(event) {
+        const choice = event.detail || {};
+        if (!choice.productId) {
+            return;
+        }
+        this.pendingModifierChoices = {
+            ...(this.pendingModifierChoices || {}),
+            [choice.productId]: choice
+        };
     }
 
     get isProductRequestsTab() {
@@ -965,10 +1020,17 @@ export default class InstrumentEvaluation extends LightningElement {
     }
 
     /**
-     * GW-3400 / GW-3891 - Warranty Repair column is always available on Instrument Evaluation.
+     * GW-4749 - Warranty Review column stays visible. Repair Warranty controls the cell, not the column.
      */
     get showWarrantyRepairColumn() {
         return true;
+    }
+
+    /**
+     * GW-4749 - New Warranty Repair Evaluation links are offered only when Repair Warranty is Yes.
+     */
+    get warrantyReviewApplies() {
+        return this.workspace?.repairWarranty === 'Yes';
     }
 
     /**
@@ -1123,6 +1185,9 @@ export default class InstrumentEvaluation extends LightningElement {
         items.push({ label: 'Customer Preferences', value: TAB_PREFERENCES });
         items.push({ label: 'Evaluation Notes', value: TAB_NOTES });
         items.push({ label: 'Photos', value: TAB_PHOTOS });
+        if (this.showCioIndicator) {
+            items.push({ label: 'CIO Evaluation', value: TAB_CIO });
+        }
         if (this.hasAsset) {
             items.push({ label: 'Repair Codes', value: TAB_REPAIR_CODES });
         } else {
@@ -1806,7 +1871,7 @@ export default class InstrumentEvaluation extends LightningElement {
             this.selectedTab = TAB_ITEM_SUMMARY;
             return;
         }
-        if (!this.ensurePhotosReady()) {
+        if (!(await this.ensurePhotosReady())) {
             return;
         }
         if (this.hasUnsignedRepairCodes()) {
@@ -1814,6 +1879,10 @@ export default class InstrumentEvaluation extends LightningElement {
             this.selectedTab = this.showWorkPerformedTab
                 ? TAB_WORK_PERFORMED
                 : TAB_ITEM_SUMMARY;
+            return;
+        }
+        const cioOk = await this.ensureCioQuestionnaireComplete();
+        if (!cioOk) {
             return;
         }
         this.mode = MODE_SUMMARY;
@@ -1826,6 +1895,29 @@ export default class InstrumentEvaluation extends LightningElement {
         this.workspaceError = '';
         this.mode = MODE_WORKSPACE;
         this.selectedTab = TAB_ITEM_SUMMARY;
+    }
+
+    /**
+     * GW-4749 - Block summary and complete until a CIO Evaluation exists.
+     */
+    async ensureCioQuestionnaireComplete() {
+        if (this.workspace?.continuousImprovementOpportunity !== true) {
+            return true;
+        }
+        try {
+            const rows = await getCioEvaluations({ workOrderId: this.workspace.workOrderId });
+            if (rows && rows.length > 0) {
+                return true;
+            }
+        } catch (error) {
+            this.workspaceError =
+                error?.body?.message || error?.message || 'Unable to verify the CIO Questionnaire.';
+            this.selectedTab = TAB_CIO;
+            return false;
+        }
+        this.workspaceError = CIO_REQUIRED_MESSAGE;
+        this.selectedTab = TAB_CIO;
+        return false;
     }
 
     /**
@@ -1857,7 +1949,7 @@ export default class InstrumentEvaluation extends LightningElement {
             this.selectedTab = TAB_ITEM_SUMMARY;
             return;
         }
-        if (!this.ensurePhotosReady()) {
+        if (!(await this.ensurePhotosReady())) {
             this.mode = MODE_WORKSPACE;
             this.selectedTab = TAB_ITEM_SUMMARY;
             return;
@@ -1868,6 +1960,11 @@ export default class InstrumentEvaluation extends LightningElement {
             this.selectedTab = this.showWorkPerformedTab
                 ? TAB_WORK_PERFORMED
                 : TAB_ITEM_SUMMARY;
+            return;
+        }
+        const cioOk = await this.ensureCioQuestionnaireComplete();
+        if (!cioOk) {
+            this.mode = MODE_WORKSPACE;
             return;
         }
 
@@ -2143,6 +2240,16 @@ export default class InstrumentEvaluation extends LightningElement {
      */
     buildWarrantyRepairLinks(entry) {
         const entryKey = entry?.entryId || 'entry';
+        if (!this.warrantyReviewApplies) {
+            return [
+                {
+                    key: `${entryKey}-wre-na`,
+                    label: 'N/A',
+                    clickable: false,
+                    recordId: null
+                }
+            ];
+        }
         if (!entry?.productServicedId) {
             return [
                 {
@@ -2599,6 +2706,12 @@ export default class InstrumentEvaluation extends LightningElement {
             this.selectedTab = TAB_WO_DETAILS;
         }
         if (this.selectedTab === TAB_ADD_ITEMS && workspace?.hasAsset === true) {
+            this.selectedTab = TAB_WO_DETAILS;
+        }
+        if (
+            this.selectedTab === TAB_CIO &&
+            workspace?.continuousImprovementOpportunity !== true
+        ) {
             this.selectedTab = TAB_WO_DETAILS;
         }
         if (
@@ -3419,19 +3532,42 @@ export default class InstrumentEvaluation extends LightningElement {
         return (this.draftEntries || []).filter((entry) => entry.productId === productId).length;
     }
 
-    ensurePhotosReady() {
+    /**
+     * GW-4378 - Photos Required is satisfied by a photo on any item
+     * or a photo stored on the Work Order from the Photos tab.
+     */
+    async ensurePhotosReady() {
         if (this.workspace?.photosRequired !== true || this.workspace?.unableToTakePhoto === true) {
             return true;
         }
         const hasAnyPhoto = (this.draftEntries || []).some(
             (entry) => (entry.photos || []).length > 0
         );
-        if (!hasAnyPhoto) {
-            this.workspaceError = this.getPhotosRequiredMessage();
-            this.selectedTab = TAB_ITEM_SUMMARY;
+        if (hasAnyPhoto) {
+            return true;
+        }
+        try {
+            if (await this.hasWorkOrderPhotos(this.workOrderId)) {
+                return true;
+            }
+        } catch (error) {
+            this.workspaceError = this.resolveErrorMessage(
+                error,
+                'Unable to verify photos on this Work Order.'
+            );
             return false;
         }
-        return true;
+        this.workspaceError = this.getPhotosRequiredMessage();
+        this.selectedTab = TAB_ITEM_SUMMARY;
+        return false;
+    }
+
+    async hasWorkOrderPhotos(workOrderId) {
+        if (!workOrderId) {
+            return false;
+        }
+        const rows = await getEvaluationPhotos({ workOrderId });
+        return (rows || []).some((row) => row?.isOptional === true);
     }
 
     /**

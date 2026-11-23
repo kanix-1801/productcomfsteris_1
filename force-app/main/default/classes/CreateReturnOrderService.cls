@@ -40,6 +40,33 @@ public with sharing class CreateReturnOrderService {
 	private static final String STIRRUP_GROUP_SUFFIX = '|STIRRUP|';
 	private static final String ENDOCAM_ITEM_TYPE = 'Endocam';
 
+	private static final String STERIS_ASSET_TYPE = 'STERIS Asset';
+	private static final List<String> ASSET_LINE_FIELDS = new List<String>{
+		'Id',
+		'SerialNumber',
+		'ModelCalculated__c',
+		'Department__c',
+		'Product2Id',
+		'Product2.ProductLine__c',
+		'Product2.Name',
+		'Product2.Manufacturer__c'
+	};
+	private static final List<String> ASSET_SERIAL_SEARCH_FIELDS = new List<String>{
+		'Id',
+		'SerialNumber',
+		'ModelCalculated__c',
+		'Department__c',
+		'Product2Id',
+		'Product2.ProductLine__c',
+		'Product2.Name',
+		'Product2.ProductCode',
+		'Product2.SubProductLine__c',
+		'Product2.DeviceType__c',
+		'Product2.Manufacturer__c',
+		'AccountId',
+		'Account.Name'
+	};
+
 	/**
 	 * @description Business exception for Create Return Order process failures.
 	 */
@@ -711,7 +738,7 @@ public with sharing class CreateReturnOrderService {
 				throw new CreateReturnOrderServiceException('Account is required.');
 			}
 
-			List<Asset> assets = AssetsSelector.selectForCreateReturnOrderByAccountId(accountId);
+			List<Asset> assets = queryAssetsByAccountId(accountId);
 
 			return mapAssetsToLineData(assets);
 		} catch (Exception e) {
@@ -775,9 +802,7 @@ public with sharing class CreateReturnOrderService {
 				return new List<AssetLineData>();
 			}
 
-			Map<Id, Asset> assetsById = new Map<Id, Asset>(
-				AssetsSelector.selectForCreateReturnOrderByIds(idSet)
-			);
+			Map<Id, Asset> assetsById = new Map<Id, Asset>(queryAssetsByIds(idSet));
 
 			List<AssetLineData> rows = new List<AssetLineData>();
 			for (String assetIdValue : normalizedAssetIds) {
@@ -803,9 +828,7 @@ public with sharing class CreateReturnOrderService {
 				return new List<ScanSerialAssetResult>();
 			}
 
-			List<Asset> assets = AssetsSelector.selectForCreateReturnOrderBySerialNumber(
-				normalizedSerial
-			);
+			List<Asset> assets = queryAssetsBySerialNumber(normalizedSerial);
 
 			List<ScanSerialAssetResult> rows = new List<ScanSerialAssetResult>();
 			for (Asset asset : assets) {
@@ -841,11 +864,7 @@ public with sharing class CreateReturnOrderService {
 			if (String.isBlank(normalizedSerial) && scopedAccountId == null) {
 				return new List<ScanSerialAssetResult>();
 			}
-			List<Asset> assets = AssetsSelector.selectForCreateReturnOrderBySerialSearch(
-				searchLikeTerm,
-				scopedAccountId,
-				50
-			);
+			List<Asset> assets = queryAssetsBySerialSearch(searchLikeTerm, scopedAccountId, 50);
 			List<ScanSerialAssetResult> rows = new List<ScanSerialAssetResult>();
 			for (Asset asset : assets) {
 				rows.add(mapAssetToScanSerialResult(asset));
@@ -1233,9 +1252,7 @@ public with sharing class CreateReturnOrderService {
 			if (!selectedIds.isEmpty()) {
 				resolveContextFromAssets(ctx, selectedIds);
 			} else if (String.isNotBlank(recordId)) {
-				List<Asset> assets = AssetsSelector.selectAccountIdsByIds(
-					new Set<Id>{ Id.valueOf(recordId) }
-				);
+				List<Asset> assets = queryAssetAccountIdsByIds(new Set<Id>{ Id.valueOf(recordId) });
 				Asset asset = assets[0];
 				ctx.accountId = asset.AccountId;
 				ctx.assetIds.add(asset.Id);
@@ -1249,9 +1266,7 @@ public with sharing class CreateReturnOrderService {
 			return;
 		}
 
-		Map<Id, Asset> assetsById = new Map<Id, Asset>(
-			AssetsSelector.selectAccountIdsByIds(idSet)
-		);
+		Map<Id, Asset> assetsById = new Map<Id, Asset>(queryAssetAccountIdsByIds(idSet));
 
 		// Preserve list-view selection order: account and lines use the first selected asset.
 		for (String assetIdValue : assetIds) {
@@ -2971,6 +2986,93 @@ public with sharing class CreateReturnOrderService {
 			}
 		}
 		return workOrderLineItemIds;
+	}
+
+
+	/**
+	 * @description GW-1509 / GW-6614 - Assets for an Account; excludes STERIS Asset.
+	 */
+	private static List<Asset> queryAssetsByAccountId(Id accountId) {
+		return (List<Asset>) SoqlQueryBuilder.fromObject('Asset')
+			.selectFields(ASSET_LINE_FIELDS)
+			.whereEquals('AccountId', accountId)
+			.whereField('AssetType__c', '!=', STERIS_ASSET_TYPE)
+			.whereField('AssetType__c', '=', null)
+			.withFilterLogic('1 AND (2 OR 3)')
+			.orderBy('SerialNumber', false, true)
+			.orderBy('Name')
+			.execute();
+	}
+
+	/**
+	 * @description GW-1509 - Assets by Id for Create Return Order line selection.
+	 */
+	private static List<Asset> queryAssetsByIds(Set<Id> assetIds) {
+		return (List<Asset>) SoqlQueryBuilder.fromObject('Asset')
+			.selectFields(ASSET_LINE_FIELDS)
+			.whereField('Id', 'IN', new List<Id>(assetIds))
+			.execute();
+	}
+
+	/**
+	 * @description GW-1509 / GW-6614 - Exact serial match; excludes STERIS Asset.
+	 */
+	private static List<Asset> queryAssetsBySerialNumber(String serialNumber) {
+		return (List<Asset>) SoqlQueryBuilder.fromObject('Asset')
+			.selectFields(ASSET_SERIAL_SEARCH_FIELDS)
+			.whereEquals('SerialNumber', serialNumber)
+			.whereField('AssetType__c', '!=', STERIS_ASSET_TYPE)
+			.whereField('AssetType__c', '=', null)
+			.withFilterLogic('1 AND (2 OR 3)')
+			.orderBy('Account.Name', false, true)
+			.orderBy('SerialNumber', false, true)
+			.limitTo(50)
+			.execute();
+	}
+
+	/**
+	 * @description GW-6614 - Serial LIKE search / account browse; excludes STERIS Asset.
+	 */
+	private static List<Asset> queryAssetsBySerialSearch(
+		String searchLikeTerm,
+		Id accountId,
+		Integer queryLimit
+	) {
+		SoqlQueryBuilder builder = SoqlQueryBuilder.fromObject('Asset')
+			.selectFields(ASSET_SERIAL_SEARCH_FIELDS)
+			.whereField('AssetType__c', '!=', STERIS_ASSET_TYPE)
+			.whereField('AssetType__c', '=', null);
+
+		List<String> logicParts = new List<String>{ '(1 OR 2)' };
+		Integer filterIndex = 2;
+		if (String.isNotBlank(searchLikeTerm)) {
+			filterIndex++;
+			builder.whereField('SerialNumber', 'LIKE', searchLikeTerm);
+			logicParts.add(String.valueOf(filterIndex));
+		}
+		if (accountId != null) {
+			filterIndex++;
+			builder.whereEquals('AccountId', accountId);
+			logicParts.add(String.valueOf(filterIndex));
+		}
+		builder.withFilterLogic(String.join(logicParts, ' AND '));
+
+		Integer limitRows = (queryLimit == null || queryLimit <= 0) ? 50 : queryLimit;
+		return (List<Asset>) builder
+			.orderBy('Account.Name', false, true)
+			.orderBy('SerialNumber', false, true)
+			.limitTo(limitRows)
+			.execute();
+	}
+
+	/**
+	 * @description GW-1509 - Asset Id/AccountId for Create Return Order launch context.
+	 */
+	private static List<Asset> queryAssetAccountIdsByIds(Set<Id> assetIds) {
+		return (List<Asset>) SoqlQueryBuilder.fromObject('Asset')
+			.selectFields(new List<String>{ 'Id', 'AccountId' })
+			.whereField('Id', 'IN', new List<Id>(assetIds))
+			.execute();
 	}
 
 	private static String firstNonBlank(String firstValue, String secondValue) {

@@ -54,50 +54,8 @@ public without sharing class LsOverlayAssignmentService {
      *              this single Set is safe to reuse as a bind variable for both fields.
      */
     private static final Set<String> LIFE_SCIENCES_CLASS_CODES = new Set<String>{
-        'SC',
-        'LIFE SCIENCE',
-        'LIFE SCIENCES'
+        'SC'
     };
-
-    /**
-     * @description
-     * GCL-79 - Searches Life Sciences OrderLineContact__c territory rows by Territory ID,
-     * Territory Description, or Territory Number.
-     *
-     * @param searchKey User-entered search text. Returns an empty list when blank.
-     * @return Distinct Life Sciences territories matching the search key.
-     */
-    public static List<LsOverlayAssignmentController.TerritoryWrapper> searchTerritories(String searchKey) {
-        try {
-            if (String.isBlank(searchKey)) {
-                return new List<LsOverlayAssignmentController.TerritoryWrapper>();
-            }
-
-            Map<String, LsOverlayAssignmentController.TerritoryWrapper> territoryById =
-                new Map<String, LsOverlayAssignmentController.TerritoryWrapper>();
-
-            for (OrderLineContact__c orderLineContact : TASSelector.selectLifeSciencesTerritoriesBySearch(
-                searchKey,
-                LIFE_SCIENCES_CLASS_CODES,
-                SEARCH_LIMIT
-            )) {
-                if (territoryById.containsKey(orderLineContact.TerritoryID__c)) {
-                    continue;
-                }
-                LsOverlayAssignmentController.TerritoryWrapper territory =
-                    new LsOverlayAssignmentController.TerritoryWrapper();
-                territory.territoryId = orderLineContact.TerritoryID__c;
-                territory.territoryDescription = orderLineContact.TerritoryDescription__c;
-                territoryById.put(territory.territoryId, territory);
-            }
-            return territoryById.values();
-        } catch (Exception ex) {
-            throw logAndWrap('Unable to search Life Sciences territories.', ex);
-        } finally {
-            Logger.saveLog();
-        }
-    }
-
     /**
      * @description
      * GCL-79 - Searches Life Sciences Customer accounts on Step 1 by Account Name/Number
@@ -109,7 +67,7 @@ public without sharing class LsOverlayAssignmentService {
      * @param territoryIds Territory IDs already selected on Step 1, or empty for none.
      * @return Matching Life Sciences account rows. Empty when no search criteria is provided.
      */
-    public static List<LsOverlayAssignmentController.AccountWrapper> searchAccounts(
+    public static List<OverlayAssignmentController.AccountWrapper> searchAccounts(
         String accountSearchKey,
         String accountType,
         List<String> territoryIds
@@ -120,7 +78,7 @@ public without sharing class LsOverlayAssignmentService {
                 || (territoryIds != null && !territoryIds.isEmpty());
 
             if (!hasAnyCriteria) {
-                return new List<LsOverlayAssignmentController.AccountWrapper>();
+                return new List<OverlayAssignmentController.AccountWrapper>();
             }
             return findAccountRows(accountSearchKey, accountType, territoryIds, null);
         } catch (Exception ex) {
@@ -142,7 +100,7 @@ public without sharing class LsOverlayAssignmentService {
      * @param selectedSearchAccountIds Account Ids explicitly selected on Step 1's account search results.
      * @return Customer account rows for Step 2.
      */
-    public static List<LsOverlayAssignmentController.AccountWrapper> retrieveAccounts(
+    public static List<OverlayAssignmentController.AccountWrapper> retrieveAccounts(
         List<String> territoryIds,
         String accountSearchKey,
         String accountType,
@@ -155,56 +113,14 @@ public without sharing class LsOverlayAssignmentService {
                 || (selectedSearchAccountIds != null && !selectedSearchAccountIds.isEmpty());
 
             if (!hasTerritory && !hasAccountFilter) {
-                throw new LsOverlayAssignmentException('Enter a territory or account before retrieving accounts.');
+                throw new OverlayAssignmentException('Enter a territory or account before retrieving accounts.');
             }
 
             return findAccountRows(accountSearchKey, accountType, territoryIds, selectedSearchAccountIds);
-        } catch (LsOverlayAssignmentException ex) {
+        } catch (OverlayAssignmentException ex) {
             throw ex;
         } catch (Exception ex) {
             throw logAndWrap('Unable to retrieve Life Sciences accounts.', ex);
-        } finally {
-            Logger.saveLog();
-        }
-    }
-
-    /**
-     * @description
-     * GCL-79 - Searches active Life Sciences Sales profile users by name or email
-     * for the overlay user selection step. Returns Name, Country, and Manager
-     * in addition to Email and Role. This query does not use USER_MODE: the BSA
-     * persona cannot read User.ProfileId, and stripping that field breaks the bind variables.
-     *
-     * @param searchKey User-entered search text. Returns an empty list when blank.
-     * @return Matching active Life Sciences Sales users.
-     */
-    public static List<LsOverlayAssignmentController.UserWrapper> searchOverlayUsers(String searchKey) {
-        try {
-            if (String.isBlank(searchKey)) {
-                return new List<LsOverlayAssignmentController.UserWrapper>();
-            }
-
-            if (UserSelector.getLifeSciencesSalesProfileIdForOverlay() == null) {
-                throw new LsOverlayAssignmentException('Life Sciences Sales profile was not found.');
-            }
-
-            List<LsOverlayAssignmentController.UserWrapper> users = new List<LsOverlayAssignmentController.UserWrapper>();
-
-            for (User userRecord : UserSelector.selectActiveLifeSciencesSalesUsersBySearch(searchKey)) {
-                LsOverlayAssignmentController.UserWrapper userWrapper = new LsOverlayAssignmentController.UserWrapper();
-                userWrapper.userId = userRecord.Id;
-                userWrapper.userName = userRecord.Name;
-                userWrapper.email = userRecord.Email;
-                userWrapper.country = userRecord.Country;
-                userWrapper.role = userRecord.UserRole == null ? null : userRecord.UserRole.Name;
-                userWrapper.managerName = userRecord.Manager == null ? null : userRecord.Manager.Name;
-                users.add(userWrapper);
-            }
-            return users;
-        } catch (LsOverlayAssignmentException ex) {
-            throw ex;
-        } catch (Exception ex) {
-            throw logAndWrap('Unable to search Life Sciences overlay users.', ex);
         } finally {
             Logger.saveLog();
         }
@@ -219,22 +135,22 @@ public without sharing class LsOverlayAssignmentService {
      * @param selectedAccountIds Accounts still selected after Step 2 deselection.
      * @return One summary row per territory (or Account Search) with its selected accounts.
      */
-    public static List<LsOverlayAssignmentController.SummaryTerritoryWrapper> getAssignmentSummary(
+    public static List<OverlayAssignmentController.SummaryTerritoryWrapper> getAssignmentSummary(
         List<String> territoryIds,
         List<Id> selectedAccountIds
     ) {
         try {
             Set<Id> selectedAccountIdSet = toIdSet(selectedAccountIds);
             if (selectedAccountIdSet.isEmpty()) {
-                throw new LsOverlayAssignmentException('No accounts selected for overlay assignment.');
+                throw new OverlayAssignmentException('No accounts selected for overlay assignment.');
             }
 
-            List<LsOverlayAssignmentController.AccountWrapper> selectedRows = selectSummaryAccountRows(
+            List<OverlayAssignmentController.AccountWrapper> selectedRows = selectSummaryAccountRows(
                 territoryIds,
                 selectedAccountIdSet
             );
             return groupAccountRowsByTerritory(selectedRows);
-        } catch (LsOverlayAssignmentException ex) {
+        } catch (OverlayAssignmentException ex) {
             throw ex;
         } catch (Exception ex) {
             throw logAndWrap('Unable to build the Life Sciences overlay assignment summary.', ex);
@@ -267,10 +183,10 @@ public without sharing class LsOverlayAssignmentService {
         Set<Id> userIdSet = toIdSet(userIds);
 
         if (accountIdSet.isEmpty()) {
-            throw new LsOverlayAssignmentException('No accounts selected for overlay assignment.');
+            throw new OverlayAssignmentException('No accounts selected for overlay assignment.');
         }
         if (userIdSet.isEmpty()) {
-            throw new LsOverlayAssignmentException('Select at least one overlay user.');
+            throw new OverlayAssignmentException('Select at least one overlay user.');
         }
         requireActiveLifeSciencesUsers(userIdSet);
 
@@ -294,11 +210,18 @@ public without sharing class LsOverlayAssignmentService {
                 SObjectAccessDecision decision = Security.stripInaccessible(AccessType.CREATABLE, membersToInsert);
                 insert decision.getRecords();
             }
-            createAccountShares(cascadeAccounts, userIdSet);
+            //GCL-390 : Tech Story - Hc x LS code dependency resolution
+            OverlayAssignmentService.OverlayAssignmentDmlService dmlService = new OverlayAssignmentService.OverlayAssignmentDmlService();
+            dmlService.createAccountShares(cascadeAccounts, userIdSet); // GCL-390 : End
             if (!territoryIdSet.isEmpty()) {
-                createTasWritebackRecords(cascadeAccounts, userIdSet, territoryByAddressId);
+                //GCL-390 : Tech Story - Hc x LS code dependency resolution
+                OverlayAssignmentService.createTasWritebackRecords(
+                    cascadeAccounts,
+                    userIdSet,
+                    territoryByAddressId
+                );
             }
-        } catch (LsOverlayAssignmentException ex) {
+        } catch (OverlayAssignmentException ex) {
             Database.rollback(savepointValue);
             throw ex;
         } catch (Exception ex) {
@@ -308,114 +231,16 @@ public without sharing class LsOverlayAssignmentService {
             Logger.saveLog();
         }
     }
-
-    /**
-     * @description
-     * GCL-79 - Creates a manual AccountShare for each assigned account and overlay user that
-     * does not already have one. Access matches Healthcare: Account Edit, Opportunity Read, Case Read.
-     *
-     * @param accountList Accounts receiving the overlay assignment.
-     * @param userIdSet Overlay users selected on Step 3.
-     */
-    private static void createAccountShares(List<Account> accountList, Set<Id> userIdSet) {
-        Set<Id> accountIdSet = new Map<Id, Account>(accountList).keySet();
-        if (accountIdSet.isEmpty() || userIdSet.isEmpty()) {
-            return;
-        }
-
-        Set<String> existingShareKeys = new Set<String>();
-        for (AccountShare accountShare : [
-            SELECT AccountId, UserOrGroupId
-            FROM AccountShare
-            WHERE AccountId IN :accountIdSet
-            AND UserOrGroupId IN :userIdSet
-        ]) {
-            existingShareKeys.add(accountShare.AccountId + '-' + accountShare.UserOrGroupId);
-        }
-
-        List<AccountShare> sharesToInsert = new List<AccountShare>();
-        for (Id accountId : accountIdSet) {
-            for (Id userId : userIdSet) {
-                if (existingShareKeys.contains(accountId + '-' + userId)) {
-                    continue;
-                }
-                sharesToInsert.add(new AccountShare(
-                    AccountId = accountId,
-                    UserOrGroupId = userId,
-                    AccountAccessLevel = ACCOUNT_ACCESS_EDIT,
-                    OpportunityAccessLevel = 'Read',
-                    CaseAccessLevel = 'Read',
-                    RowCause = Schema.AccountShare.RowCause.Manual
-                ));
-            }
-        }
-        if (!sharesToInsert.isEmpty()) {
-            if (!Schema.sObjectType.AccountShare.isCreateable()) {
-                throw new LsOverlayAssignmentException('You do not have permission to share these accounts.');
-            }
-            insert sharesToInsert;
-        }
-    }
-
-    /**
-     * @description
-     * GCL-79 - Inserts one OrderLineContact__c TAS row per overlay user for each assigned
-     * account whose Oracle address matches a selected Life Sciences territory. Called only
-     * when a territory was selected.
-     *
-     * @param accountList Accounts receiving the overlay assignment.
-     * @param userIdSet Overlay users selected on Step 3.
-     * @param territoryByAddressId Life Sciences source rows keyed by TAS Address Id.
-     */
-    private static void createTasWritebackRecords(
-        List<Account> accountList,
-        Set<Id> userIdSet,
-        Map<String, OrderLineContact__c> territoryByAddressId
-    ) {
-        if (accountList.isEmpty() || userIdSet.isEmpty() || territoryByAddressId.isEmpty()) {
-            return;
-        }
-
-        Map<Id, User> userById = new Map<Id, User>(UserSelector.selectByIds(userIdSet));
-        List<OrderLineContact__c> rowsToInsert = new List<OrderLineContact__c>();
-        for (Account accountRecord : accountList) {
-            OrderLineContact__c sourceTerritory = territoryForAccount(accountRecord, territoryByAddressId);
-            if (sourceTerritory == null) {
-                continue;
-            }
-            for (Id userId : userIdSet) {
-                User overlayUser = userById.get(userId);
-                if (overlayUser == null) {
-                    continue;
-                }
-                rowsToInsert.add(new OrderLineContact__c(
-                    TerritoryID__c = sourceTerritory.TerritoryID__c,
-                    TerritoryDescription__c = sourceTerritory.TerritoryDescription__c,
-                    TerritoryNumber__c = sourceTerritory.TerritoryNumber__c,
-                    TASAddressId__c = sourceTerritory.TASAddressId__c,
-                    BusinessUnit__c = sourceTerritory.BusinessUnit__c,
-                    TASZone__c = sourceTerritory.TASZone__c,
-                    RegionName__c = sourceTerritory.RegionName__c,
-                    HRISSalesRepId__c = overlayUser.EmployeeNumber__c
-                ));
-            }
-        }
-        if (!rowsToInsert.isEmpty()) {
-            SObjectAccessDecision decision = Security.stripInaccessible(AccessType.CREATABLE, rowsToInsert);
-            insert decision.getRecords();
-        }
-    }
-
     /**
      * @description GCL-79 - Logs an unexpected exception and returns a sanitized exception to throw to the caller.
      * @param userMessage User-safe message to log and surface to the LWC.
      * @param ex The exception caught by the calling method.
-     * @return LsOverlayAssignmentException carrying the sanitized message.
+     * @return OverlayAssignmentException carrying the sanitized message.
      */
-    private static LsOverlayAssignmentException logAndWrap(String userMessage, Exception ex) {
+    private static OverlayAssignmentException logAndWrap(String userMessage, Exception ex) {
         Logger.setScenario(SCENARIO);
         Logger.error(userMessage + ' ' + ex.getMessage(), ex).addTag(LOGGER_TAG);
-        return new LsOverlayAssignmentException(userMessage);
+        return new OverlayAssignmentException(userMessage);
     }
 
     /**
@@ -431,7 +256,7 @@ public without sharing class LsOverlayAssignmentService {
      * @param selectedSearchAccountIds Account Ids explicitly selected on Step 1's account search results.
      * @return Customer account rows matching the combined search criteria.
      */
-    private static List<LsOverlayAssignmentController.AccountWrapper> findAccountRows(
+    private static List<OverlayAssignmentController.AccountWrapper> findAccountRows(
         String accountSearchKey,
         String accountType,
         List<String> territoryIds,
@@ -450,15 +275,15 @@ public without sharing class LsOverlayAssignmentService {
             matchedAccounts = keepSelectedAccounts(matchedAccounts, selectedAccountIds);
         }
 
-        List<LsOverlayAssignmentController.AccountWrapper> rows =
-            new List<LsOverlayAssignmentController.AccountWrapper>();
+        List<OverlayAssignmentController.AccountWrapper> rows =
+            new List<OverlayAssignmentController.AccountWrapper>();
 
         for (Account accountRecord : matchedAccounts) {
             if (!isSearchableAccountType(accountRecord.Type)) {
                 continue;
             }
 
-            LsOverlayAssignmentController.AccountWrapper row = toAccountWrapper(
+            OverlayAssignmentController.AccountWrapper row = toAccountWrapper(
                 accountRecord,
                 territoryByDisplayAccountId.get(accountRecord.Id)
             );
@@ -837,7 +662,7 @@ public without sharing class LsOverlayAssignmentService {
      * @return True when the row matches every provided filter.
      */
     private static Boolean matchesSearch(
-        LsOverlayAssignmentController.AccountWrapper row,
+        OverlayAssignmentController.AccountWrapper row,
         String accountSearchKey,
         String accountType
     ) {
@@ -851,8 +676,7 @@ public without sharing class LsOverlayAssignmentService {
         String key = accountSearchKey.trim().toLowerCase();
         String nameValue = row.accountName == null ? '' : row.accountName.toLowerCase();
         String numberValue = row.accountNumber == null ? '' : row.accountNumber.toLowerCase();
-        String associatedName = row.associatedAccountName == null ? '' : row.associatedAccountName.toLowerCase();
-        return nameValue.contains(key) || numberValue.contains(key) || associatedName.contains(key);
+        return nameValue.contains(key) || numberValue.contains(key);
     }
 
     /**
@@ -861,22 +685,15 @@ public without sharing class LsOverlayAssignmentService {
      * @param territory Matching Life Sciences territory row, or null when not resolved through a territory search.
      * @return Populated AccountWrapper row.
      */
-    private static LsOverlayAssignmentController.AccountWrapper toAccountWrapper(
+    private static OverlayAssignmentController.AccountWrapper toAccountWrapper(
         Account accountRecord,
         OrderLineContact__c territory
     ) {
-        LsOverlayAssignmentController.AccountWrapper row = new LsOverlayAssignmentController.AccountWrapper();
+        OverlayAssignmentController.AccountWrapper row = new OverlayAssignmentController.AccountWrapper();
         row.accountId = accountRecord.Id;
         row.accountName = accountRecord.Name;
         row.accountNumber = accountRecord.AccountNumber;
         row.accountType = accountRecord.Type;
-        row.street = accountRecord.BillingStreet;
-        row.city = accountRecord.BillingCity;
-        row.state = accountRecord.BillingState;
-        row.postalCode = accountRecord.BillingPostalCode;
-        row.country = accountRecord.BillingCountry;
-        row.associatedAccountId = accountRecord.ParentId == null ? accountRecord.Id : accountRecord.ParentId;
-        row.associatedAccountName = accountRecord.ParentId == null ? accountRecord.Name : accountRecord.Parent.Name;
 
         if (territory != null) {
             row.territoryId = territory.TerritoryID__c;
@@ -893,14 +710,14 @@ public without sharing class LsOverlayAssignmentService {
      * @param selectedAccountIdSet Accounts still selected after Step 2 deselection.
      * @return AccountWrapper rows for every selected account.
      */
-    private static List<LsOverlayAssignmentController.AccountWrapper> selectSummaryAccountRows(
+    private static List<OverlayAssignmentController.AccountWrapper> selectSummaryAccountRows(
         List<String> territoryIds,
         Set<Id> selectedAccountIdSet
     ) {
-        List<LsOverlayAssignmentController.AccountWrapper> selectedRows =
-            new List<LsOverlayAssignmentController.AccountWrapper>();
+        List<OverlayAssignmentController.AccountWrapper> selectedRows =
+            new List<OverlayAssignmentController.AccountWrapper>();
 
-        for (LsOverlayAssignmentController.AccountWrapper accountRow : findAccountRows(null, null, territoryIds, null)) {
+        for (OverlayAssignmentController.AccountWrapper accountRow : findAccountRows(null, null, territoryIds, null)) {
             if (selectedAccountIdSet.contains(accountRow.accountId)) {
                 selectedRows.add(accountRow);
             }
@@ -920,23 +737,23 @@ public without sharing class LsOverlayAssignmentService {
      * @param selectedRows Account rows selected for submission.
      * @return One summary row per Territory ID (or Account Search).
      */
-    private static List<LsOverlayAssignmentController.SummaryTerritoryWrapper> groupAccountRowsByTerritory(
-        List<LsOverlayAssignmentController.AccountWrapper> selectedRows
+    private static List<OverlayAssignmentController.SummaryTerritoryWrapper> groupAccountRowsByTerritory(
+        List<OverlayAssignmentController.AccountWrapper> selectedRows
     ) {
-        Map<String, LsOverlayAssignmentController.SummaryTerritoryWrapper> summaryByKey =
-            new Map<String, LsOverlayAssignmentController.SummaryTerritoryWrapper>();
+        Map<String, OverlayAssignmentController.SummaryTerritoryWrapper> summaryByKey =
+            new Map<String, OverlayAssignmentController.SummaryTerritoryWrapper>();
 
-        for (LsOverlayAssignmentController.AccountWrapper accountRow : selectedRows) {
+        for (OverlayAssignmentController.AccountWrapper accountRow : selectedRows) {
             String summaryKey = String.isBlank(accountRow.territoryId) ? ACCOUNT_SEARCH_LABEL : accountRow.territoryId;
 
             if (!summaryByKey.containsKey(summaryKey)) {
-                LsOverlayAssignmentController.SummaryTerritoryWrapper summaryRow =
-                    new LsOverlayAssignmentController.SummaryTerritoryWrapper();
+                OverlayAssignmentController.SummaryTerritoryWrapper summaryRow =
+                    new OverlayAssignmentController.SummaryTerritoryWrapper();
                 summaryRow.territoryId = summaryKey;
                 summaryRow.territoryDescription = String.isBlank(accountRow.territoryDescription)
                     ? summaryKey
                     : accountRow.territoryDescription;
-                summaryRow.selectedAccounts = new List<LsOverlayAssignmentController.AccountWrapper>();
+                summaryRow.selectedAccounts = new List<OverlayAssignmentController.AccountWrapper>();
                 summaryByKey.put(summaryKey, summaryRow);
             }
             summaryByKey.get(summaryKey).selectedAccounts.add(accountRow);
@@ -1051,7 +868,7 @@ public without sharing class LsOverlayAssignmentService {
     private static void requireActiveLifeSciencesUsers(Set<Id> userIdSet) {
         Id lifeSciencesProfileId = UserSelector.getLifeSciencesSalesProfileIdForOverlay();
         if (lifeSciencesProfileId == null) {
-            throw new LsOverlayAssignmentException('Life Sciences Sales profile was not found.');
+            throw new OverlayAssignmentException('Life Sciences Sales profile was not found.');
         }
 
         Set<Id> matchingUserIds = new Map<Id, User>(
@@ -1059,7 +876,7 @@ public without sharing class LsOverlayAssignmentService {
         ).keySet();
 
         if (matchingUserIds.size() != userIdSet.size()) {
-            throw new LsOverlayAssignmentException('Select active Life Sciences Sales users only.');
+            throw new OverlayAssignmentException('Select active Life Sciences Sales users only.');
         }
     }
 

@@ -1,5 +1,5 @@
 <template>
-    <div class="ca-card">
+    <div lwc:if={isAllowedProduct} class="ca-card">
         <div class="ca-card-head">
             <div class="ca-head-left">
                 <span class="ca-icon">
@@ -40,7 +40,7 @@
     </div>
 
     <!-- ===================== MODAL ===================== -->
-    <template lwc:if={isModalOpen}>
+    <template lwc:if={showModal}>
         <section role="dialog" tabindex="-1" aria-modal="true" aria-labelledby="ca-modal-title"
             class="slds-modal slds-fade-in-open" onkeydown={handleKeydown}>
             <div class="slds-modal__container ca-modal-container">

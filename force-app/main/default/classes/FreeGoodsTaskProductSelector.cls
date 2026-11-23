@@ -20,35 +20,35 @@ public with sharing class FreeGoodsTaskProductSelector {
      * @example
      * FreeGoodsTaskProductSelector.selectByTaskId(taskId);
      */
-    public static List<Free_Goods_Task_Product__c> selectByTaskId(String taskId) {
-        if (String.isBlank(taskId)) {
-            return new List<Free_Goods_Task_Product__c>();
-        }
+	public static List<Free_Goods_Task_Product__c> selectByTaskId(String taskId) {
+		if (String.isBlank(taskId)) {
+			return new List<Free_Goods_Task_Product__c>();
+		}
 
-        String taskId18 = String.valueOf(Id.valueOf(taskId));
+		String taskId18 = String.valueOf(Id.valueOf(taskId));
 
-        return [
-            SELECT TaskId__c,
-                   Quantity__c,
-                   SalesPrice__c,
-                   LineDescription__c,
-                   ConsumptionFrequency__c,
-                   Status__c,
-                   ConfidenceLevel__c,
-                   ExpectedShipDateConsumptionStart__c,
-                   Contract__c,
-                   Comments__c,
-                   Product__c,
-                   Product__r.Name,
-                   Product__r.ProductCode,
-                   Account__c,
-                   Account__r.Name,
-                   CreatedDate,
-                   CreatedBy.Name
-            FROM Free_Goods_Task_Product__c
-            WHERE TaskId__c = :taskId18
-            WITH SYSTEM_MODE
-            ORDER BY CreatedDate ASC
-        ];
-    }
+		return [
+			SELECT TaskId__c,
+				   Quantity__c,
+				   SalesPrice__c,
+				   LineDescription__c,
+				   ConsumptionFrequency__c,
+				   Status__c,
+				   ConfidenceLevel__c,
+				   ExpectedShipDateConsumptionStart__c,
+				   Contract__c,
+				   Comments__c,
+				   Product__c,
+				   Product__r.Name,
+				   Product__r.ProductCode,
+				   Account__c,
+				   Account__r.Name,
+				   CreatedDate,
+				   CreatedBy.Name
+			FROM Free_Goods_Task_Product__c
+			WHERE TaskId__c = :taskId18
+			WITH SYSTEM_MODE
+			ORDER BY CreatedDate ASC
+		];
+	}
 }

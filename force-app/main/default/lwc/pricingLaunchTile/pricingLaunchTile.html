@@ -1,0 +1,15 @@
+<template>
+    <div class={bandClass}>
+        <div class="grid">
+            <button class="tile" onclick={handleOpen} aria-label={tileTitle}>
+                <span class="icon-col">
+                    <lightning-icon class="icon" icon-name={iconName} size="small" alternative-text=""></lightning-icon>
+                </span>
+                <span class="text-col">
+                    <span class="title">{tileTitle}</span>
+                    <span class="desc">{tileDescription}</span>
+                </span>
+            </button>
+        </div>
+    </div>
+</template>

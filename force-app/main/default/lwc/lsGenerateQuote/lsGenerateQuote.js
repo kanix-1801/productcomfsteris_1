@@ -16,7 +16,7 @@ import {
 import GENERATE_QUOTE_REFRESH from '@salesforce/messageChannel/generateQuoteRefresh__c';
 import getQuotes from '@salesforce/apex/GenerateQuoteController.getQuotes';
 import refreshQuotes from '@salesforce/apex/GenerateQuoteController.refreshQuotes';
-import createQuote from '@salesforce/apex/LSGenerateQuoteController.createQuote';
+import createQuote from '@salesforce/apex/GenerateQuoteController.createQuote';
 import copyQuote from '@salesforce/apex/GenerateQuoteController.copyQuote';
 import mergeQuote from '@salesforce/apex/GenerateQuoteController.mergeQuote';
 import validateQuoteAccess from '@salesforce/apex/GenerateQuoteController.validateQuoteAccess';
@@ -666,6 +666,8 @@ export default class LsGenerateQuote extends LightningElement {
                     uomDisplay: this.formatUom(line.uom),
                     quantityFormatted: this.formatQuantity(line.quantity),
                     unitPriceFormatted: this.formatCurrency(line.unitPrice),
+                    expectedOrderDateFormatted: this.formatDate(line.expectedOrderDate),
+                    expectedShipDateFormatted: this.formatDate(line.expectedShipDate),
                     lineTotalFormatted: this.formatCurrency(line.lineTotal)
                 };
             });
@@ -735,7 +737,12 @@ export default class LsGenerateQuote extends LightningElement {
             status: quote.status || '—',
             approvalStatus: quote.approvalStatus || '—',
             totalWithoutFreight: this.formatCurrency(quote.quoteTotalWithoutFreight),
+            //GCL-353: START
             lastModifiedDate: this.formatDateTime(quote.lastModifiedDate),
+            scDateCreated: this.formatDateTime(quote.scDateCreated),
+            scDateModified: this.formatDateTime(quote.scDateModified),
+            totalRevenue: this.formatCurrency(quote.totalRevenue),
+            //GCL-353: END
             isForecastIneligible,
             rowClass: `slds-hint-parent${forecastIneligibleClass}`,
             childRowClass: `child-row${forecastIneligibleClass}`,
@@ -1340,10 +1347,7 @@ export default class LsGenerateQuote extends LightningElement {
     async ensureOpportunityOnHold() {
         debugger;
         this.hasOpportunityOnHold = false;
-        console.log('this.opportunityIdForQuoteOperations', this.opportunityIdForQuoteOperations);
-        console.log('this.wiredOpportunity', this.wiredOpportunity);
-        console.log('this.opportunityOnHold', this.opportunityOnHold);
-
+        
         if (this.opportunityOnHold) {
             this.showToast('Error', this.lsOpportunityOnHoldMessage, 'error');
             if (this.isQuickAction) {
@@ -1478,7 +1482,16 @@ export default class LsGenerateQuote extends LightningElement {
 
         return value;
     }
-
+    formatDate(value) {
+    if (!value) {
+        return '-';
+    }
+    const parsed = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) {
+        return value;
+    }
+    return new Intl.DateTimeFormat('en-US').format(parsed);
+}
     formatDateTime(dateValue) {
         if (!dateValue) {
             return '—';

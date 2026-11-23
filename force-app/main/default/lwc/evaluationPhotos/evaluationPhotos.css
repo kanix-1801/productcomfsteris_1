@@ -44,13 +44,6 @@
     min-height: 8rem;
 }
 
-.photos-toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 0.75rem;
-}
-
 .photo-modal {
     z-index: 9001;
 }

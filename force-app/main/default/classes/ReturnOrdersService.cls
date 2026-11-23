@@ -165,16 +165,7 @@ public with sharing class ReturnOrdersService {
 			}
 
 			// GW-6358: tracking is kept on a Shipment, not on the Return Order.
-			ShipmentsService.createShipments(
-				new List<Shipment>{
-					ShipmentsService.buildFedExShipment(
-						returnOrderRecord.Id,
-						null,
-						response.trackingNumber,
-						null
-					)
-				}
-			);
+			insert ShipmentsService.buildFedExShipment(returnOrderRecord.Id, null, response.trackingNumber, null);
 
 			if (response.shippingLabel != null) {
 				String fileBaseName = shippingFileBaseName(returnOrderRecord.ReturnOrderNumber);
@@ -1951,18 +1942,15 @@ public with sharing class ReturnOrdersService {
 		List<ContentVersion> filesToInsert = new List<ContentVersion>();
 		// GW-6358: one Shipment per shipped set; its Work Orders look up to it.
 		List<Shipment> shipmentsToInsert = new List<Shipment>();
-		Map<Id, Id> parentWorkOrderIdByWorkOrderIdMap = WorkOrdersService.getParentWorkOrderIdByWorkOrderId(
-			collectVendorShipmentWorkOrderIds(jobs)
-		);
 
 		for (VendorShipmentWork job : jobs) {
 			String trackingNumber = job.response.trackingNumber;
 			shipmentsToInsert.add(
 				ShipmentsService.buildFedExShipment(
 					job.returnOrder.Id,
-					resolveSharedParentWorkOrderId(job.workOrders, parentWorkOrderIdByWorkOrderIdMap),
+					resolveSharedParentWorkOrderId(job.workOrders),
 					trackingNumber,
-					job.returnOrder.Account == null ? null : job.returnOrder.Account.Name
+					job.returnOrder.Account?.Name
 				)
 			);
 
@@ -1995,49 +1983,32 @@ public with sharing class ReturnOrdersService {
 			filesToInsert.add(packingSlip);
 		}
 
-		ShipmentsService.createShipments(shipmentsToInsert);
-		Map<Id, Id> shipmentIdByWorkOrderIdMap = new Map<Id, Id>();
+		insert shipmentsToInsert;
+		Map<Id, WorkOrder> workOrdersToLinkById = new Map<Id, WorkOrder>();
 		for (Integer i = 0; i < jobs.size(); i++) {
 			for (WorkOrder workOrderRecord : jobs[i].workOrders) {
-				shipmentIdByWorkOrderIdMap.put(workOrderRecord.Id, shipmentsToInsert[i].Id);
+				workOrdersToLinkById.put(
+					workOrderRecord.Id,
+					new WorkOrder(Id = workOrderRecord.Id, Shipment__c = shipmentsToInsert[i].Id)
+				);
 			}
 		}
-		ShipmentsService.linkWorkOrdersToShipments(shipmentIdByWorkOrderIdMap);
+		update workOrdersToLinkById.values();
 		if (!filesToInsert.isEmpty()) {
 			insert filesToInsert;
 		}
 	}
 
 	/**
-	 * @description GW-6358 - Ids of all Work Orders in the vendor shipment jobs.
-	 * @param jobs Vendor shipment jobs
-	 * @return Work Order Ids
-	 */
-	private static Set<Id> collectVendorShipmentWorkOrderIds(List<VendorShipmentWork> jobs) {
-		Set<Id> workOrderIdSet = new Set<Id>();
-		for (VendorShipmentWork job : jobs) {
-			for (WorkOrder workOrderRecord : job.workOrders) {
-				workOrderIdSet.add(workOrderRecord.Id);
-			}
-		}
-		return workOrderIdSet;
-	}
-
-	/**
 	 * @description GW-6358 - Parent Work Order of a shipped set: set only when all its Work Orders
 	 *              have the same parent.
-	 * @param workOrders Work Orders in the shipment
-	 * @param parentWorkOrderIdByWorkOrderIdMap Parent Work Order Id by Work Order Id
+	 * @param workOrders Work Orders in the shipment, with ParentWorkOrderId queried
 	 * @return Shared parent Work Order Id, or null when there is none or the parents differ
 	 */
-	@TestVisible
-	private static Id resolveSharedParentWorkOrderId(
-		List<WorkOrder> workOrders,
-		Map<Id, Id> parentWorkOrderIdByWorkOrderIdMap
-	) {
+	private static Id resolveSharedParentWorkOrderId(List<WorkOrder> workOrders) {
 		Set<Id> parentWorkOrderIdSet = new Set<Id>();
 		for (WorkOrder workOrderRecord : workOrders) {
-			parentWorkOrderIdSet.add(parentWorkOrderIdByWorkOrderIdMap.get(workOrderRecord.Id));
+			parentWorkOrderIdSet.add(workOrderRecord.ParentWorkOrderId);
 		}
 		return parentWorkOrderIdSet.size() == 1 ? new List<Id>(parentWorkOrderIdSet)[0] : null;
 	}

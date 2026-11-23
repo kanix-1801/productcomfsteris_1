@@ -7,322 +7,511 @@
  *              Delegates business logic to EmailControllerHelper.
  */
 public without sharing class ShipDNEmailController {
-	public id caseId { get; set; }
-    //public String firstName { get; set; }
+
+    public Id caseId { get; set; }
+
     /**
      * @description Returns receiving contact display name for the bound Case.
-     * @param caseId Controller property used to identify the Case
-     * @return String Display name of the receiving contact
+     * @return String Display name of the receiving contact.
      */
-    public string getRecevingContactName(){
+    public String getRecevingContactName() {
         return EmailControllerHelper.getReceivingContactDisplayName(caseId);
     }
-    
+
     /**
      * @description Indicates whether the Case has at least one Procedural line.
-     * @param caseId Controller property used to identify the Case
-     * @return Boolean True if procedural line exists; otherwise false
+     * @return Boolean True if a procedural line exists; otherwise false.
      */
-    public boolean getIsProcedural(){
+    public Boolean getIsProcedural() {
         return EmailControllerHelper.isProcedural(caseId);
     }
-    
+
     /**
      * @description Returns install contact name associated with the bound Case.
-     * @param caseId Controller property used to identify the Case
-     * @return String Name of the install contact
+     * @return String Name of the install contact.
      */
-     public string getInstallConName(){
+    public String getInstallConName() {
         return EmailControllerHelper.installConName(caseId);
     }
-    
+
     /**
      * @description Returns install contact phone associated with the bound Case.
-     * @param caseId Controller property used to identify the Case
-     * @return String Phone number of the install contact
+     * @return String Phone number of the install contact.
      */
-    public string getInstallConPhone(){
+    public String getInstallConPhone() {
         return EmailControllerHelper.installConPhone(caseId);
     }
-    
+
     /**
      * @description Indicates whether the Case has at least one Service line.
-     * @param caseId Controller property used to identify the Case
-     * @return Boolean True if service line exists; otherwise false
+     * @return Boolean True if a service line exists; otherwise false.
      */
-     public boolean getIsServiceLine(){
+    public Boolean getIsServiceLine() {
         return EmailControllerHelper.isServiceLine(caseId);
     }
-    
+
     /**
      * @description Returns Account Manager/Sales Rep display name for Service line.
-     *              Extracts name from a "Name at email" formatted string.
-     * @param caseId Controller property used to identify the Case
-     * @return String Display name of the Service line Account Manager/Sales Rep
+     *              Extracts the name from a "Name at email" formatted string.
+     * @return String Display name of the Service line Account Manager/Sales Rep.
      */
-     public string getAccountManagerSerLineSalesRep(){
-        
-        String raw = EmailControllerHelper.getAccountManagerSerLineSalesRep(caseId);
-            if (String.isBlank(raw)) return '';
-            // Expecting format: "Name at email"
-            Integer idx = raw.indexOf(' at ');
-            return (idx > -1) ? raw.left(idx) : raw; 
+    public String getAccountManagerSerLineSalesRep() {
+        String raw =
+            EmailControllerHelper.getAccountManagerSerLineSalesRep(caseId);
 
+        if (String.isBlank(raw)) {
+            return '';
+        }
+
+        Integer indexOfEmailSeparator = raw.indexOf(' at ');
+
+        return indexOfEmailSeparator > -1
+            ? raw.left(indexOfEmailSeparator)
+            : raw;
     }
 
     /**
      * @description Returns Account Manager/Sales Rep display name for Capital line.
-     *              Extracts name from a "Name at email" formatted string.
-     * @param caseId Controller property used to identify the Case
-     * @return String Display name of the Capital line Account Manager/Sales Rep
+     *              Extracts the name from a "Name at email" formatted string.
+     * @return String Display name of the Capital line Account Manager/Sales Rep.
      */
-    public string getAccountManagerCapLineSalesRep(){
-        
-        String raw = EmailControllerHelper.getAccountManagerCapLineSalesRep(caseId);
-            if (String.isBlank(raw)) return '';
-            // Expecting format: "Name at email"
-            Integer idx = raw.indexOf(' at ');
-            return (idx > -1) ? raw.left(idx) : raw; 
+    public String getAccountManagerCapLineSalesRep() {
+        String raw =
+            EmailControllerHelper.getAccountManagerCapLineSalesRep(caseId);
 
+        if (String.isBlank(raw)) {
+            return '';
+        }
+
+        Integer indexOfEmailSeparator = raw.indexOf(' at ');
+
+        return indexOfEmailSeparator > -1
+            ? raw.left(indexOfEmailSeparator)
+            : raw;
     }
-    
-    
+
     /**
      * @description Indicates whether there are Trade-In order lines for the bound Case.
-     * @param caseId Controller property used to identify the Case
-     * @return Boolean True if trade-in lines exist; otherwise false
+     * @return Boolean True if Trade-In lines exist; otherwise false.
      */
     public Boolean getIsTradeInLine() {
-        if (caseId == null) return false;
-        List<OrderItem> items = EmailControllerHelper.tradeInEquipmentDetails(caseId);
-        if(items.size()>0){
-            return true;
+        if (caseId == null) {
+            return false;
         }
-        return false;
+
+        List<OrderItem> items =
+            EmailControllerHelper.tradeInEquipmentDetails(caseId);
+
+        return !items.isEmpty();
     }
 
     /**
      * @description Calculates actual ship date based on product line and lead-time rules.
-     * @param caseId Controller property used to identify the Case
-     * @return DateTime Calculated actual ship date
+     * @return Datetime Calculated actual ship date.
      */
-    public dateTime getcalculateActualShipDate(){
+    public Datetime getcalculateActualShipDate() {
         return EmailControllerHelper.calculateActualShipDate(caseId);
     }
 
-    
-	
-    
-    
+    /**
+     * @description View model used by Visualforce email components.
+     */
     public class LineItem {
-            public String itemNumber { get; private set; }
-            public String lineNumber { get; private set; }
-            public String itemDescription { get; private set; }
-            public Decimal qty { get; private set; }
-            public String street { get; private set; }
-            public String city { get; private set; }
-            public String state { get; private set; }
-            public String postalCode { get; private set; }
-            public String country { get; private set; }
-    
-            public LineItem(String itemNumber, String lineNumber, String itemDescription, Decimal qty, String street, String city, String state, String postalCode, String country) {
-                this.itemNumber = itemNumber;
-                this.lineNumber = lineNumber;
-                this.itemDescription = itemDescription;
-                this.qty = qty;
-                this.street = street;
-                this.city = city;
-                this.state = state;
-                this.postalCode = postalCode;
-                this.country = country;
-            }
+
+        public String itemNumber { get; private set; }
+        public String lineNumber { get; private set; }
+        public String itemDescription { get; private set; }
+        public Decimal qty { get; private set; }
+        public String street { get; private set; }
+        public String city { get; private set; }
+        public String state { get; private set; }
+        public String postalCode { get; private set; }
+        public String country { get; private set; }
+        public Decimal extendedPrice { get; private set; }
+
+        /**
+         * @description Existing constructor used by SDN and existing Trade-In emails.
+         */
+        public LineItem(
+            String itemNumber,
+            String lineNumber,
+            String itemDescription,
+            Decimal qty,
+            String street,
+            String city,
+            String state,
+            String postalCode,
+            String country
+        ) {
+            this.itemNumber = itemNumber;
+            this.lineNumber = lineNumber;
+            this.itemDescription = itemDescription;
+            this.qty = qty;
+            this.street = street;
+            this.city = city;
+            this.state = state;
+            this.postalCode = postalCode;
+            this.country = country;
         }
 
+        /**
+         * @description CBM-1416: Creates a cancelled Trade-In line item
+         *              containing the values required by the cancellation email.
+         * @param lineNumber Trade-In Order Line number.
+         * @param itemDescription Trade-In item description.
+         * @param extendedPrice Trade-In extended line price.
+         */
+        public LineItem(
+            String lineNumber,
+            String itemDescription,
+            Decimal extendedPrice
+        ) {
+            this.lineNumber = lineNumber;
+            this.itemDescription = itemDescription;
+            this.extendedPrice = extendedPrice;
+        }
+    }
 
-    // Backing field for the VF <apex:repeat value="{!lineItems}">
-    
-	private List<LineItem> shippingLineItems;
+    // Backing fields for Visualforce email components.
+    private List<LineItem> shippingLineItems;
     private List<LineItem> tradeInLineItems;
     private List<LineItem> closedTradeInLineItems;
 
+    // CBM-1416: Cancelled Trade-In lines.
+    private List<LineItem> cancellationTradeInLineItems;
 
-	
-   
     /**
      * @description Maps OrderItem records to LineItem view-models for VF display.
-     * @param raw List<OrderItem> Raw order items to transform
-     * @return List<LineItem> Transformed view-model list
+     * @param raw Raw Order Items to transform.
+     * @return List<LineItem> Transformed view-model list.
      */
-	private List<LineItem> mapOrderItems(List<OrderItem> raw) {
+    private List<LineItem> mapOrderItems(List<OrderItem> raw) {
         List<LineItem> mapped = new List<LineItem>();
-        for (OrderItem oi : raw) {
-            String itemNumber = (oi.Product2 != null) ? oi.Product2.ProductCode : null;
-            String lineNumber = (oi.LineNumber__c != null) ? String.valueOf(oi.LineNumber__c) : null;
-            String descr      = (oi.Product2 != null) ? oi.Product2.Description : null;
-            Decimal qty       = oi.Quantity;
-            String street = oi.ShipToAddressID__r.Street;
-            String city = oi.ShipToAddressID__r.City;
-            String state = oi.ShipToAddressID__r.State;
-            String postalCode = oi.ShipToAddressID__r.PostalCode;
-            String country = oi.ShipToAddressID__r.Country;
-            mapped.add(new LineItem(itemNumber, lineNumber, descr, qty, street, city, state, postalCode, country));
+
+        for (OrderItem orderItemRecord : raw) {
+            String itemNumber =
+                orderItemRecord.Product2 != null
+                ? orderItemRecord.Product2.ProductCode
+                : null;
+
+            String lineNumber =
+                orderItemRecord.LineNumber__c != null
+                ? String.valueOf(orderItemRecord.LineNumber__c)
+                : null;
+
+            String itemDescription =
+                orderItemRecord.Product2 != null
+                ? orderItemRecord.Product2.Description
+                : null;
+
+            Decimal quantity = orderItemRecord.Quantity;
+
+            String street =
+                orderItemRecord.ShipToAddressID__r != null
+                ? orderItemRecord.ShipToAddressID__r.Street
+                : null;
+
+            String city =
+                orderItemRecord.ShipToAddressID__r != null
+                ? orderItemRecord.ShipToAddressID__r.City
+                : null;
+
+            String state =
+                orderItemRecord.ShipToAddressID__r != null
+                ? orderItemRecord.ShipToAddressID__r.State
+                : null;
+
+            String postalCode =
+                orderItemRecord.ShipToAddressID__r != null
+                ? orderItemRecord.ShipToAddressID__r.PostalCode
+                : null;
+
+            String country =
+                orderItemRecord.ShipToAddressID__r != null
+                ? orderItemRecord.ShipToAddressID__r.Country
+                : null;
+
+            mapped.add(
+                new LineItem(
+                    itemNumber,
+                    lineNumber,
+                    itemDescription,
+                    quantity,
+                    street,
+                    city,
+                    state,
+                    postalCode,
+                    country
+                )
+            );
         }
+
         return mapped;
     }
 
-    // Equipment Shipping table data
     /**
      * @description Returns equipment shipping line items mapped for VF rendering.
-     * @param caseId Controller property used to identify the Case
-     * @return List<LineItem> Shipping line items
+     * @return List<LineItem> Shipping line items.
      */
     public List<LineItem> getShippingLineItems() {
         if (shippingLineItems == null) {
             shippingLineItems = new List<LineItem>();
+
             if (caseId != null) {
-                List<OrderItem> ship = EmailControllerHelper.equipmentShippingDetails(caseId);
-                shippingLineItems = mapOrderItems(ship);
+                List<OrderItem> shippingItems =
+                    EmailControllerHelper.equipmentShippingDetails(caseId);
+
+                shippingLineItems = mapOrderItems(shippingItems);
             }
         }
+
         return shippingLineItems;
     }
 
-    
-    
     /**
-     * @description Returns trade-in equipment line items mapped for VF rendering.
-     * @param caseId Controller property used to identify the Case
-     * @return List<LineItem> Trade-in line items
+     * @description Returns Trade-In equipment line items mapped for VF rendering.
+     * @return List<LineItem> Trade-In line items.
      */
-	public List<LineItem> getTradeInLineItems() {
+    public List<LineItem> getTradeInLineItems() {
         if (tradeInLineItems == null) {
             tradeInLineItems = new List<LineItem>();
+
             if (caseId != null) {
-                List<OrderItem> trade = EmailControllerHelper.tradeInEquipmentDetails(caseId);
-                tradeInLineItems = mapOrderItems(trade);            
+                List<OrderItem> tradeInItems =
+                    EmailControllerHelper.tradeInEquipmentDetails(caseId);
+
+                tradeInLineItems = mapOrderItems(tradeInItems);
             }
         }
+
         return tradeInLineItems;
     }
+
+    /**
+     * @description Returns closed Trade-In line items mapped for VF rendering.
+     * @return List<LineItem> Closed Trade-In line items.
+     */
     public List<LineItem> getClosedTradeInLineItems() {
         if (closedTradeInLineItems == null) {
             closedTradeInLineItems = new List<LineItem>();
+
             if (caseId != null) {
-                List<OrderItem> trade = EmailControllerHelper.closedTradeInEquipmentDetails(caseId);
-                closedTradeInLineItems = mapOrderItems(trade);            
+                List<OrderItem> closedTradeInItems =
+                    EmailControllerHelper.closedTradeInEquipmentDetails(
+                        caseId
+                    );
+
+                closedTradeInLineItems =
+                    mapOrderItems(closedTradeInItems);
             }
         }
+
         return closedTradeInLineItems;
     }
-    
+
     /**
-     * @description Returns the email signature for the current running user or context.
-     * @return String HTML/text signature block
+     * @description CBM-1416: Returns cancelled Trade-In line items for the
+     *              Trade-In Cancellation email.
+     * @return List<LineItem> Cancelled Trade-In lines containing line
+     *         number, item description, and extended price.
      */
-	public string getEmailSignature(){
+    public List<LineItem> getCancellationTradeInLineItems() {
+        if (cancellationTradeInLineItems == null) {
+            cancellationTradeInLineItems = new List<LineItem>();
+
+            if (caseId != null) {
+                List<OrderItem> cancelledTradeInLines =
+                    EmailControllerHelper.cancelledTradeInEquipmentDetails(caseId);
+
+                for (
+                    OrderItem orderItemRecord :
+                    cancelledTradeInLines
+                ) {
+                    String lineNumber =
+                        orderItemRecord.LineNumber__c == null
+                        ? ''
+                        : String.valueOf(
+                            orderItemRecord.LineNumber__c
+                        );
+
+                    String itemDescription =
+                        orderItemRecord.Product2 == null
+                        ? ''
+                        : orderItemRecord.Product2.Description;
+
+                    cancellationTradeInLineItems.add(
+                        new LineItem(
+                            lineNumber,
+                            itemDescription,
+                            orderItemRecord.TotalPrice
+                        )
+                    );
+                }
+            }
+        }
+
+        return cancellationTradeInLineItems;
+    }
+
+    /**
+     * @description Returns the email signature for the current running user.
+     * @return String HTML/text signature block.
+     */
+    public String getEmailSignature() {
         return EmailControllerHelper.emailSignature(caseId);
     }
-    
+
     /**
-     * @description Retrieves SDN banner using CMDT DeveloperName.
-     * @param none Uses fixed CMDT DeveloperName 'ShipmentBanner'
-     * @return String Banner URL or HTML content
+     * @description Retrieves the SDN banner using CMDT DeveloperName.
+     * @return String Banner URL.
      */
     public String getBannerUrlSDN() {
-            // Use the CMDT DeveloperName (no spaces), e.g., 'COAFrench'
-            String devName = 'ShipmentBanner' ;
-            return EmailControllerHelper.bannerLoader(devName);
-        }
+        String developerName = 'ShipmentBanner';
 
-        /**
-         * @description Retrieves Shipping Instructions from Order related to the given Case.
-         * @param caseId Case Id used to locate the related Order
-         * @return String ShippingInstructions__c value or empty string if not found
-         */
-                   
-        public String getShippingInstructions() {
-            try {
-                Order ord = [
-                    SELECT ShippingInstructions__c
-                    FROM Order
-                    WHERE parentCase__c = :caseId
-                    LIMIT 1
-                ];
-        
-                if (ord != null &&
-                    !String.isBlank(ord.ShippingInstructions__c)
-                ) {
-                    return ord.ShippingInstructions__c;
-                }
-        
-               
-                return '';
-            } catch (Exception ex) {
-                ErrorLogger.logException(
-                    ex,
-                    'ShipDNEmailController',
-                    'getShippingInstructions'
-                );
-                throw ex;
-            }
-        }
-   		 /**
-         * @description Retrieves Contact First Name  from Case Contact Role related to the given Case.
-         * @param caseId Case Id used to locate the related Order
-         * @return String First name of Trade-in Contact.
-         */
-    public String getFirstName() {
-    try {
-    
-            List<CaseContactRole> csList = [
-                SELECT Id, Contact.FirstName, ContactId, Role
-                FROM CaseContactRole
-                WHERE Cases.Id = :caseId
-                AND Role = 'Trade-in Contact'
-            ];
-    
-            List<String> firstNames = new List<String>();
-    
-            for (CaseContactRole cs : csList) {
-                if (cs.Contact != null && String.isNotBlank(cs.Contact.FirstName)) {
-                    firstNames.add(cs.Contact.FirstName);
-                }
-            }
-            
-            if(!firstNames.isEmpty()) {
-            return String.join(firstNames, '/');
-            } 
-            return '';
-    
-        } catch (Exception ex) {
-            ErrorLogger.logException(ex,'ShipDNEmailController','getFirstName');
-            throw ex;
-        }
-	}
-    public String getOrderNumber() {
-    try {
-    
-           List<Order> ordlist = [SELECT id,OrderNumber__c  from Order WHERE ParentCase__r.Id =: caseId limit 1];
-         if(!ordlist.isEmpty()) {
-            return ordlist[0].OrderNumber__c;
-            } 
-         return '';
-        
-        } catch (Exception ex) {
-            ErrorLogger.logException(ex,'ShipDNEmailController','getOrderNumber');
-            throw ex;
-        }
-	}
+        return EmailControllerHelper.bannerLoader(developerName);
+    }
 
     /**
-     * @description CBM-1486: Returns first names of Capital and Service line
-     * Sales Reps (AM) for the CAN Credit Notification greeting.
-     * @return String AM first name(s) joined with " / ", or empty string
+     * @description Retrieves Shipping Instructions from the related Order.
+     * @return String ShippingInstructions__c value or an empty string.
+     */
+    public String getShippingInstructions() {
+        try {
+            Order orderRecord = [
+                SELECT ShippingInstructions__c
+                FROM Order
+                WHERE ParentCase__c = :caseId
+                LIMIT 1
+            ];
+
+            if (
+                orderRecord != null &&
+                !String.isBlank(
+                    orderRecord.ShippingInstructions__c
+                )
+            ) {
+                return orderRecord.ShippingInstructions__c;
+            }
+
+            return '';
+        } catch (Exception ex) {
+            ErrorLogger.logException(
+                ex,
+                'ShipDNEmailController',
+                'getShippingInstructions'
+            );
+            throw ex;
+        }
+    }
+
+    /**
+     * @description Retrieves Trade-In Contact first names related to the Case.
+     * @return String First names separated by "/", or an empty string.
+     */
+    public String getFirstName() {
+        try {
+            List<CaseContactRole> caseContactRoles =
+                CaseContactRolesSelector.caseContactRecord(caseId);
+
+            List<String> firstNames = new List<String>();
+
+            if (caseContactRoles == null) {
+                return '';
+            }
+
+            for (
+                CaseContactRole caseContactRole :
+                caseContactRoles
+            ) {
+                if (
+                    caseContactRole.Contact != null &&
+                    String.isNotBlank(
+                        caseContactRole.Contact.FirstName
+                    )
+                ) {
+                    firstNames.add(
+                        caseContactRole.Contact.FirstName
+                    );
+                }
+            }
+
+            if (!firstNames.isEmpty()) {
+                return String.join(firstNames, '/');
+            }
+
+            return '';
+        } catch (Exception ex) {
+            ErrorLogger.logException(
+                ex,
+                'ShipDNEmailController',
+                'getFirstName'
+            );
+            throw ex;
+        }
+    }
+
+    /**
+     * @description Returns the Order Number related to the Case.
+     * @return String Order Number or an empty string.
+     */
+    public String getOrderNumber() {
+        try {
+            List<Order> orderList =
+                OrderSelector.orderRecord(caseId);
+
+            if (
+                orderList != null &&
+                !orderList.isEmpty()
+            ) {
+                return orderList[0].OrderNumber__c;
+            }
+
+            return '';
+        } catch (Exception ex) {
+            ErrorLogger.logException(
+                ex,
+                'ShipDNEmailController',
+                'getOrderNumber'
+            );
+            throw ex;
+        }
+    }
+
+    /**
+     * @description CBM-1486: Returns first names of Capital and Service
+     *              line Sales Reps for the CAN Credit Notification greeting.
+     * @return String Sales Rep first names joined with " / ".
      */
     public String getAccountManagerFirstName() {
         if (caseId == null) {
             return '';
         }
+
         return EmailControllerHelper.getAccountManagerCapSerLineSalesRep(caseId);
-    }         
+    }
+
+    public Integer getEmailTypeDays() {
+        Case cs = [SELECT id,EmailType__c from Case WHERE id=: caseId LIMIT 1];
+        if (cs != null)
+           return getReminderDays(cs.EmailType__c);
+        return 0;
+    }
+    
+    public Integer getReminderDays(String EmailType) { 
+        switch on EmailType {         
+            when 'TRADEINREMINDER_30D' { return 30; }         
+            when 'TRADEINREMINDER_60D' { return 60; } 
+            when 'TRADEINREMINDER_90D' { return 90; }       
+            when else { return 0; } 
+        }
+    }
+    
+    public Boolean getHasOpenTradeInLinesCanada() {
+        if (String.isBlank(caseId)) {
+            return false;
+        }
+
+        return EmailControllerHelper.hasOpenTradeInLines(caseId);
+    }
+
 }

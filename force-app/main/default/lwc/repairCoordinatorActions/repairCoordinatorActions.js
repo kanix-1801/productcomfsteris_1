@@ -16,10 +16,12 @@ import searchSignatureTechnicians from '@salesforce/apex/RepairCoordinatorAction
 const MODE_MENU = 'menu';
 const MODE_ASSIGN = 'assign';
 const MODE_SUMMARY = 'summary';
+const MODE_CURRENT = 'current';
 const MODE_OVERRIDE = 'override';
 const TAB_LABEL_MENU = 'Repair Coordinator Actions';
 const TAB_LABEL_ASSIGN = 'Assign Work Order';
 const TAB_LABEL_SUMMARY = 'View Work Order Summary';
+const TAB_LABEL_CURRENT = 'Current Work Order Status';
 const TAB_LABEL_OVERRIDE = 'Override Repair Signatures';
 const LAYOUT_DEVICE = 'device';
 
@@ -82,6 +84,13 @@ export default class RepairCoordinatorActions extends LightningElement {
      */
     get isSummary() {
         return this.mode === MODE_SUMMARY;
+    }
+
+    /**
+     * GW-5310 - Returns true while the current Device and Instrument list is displayed.
+     */
+    get isCurrentStatus() {
+        return this.mode === MODE_CURRENT;
     }
 
     /**
@@ -264,6 +273,15 @@ export default class RepairCoordinatorActions extends LightningElement {
      */
     openViewWorkOrderSummary() {
         this.mode = MODE_SUMMARY;
+        this.clearMessages();
+        this.updateWorkspaceTab();
+    }
+
+    /**
+     * GW-5310 - Opens the current Device and Instrument Work Order list.
+     */
+    openCurrentWorkOrders() {
+        this.mode = MODE_CURRENT;
         this.clearMessages();
         this.updateWorkspaceTab();
     }
@@ -649,6 +667,8 @@ export default class RepairCoordinatorActions extends LightningElement {
             label = TAB_LABEL_ASSIGN;
         } else if (this.mode === MODE_SUMMARY) {
             label = TAB_LABEL_SUMMARY;
+        } else if (this.mode === MODE_CURRENT) {
+            label = TAB_LABEL_CURRENT;
         } else if (this.mode === MODE_OVERRIDE) {
             label = TAB_LABEL_OVERRIDE;
         }

@@ -22,70 +22,70 @@
 
 public without sharing class TASTeamAccessService {
 
-    @TestVisible
-    private static Boolean testOnly_forceCommonReadSecurityFailure = false;
-    @TestVisible
-    private static Boolean testOnly_forceInsertSecurityFailure = false;
-    @TestVisible
-    private static Boolean testOnly_forceDeleteSecurityFailure = false;
-    @TestVisible
-    private static Boolean testOnly_forceInvalidTeamMemberUserForTest = false;
+	@TestVisible
+	private static Boolean testOnly_forceCommonReadSecurityFailure = false;
+	@TestVisible
+	private static Boolean testOnly_forceInsertSecurityFailure = false;
+	@TestVisible
+	private static Boolean testOnly_forceDeleteSecurityFailure = false;
+	@TestVisible
+	private static Boolean testOnly_forceInvalidTeamMemberUserForTest = false;
 
-    public static final String TEAM_ROLE_TAS_ASSIGNED = 'Oracle Assigned';
-    public static final String TEAM_MEMBER_ROLE_SALES = 'Sales';
-    public static final String ASSIGNMENT_TYPE_ORACLE_ASSIGNED = 'Oracle Assigned';
+	public static final String TEAM_ROLE_TAS_ASSIGNED = 'Oracle Assigned';
+	public static final String TEAM_MEMBER_ROLE_SALES = 'Sales';
+	public static final String ASSIGNMENT_TYPE_ORACLE_ASSIGNED = 'Oracle Assigned';
 
-    private static final String API_ACCOUNT_TEAM_MEMBER = 'AccountTeamMember';
-    private static final String API_OPPORTUNITY_TEAM_MEMBER = 'OpportunityTeamMember';
+	private static final String API_ACCOUNT_TEAM_MEMBER = 'AccountTeamMember';
+	private static final String API_OPPORTUNITY_TEAM_MEMBER = 'OpportunityTeamMember';
 
-    private static final Schema.SObjectType ACC_TEAM_MEMBER_TYPE =
-        Schema.getGlobalDescribe().get(API_ACCOUNT_TEAM_MEMBER);
-    private static final Schema.SObjectType OPP_TEAM_MEMBER_TYPE =
-        Schema.getGlobalDescribe().get(API_OPPORTUNITY_TEAM_MEMBER);
+	private static final Schema.SObjectType ACC_TEAM_MEMBER_TYPE =
+		Schema.getGlobalDescribe().get(API_ACCOUNT_TEAM_MEMBER);
+	private static final Schema.SObjectType OPP_TEAM_MEMBER_TYPE =
+		Schema.getGlobalDescribe().get(API_OPPORTUNITY_TEAM_MEMBER);
 
-    private static final String FLD_ACCOUNT_ID = 'AccountId';
-    private static final String FLD_OPPORTUNITY_ID = 'OpportunityId';
-    private static final String FLD_USER_ID = 'UserId';
-    private static final String FLD_TEAM_MEMBER_ROLE = 'TeamMemberRole';
-    private static final String FLD_ASSIGNMENT_TYPE = 'AssignmentType__c';
-    private static final String FLD_ACCOUNT_ACCESS_LEVEL = 'AccountAccessLevel';
-    private static final String FLD_OPPORTUNITY_ACCESS_LEVEL = 'OpportunityAccessLevel';
-    private static final String FLD_CASE_ACCESS_LEVEL = 'CaseAccessLevel';
+	private static final String FLD_ACCOUNT_ID = 'AccountId';
+	private static final String FLD_OPPORTUNITY_ID = 'OpportunityId';
+	private static final String FLD_USER_ID = 'UserId';
+	private static final String FLD_TEAM_MEMBER_ROLE = 'TeamMemberRole';
+	private static final String FLD_ASSIGNMENT_TYPE = 'AssignmentType__c';
+	private static final String FLD_ACCOUNT_ACCESS_LEVEL = 'AccountAccessLevel';
+	private static final String FLD_OPPORTUNITY_ACCESS_LEVEL = 'OpportunityAccessLevel';
+	private static final String FLD_CASE_ACCESS_LEVEL = 'CaseAccessLevel';
     // GC-3352 - AccountTeamMember coverage fields populated from OrderLineContact__c on insert only.
-    private static final String FLD_TERRITORY_CODE = 'TerritoryCode__c';
-    private static final String FLD_SALES_CATEGORY_CODE = 'SalesCategoryCode__c';
-    private static final String FLD_SALES_CATEGORY_DESCRIPTION = 'SalesCategoryDescription__c';
+	private static final String FLD_TERRITORY_CODE = 'TerritoryCode__c';
+	private static final String FLD_SALES_CATEGORY_CODE = 'SalesCategoryCode__c';
+	private static final String FLD_SALES_CATEGORY_DESCRIPTION = 'SalesCategoryDescription__c';
 
     /**
      * @description Bulk lookup results for one batch chunk (accounts by Oracle address id).
      */
-    private class LookupMaps {
-        Map<String, Account> accountsByOracleAddressId = new Map<String, Account>();
-    }
+	private class LookupMaps {
+		Map<String, Account> accountsByOracleAddressId = new Map<String, Account>();
+	}
 
     /**
      * @description Per-chunk plans plus Id sets used for existing-team-member SOQL.
      */
-    private class BuildAccessPlansResult {
-        Map<Id, TeamAccessPlan> plansByOlcId = new Map<Id, TeamAccessPlan>();
-        Set<Id> accountIds = new Set<Id>();
-        Set<Id> userIds = new Set<Id>();
-    }
+	private class BuildAccessPlansResult {
+		Map<Id, TeamAccessPlan> plansByOlcId = new Map<Id, TeamAccessPlan>();
+		Set<Id> accountIds = new Set<Id>();
+		Set<Id> userIds = new Set<Id>();
+	}
 
     /**
      * @description One staging row resolved to an account team composite key.
      *              GC-3352 - Territory and sales category values are copied onto new AccountTeamMember
      *              rows; they are not part of accountTeamKey (accountId|userId).
      */
-    private class TeamAccessPlan {
-        Id olcId;
-        Id userId;
-        Id accountId;
-        String accountTeamKey;
-        String territoryCode;
-        String salesCategoryCode;
-        String salesCategoryDescription;
-    }
+	private class TeamAccessPlan {
+		Id olcId;
+		Id userId;
+		Id accountId;
+		String accountTeamKey;
+		String territoryCode;
+		String salesCategoryCode;
+		String salesCategoryDescription;
+	}
 
     /**
      * @description
@@ -96,73 +96,73 @@ public without sharing class TASTeamAccessService {
      * @example
      * TASTeamAccessService.process(batchScope);
      */
-    public static void process(List<OrderLineContact__c> scope) {
-        if (scope == null || scope.isEmpty()) {
-            Logger.error('TASTeamAccessService.process: empty scope');
-        } else {
-            Logger.debug(
-                'TASTeamAccessService.process: eligibleRows=' + scope.size()
-            );
+	public static void process(List<OrderLineContact__c> scope) {
+		if (scope == null || scope.isEmpty()) {
+			Logger.error('TASTeamAccessService.process: empty scope');
+		} else {
+			Logger.debug(
+				'TASTeamAccessService.process: eligibleRows=' + scope.size()
+			);
 
-            List<OrderLineContact__c> insertRows = new List<OrderLineContact__c>();
-            List<OrderLineContact__c> deleteRows = new List<OrderLineContact__c>();
-            Set<String> tasAddressIds = new Set<String>();
+			List<OrderLineContact__c> insertRows = new List<OrderLineContact__c>();
+			List<OrderLineContact__c> deleteRows = new List<OrderLineContact__c>();
+			Set<String> tasAddressIds = new Set<String>();
 
-            for (OrderLineContact__c olc : scope) {
-                if (TASTeamAccessSelector.isInsertScenario(olc.DeltaScenario__c)) {
-                    insertRows.add(olc);
-                } else if (TASTeamAccessSelector.isDeleteScenario(olc.DeltaScenario__c)) {
-                    deleteRows.add(olc);
-                }
+			for (OrderLineContact__c olc : scope) {
+				if (TASTeamAccessSelector.isInsertScenario(olc.DeltaScenario__c)) {
+					insertRows.add(olc);
+				} else if (TASTeamAccessSelector.isDeleteScenario(olc.DeltaScenario__c)) {
+					deleteRows.add(olc);
+				}
 
-                if (String.isNotBlank(olc.TASAddressId__c)) {
-                    tasAddressIds.add(olc.TASAddressId__c.trim());
-                }
-            }
+				if (String.isNotBlank(olc.TASAddressId__c)) {
+					tasAddressIds.add(olc.TASAddressId__c.trim());
+				}
+			}
 
-            if (insertRows.isEmpty() && deleteRows.isEmpty()) {
-                Logger.warn(
-                    'TASTeamAccessService.process: no Insert or Delete delta rows'
-                );
-            } else if (!assertCommonReadSecurity()) {
-                Logger.warn(
-                    'TASTeamAccessService.process: skipped chunk, read security failed'
-                );
-            } else {
-                LookupMaps lookups = loadReferenceData(tasAddressIds);
+			if (insertRows.isEmpty() && deleteRows.isEmpty()) {
+				Logger.warn(
+					'TASTeamAccessService.process: no Insert or Delete delta rows'
+				);
+			} else if (!assertCommonReadSecurity()) {
+				Logger.warn(
+					'TASTeamAccessService.process: skipped chunk, read security failed'
+				);
+			} else {
+				LookupMaps lookups = loadReferenceData(tasAddressIds);
 
-                if (!insertRows.isEmpty()) {
-                    if (!assertInsertSecurity()) {
-                        Logger.warn(
-                            'TASTeamAccessService.process: skipped insert path, security failed'
-                        );
-                    } else {
-                        Set<Id> insertSuccessIds = processInserts(insertRows, lookups);
-                        Logger.info(
-                            'TASTeamAccessService.process: insert complete, successCount=' +
-                            insertSuccessIds.size()
-                        );
-                        clearDeltaScenario(insertSuccessIds);
-                    }
-                }
+				if (!insertRows.isEmpty()) {
+					if (!assertInsertSecurity()) {
+						Logger.warn(
+							'TASTeamAccessService.process: skipped insert path, security failed'
+						);
+					} else {
+						Set<Id> insertSuccessIds = processInserts(insertRows, lookups);
+						Logger.info(
+							'TASTeamAccessService.process: insert complete, successCount=' +
+							insertSuccessIds.size()
+						);
+						clearDeltaScenario(insertSuccessIds);
+					}
+				}
 
-                if (!deleteRows.isEmpty()) {
-                    if (!assertDeleteSecurity()) {
-                        Logger.warn(
-                            'TASTeamAccessService.process: skipped delete path, security failed'
-                        );
-                    } else {
-                        Set<Id> deleteSuccessIds = processDeletes(deleteRows, lookups);
-                        Logger.info(
-                            'TASTeamAccessService.process: delete complete, successCount=' +
-                            deleteSuccessIds.size()
-                        );
-                        deleteStagingRows(deleteSuccessIds);
-                    }
-                }
-            }
-        }
-    }
+				if (!deleteRows.isEmpty()) {
+					if (!assertDeleteSecurity()) {
+						Logger.warn(
+							'TASTeamAccessService.process: skipped delete path, security failed'
+						);
+					} else {
+						Set<Id> deleteSuccessIds = processDeletes(deleteRows, lookups);
+						Logger.info(
+							'TASTeamAccessService.process: delete complete, successCount=' +
+							deleteSuccessIds.size()
+						);
+						deleteStagingRows(deleteSuccessIds);
+					}
+				}
+			}
+		}
+	}
 
     /**
      * @description Loads Accounts by OracleAddressId__c for the chunk in one selector call.
@@ -170,19 +170,19 @@ public without sharing class TASTeamAccessService {
      * @param tasAddressIds TAS address ids from staging rows (TASAddressId__c)
      * @return Populated LookupMaps for plan building
      */
-    private static LookupMaps loadReferenceData(Set<String> tasAddressIds) {
-        LookupMaps lookups = new LookupMaps();
+	private static LookupMaps loadReferenceData(Set<String> tasAddressIds) {
+		LookupMaps lookups = new LookupMaps();
 
-        lookups.accountsByOracleAddressId =
-            TASTeamAccessSelector.selectAccountsByOracleAddressId(tasAddressIds);
+		lookups.accountsByOracleAddressId =
+			TASTeamAccessSelector.selectAccountsByOracleAddressId(tasAddressIds);
 
-        Logger.debug(
-            'TASTeamAccessService.loadReferenceData: accounts=' +
-            lookups.accountsByOracleAddressId.size()
-        );
+		Logger.debug(
+			'TASTeamAccessService.loadReferenceData: accounts=' +
+			lookups.accountsByOracleAddressId.size()
+		);
 
-        return lookups;
-    }
+		return lookups;
+	}
 
     /**
      * @description
@@ -190,18 +190,18 @@ public without sharing class TASTeamAccessService {
      *
      * @return True when all read security checks pass; false when an exception is logged
      */
-    private static Boolean assertCommonReadSecurity() {
-        try {
-            if (Test.isRunningTest() && testOnly_forceCommonReadSecurityFailure) {
-                throw new TASTeamAccessException('Test forced common read security failure');
-            }
-            return true;
-        } catch (Exception e) {
-            Logger.error('TASTeamAccessService.assertCommonReadSecurity', e);
-            Logger.saveLog();
-            return false;
-        }
-    }
+	private static Boolean assertCommonReadSecurity() {
+		try {
+			if (Test.isRunningTest() && testOnly_forceCommonReadSecurityFailure) {
+				throw new TASTeamAccessException('Test forced common read security failure');
+			}
+			return true;
+		} catch (Exception e) {
+			Logger.error('TASTeamAccessService.assertCommonReadSecurity', e);
+			Logger.saveLog();
+			return false;
+		}
+	}
 
     /**
      * @description
@@ -209,18 +209,18 @@ public without sharing class TASTeamAccessService {
      *
      * @return True when insert security checks pass; false when an exception is logged
      */
-    private static Boolean assertInsertSecurity() {
-        try {
-            if (Test.isRunningTest() && testOnly_forceInsertSecurityFailure) {
-                throw new TASTeamAccessException('Test forced insert security failure');
-            }
-            return true;
-        } catch (Exception e) {
-            Logger.error('TASTeamAccessService.assertInsertSecurity', e);
-            Logger.saveLog();
-            return false;
-        }
-    }
+	private static Boolean assertInsertSecurity() {
+		try {
+			if (Test.isRunningTest() && testOnly_forceInsertSecurityFailure) {
+				throw new TASTeamAccessException('Test forced insert security failure');
+			}
+			return true;
+		} catch (Exception e) {
+			Logger.error('TASTeamAccessService.assertInsertSecurity', e);
+			Logger.saveLog();
+			return false;
+		}
+	}
 
     /**
      * @description
@@ -228,18 +228,18 @@ public without sharing class TASTeamAccessService {
      *
      * @return True when delete security checks pass; false when an exception is logged
      */
-    private static Boolean assertDeleteSecurity() {
-        try {
-            if (Test.isRunningTest() && testOnly_forceDeleteSecurityFailure) {
-                throw new TASTeamAccessException('Test forced delete security failure');
-            }
-            return true;
-        } catch (Exception e) {
-            Logger.error('TASTeamAccessService.assertDeleteSecurity', e);
-            Logger.saveLog();
-            return false;
-        }
-    }
+	private static Boolean assertDeleteSecurity() {
+		try {
+			if (Test.isRunningTest() && testOnly_forceDeleteSecurityFailure) {
+				throw new TASTeamAccessException('Test forced delete security failure');
+			}
+			return true;
+		} catch (Exception e) {
+			Logger.error('TASTeamAccessService.assertDeleteSecurity', e);
+			Logger.saveLog();
+			return false;
+		}
+	}
 
     /**
      * @description
@@ -249,43 +249,43 @@ public without sharing class TASTeamAccessService {
      * @param lookups Preloaded accounts by Oracle address id
      * @return OrderLineContact__c Ids eligible for DeltaScenario__c clear
      */
-    private static Set<Id> processInserts(List<OrderLineContact__c> rows, LookupMaps lookups) {
-        Set<Id> successfulOlcIds = new Set<Id>();
-        BuildAccessPlansResult accessPlan = buildPlans(rows, lookups);
-        if (accessPlan.plansByOlcId.isEmpty()) {
-            Logger.warn(
-                'TASTeamAccessService.processInserts: no plans (sales rep/account not resolved)'
-            );
-        } else {
-            Logger.debug(
-                'TASTeamAccessService.processInserts: planCount=' +
-                accessPlan.plansByOlcId.size()
-            );
+	private static Set<Id> processInserts(List<OrderLineContact__c> rows, LookupMaps lookups) {
+		Set<Id> successfulOlcIds = new Set<Id>();
+		BuildAccessPlansResult accessPlan = buildPlans(rows, lookups);
+		if (accessPlan.plansByOlcId.isEmpty()) {
+			Logger.warn(
+				'TASTeamAccessService.processInserts: no plans (sales rep/account not resolved)'
+			);
+		} else {
+			Logger.debug(
+				'TASTeamAccessService.processInserts: planCount=' +
+				accessPlan.plansByOlcId.size()
+			);
 
-            Set<String> existingAccessKeys =
-                TASTeamAccessSelector.selectExistingAccountTeamKeys(
-                    accessPlan.accountIds,
-                    accessPlan.userIds
-                );
+			Set<String> existingAccessKeys =
+				TASTeamAccessSelector.selectExistingAccountTeamKeys(
+					accessPlan.accountIds,
+					accessPlan.userIds
+				);
 
-            existingAccessKeys.addAll(
-                insertMissingTeamMembers(accessPlan.plansByOlcId, existingAccessKeys, false)
-            );
+			existingAccessKeys.addAll(
+				insertMissingTeamMembers(accessPlan.plansByOlcId, existingAccessKeys, false)
+			);
 
-            for (TeamAccessPlan plan : accessPlan.plansByOlcId.values()) {
-                if (isInsertPlanSatisfied(plan, existingAccessKeys)) {
-                    successfulOlcIds.add(plan.olcId);
-                }
-            }
+			for (TeamAccessPlan plan : accessPlan.plansByOlcId.values()) {
+				if (isInsertPlanSatisfied(plan, existingAccessKeys)) {
+					successfulOlcIds.add(plan.olcId);
+				}
+			}
 
-            Logger.debug(
-                'TASTeamAccessService.processInserts: satisfiedCount=' +
-                successfulOlcIds.size()
-            );
-        }
+			Logger.debug(
+				'TASTeamAccessService.processInserts: satisfiedCount=' +
+				successfulOlcIds.size()
+			);
+		}
 
-        return successfulOlcIds;
-    }
+		return successfulOlcIds;
+	}
 
     /**
      * @description
@@ -295,24 +295,24 @@ public without sharing class TASTeamAccessService {
      * @param existingAccessKeys Composite keys already on account teams
      * @return Composite keys successfully inserted
      */
-    private static Set<String> insertMissingTeamMembers(
-        Map<Id, TeamAccessPlan> plansByOlcId,
-        Set<String> existingAccessKeys,
-        Boolean useUserMode
-    ) {
-        Map<String, SObject> recordsByKey = new Map<String, SObject>();
+	private static Set<String> insertMissingTeamMembers(
+		Map<Id, TeamAccessPlan> plansByOlcId,
+		Set<String> existingAccessKeys,
+		Boolean useUserMode
+	) {
+		Map<String, SObject> recordsByKey = new Map<String, SObject>();
 
-        for (TeamAccessPlan plan : plansByOlcId.values()) {
-            if (!existingAccessKeys.contains(plan.accountTeamKey)) {
-                recordsByKey.put(
-                    plan.accountTeamKey,
-                    buildAccountTeamMember(plan)
-                );
-            }
-        }
+		for (TeamAccessPlan plan : plansByOlcId.values()) {
+			if (!existingAccessKeys.contains(plan.accountTeamKey)) {
+				recordsByKey.put(
+					plan.accountTeamKey,
+					buildAccountTeamMember(plan)
+				);
+			}
+		}
 
-        return insertTeamMembers(recordsByKey, useUserMode);
-    }
+		return insertTeamMembers(recordsByKey, useUserMode);
+	}
 
     /**
      * @description
@@ -322,10 +322,10 @@ public without sharing class TASTeamAccessService {
      * @param existingAccessKeys All satisfied composite keys after SOQL and insert
      * @return True when insert processing for this row is complete
      */
-    private static Boolean isInsertPlanSatisfied(TeamAccessPlan plan, Set<String> existingAccessKeys) {
-        Boolean isSatisfied = existingAccessKeys.contains(plan.accountTeamKey);
-        return isSatisfied;
-    }
+	private static Boolean isInsertPlanSatisfied(TeamAccessPlan plan, Set<String> existingAccessKeys) {
+		Boolean isSatisfied = existingAccessKeys.contains(plan.accountTeamKey);
+		return isSatisfied;
+	}
 
     /**
      * @description
@@ -335,45 +335,45 @@ public without sharing class TASTeamAccessService {
      * @param lookups Preloaded accounts by Oracle address id
      * @return OrderLineContact__c Ids eligible for staging row delete
      */
-    private static Set<Id> processDeletes(List<OrderLineContact__c> rows, LookupMaps lookups) {
-        Set<Id> successfulOlcIds = new Set<Id>();
-        BuildAccessPlansResult accessPlan = buildPlans(rows, lookups);
-        if (accessPlan.plansByOlcId.isEmpty()) {
-            Logger.warn(
-                'TASTeamAccessService.processDeletes: no plans (sales rep/account not resolved)'
-            );
-        } else {
-            Logger.debug(
-                'TASTeamAccessService.processDeletes: planCount=' +
-                accessPlan.plansByOlcId.size()
-            );
+	private static Set<Id> processDeletes(List<OrderLineContact__c> rows, LookupMaps lookups) {
+		Set<Id> successfulOlcIds = new Set<Id>();
+		BuildAccessPlansResult accessPlan = buildPlans(rows, lookups);
+		if (accessPlan.plansByOlcId.isEmpty()) {
+			Logger.warn(
+				'TASTeamAccessService.processDeletes: no plans (sales rep/account not resolved)'
+			);
+		} else {
+			Logger.debug(
+				'TASTeamAccessService.processDeletes: planCount=' +
+				accessPlan.plansByOlcId.size()
+			);
 
-            Map<String, SObject> accountTeamByKey =
-                indexAccountTeamForDelete(accessPlan.accountIds, accessPlan.userIds);
+			Map<String, SObject> accountTeamByKey =
+				indexAccountTeamForDelete(accessPlan.accountIds, accessPlan.userIds);
 
-            Map<String, SObject> recordsToDelete = new Map<String, SObject>();
+			Map<String, SObject> recordsToDelete = new Map<String, SObject>();
 
-            for (TeamAccessPlan plan : accessPlan.plansByOlcId.values()) {
-                recordsToDelete.putAll(
-                    collectTeamMembersToDeleteForPlan(plan, accountTeamByKey)
-                );
-            }
+			for (TeamAccessPlan plan : accessPlan.plansByOlcId.values()) {
+				recordsToDelete.putAll(
+					collectTeamMembersToDeleteForPlan(plan, accountTeamByKey)
+				);
+			}
 
-            Set<String> deletedKeys = deleteTeamMembers(recordsToDelete, false);
+			Set<String> deletedKeys = deleteTeamMembers(recordsToDelete, false);
 
-            for (TeamAccessPlan plan : accessPlan.plansByOlcId.values()) {
-                if (isDeletePlanComplete(plan, accountTeamByKey, deletedKeys)) {
-                    successfulOlcIds.add(plan.olcId);
-                }
-            }
-            Logger.debug(
-                'TASTeamAccessService.processDeletes: satisfiedCount=' +
-                successfulOlcIds.size()
-            );
-        }
+			for (TeamAccessPlan plan : accessPlan.plansByOlcId.values()) {
+				if (isDeletePlanComplete(plan, accountTeamByKey, deletedKeys)) {
+					successfulOlcIds.add(plan.olcId);
+				}
+			}
+			Logger.debug(
+				'TASTeamAccessService.processDeletes: satisfiedCount=' +
+				successfulOlcIds.size()
+			);
+		}
 
-        return successfulOlcIds;
-    }
+		return successfulOlcIds;
+	}
 
     /**
      * @description
@@ -383,18 +383,18 @@ public without sharing class TASTeamAccessService {
      * @param accountTeamByKey Account team rows indexed by composite key
      * @return Team member rows keyed by composite key (may be empty)
      */
-    private static Map<String, SObject> collectTeamMembersToDeleteForPlan(
-        TeamAccessPlan plan,
-        Map<String, SObject> accountTeamByKey
-    ) {
-        Map<String, SObject> recordsToDelete = new Map<String, SObject>();
+	private static Map<String, SObject> collectTeamMembersToDeleteForPlan(
+		TeamAccessPlan plan,
+		Map<String, SObject> accountTeamByKey
+	) {
+		Map<String, SObject> recordsToDelete = new Map<String, SObject>();
 
-        if (accountTeamByKey.containsKey(plan.accountTeamKey)) {
-            recordsToDelete.put(plan.accountTeamKey, accountTeamByKey.get(plan.accountTeamKey));
-        }
+		if (accountTeamByKey.containsKey(plan.accountTeamKey)) {
+			recordsToDelete.put(plan.accountTeamKey, accountTeamByKey.get(plan.accountTeamKey));
+		}
 
-        return recordsToDelete;
-    }
+		return recordsToDelete;
+	}
 
     /**
      * @description
@@ -405,19 +405,19 @@ public without sharing class TASTeamAccessService {
      * @param deletedKeys Composite keys successfully deleted in this chunk
      * @return True when delete processing for this row is complete
      */
-    private static Boolean isDeletePlanComplete(
-        TeamAccessPlan plan,
-        Map<String, SObject> accountTeamByKey,
-        Set<String> deletedKeys
-    ) {
-        Boolean isComplete = true;
-        if (accountTeamByKey.containsKey(plan.accountTeamKey)
-            && !deletedKeys.contains(plan.accountTeamKey)) {
-            isComplete = false;
-        }
+	private static Boolean isDeletePlanComplete(
+		TeamAccessPlan plan,
+		Map<String, SObject> accountTeamByKey,
+		Set<String> deletedKeys
+	) {
+		Boolean isComplete = true;
+		if (accountTeamByKey.containsKey(plan.accountTeamKey)
+			&& !deletedKeys.contains(plan.accountTeamKey)) {
+			isComplete = false;
+		}
 
-        return isComplete;
-    }
+		return isComplete;
+	}
 
     /**
      * @description Resolves each row to a TeamAccessPlan; skips rows without sales rep or account;
@@ -427,34 +427,34 @@ public without sharing class TASTeamAccessService {
      * @param lookups Preloaded reference maps
      * @return Plans and aggregated account and user Ids
      */
-    private static BuildAccessPlansResult buildPlans(List<OrderLineContact__c> rows, LookupMaps lookups) {
-        BuildAccessPlansResult result = new BuildAccessPlansResult();
+	private static BuildAccessPlansResult buildPlans(List<OrderLineContact__c> rows, LookupMaps lookups) {
+		BuildAccessPlansResult result = new BuildAccessPlansResult();
 
-        for (OrderLineContact__c olc : rows) {
-            Account accountRow = resolveAccount(olc, lookups.accountsByOracleAddressId);
+		for (OrderLineContact__c olc : rows) {
+			Account accountRow = resolveAccount(olc, lookups.accountsByOracleAddressId);
 
-            if (olc.AssignedSalesRep__c == null || accountRow == null) {
-                continue;
-            }
+			if (olc.AssignedSalesRep__c == null || accountRow == null) {
+				continue;
+			}
 
-            TeamAccessPlan plan = new TeamAccessPlan();
-            plan.olcId = olc.Id;
-            plan.userId = olc.AssignedSalesRep__c;
-            plan.accountId = accountRow.Id;
-            plan.accountTeamKey =
-                TASTeamAccessSelector.buildAccountTeamKey(plan.accountId, plan.userId);
+			TeamAccessPlan plan = new TeamAccessPlan();
+			plan.olcId = olc.Id;
+			plan.userId = olc.AssignedSalesRep__c;
+			plan.accountId = accountRow.Id;
+			plan.accountTeamKey =
+				TASTeamAccessSelector.buildAccountTeamKey(plan.accountId, plan.userId);
             // GC-3352 - Stamp coverage fields on insert; uniqueness remains accountId|userId.
-            plan.territoryCode = olc.TerritoryNumber__c;
-            plan.salesCategoryCode = olc.TAS_Sales_Category__c;
-            plan.salesCategoryDescription = olc.SalesCategoryDescription__c;
+			plan.territoryCode = olc.TerritoryNumber__c;
+			plan.salesCategoryCode = olc.TAS_Sales_Category__c;
+			plan.salesCategoryDescription = olc.SalesCategoryDescription__c;
 
-            result.plansByOlcId.put(plan.olcId, plan);
-            result.accountIds.add(plan.accountId);
-            result.userIds.add(plan.userId);
-        }
+			result.plansByOlcId.put(plan.olcId, plan);
+			result.accountIds.add(plan.accountId);
+			result.userIds.add(plan.userId);
+		}
 
-        return result;
-    }
+		return result;
+	}
 
     /**
      * @description Indexes TAS Oracle Assigned AccountTeamMember rows for delete by composite key.
@@ -463,26 +463,26 @@ public without sharing class TASTeamAccessService {
      * @param userIds Assigned sales rep User Ids from staging rows
      * @return Map of accountId|userId to team member SObject
      */
-    public static Map<String, SObject> indexAccountTeamForDelete(Set<Id> accountIds, Set<Id> userIds) {
-        Map<String, SObject> recordsByKey = new Map<String, SObject>();
+	public static Map<String, SObject> indexAccountTeamForDelete(Set<Id> accountIds, Set<Id> userIds) {
+		Map<String, SObject> recordsByKey = new Map<String, SObject>();
 
-        for (SObject atm : TASTeamAccessSelector.selectAccountTeamMembersForDelete(
-            accountIds,
-            userIds,
-            TEAM_MEMBER_ROLE_SALES,
-            ASSIGNMENT_TYPE_ORACLE_ASSIGNED
-        )) {
-            recordsByKey.put(
-                TASTeamAccessSelector.buildAccountTeamKey(
-                    (Id) atm.get(FLD_ACCOUNT_ID),
-                    (Id) atm.get(FLD_USER_ID)
-                ),
-                atm
-            );
-        }
+		for (SObject atm : TASTeamAccessSelector.selectAccountTeamMembersForDelete(
+			accountIds,
+			userIds,
+			TEAM_MEMBER_ROLE_SALES,
+			ASSIGNMENT_TYPE_ORACLE_ASSIGNED
+		)) {
+			recordsByKey.put(
+				TASTeamAccessSelector.buildAccountTeamKey(
+					(Id) atm.get(FLD_ACCOUNT_ID),
+					(Id) atm.get(FLD_USER_ID)
+				),
+				atm
+			);
+		}
 
-        return recordsByKey;
-    }
+		return recordsByKey;
+	}
 
     /**
      * @description Unused — Opportunity Team delete path; batch is Account Team only (GC-3112).
@@ -516,42 +516,42 @@ public without sharing class TASTeamAccessService {
      * @param recordsByKey Deduplicated team members keyed by accountId|userId or opportunityId|userId
      * @return Set of composite keys successfully inserted
      */
-    public static Set<String> insertTeamMembers(
-        Map<String, SObject> recordsByKey,
-        Boolean useUserMode
-    ) {
-        Set<String> successfulKeys = new Set<String>();
+	public static Set<String> insertTeamMembers(
+		Map<String, SObject> recordsByKey,
+		Boolean useUserMode
+	) {
+		Set<String> successfulKeys = new Set<String>();
 
-        if (recordsByKey == null || recordsByKey.isEmpty()) {
-            return successfulKeys;
-        }
+		if (recordsByKey == null || recordsByKey.isEmpty()) {
+			return successfulKeys;
+		}
 
-        List<SObject> records = recordsByKey.values();
-        Logger.debug('TASTeamAccessService.insertTeamMembers: count=' + records.size()
-        );
+		List<SObject> records = recordsByKey.values();
+		Logger.debug('TASTeamAccessService.insertTeamMembers: count=' + records.size()
+		);
 
-        List<Database.SaveResult> results = useUserMode
-            ? Database.insert(records, false, AccessLevel.USER_MODE)
-            : Database.insert(records, false, AccessLevel.SYSTEM_MODE);
-        Integer failureCount = 0;
-        for (Integer i = 0; i < results.size(); i++) {
-            if (results[i].isSuccess()) {
-                successfulKeys.add(compositeKeyFromTeamMember(records[i]));
-            } else {
-                failureCount++;
-                logDmlErrors(results[i].getErrors(), 'insertTeamMembers');
-            }
-        }
+		List<Database.SaveResult> results = useUserMode
+			? Database.insert(records, false, AccessLevel.USER_MODE)
+			: Database.insert(records, false, AccessLevel.SYSTEM_MODE);
+		Integer failureCount = 0;
+		for (Integer i = 0; i < results.size(); i++) {
+			if (results[i].isSuccess()) {
+				successfulKeys.add(compositeKeyFromTeamMember(records[i]));
+			} else {
+				failureCount++;
+				logDmlErrors(results[i].getErrors(), 'insertTeamMembers');
+			}
+		}
 
-        if (failureCount > 0) {
-            Logger.warn(
-                'TASTeamAccessService.insertTeamMembers: partial failure, failures=' +
-                failureCount
-            );
-        }
+		if (failureCount > 0) {
+			Logger.warn(
+				'TASTeamAccessService.insertTeamMembers: partial failure, failures=' +
+				failureCount
+			);
+		}
 
-        return successfulKeys;
-    }
+		return successfulKeys;
+	}
 
     /**
      * @description
@@ -560,40 +560,40 @@ public without sharing class TASTeamAccessService {
      * @param recordsByKey Team member rows keyed by composite key
      * @return Set of composite keys successfully deleted
      */
-    public static Set<String> deleteTeamMembers(
-        Map<String, SObject> recordsByKey,
-        Boolean useUserMode
-    ) {
-        Set<String> successfulKeys = new Set<String>();
+	public static Set<String> deleteTeamMembers(
+		Map<String, SObject> recordsByKey,
+		Boolean useUserMode
+	) {
+		Set<String> successfulKeys = new Set<String>();
 
-        if (recordsByKey == null || recordsByKey.isEmpty()) {
-            return successfulKeys;
-        }
+		if (recordsByKey == null || recordsByKey.isEmpty()) {
+			return successfulKeys;
+		}
 
-        List<SObject> records = recordsByKey.values();
-        Logger.debug('TASTeamAccessService.deleteTeamMembers: count=' + records.size()
-        );
-        List<Database.DeleteResult> results = useUserMode
-            ? Database.delete(records, false, AccessLevel.USER_MODE)
-            : Database.delete(records, false, AccessLevel.SYSTEM_MODE);
-        Integer failureCount = 0;
-        for (Integer i = 0; i < results.size(); i++) {
-            if (results[i].isSuccess()) {
-                successfulKeys.add(compositeKeyFromTeamMember(records[i]));
-            } else {
-                failureCount++;
-                logDmlErrors(results[i].getErrors(), 'deleteTeamMembers');
-            }
-        }
-        if (failureCount > 0) {
-            Logger.warn(
-                'TASTeamAccessService.deleteTeamMembers: partial failure, failures=' +
-                failureCount
-            );
-        }
+		List<SObject> records = recordsByKey.values();
+		Logger.debug('TASTeamAccessService.deleteTeamMembers: count=' + records.size()
+		);
+		List<Database.DeleteResult> results = useUserMode
+			? Database.delete(records, false, AccessLevel.USER_MODE)
+			: Database.delete(records, false, AccessLevel.SYSTEM_MODE);
+		Integer failureCount = 0;
+		for (Integer i = 0; i < results.size(); i++) {
+			if (results[i].isSuccess()) {
+				successfulKeys.add(compositeKeyFromTeamMember(records[i]));
+			} else {
+				failureCount++;
+				logDmlErrors(results[i].getErrors(), 'deleteTeamMembers');
+			}
+		}
+		if (failureCount > 0) {
+			Logger.warn(
+				'TASTeamAccessService.deleteTeamMembers: partial failure, failures=' +
+				failureCount
+			);
+		}
 
-        return successfulKeys;
-    }
+		return successfulKeys;
+	}
 
     /**
      * @description Builds accountId|userId from AccountTeamMember after batch DML.
@@ -602,13 +602,13 @@ public without sharing class TASTeamAccessService {
      * @param teamMember AccountTeamMember row after insert or delete DML
      * @return Composite key used for satisfaction and delete completion checks
      */
-    private static String compositeKeyFromTeamMember(SObject teamMember) {
-        String compositeKey = TASTeamAccessSelector.buildAccountTeamKey(
-            (Id) teamMember.get(FLD_ACCOUNT_ID),
-            (Id) teamMember.get(FLD_USER_ID)
-        );
-        return compositeKey;
-    }
+	private static String compositeKeyFromTeamMember(SObject teamMember) {
+		String compositeKey = TASTeamAccessSelector.buildAccountTeamKey(
+			(Id) teamMember.get(FLD_ACCOUNT_ID),
+			(Id) teamMember.get(FLD_USER_ID)
+		);
+		return compositeKey;
+	}
 
     /*
      * Legacy Opportunity Team branch — not required; batch never inserts/deletes OpportunityTeamMember.
@@ -636,29 +636,29 @@ public without sharing class TASTeamAccessService {
      * @param olcIds OrderLineContact__c Ids with fully satisfied insert plans
      * @return void
      */
-    private static void clearDeltaScenario(Set<Id> olcIds) {
-        if (olcIds != null && !olcIds.isEmpty()) {
-            List<OrderLineContact__c> updates = new List<OrderLineContact__c>();
+	private static void clearDeltaScenario(Set<Id> olcIds) {
+		if (olcIds != null && !olcIds.isEmpty()) {
+			List<OrderLineContact__c> updates = new List<OrderLineContact__c>();
 
-            for (Id olcId : olcIds) {
-                updates.add(new OrderLineContact__c(
-                    Id = olcId,
-                    DeltaScenario__c = null
-                ));
-            }
-            Logger.info(
-                'TASTeamAccessService.clearDeltaScenario: updateCount=' + updates.size()
-            );
-            List<Database.SaveResult> results =
-                Database.update(updates, false, AccessLevel.SYSTEM_MODE);
+			for (Id olcId : olcIds) {
+				updates.add(new OrderLineContact__c(
+					Id = olcId,
+					DeltaScenario__c = null
+				));
+			}
+			Logger.info(
+				'TASTeamAccessService.clearDeltaScenario: updateCount=' + updates.size()
+			);
+			List<Database.SaveResult> results =
+				Database.update(updates, false, AccessLevel.SYSTEM_MODE);
 
-            for (Database.SaveResult result : results) {
-                if (!result.isSuccess()) {
-                    logDmlErrors(result.getErrors(), 'clearDeltaScenario');
-                }
-            }
-        }
-    }
+			for (Database.SaveResult result : results) {
+				if (!result.isSuccess()) {
+					logDmlErrors(result.getErrors(), 'clearDeltaScenario');
+				}
+			}
+		}
+	}
 
     /**
      * @description
@@ -667,26 +667,26 @@ public without sharing class TASTeamAccessService {
      * @param olcIds OrderLineContact__c Ids with fully complete delete plans
      * @return void
      */
-    private static void deleteStagingRows(Set<Id> olcIds) {
-        if (olcIds != null && !olcIds.isEmpty()) {
-            List<OrderLineContact__c> deletes = new List<OrderLineContact__c>();
+	private static void deleteStagingRows(Set<Id> olcIds) {
+		if (olcIds != null && !olcIds.isEmpty()) {
+			List<OrderLineContact__c> deletes = new List<OrderLineContact__c>();
 
-            for (Id olcId : olcIds) {
-                deletes.add(new OrderLineContact__c(Id = olcId));
-            }
-            Logger.info(
-                'TASTeamAccessService.deleteStagingRows: deleteCount=' + deletes.size()
-            );
-            List<Database.DeleteResult> results =
-                Database.delete(deletes, false, AccessLevel.SYSTEM_MODE);
+			for (Id olcId : olcIds) {
+				deletes.add(new OrderLineContact__c(Id = olcId));
+			}
+			Logger.info(
+				'TASTeamAccessService.deleteStagingRows: deleteCount=' + deletes.size()
+			);
+			List<Database.DeleteResult> results =
+				Database.delete(deletes, false, AccessLevel.SYSTEM_MODE);
 
-            for (Database.DeleteResult result : results) {
-                if (!result.isSuccess()) {
-                    logDmlErrors(result.getErrors(), 'deleteStagingRows');
-                }
-            }
-        }
-    }
+			for (Database.DeleteResult result : results) {
+				if (!result.isSuccess()) {
+					logDmlErrors(result.getErrors(), 'deleteStagingRows');
+				}
+			}
+		}
+	}
 
     /**
      * @description
@@ -698,20 +698,20 @@ public without sharing class TASTeamAccessService {
      * @param plan Resolved insert plan for one OrderLineContact__c row
      * @return Uninserted AccountTeamMember with Sales role, Oracle Assigned assignment type, access levels, and coverage fields
      */
-    private static SObject buildAccountTeamMember(TeamAccessPlan plan) {
-        SObject atm = ACC_TEAM_MEMBER_TYPE.newSObject();
-        atm.put(FLD_ACCOUNT_ID, plan.accountId);
-        atm.put(FLD_USER_ID, plan.userId);
-        atm.put(FLD_TEAM_MEMBER_ROLE, TEAM_MEMBER_ROLE_SALES);
-        atm.put(FLD_ASSIGNMENT_TYPE, ASSIGNMENT_TYPE_ORACLE_ASSIGNED);
-        atm.put(FLD_ACCOUNT_ACCESS_LEVEL, 'Edit');
-        atm.put(FLD_OPPORTUNITY_ACCESS_LEVEL, 'Edit'); // GC-3345
-        atm.put(FLD_CASE_ACCESS_LEVEL, 'Read');
-        atm.put(FLD_TERRITORY_CODE, plan.territoryCode);
-        atm.put(FLD_SALES_CATEGORY_CODE, plan.salesCategoryCode);
-        atm.put(FLD_SALES_CATEGORY_DESCRIPTION, plan.salesCategoryDescription);
-        return atm;
-    }
+	private static SObject buildAccountTeamMember(TeamAccessPlan plan) {
+		SObject atm = ACC_TEAM_MEMBER_TYPE.newSObject();
+		atm.put(FLD_ACCOUNT_ID, plan.accountId);
+		atm.put(FLD_USER_ID, plan.userId);
+		atm.put(FLD_TEAM_MEMBER_ROLE, TEAM_MEMBER_ROLE_SALES);
+		atm.put(FLD_ASSIGNMENT_TYPE, ASSIGNMENT_TYPE_ORACLE_ASSIGNED);
+		atm.put(FLD_ACCOUNT_ACCESS_LEVEL, 'Edit');
+		atm.put(FLD_OPPORTUNITY_ACCESS_LEVEL, 'Edit'); // GC-3345
+		atm.put(FLD_CASE_ACCESS_LEVEL, 'Read');
+		atm.put(FLD_TERRITORY_CODE, plan.territoryCode);
+		atm.put(FLD_SALES_CATEGORY_CODE, plan.salesCategoryCode);
+		atm.put(FLD_SALES_CATEGORY_DESCRIPTION, plan.salesCategoryDescription);
+		return atm;
+	}
 
     /**
      * @description Builds an OpportunityTeamMember SObject (dynamic type for packaging compatibility).
@@ -736,19 +736,19 @@ public without sharing class TASTeamAccessService {
      * @param accountsByOracleAddressId Map from selector selectAccountsByOracleAddressId
      * @return Account row or null when not resolved
      */
-    private static Account resolveAccount(
-        OrderLineContact__c olc,
-        Map<String, Account> accountsByOracleAddressId
-    ) {
-        Account resolvedAccount;
-        if (olc == null || String.isBlank(olc.TASAddressId__c)) {
-            resolvedAccount = null;
-        } else {
-            resolvedAccount = accountsByOracleAddressId.get(olc.TASAddressId__c.trim());
-        }
+	private static Account resolveAccount(
+		OrderLineContact__c olc,
+		Map<String, Account> accountsByOracleAddressId
+	) {
+		Account resolvedAccount;
+		if (olc == null || String.isBlank(olc.TASAddressId__c)) {
+			resolvedAccount = null;
+		} else {
+			resolvedAccount = accountsByOracleAddressId.get(olc.TASAddressId__c.trim());
+		}
 
-        return resolvedAccount;
-    }
+		return resolvedAccount;
+	}
 
     /**
      * @description Resolves User Id from OrderLineContact HRIS sales rep id.
@@ -775,31 +775,31 @@ public without sharing class TASTeamAccessService {
      * @param logContext Method name suffix for Logger.error
      * @return void
      */
-    private static void logDmlErrors(List<Database.Error> errors, String logContext) {
-        if (errors != null) {
-            for (Database.Error err : errors) {
-                Logger.error('TASTeamAccessService.' + logContext + ': ' + err.getMessage());
-            }
+	private static void logDmlErrors(List<Database.Error> errors, String logContext) {
+		if (errors != null) {
+			for (Database.Error err : errors) {
+				Logger.error('TASTeamAccessService.' + logContext + ': ' + err.getMessage());
+			}
 
-            Logger.saveLog();
-        }
-    }
+			Logger.saveLog();
+		}
+	}
 
     /**
      * @description
      * Test-only entry to exercise logDmlErrors null guard and error logging loop.
      * @return void
      */
-    @TestVisible
-    private static void testOnly_invokeLogDmlErrors() {
-        logDmlErrors(null, 'nullErrors');
+	@TestVisible
+	private static void testOnly_invokeLogDmlErrors() {
+		logDmlErrors(null, 'nullErrors');
 
-        List<SObject> invalidRows = new List<SObject>{ new Account() };
-        for (Database.SaveResult saveResult : Database.insert(invalidRows, false)) {
-            if (!saveResult.isSuccess()) {
-                logDmlErrors(saveResult.getErrors(), 'invalidInsert');
-            }
-        }
-    }
+		List<SObject> invalidRows = new List<SObject>{ new Account() };
+		for (Database.SaveResult saveResult : Database.insert(invalidRows, false)) {
+			if (!saveResult.isSuccess()) {
+				logDmlErrors(saveResult.getErrors(), 'invalidInsert');
+			}
+		}
+	}
 
 }

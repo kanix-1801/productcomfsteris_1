@@ -1200,6 +1200,67 @@ private class DeviceEvaluationControllerTest {
         System.assertEquals(true, threw, 'Expected photos validation error.');
     }
 
+    /**
+     * @description GW-4378 - A photo stored on the Work Order satisfies Photos Required.
+     */
+    @IsTest
+    static void testCompleteEvaluation_photosRequiredSatisfiedByWorkOrderPhoto() {
+        Account account = [SELECT Id FROM Account WHERE Name = 'Device Evaluation Test Account' LIMIT 1];
+        adb_Account accountBuilder = new adb_Account();
+        accountBuilder.record.Id = account.Id;
+        new adb_CustomerPreference()
+            .account(accountBuilder)
+            .name('Photos Pref Work Order File')
+            .setRecordType('IMSCustomerPreference')
+            .preferenceType('Photos required')
+            .productLine('Instrument')
+            .startDate(Date.today().addDays(-1))
+            .endDate(Date.today().addDays(30))
+            .persist();
+
+        WorkOrder workOrder = [
+            SELECT Id, WorkOrderNumber
+            FROM WorkOrder
+            WHERE Subject = 'Device Evaluation Stage 1'
+            LIMIT 1
+        ];
+        DeviceEvaluationController.EvaluationWorkspace workspace =
+            DeviceEvaluationController.initializeEvaluation(workOrder.WorkOrderNumber);
+
+        insert new ContentVersion(
+            Title = 'Photos Tab Photo',
+            PathOnClient = 'photos-tab.jpg',
+            VersionData = EncodingUtil.base64Decode(TINY_JPEG_BASE64),
+            FirstPublishLocationId = workOrder.Id
+        );
+
+        Test.startTest();
+        DeviceEvaluationController.completeEvaluation(
+            workOrder.Id,
+            WO_SUB_STATUS_EVAL,
+            false,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new List<Id>{ workspace.categoryCodes[0].productId },
+            null,
+            null, null);
+        Test.stopTest();
+
+        WorkOrder refreshed = [
+            SELECT Status
+            FROM WorkOrder
+            WHERE Id = :workOrder.Id
+        ];
+        System.assertNotEquals(
+            WO_STATUS_EVALUATE,
+            refreshed.Status,
+            'A photo stored on the Work Order should satisfy photos required.'
+        );
+    }
+
     @IsTest
     static void testCompleteEvaluation_estimateRequiredSetsQuote() {
         WorkOrder workOrder = [

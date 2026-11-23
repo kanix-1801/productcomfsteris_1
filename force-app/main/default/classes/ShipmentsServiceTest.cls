@@ -11,7 +11,7 @@ private class ShipmentsServiceTest {
 
 	@TestSetup
 	static void setupData() {
-		// Shipment and Work Order Shipment access for the user-mode DML in ShipmentsService
+		// Shipment and Work Order Shipment access for the user-mode query in ShipmentsService and the flow
 		assignPermissionSetIfNeeded('ProcessReturnOrders');
 		assignPermissionSetIfNeeded('ManageWorkOrders');
 		System.runAs(new User(Id = UserInfo.getUserId())) {
@@ -101,66 +101,28 @@ private class ShipmentsServiceTest {
 	}
 
 	/**
-	 * @description Shipments are created, Work Orders are linked, and the first tracking number is returned.
+	 * @description The tracking number of the oldest Shipment is returned; no Return Orders returns none.
 	 */
 	@IsTest
-	static void testCreateLinkAndInitialTrackingNumber() {
+	static void testGetInitialTrackingNumberByReturnOrderId() {
 		ReturnOrder returnOrderRecord = getReturnOrder();
-		List<WorkOrder> childWorkOrders = getChildWorkOrders();
+		Database.insert(
+			new List<Shipment>{
+				ShipmentsService.buildFedExShipment(returnOrderRecord.Id, null, TRACKING_NUMBER, null),
+				ShipmentsService.buildFedExShipment(returnOrderRecord.Id, null, 'LATER', null)
+			},
+			AccessLevel.SYSTEM_MODE
+		);
 
 		Test.startTest();
-		Shipment firstShipment = ShipmentsService.buildFedExShipment(returnOrderRecord.Id, null, TRACKING_NUMBER, null);
-		ShipmentsService.createShipments(new List<Shipment>{ firstShipment });
-		ShipmentsService.createShipments(
-			new List<Shipment>{ ShipmentsService.buildFedExShipment(returnOrderRecord.Id, null, 'LATER', null) }
-		);
-		Map<Id, Id> shipmentIdByWorkOrderIdMap = new Map<Id, Id>();
-		for (WorkOrder workOrderRecord : childWorkOrders) {
-			shipmentIdByWorkOrderIdMap.put(workOrderRecord.Id, firstShipment.Id);
-		}
-		ShipmentsService.linkWorkOrdersToShipments(shipmentIdByWorkOrderIdMap);
 		Map<Id, String> trackingNumberByReturnOrderIdMap = ShipmentsService.getInitialTrackingNumberByReturnOrderId(
 			new Set<Id>{ returnOrderRecord.Id }
 		);
+		Map<Id, String> noReturnOrders = ShipmentsService.getInitialTrackingNumberByReturnOrderId(new Set<Id>());
 		Test.stopTest();
 
 		Assert.areEqual(TRACKING_NUMBER, trackingNumberByReturnOrderIdMap.get(returnOrderRecord.Id), 'First shipment');
-		for (WorkOrder workOrderRecord : [SELECT Shipment__c FROM WorkOrder WHERE Id IN :shipmentIdByWorkOrderIdMap.keySet()]) {
-			Assert.areEqual(firstShipment.Id, workOrderRecord.Shipment__c, 'Work Order should look up to the shipment');
-		}
-		Assert.isTrue(ShipmentsService.getInitialTrackingNumberByReturnOrderId(null).isEmpty(), 'Null input');
-	}
-
-	/**
-	 * @description Empty input does nothing; failed DML is returned as ShipmentsServiceException.
-	 */
-	@IsTest
-	static void testEmptyInputAndFailures() {
-		String createMessage;
-		String linkMessage;
-
-		Test.startTest();
-		ShipmentsService.createShipments(null);
-		ShipmentsService.createShipments(new List<Shipment>());
-		ShipmentsService.linkWorkOrdersToShipments(null);
-		ShipmentsService.linkWorkOrdersToShipments(new Map<Id, Id>());
-		try {
-			// ShipToName is required
-			ShipmentsService.createShipments(new List<Shipment>{ new Shipment(TrackingNumber = TRACKING_NUMBER) });
-		} catch (ShipmentsService.ShipmentsServiceException e) {
-			createMessage = e.getMessage();
-		}
-		try {
-			Id missingWorkOrderId = WorkOrder.SObjectType.getDescribe().getKeyPrefix() + '000000000001AAA';
-			ShipmentsService.linkWorkOrdersToShipments(new Map<Id, Id>{ missingWorkOrderId => null });
-		} catch (ShipmentsService.ShipmentsServiceException e) {
-			linkMessage = e.getMessage();
-		}
-		Test.stopTest();
-
-		Assert.isTrue(createMessage.startsWith('Unable to create the shipment records.'), 'Create failure: ' + createMessage);
-		Assert.isTrue(linkMessage.startsWith('Unable to link the Work Orders'), 'Link failure: ' + linkMessage);
-		Assert.areEqual(0, [SELECT COUNT() FROM Shipment], 'No shipment should be created');
+		Assert.isTrue(noReturnOrders.isEmpty(), 'Empty input');
 	}
 
 	/**

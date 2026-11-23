@@ -48,6 +48,36 @@ private class LSTASSelectorTest {
         Test.stopTest();
     }
 
+    @IsTest
+    static void healthcareTerritoryMethodsCoverSearchIdsAndSources() {
+        insert new List<OrderLineContact__c>{
+            territory('HC-COV-ADDR-1', 'HC-COV-100', 'Healthcare Coverage East', '200', 'HC'),
+            territory('HC-COV-ADDR-2', 'HC-COV-200', 'Other Territory', '201', 'HC')
+        };
+
+        Test.startTest();
+        List<OrderLineContact__c> bySearch = TASSelector.selectByTerritorySearch('HC-COV-100');
+        List<OrderLineContact__c> blankSearch = TASSelector.selectByTerritorySearch(null);
+        List<OrderLineContact__c> byId = TASSelector.selectByTerritoryIds(new Set<String>{ 'HC-COV-100' });
+        List<OrderLineContact__c> sources = TASSelector.selectAssignmentSources(
+            new Set<String>{ 'HC-COV-100' },
+            new Set<String>{ 'HC-COV-ADDR-1' }
+        );
+        System.assertEquals(0, TASSelector.selectByTerritoryIds(null).size());
+        System.assertEquals(0, TASSelector.selectByTerritoryIds(new Set<String>()).size());
+        System.assertEquals(0, TASSelector.selectAssignmentSources(null, new Set<String>{ 'HC-COV-ADDR-1' }).size());
+        System.assertEquals(0, TASSelector.selectAssignmentSources(new Set<String>{ 'HC-COV-100' }, null).size());
+        System.assertEquals(0, TASSelector.selectAssignmentSources(new Set<String>(), new Set<String>{ 'HC-COV-ADDR-1' }).size());
+        Test.stopTest();
+
+        System.assertEquals(1, bySearch.size(), 'Territory search should return the matching Healthcare row.');
+        System.assert(blankSearch.size() <= TASSelector.TERRITORY_SEARCH_LIMIT);
+        System.assertEquals(1, byId.size());
+        System.assertEquals('HC-COV-ADDR-1', byId[0].TASAddressId__c);
+        System.assertEquals(1, sources.size());
+        System.assertEquals('HC-COV-100', sources[0].TerritoryID__c);
+    }
+
     private static OrderLineContact__c territory(
         String tasAddressId,
         String territoryId,

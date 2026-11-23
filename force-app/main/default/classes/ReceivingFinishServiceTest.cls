@@ -956,12 +956,13 @@ private class ReceivingFinishServiceTest {
 		Test.stopTest();
 
 		WorkOrder workOrder = [
-			SELECT SubStatus__c, Vendor__c, InstructionsToVendor__c, RecordType.DeveloperName
+			SELECT Status, SubStatus__c, Vendor__c, InstructionsToVendor__c, RecordType.DeveloperName
 			FROM WorkOrder
 			WHERE Id = :result.workOrderId
 		];
 		Assert.areEqual('RepairCenterInstruments', workOrder.RecordType.DeveloperName);
-		Assert.areEqual('Ready for Eval', workOrder.SubStatus__c);
+		Assert.areEqual('Divide', workOrder.Status);
+		Assert.isNull(workOrder.SubStatus__c);
 		Assert.isNull(workOrder.Vendor__c);
 		Assert.isNull(workOrder.InstructionsToVendor__c);
 	}
@@ -1084,6 +1085,8 @@ adb_ReturnOrderLineItem firstLineBuilder = new adb_ReturnOrderLineItem()
 
 		WorkOrder receivedWorkOrder = [
 			SELECT
+				Status,
+				SubStatus__c,
 				AccountManager__c,
 				CustomerPO__c,
 				CustomerReference__c,
@@ -1096,6 +1099,8 @@ adb_ReturnOrderLineItem firstLineBuilder = new adb_ReturnOrderLineItem()
 			FROM WorkOrder
 			WHERE Id = :result.workOrderId
 		];
+		Assert.areEqual('Divide', receivedWorkOrder.Status);
+		Assert.isNull(receivedWorkOrder.SubStatus__c);
 		Assert.isNull(receivedWorkOrder.AccountManager__c);
 		Assert.areEqual('PO-5492', receivedWorkOrder.CustomerPO__c);
 		Assert.areEqual('REF-5492', receivedWorkOrder.CustomerReference__c);
@@ -1247,6 +1252,7 @@ adb_ReturnOrderLineItem lineBuilder = new adb_ReturnOrderLineItem()
 
 		WorkOrder workOrder = [
 			SELECT
+				Status,
 				Contaminated__c,
 				SubStatus__c,
 				IsResiTestFailed__c,
@@ -1257,6 +1263,7 @@ adb_ReturnOrderLineItem lineBuilder = new adb_ReturnOrderLineItem()
 			WHERE Id = :result.workOrderId
 		];
 		Assert.isNull(workOrder.ParentWorkOrderId);
+		Assert.areEqual('Received', workOrder.Status);
 		Assert.isTrue(workOrder.Contaminated__c);
 		Assert.areEqual('Contaminated', workOrder.SubStatus__c);
 		Assert.isTrue(workOrder.IsResiTestFailed__c);

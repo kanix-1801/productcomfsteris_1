@@ -22,6 +22,22 @@
                             </span>
                         </span>
                     </button>
+                    <button class="action-tile" type="button" onclick={openCurrentWorkOrders}>
+                        <span class="action-icon">
+                            <lightning-icon
+                                class="action-icon__glyph"
+                                icon-name="utility:list"
+                                size="medium"
+                                alternative-text="Current Work Order Status"
+                            ></lightning-icon>
+                        </span>
+                        <span class="action-copy">
+                            <span class="action-title">Current Work Order Status</span>
+                            <span class="action-description">
+                                View open Device and Instrument Work Orders and their status.
+                            </span>
+                        </span>
+                    </button>
                     <button class="action-tile" type="button" onclick={openAssignWorkOrder}>
                         <span class="action-icon">
                             <lightning-icon
@@ -63,6 +79,13 @@
                 show-return-to-menu
                 onreturntomenu={returnToMenu}
             ></c-view-work-order-summary>
+        </template>
+
+        <template lwc:elseif={isCurrentStatus}>
+            <c-current-device-instrument-work-orders
+                show-return-to-menu
+                onreturntomenu={returnToMenu}
+            ></c-current-device-instrument-work-orders>
         </template>
 
         <template lwc:elseif={isAssign}>
@@ -228,7 +251,7 @@
                         </p>
 
                         <template lwc:if={isDeviceTable}>
-                            <table class="summary-table">
+                            <table class="summary-table summary-table_device">
                                 <colgroup>
                                     <col class="summary-table__col-category" />
                                     <col class="summary-table__col-item-number" />

@@ -259,7 +259,7 @@ public class ImsProductConfiguratorTestDataFactory {
             List<FieldPermissions> fieldPermissionList = new List<FieldPermissions>();
             for (String field : new List<String>{
                 'PricingProgram__c.DisplayName__c', 'PricingProgram__c.EndDate__c', 'PricingProgram__c.Status__c',
-                'PricingProgramLines__c.CategoryCodeId__c', 'PricingProgramLines__c.CategoryCode__c',
+                'PricingProgram__c.Type__c', 'PricingProgramLines__c.CategoryCodeId__c', 'PricingProgramLines__c.CategoryCode__c',
                 'PricingProgramLines__c.CategoryCodeName__c'
             }) {
                 fieldPermissionList.add(new FieldPermissions(
@@ -291,6 +291,22 @@ public class ImsProductConfiguratorTestDataFactory {
     public static PricingProgram__c createPricingProgram(
         String programName, String status, Date startDate, Date endDate, List<String> ctCodes
     ) {
+        return createPricingProgram(programName, status, startDate, endDate, ctCodes, null);
+    }
+
+    /**
+     * @description Same as createPricingProgram, with a program Type__c (e.g. On Location - Mobile Van).
+     * @param programName ProgramName__c (and DisplayName__c)
+     * @param status Status__c, e.g. Active or Draft
+     * @param startDate StartDate__c
+     * @param endDate EndDate__c (null = open-ended)
+     * @param ctCodes ProductCode of each Category Code product, in insert order
+     * @param programType Type__c (null = blank)
+     * @return The program, re-queried with its auto-number Name
+     */
+    public static PricingProgram__c createPricingProgram(
+        String programName, String status, Date startDate, Date endDate, List<String> ctCodes, String programType
+    ) {
         AutomationControl.setAllDisabled(true);
         // Manufacturer__c depends on ProductLine__c: take the first Product Line that has a valid Manufacturer
         String productLine;
@@ -311,7 +327,8 @@ public class ImsProductConfiguratorTestDataFactory {
             ProductLine__c = productLine,
             SubProductLine__c = firstActiveValue(PricingProgram__c.SubProductLine__c.getDescribe()),
             Manufacturer__c = manufacturer,
-            DeviceType__c = firstActiveValue(PricingProgram__c.DeviceType__c.getDescribe())
+            DeviceType__c = firstActiveValue(PricingProgram__c.DeviceType__c.getDescribe()),
+            Type__c = programType
         );
         insert programRecord;
 

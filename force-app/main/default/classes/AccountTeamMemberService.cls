@@ -12,18 +12,18 @@
  */
 public with sharing class AccountTeamMemberService {
     /** @description Logger scenario tag used when persisting error logs. */
-    private static final String SCENARIO = 'Account Management';
+	private static final String SCENARIO = 'Account Management';
 
     /** @description Generic message shown to users when retrieval fails. */
-    private static final String USER_ERROR_MESSAGE = 'Unable to load Account Team Member details.';
+	private static final String USER_ERROR_MESSAGE = 'Unable to load Account Team Member details.';
 
     /**
      * @description
      * Test-only flag that forces an exception path so unit tests can verify
      * error handling without relying on invalid data or governor limits.
      */
-    @TestVisible
-    private static Boolean throwExceptionForTest = false;
+	@TestVisible
+	private static Boolean throwExceptionForTest = false;
 
     /**
      * @description
@@ -35,52 +35,52 @@ public with sharing class AccountTeamMemberService {
      * @param accountId Salesforce Id of the Account whose team members to load.
      * @return List of AccountTeamMemberDTO objects; empty when accountId is null.
      */
-    public static List<AccountTeamMemberDTO> getAccountTeamMemberDetails(Id accountId, Boolean canViewAccessFields) {
-        List<AccountTeamMemberDTO> accountTeamMemberDTOList = new List<AccountTeamMemberDTO>();
-        Boolean shouldSaveLog = false;
+	public static List<AccountTeamMemberDTO> getAccountTeamMemberDetails(Id accountId, Boolean canViewAccessFields) {
+		List<AccountTeamMemberDTO> accountTeamMemberDTOList = new List<AccountTeamMemberDTO>();
+		Boolean shouldSaveLog = false;
 
-        if (accountId == null) {
-            return accountTeamMemberDTOList;
-        }
+		if (accountId == null) {
+			return accountTeamMemberDTOList;
+		}
 
-        try {
-            if (throwExceptionForTest) {
-                throw new QueryException('Forced exception for unit test.');
-            }
+		try {
+			if (throwExceptionForTest) {
+				throw new QueryException('Forced exception for unit test.');
+			}
 
-            List<AccountTeamMember> accountTeamMemberList =
-                AccountTeamMemberSelector.selectByAccountId(accountId, canViewAccessFields);
+			List<AccountTeamMember> accountTeamMemberList =
+				AccountTeamMemberSelector.selectByAccountId(accountId, canViewAccessFields);
 
-            for (AccountTeamMember accountTeamMember : accountTeamMemberList) {
-                accountTeamMemberDTOList.add(new AccountTeamMemberDTO(accountTeamMember, canViewAccessFields));
-            }
-        } catch (Exception exceptionRecord) {
-            shouldSaveLog = true;
+			for (AccountTeamMember accountTeamMember : accountTeamMemberList) {
+				accountTeamMemberDTOList.add(new AccountTeamMemberDTO(accountTeamMember, canViewAccessFields));
+			}
+		} catch (Exception exceptionRecord) {
+			shouldSaveLog = true;
 
-            Logger.setScenario(SCENARIO);
-            Logger.error(
-                'Unable to retrieve Account Team Member details. Error: ' +
-                exceptionRecord.getMessage()
-            )
-                .addTag('Account')
-                .addTag('Account Team Member')
-                .setRecord(new Account(Id = accountId));
+			Logger.setScenario(SCENARIO);
+			Logger.error(
+				'Unable to retrieve Account Team Member details. Error: ' +
+				exceptionRecord.getMessage()
+			)
+				.addTag('Account')
+				.addTag('Account Team Member')
+				.setRecord(new Account(Id = accountId));
 
-            throw new AccountTeamMemberException(USER_ERROR_MESSAGE);
-        } finally {
-            if (shouldSaveLog) {
-                Logger.saveLog();
-            }
-        }
+			throw new AccountTeamMemberException(USER_ERROR_MESSAGE);
+		} finally {
+			if (shouldSaveLog) {
+				Logger.saveLog();
+			}
+		}
 
-        return accountTeamMemberDTOList;
-    }
+		return accountTeamMemberDTOList;
+	}
 
     /**
      * @description
      * Custom exception thrown by this service when team member retrieval fails.
      * Carries a user-safe message; technical details are captured in Logger.
      */
-    public class AccountTeamMemberException extends Exception {
-    }
+	public class AccountTeamMemberException extends Exception {
+	}
 }

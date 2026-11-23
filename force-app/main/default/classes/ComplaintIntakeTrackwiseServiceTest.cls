@@ -96,7 +96,47 @@ private class ComplaintIntakeTrackwiseServiceTest {
         Assert.areEqual('Submitted', stamped.SubmissionStatus__c);
         Assert.areEqual('Success Create', stamped.IntegrationStatus__c);
         Assert.areEqual('TW-TEST-001', stamped.TrackwiseComplaintNumber__c);
-        Assert.areEqual('Complaint created.', stamped.IntegrationMessage__c);
+        Assert.areEqual('Success: Complaint created in TrackWise.', stamped.IntegrationMessage__c);
+    }
+
+    @IsTest
+    static void shouldStampSuccess_WhenBoomiReturnsXmlWithId() {
+        ComplaintIntake__c intake = createIntake();
+        ComplaintIntakeTrackwiseService.testResponseOverride = new Map<String, Object>{
+            'SO_SUCCESS' => true,
+            'SERVICE_DATA' => '<?xml version=\'1.0\' encoding=\'UTF-8\'?><CMPL123CME__Complaint__c><id>a0vO100000Gjba6IAB</id>'
+                + '<success>true</success><ComplaintIntakeNumber>' + intake.Name + '</ComplaintIntakeNumber></CMPL123CME__Complaint__c>'
+        };
+
+        Test.startTest();
+        ComplaintIntakeTrackwiseService.SubmitResult result = submit(intake.Id, true);
+        Test.stopTest();
+
+        Assert.isTrue(result.success, result.integrationMessage);
+        ComplaintIntake__c stamped = reload(intake.Id);
+        Assert.areEqual('Success Create', stamped.IntegrationStatus__c);
+        Assert.areEqual(intake.Name, stamped.TrackwiseComplaintNumber__c);
+        Assert.areEqual('Success: Complaint created in TrackWise.', stamped.IntegrationMessage__c);
+    }
+
+    @IsTest
+    static void shouldStampFailWithError_WhenBoomiReturnsXmlFailure() {
+        ComplaintIntake__c intake = createIntake();
+        ComplaintIntakeTrackwiseService.testResponseOverride = new Map<String, Object>{
+            'SO_SUCCESS' => true,
+            'SERVICE_DATA' => '<CMPL123CME__Complaint__c><success>false</success>'
+                + '<errors><message>Part upsert failed: EQUIPMENT_NUM required</message></errors></CMPL123CME__Complaint__c>'
+        };
+
+        Test.startTest();
+        ComplaintIntakeTrackwiseService.SubmitResult result = submit(intake.Id, true);
+        Test.stopTest();
+
+        Assert.isFalse(result.success);
+        ComplaintIntake__c stamped = reload(intake.Id);
+        Assert.areEqual('Fail Create', stamped.IntegrationStatus__c);
+        Assert.isNull(stamped.TrackwiseComplaintNumber__c);
+        Assert.areEqual('Part upsert failed: EQUIPMENT_NUM required', stamped.IntegrationMessage__c);
     }
 
     @IsTest

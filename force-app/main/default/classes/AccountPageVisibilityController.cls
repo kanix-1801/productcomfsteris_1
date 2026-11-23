@@ -19,11 +19,11 @@ public with sharing class AccountPageVisibilityController {
      * @param pageName Page name used to retrieve configured visibility metadata.
      * @return Visibility response containing access level and configured page elements.
      */
-    @AuraEnabled(cacheable=true)
-    public static AccountPageVisibilityService.VisibilityResponse getVisibilityConfig(
-        Id accountId,
-        String pageName
-    ) {
-        return AccountPageVisibilityService.getVisibilityConfig(accountId, pageName);
-    }
+	@AuraEnabled(cacheable=true)
+	public static AccountPageVisibilityService.VisibilityResponse getVisibilityConfig(
+		Id accountId,
+		String pageName
+	) {
+		return AccountPageVisibilityService.getVisibilityConfig(accountId, pageName);
+	}
 }

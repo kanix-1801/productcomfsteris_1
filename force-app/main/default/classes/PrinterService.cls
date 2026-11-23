@@ -6,7 +6,7 @@
  */
 public with sharing class PrinterService {
 	private static final String CLASS_NAME = 'PrinterService';
-	private static final String CALLOUT_OPERATION = 'STERIS_PRINT_LABEL_ZEBRA_DEV';
+	private static final String CALLOUT_OPERATION = 'STERIS_PRINT_LABEL_ZEBRA';
 	private static final String RESPONSE_SUCCESS_KEY = 'SO_SUCCESS';
 	private static final String RESPONSE_RETURN_KEY = 'SO_RETURN';
 	// ShoutOut SO_Utils.getTimeout treats SERVICETIMEOUT as seconds (10-120), then converts to ms.

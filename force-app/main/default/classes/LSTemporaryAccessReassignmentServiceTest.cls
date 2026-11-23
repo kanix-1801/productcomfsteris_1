@@ -11,25 +11,19 @@ private class LSTemporaryAccessReassignmentServiceTest {
         Account other = new Account(Name = 'GCL103 Other');
         insert new List<Account>{ covered, other };
 
-        String stageName = [
-            SELECT MasterLabel
-            FROM OpportunityStage
-            WHERE IsActive = true
-              AND IsClosed = false
-            ORDER BY SortOrder
-            LIMIT 1
-        ].MasterLabel;
         Opportunity coveredOpportunity = new Opportunity(
             Name = 'GCL103 Opp',
             AccountId = covered.Id,
-            StageName = stageName,
-            CloseDate = Date.today(),
+            StageName = 'Discovery',
+            ForecastConfidenceLevel__c = 'Pipeline',
+            CloseDate = Date.today().addDays(10),
             OwnerId = coverageRep.Id
         );
         Opportunity otherOpportunity = new Opportunity(
             Name = 'GCL103 Other Opp',
             AccountId = other.Id,
-            StageName = stageName,
+            StageName = 'Discovery',
+            ForecastConfidenceLevel__c = 'Pipeline',
             CloseDate = Date.today().addDays(10),
             OwnerId = coverageRep.Id
         );

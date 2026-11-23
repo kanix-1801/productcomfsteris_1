@@ -123,6 +123,12 @@ export default class ImsProductConfigurator extends LightningElement {
     @api transactionId;
     // S01_DataManager > Product Details > Id (kept for flow mapping parity)
     @api currentProductId;
+    // S01_DataManager > header > name: the product on screen; changes as the user moves through the bundle
+    @api currentProductName;
+    // Comma-separated product names the card is shown for (blank = every product). Leave the component visible
+    // in the flow and filter here: it must exist on the root screen to receive the configurator's "navigate"
+    // messages, which tell it the child line on screen (the adjustments are saved on that line).
+    @api allowedProducts;
 
     // configuratorContext > currentTransactionLineId: the line the configurator opened on
     @api
@@ -296,6 +302,19 @@ export default class ImsProductConfigurator extends LightningElement {
     get lineId() {
         const k = this.key;
         return k.length ? k[k.length - 1] : null;
+    }
+
+    // True when the product on screen is one of allowedProducts (names compared ignoring case and spaces)
+    get isAllowedProduct() {
+        const allowed = (this.allowedProducts || '')
+            .split(',')
+            .map((name) => lower(name))
+            .filter(Boolean);
+        return !allowed.length || allowed.includes(lower(this.currentProductName));
+    }
+
+    get showModal() {
+        return this.isModalOpen && this.isAllowedProduct;
     }
 
     async loadAttributeId() {
@@ -503,6 +522,7 @@ export default class ImsProductConfigurator extends LightningElement {
         this.onlProgramDescription = c.mobileVan?.description || null;
         this.onlProgramLabel = onlProgramText(this.onlProgramName, this.onlProgramDescription) || this.onlProgramId;
         this.onlBusinessGroup = c.mobileVan?.businessGroup || null;
+        this.loadOnlProgramCategories(this.onlProgramName);
         this.resetOnlSearch();
         this.ensureManufacturers({}); // new rows start at Any / Any
         this.incRules.forEach((r) => {
@@ -1194,12 +1214,37 @@ export default class ImsProductConfigurator extends LightningElement {
         const { id } = event.currentTarget.dataset;
         const program = this.onlSearchResults.find((p) => p.programId === id);
         if (!program) return;
+        const programData = this.onlSearchData.find((p) => p.programId === id);
         this.onlProgramId = program.programId;
         this.onlProgramName = program.program;
         this.onlProgramDescription = program.description;
         this.onlProgramLabel = program.label;
         this.resetOnlSearch();
-        // Functional pass: load the program's ONL_Category__c lines into onlProgramCategories and check them
+        // The program's categories replace the ones checked so far
+        this.onlProgramCategories = this.programCategories(programData?.ctCodes);
+        this.mobileVanSelected = [...this.onlProgramCategories];
+    }
+
+    // InstrumentServices__c values named by a program's lines (PricingProgramLines__c.CategoryCodeName__c),
+    // matched ignoring case; a name that is not a Mobile Van category is left out.
+    programCategories(ctCodes) {
+        const valueByName = new Map(this.mobileVanCategories.map((c) => [lower(c.value), c.value]));
+        const values = (ctCodes || []).map((c) => valueByName.get(lower(c?.name))).filter(Boolean);
+        return [...new Set(values)];
+    }
+
+    // A saved program's categories, so the tiles show Program / Added / Removed after the modal is reopened.
+    // The categories checked stay as saved.
+    async loadOnlProgramCategories(programName) {
+        this.onlProgramCategories = [];
+        if (!programName) return;
+        try {
+            const programs = await getPricingProgramsByNames({ programNames: [programName] });
+            if (this.onlProgramName !== programName) return; // another program was picked meanwhile
+            this.onlProgramCategories = this.programCategories(programs?.[0]?.ctCodes);
+        } catch (e) {
+            // Non-fatal: the tiles show the categories checked, without the Program / Added / Removed marks
+        }
     }
 
     // Keyboard on a result: Enter/Space picks it, Up/Down move between results, Escape closes the list
@@ -1228,6 +1273,7 @@ export default class ImsProductConfigurator extends LightningElement {
         this.onlProgramDescription = null;
         this.onlProgramLabel = null;
         this.onlBusinessGroup = null;
+        this.onlProgramCategories = []; // the categories checked stay as they are
     }
 
     handleBusinessGroupChange(event) {

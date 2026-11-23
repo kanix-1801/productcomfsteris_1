@@ -114,6 +114,52 @@ private class LSAccountServiceTest {
     }
 
     @IsTest
+    static void testLsRetry_WhenLifeSciencesCustomerIsEligible_EnqueuesCustomerJob() {
+        bypassAccountTrigger();
+        Account sourcedFromAccount = insertRetryCustomer('SC', 'Oracle', 'SRC-' + uniqueSuffix(), true);
+        Account sourcedFromSystemId = insertRetryCustomer('SC', null, 'Oracle-ERP-' + uniqueSuffix(), true);
+        LSAccountService.FlowRequest sourceRequest = new LSAccountService.FlowRequest();
+        sourceRequest.accountId = sourcedFromAccount.Id;
+        LSAccountService.FlowRequest systemIdRequest = new LSAccountService.FlowRequest();
+        systemIdRequest.accountId = sourcedFromSystemId.Id;
+
+        Integer before = queuedJobs('AccountCustomerTasQueueable');
+        LSAccountService.retryTasAssignmentFromFlow(
+            new List<LSAccountService.FlowRequest>{ sourceRequest, systemIdRequest }
+        );
+
+        Assert.areEqual(before + 1, queuedJobs('AccountCustomerTasQueueable'));
+        Assert.areEqual(0, queuedJobs('LSAccountProspectTasQueueable'));
+    }
+
+    @IsTest
+    static void testLsRetry_WhenLifeSciencesCustomerIsIneligible_DoesNotEnqueue() {
+        bypassAccountTrigger();
+        Account healthcare = insertRetryCustomer('HC', 'Oracle', 'Oracle-HC-' + uniqueSuffix(), true);
+        Account notOracle = insertRetryCustomer('SC', null, 'SF-' + uniqueSuffix(), true);
+        Account missingOracleAddress = insertRetryCustomer('SC', 'Oracle', 'Oracle-' + uniqueSuffix(), false);
+        LSAccountService.FlowRequest healthcareRequest = new LSAccountService.FlowRequest();
+        healthcareRequest.accountId = healthcare.Id;
+        LSAccountService.FlowRequest notOracleRequest = new LSAccountService.FlowRequest();
+        notOracleRequest.accountId = notOracle.Id;
+        LSAccountService.FlowRequest missingAddressRequest = new LSAccountService.FlowRequest();
+        missingAddressRequest.accountId = missingOracleAddress.Id;
+
+        Integer customerJobs = queuedJobs('AccountCustomerTasQueueable');
+        Integer prospectJobs = queuedJobs('LSAccountProspectTasQueueable');
+        LSAccountService.retryTasAssignmentFromFlow(
+            new List<LSAccountService.FlowRequest>{
+                healthcareRequest,
+                notOracleRequest,
+                missingAddressRequest
+            }
+        );
+
+        Assert.areEqual(customerJobs, queuedJobs('AccountCustomerTasQueueable'));
+        Assert.areEqual(prospectJobs, queuedJobs('LSAccountProspectTasQueueable'));
+    }
+
+    @IsTest
     static void testHcAssignTasToProspect_WhenOneEligible_Enqueues() {
         AccountService.assignTAStoProspect(new List<Account>{ prospectAccount('HC') });
 
@@ -192,7 +238,6 @@ private class LSAccountServiceTest {
 
     @IsTest
     static void testHcAssignTasToCustomer_SkipsLifeSciencesAndEnqueuesHealthcare() {
-        Account lifeSciences = customerAccount('SC');
         Account missingOracle = customerAccount('HC');
         missingOracle.OracleAddressId__c = null;
         missingOracle.SourceSystemID__c = null;
@@ -200,15 +245,16 @@ private class LSAccountServiceTest {
 
         AccountService.assignTAStoCustomer(null);
         AccountService.assignTAStoCustomer(new List<Account>());
-        AccountService.assignTAStoCustomer(new List<Account>{ null, lifeSciences, missingOracle });
+        AccountService.assignTAStoCustomer(new List<Account>{ null, missingOracle });
         Assert.areEqual(0, queuedJobs('AccountCustomerTasQueueable'));
 
+        Account lifeSciences = customerAccount('SC');
         Account oracleBySystemId = customerAccount('HC');
         oracleBySystemId.AccountSource = null;
         Account oracleBySource = customerAccount('HC');
         oracleBySource.SourceSystemID__c = 'SRC-100';
         oracleBySource.AccountSource = 'Oracle';
-        AccountService.assignTAStoCustomer(new List<Account>{ oracleBySystemId, oracleBySource });
+        AccountService.assignTAStoCustomer(new List<Account>{ lifeSciences, oracleBySystemId, oracleBySource });
 
         Assert.areEqual(1, queuedJobs('AccountCustomerTasQueueable'));
     }
@@ -217,7 +263,6 @@ private class LSAccountServiceTest {
     static void testHcAssignTasToCustomerUpdate_WhenUnchangedOrLifeSciences_DoesNotEnqueue() {
         Account current = customerAccount('HC');
         Account lifeSciences = customerAccount('SC');
-        lifeSciences.BillingCity = 'Akron';
         Integer before = queuedJobs('AccountCustomerTasQueueable');
 
         AccountService.assignTAStoCustomerUpdate(null, null);
@@ -232,7 +277,7 @@ private class LSAccountServiceTest {
             new List<Account>{ current, lifeSciences },
             new Map<Id, Account>{
                 current.Id => current.clone(true, true, true, true),
-                lifeSciences.Id => customerAccount('SC')
+                lifeSciences.Id => lifeSciences.clone(true, true, true, true)
             }
         );
 
@@ -375,6 +420,37 @@ private class LSAccountServiceTest {
             Assert.areEqual(1, matches.size());
             Assert.areEqual(activeShipTo.Id, matches[0].Id);
         }
+    }
+
+    private static Account insertRetryCustomer(
+        String classCode,
+        String accountSource,
+        String sourceSystemId,
+        Boolean hasOracleAddress
+    ) {
+        String suffix = uniqueSuffix();
+        Account customer = new Account(
+            Name = 'LS TAS Customer ' + suffix,
+            RecordTypeId = recordTypeId('Customer'),
+            CustomerClassCode__c = classCode,
+            OrgIDs__c = '82',
+            BillingStreet = suffix + ' Main St',
+            BillingCity = 'Mentor',
+            BillingState = 'OH',
+            BillingPostalCode = '44060',
+            BillingCountry = 'US',
+            AccountSource = accountSource,
+            SourceSystemID__c = sourceSystemId,
+            OracleAddressId__c = hasOracleAddress ? 'ORA-' + suffix : null,
+            TAS_Retry__c = false,
+            TAS_Assignment_Status__c = 'Assignment Missing',
+            SystemID__c = 'TAS-' + suffix
+        );
+        Database.DMLOptions saveOptions = new Database.DMLOptions();
+        saveOptions.DuplicateRuleHeader.allowSave = true;
+        saveOptions.optAllOrNone = true;
+        Database.insert(customer, saveOptions);
+        return customer;
     }
 
     private static Account prospectAccount(String classCode) {

@@ -1,0 +1,53 @@
+<template>
+    <lightning-modal-header label={heading}></lightning-modal-header>
+    <lightning-modal-body>
+        <template lwc:if={error}>
+            <div class="error" role="alert">{error}</div>
+        </template>
+        <template lwc:if={onInput}>
+            <lightning-textarea class="paste-box" label="Codes" value={text} onchange={handleText}
+                placeholder="One code per line, or separated by commas or tabs"></lightning-textarea>
+        </template>
+        <template lwc:else>
+            <div class="counts">
+                <span class="count ok">{addCount} to add</span>
+                <span class="count dup">{dupCount} already on program</span>
+                <span class="count bad">{badCount} not added</span>
+            </div>
+            <div class="results">
+                <table>
+                    <thead>
+                        <tr>
+                            <th scope="col">Code</th>
+                            <th scope="col">Name</th>
+                            <th scope="col">Result</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template for:each={results} for:item="r">
+                            <tr key={r.key}>
+                                <td class="code">{r.code}</td>
+                                <td>{r.name}</td>
+                                <td class={r.cls}>{r.label}</td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </template>
+        <template lwc:if={checking}>
+            <lightning-spinner alternative-text="Checking codes" size="small"></lightning-spinner>
+        </template>
+    </lightning-modal-body>
+    <lightning-modal-footer>
+        <template lwc:if={onInput}>
+            <lightning-button label="Cancel" onclick={handleCancel}></lightning-button>
+            <lightning-button class="gap" variant="brand" label="Check Codes" onclick={handleCheck}></lightning-button>
+        </template>
+        <template lwc:else>
+            <lightning-button class="left" label="Back" onclick={handleBack}></lightning-button>
+            <lightning-button label="Cancel" onclick={handleCancel}></lightning-button>
+            <lightning-button class="gap" variant="brand" label={addLabel} disabled={addDisabled} onclick={handleAdd}></lightning-button>
+        </template>
+    </lightning-modal-footer>
+</template>

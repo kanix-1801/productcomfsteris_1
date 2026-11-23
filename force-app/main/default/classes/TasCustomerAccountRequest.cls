@@ -31,98 +31,98 @@ public class TasCustomerAccountRequest {
     public String sourceSystem;
     public String oracleAddressId;
     public String province;*/
-    public String mydate;
-    public String state;
-    public String postalCode;
-    public String country;
-    public String city;
-    public String orgId;
-    public String classCode;
-    public String prospectId;
-    public String sourceSystem;
+	public String mydate;
+	public String state;
+	public String postalCode;
+	public String country;
+	public String city;
+	public String orgId;
+	public String classCode;
+	public String prospectId;
+	public String sourceSystem;
 
-    private static final String SOURCE_SYSTEM = 'GlobalSF';
+	private static final String SOURCE_SYSTEM = 'GlobalSF';
 
     /**
      * @description Builds a TAS Customer Account request payload from an Account record.
      * @param acc Account record used to populate the outbound TAS request.
      * @return TAS Customer Account request payload.
      */
-    public static TasCustomerAccountRequest fromAccount(Account acc) {
-        TasCustomerAccountRequest req = new TasCustomerAccountRequest();
+	public static TasCustomerAccountRequest fromAccount(Account acc) {
+		TasCustomerAccountRequest req = new TasCustomerAccountRequest();
         /*
         if (isCanada(req.country)) {
             req.province = acc.ShippingState;
         }*/
-        req.mydate = String.valueOf(system.today());
-        req.state = acc.BillingState;
-        req.postalCode = acc.BillingPostalCode;
-        req.country = acc.BillingCountry;
-        req.city = acc.BillingCity;
-        req.orgId = acc.OrgIDs__c;
-        req.classCode = acc.CustomerClassCode__c;
-        req.prospectId = acc.Id;
-        req.sourceSystem = SOURCE_SYSTEM;
-        return req;
-    }
+		req.mydate = String.valueOf(system.today());
+		req.state = acc.BillingState;
+		req.postalCode = acc.BillingPostalCode;
+		req.country = acc.BillingCountry;
+		req.city = acc.BillingCity;
+		req.orgId = acc.OrgIDs__c;
+		req.classCode = acc.CustomerClassCode__c;
+		req.prospectId = acc.Id;
+		req.sourceSystem = SOURCE_SYSTEM;
+		return req;
+	}
 
     /**
      * @description Serializes the request using Boomi field names.
      * @return Map ready for JSON serialization.
      */
-    public Map<String, Object> toJsonMap() {
-        Map<String, Object> payload = new Map<String, Object>{
-            'date' => mydate ,
-            'state' => state,
-            'postalCode' => postalCode,
-            'country' => country,
-            'city' => city,
-            'orgId'=>orgId,
-            'classCode'=>classCode ,
-            'prospectId' => prospectId,
-            'sourceSystem' => sourceSystem//,
+	public Map<String, Object> toJsonMap() {
+		Map<String, Object> payload = new Map<String, Object>{
+			'date' => mydate ,
+			'state' => state,
+			'postalCode' => postalCode,
+			'country' => country,
+			'city' => city,
+			'orgId'=>orgId,
+			'classCode'=>classCode ,
+			'prospectId' => prospectId,
+			'sourceSystem' => sourceSystem//,
             //'oracleAddressId' => serializeOracleAddressId(oracleAddressId)
-        };
+		};
 
-       if (String.isNotBlank(country)) {
+	   if (String.isNotBlank(country)) {
            
-            if(country.equalsIgnoreCase('United States')){
-                payload.put('country','US');
-            }
-        }
-        if (String.isNotBlank(classCode)) {
-            if(classCode.equalsIgnoreCase('Healthcare')){
-            payload.put('classCode', 'HC');
-            }
-        }
+			if(country.equalsIgnoreCase('United States')){
+				payload.put('country','US');
+			}
+		}
+		if (String.isNotBlank(classCode)) {
+			if(classCode.equalsIgnoreCase('Healthcare')){
+			payload.put('classCode', 'HC');
+			}
+		}
 
        /* if (isCanada(country) && String.isNotBlank(province)) {
             payload.put('province', province);
         }*/
 
-        return payload;
-    }
+		return payload;
+	}
 
-    private static Object serializeOracleAddressId(String value) {
-        if (String.isBlank(value)) {
-            return null;
-        }
+	private static Object serializeOracleAddressId(String value) {
+		if (String.isBlank(value)) {
+			return null;
+		}
 
-        try {
-            return String.valueOf(value.trim());
-        } catch (Exception ex) {
-            return value.trim();
-        }
-    }
+		try {
+			return String.valueOf(value.trim());
+		} catch (Exception ex) {
+			return value.trim();
+		}
+	}
 
-    private static Boolean isCanada(String country) {
-        if (String.isBlank(country)) {
-            return false;
-        }
+	private static Boolean isCanada(String country) {
+		if (String.isBlank(country)) {
+			return false;
+		}
 
-        String normalized = country.trim().toUpperCase();
-        return normalized == 'CANADA'
-            || normalized == 'CA'
-            || normalized == 'CAN';
-    }
+		String normalized = country.trim().toUpperCase();
+		return normalized == 'CANADA'
+			|| normalized == 'CA'
+			|| normalized == 'CAN';
+	}
 }

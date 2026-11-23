@@ -30,6 +30,13 @@ public without sharing class OverlayAssignmentService {
     private static Boolean throwTestException = false;
     @TestVisible
     private static String forcedExceptionMethodName;
+    
+    //GCL-390 : Tech Story - Hc x LS code dependency resolution
+    private static final Integer SEARCH_LIMIT = 200;
+    private static final Set<String> LIFE_SCIENCES_CLASS_CODES = new Set<String>{
+        'SC'
+    };
+
 
     public without sharing class OverlayAssignmentDmlService {
          /**
@@ -47,6 +54,8 @@ public without sharing class OverlayAssignmentService {
 public void createAccountShares(List<Account> accountList, Set<Id> userIdSet) {
     Set<Id> accountIdSet = new Map<Id, Account>(accountList).keySet();
     Set<String> existingShareKeySet = new Set<String>();
+    //GCL-390 : Tech Story - Hc x LS code dependency resolution
+    String opportunityAccessLevel, caseAccessLevel;
 
     for (AccountShare accountShare : [
         SELECT AccountId, UserOrGroupId
@@ -58,7 +67,10 @@ public void createAccountShares(List<Account> accountList, Set<Id> userIdSet) {
     }
 
     List<AccountShare> accountShareList = new List<AccountShare>();
-
+    //GCL-390 : Tech Story - Hc x LS code dependency resolution
+    opportunityAccessLevel = GeneralUtility.getCurrentBusinessLine() == GeneralUtility.LS_STR ? 'None' : 'Read';
+    caseAccessLevel = GeneralUtility.getCurrentBusinessLine() == GeneralUtility.LS_STR ? 'None' : 'Read';
+    //GCL-390 : End
     for (Id accountId : accountIdSet) {
         for (Id userId : userIdSet) {
             String key = accountId + '-' + userId;
@@ -68,8 +80,10 @@ public void createAccountShares(List<Account> accountList, Set<Id> userIdSet) {
                     AccountId = accountId,
                     UserOrGroupId = userId,
                     AccountAccessLevel = 'Edit',
-                    OpportunityAccessLevel = 'Read',
-                    CaseAccessLevel = 'Read',
+                    //GCL-390 : Tech Story - Hc x LS code dependency resolution
+                    OpportunityAccessLevel = opportunityAccessLevel,
+                    CaseAccessLevel = caseAccessLevel,
+                    //GCL-390 : End
                     RowCause = Schema.AccountShare.RowCause.Manual
                 ));
             }
@@ -98,7 +112,10 @@ public void createAccountShares(List<Account> accountList, Set<Id> userIdSet) {
             if (Test.isRunningTest() && throwTestException) {
                 throw new QueryException('Forced test exception');
             }
-            List<OrderLineContact__c> orderLineContactList = TASSelector.selectByTerritorySearch(searchKey);
+            //GCL-390 : Tech Story - Hc x LS code dependency resolution
+            List<OrderLineContact__c> orderLineContactList;
+            orderLineContactList = GeneralUtility.getCurrentBusinessLine() == GeneralUtility.LS_STR ? TASSelector.selectLifeSciencesTerritoriesBySearch(searchKey, LIFE_SCIENCES_CLASS_CODES, SEARCH_LIMIT):TASSelector.selectByTerritorySearch(searchKey);
+            // GCL- 390 : End
             Map<String, OverlayAssignmentController.TerritoryWrapper> territoryByIdMap =
                 new Map<String, OverlayAssignmentController.TerritoryWrapper>();
             
@@ -109,7 +126,7 @@ public void createAccountShares(List<Account> accountList, Set<Id> userIdSet) {
                 
                 if (!territoryByIdMap.containsKey(orderLineContact.TerritoryID__c)) {
                     OverlayAssignmentController.TerritoryWrapper territoryWrapper =
-                        new OverlayAssignmentController.TerritoryWrapper();
+                    new OverlayAssignmentController.TerritoryWrapper();
                     territoryWrapper.territoryId = orderLineContact.TerritoryID__c;
                     territoryWrapper.territoryDescription = orderLineContact.TerritoryDescription__c;
                     territoryWrapper.tasAddressId = orderLineContact.TASAddressId__c;
@@ -118,7 +135,6 @@ public void createAccountShares(List<Account> accountList, Set<Id> userIdSet) {
                     territoryByIdMap.put(orderLineContact.TerritoryID__c, territoryWrapper);
                 }
             }
-            
             return territoryByIdMap.values();
         }catch (Exception ex) {
             Logger.error('Error searching territories', ex);
@@ -231,10 +247,11 @@ public void createAccountShares(List<Account> accountList, Set<Id> userIdSet) {
             if (throwTestException) {
                 throw new QueryException('Forced test exception');
             }
-            List<User> userList = UserSelector.selectActiveUsersBySearch(searchKey);
-            
+            //GCL-390 : Tech Story - Hc x LS code dependency resolution 
+            List<User> userList;
+            userList = GeneralUtility.getCurrentBusinessLine() == GeneralUtility.LS_STR ? UserSelector.selectActiveLifeSciencesSalesUsersBySearch(searchKey): UserSelector.selectActiveUsersBySearch(searchKey);
+            // GCL-390 : End
             List<OverlayAssignmentController.UserWrapper> userWrapperList = new List<OverlayAssignmentController.UserWrapper>();
-            
             if(userList == null || userlist.isEmpty()){
                 Logger.warn('OverlayAssignmentService.searchOverlayUsers: userlist is null or empty');
                 return null;
@@ -1189,7 +1206,7 @@ public void createAccountShares(List<Account> accountList, Set<Id> userIdSet) {
 * GC-3108 - Updated to remove ZoneName__c field and add TasZone__c.
 * GC-3112 - Iterates selected Accounts by OracleAddressId__c instead of Address records.
 */
-    private static void createTasWritebackRecords(
+    public static void createTasWritebackRecords(
         List<Account> accountList,
         Set<Id> userIdSet,
         Map<String, OrderLineContact__c> orderLineContactByTasAddressIdMap

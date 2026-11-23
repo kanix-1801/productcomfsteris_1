@@ -12,26 +12,26 @@ public with sharing class LeadSelector {
      * @param leadIdSet Lead Id set.
      * @return List of Leads.
      */
-    public static List<Lead> selectByIds(Set<Id> leadIdSet) {
-        if (leadIdSet == null || leadIdSet.isEmpty()) {
-            return new List<Lead>();
-        }
+	public static List<Lead> selectByIds(Set<Id> leadIdSet) {
+		if (leadIdSet == null || leadIdSet.isEmpty()) {
+			return new List<Lead>();
+		}
 
-        return [
-            SELECT Id,
-                   FirstName,
-                   LastName,
-                   Company,
-                   OwnerId,
-                   Street,
-                   City,
-                   State,
-                   PostalCode,
-                   Country,
-                   Org_ID__c,
-                   Class_Code__c
-            FROM Lead
-            WHERE Id IN :leadIdSet
-        ];
-    }
+		return [
+			SELECT Id,
+				   FirstName,
+				   LastName,
+				   Company,
+				   OwnerId,
+				   Street,
+				   City,
+				   State,
+				   PostalCode,
+				   Country,
+				   Org_ID__c,
+				   Class_Code__c
+			FROM Lead
+			WHERE Id IN :leadIdSet
+		];
+	}
 }

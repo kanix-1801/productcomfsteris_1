@@ -3,7 +3,7 @@ import { CurrentPageReference, NavigationMixin } from 'lightning/navigation';
 import { FlowAttributeChangeEvent } from 'lightning/flowSupport';
 import { notifyRecordUpdateAvailable } from 'lightning/uiRecordApi';
 import AddClinicalParticipantModal from 'c/addClinicalParticipantModal';
-import saveForReview from '@salesforce/apex/ClinicalParticipantService.saveForReview';
+import saveClinicalParticipantsForReview from '@salesforce/apex/ClinicalParticipantController.saveClinicalParticipantsForReview';
 
 let screenOpen = false;
 
@@ -80,13 +80,13 @@ export default class AddClinicalParticipant extends NavigationMixin(LightningEle
             return;
         }
         try {
-            await saveForReview({
+            await saveClinicalParticipantsForReview({
                 processReviewId,
                 participantsJson: result
             });
             this.returnToRelatedTab(true);
         } catch (e) {
-            this.errorMessage = e?.body?.message || 'The clinical participant could not be saved.';
+            this.errorMessage = this.saveErrorMessage(e);
         }
     }
 
@@ -142,6 +142,14 @@ export default class AddClinicalParticipant extends NavigationMixin(LightningEle
                 actionName: 'home'
             }
         });
+    }
+
+    saveErrorMessage(error) {
+        const raw = error?.body?.message || '';
+        if (raw.includes('ReviewEmailKey__c') || raw.includes('only once')) {
+            return 'This email is already on this Process Review.';
+        }
+        return raw || 'The clinical participant could not be saved.';
     }
 
     refreshSummary() {

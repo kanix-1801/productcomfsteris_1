@@ -136,7 +136,7 @@ const WORK_ORDER_QUERY = gql`
 								Name { value }
 								SerialNumber { value }
 							}
-							WorkOrderType__c { value }
+							DeviceInspectionSummary__c { value }
 							WorkTypeId { value }
 							CurrencyIsoCode { value }
 							WorkOrderReviewDone__c { value }
@@ -1279,9 +1279,11 @@ export default class WoDebrief extends LightningElement {
 	}
 	get woAccountName(){ return this._workOrder?.Account?.Name?.value ?? ''; }
 	/**
-	 * @description Wo Type.
+	 * @description Product types collected on the work order when assets are added.
 	 */
-	get woType()       { return this._workOrder?.WorkOrderType__c?.value ?? ''; }
+	get deviceInspectionSummary() {
+		return this._workOrder?.DeviceInspectionSummary__c?.value ?? '';
+	}
 	/**
 	 * @description Wo Number.
 	 */

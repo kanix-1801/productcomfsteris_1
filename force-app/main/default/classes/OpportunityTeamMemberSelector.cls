@@ -20,21 +20,21 @@ public with sharing class OpportunityTeamMemberSelector {
 * @example
 * OpportunityTeamMemberSelector.selectByOpportunitiesAndUsers(opportunityIdSet, userIdSet);
 */
-    public static List<OpportunityTeamMember> selectByOpportunitiesAndUsers(Set<Id> opportunityIdSet, Set<Id> userIdSet) {
-        if (opportunityIdSet == null || opportunityIdSet.isEmpty() || userIdSet == null || userIdSet.isEmpty()) {
-            return new List<OpportunityTeamMember>();
-        }
+	public static List<OpportunityTeamMember> selectByOpportunitiesAndUsers(Set<Id> opportunityIdSet, Set<Id> userIdSet) {
+		if (opportunityIdSet == null || opportunityIdSet.isEmpty() || userIdSet == null || userIdSet.isEmpty()) {
+			return new List<OpportunityTeamMember>();
+		}
         
-        return [
-            SELECT OpportunityId,
-            UserId,
-            OpportunityAccessLevel
-            FROM OpportunityTeamMember
-            WHERE OpportunityId IN :opportunityIdSet
-            AND UserId IN :userIdSet
-            WITH USER_MODE
-        ];
-    }
+		return [
+			SELECT OpportunityId,
+			UserId,
+			OpportunityAccessLevel
+			FROM OpportunityTeamMember
+			WHERE OpportunityId IN :opportunityIdSet
+			AND UserId IN :userIdSet
+			WITH USER_MODE
+		];
+	}
 
     /**
      * @author Suraj Thapliyal
@@ -42,18 +42,18 @@ public with sharing class OpportunityTeamMemberSelector {
      * @param userIds User Ids to query.
      * @return OpportunityTeamMember rows for the given users.
      */
-    public static List<OpportunityTeamMember> selectByUserIds(Set<Id> userIds) {
-        if (userIds == null || userIds.isEmpty()) {
-            return new List<OpportunityTeamMember>();
-        }
+	public static List<OpportunityTeamMember> selectByUserIds(Set<Id> userIds) {
+		if (userIds == null || userIds.isEmpty()) {
+			return new List<OpportunityTeamMember>();
+		}
 
-        return [
-            SELECT Id, OpportunityId, UserId, TeamMemberRole, OpportunityAccessLevel
-            FROM OpportunityTeamMember
-            WHERE UserId IN :userIds
-            WITH USER_MODE
-        ];
-    }
+		return [
+			SELECT Id, OpportunityId, UserId, TeamMemberRole, OpportunityAccessLevel
+			FROM OpportunityTeamMember
+			WHERE UserId IN :userIds
+			WITH USER_MODE
+		];
+	}
 
     /**
      * @author Suraj Thapliyal
@@ -63,26 +63,26 @@ public with sharing class OpportunityTeamMemberSelector {
      * @param teamMemberRole Team member role to match.
      * @return Matching OpportunityTeamMember rows.
      */
-    public static List<OpportunityTeamMember> selectByOpportunitiesUsersAndRole(
-        Set<Id> opportunityIdSet,
-        Set<Id> userIdSet,
-        String teamMemberRole
-    ) {
-        if (opportunityIdSet == null || opportunityIdSet.isEmpty()
-            || userIdSet == null || userIdSet.isEmpty()
-            || String.isBlank(teamMemberRole)) {
-            return new List<OpportunityTeamMember>();
-        }
+	public static List<OpportunityTeamMember> selectByOpportunitiesUsersAndRole(
+		Set<Id> opportunityIdSet,
+		Set<Id> userIdSet,
+		String teamMemberRole
+	) {
+		if (opportunityIdSet == null || opportunityIdSet.isEmpty()
+			|| userIdSet == null || userIdSet.isEmpty()
+			|| String.isBlank(teamMemberRole)) {
+			return new List<OpportunityTeamMember>();
+		}
 
-        return [
-            SELECT Id, OpportunityId, UserId
-            FROM OpportunityTeamMember
-            WHERE OpportunityId IN :opportunityIdSet
-              AND UserId IN :userIdSet
-              AND TeamMemberRole = :teamMemberRole
-            WITH USER_MODE
-        ];
-    }
+		return [
+			SELECT Id, OpportunityId, UserId
+			FROM OpportunityTeamMember
+			WHERE OpportunityId IN :opportunityIdSet
+			  AND UserId IN :userIdSet
+			  AND TeamMemberRole = :teamMemberRole
+			WITH USER_MODE
+		];
+	}
 
     /**
      * @author Suraj Thapliyal
@@ -94,29 +94,29 @@ public with sharing class OpportunityTeamMemberSelector {
      * @param expiryDate ExpiryDate__c value to match.
      * @return Matching OpportunityTeamMember rows.
      */
-    public static List<OpportunityTeamMember> selectByOpportunitiesUsersRoleAssignmentType(
-        Set<Id> opportunityIdSet,
-        Set<Id> userIdSet,
-        String teamMemberRole,
-        String assignmentType
+	public static List<OpportunityTeamMember> selectByOpportunitiesUsersRoleAssignmentType(
+		Set<Id> opportunityIdSet,
+		Set<Id> userIdSet,
+		String teamMemberRole,
+		String assignmentType
         
-    ) {
-        if (opportunityIdSet == null || opportunityIdSet.isEmpty()
-            || userIdSet == null || userIdSet.isEmpty()
-            || String.isBlank(teamMemberRole)
-            || String.isBlank(assignmentType)
-          ) {
-            return new List<OpportunityTeamMember>();
-        }
+	) {
+		if (opportunityIdSet == null || opportunityIdSet.isEmpty()
+			|| userIdSet == null || userIdSet.isEmpty()
+			|| String.isBlank(teamMemberRole)
+			|| String.isBlank(assignmentType)
+		  ) {
+			return new List<OpportunityTeamMember>();
+		}
 
-        return [
-            SELECT Id, OpportunityId, UserId, TeamMemberRole, AssignmentType__c
-            FROM OpportunityTeamMember
-            WHERE OpportunityId IN :opportunityIdSet
-              AND UserId IN :userIdSet
-              AND TeamMemberRole = :teamMemberRole
-              AND AssignmentType__c = :assignmentType
-            WITH USER_MODE
-        ];
-    }
+		return [
+			SELECT Id, OpportunityId, UserId, TeamMemberRole, AssignmentType__c
+			FROM OpportunityTeamMember
+			WHERE OpportunityId IN :opportunityIdSet
+			  AND UserId IN :userIdSet
+			  AND TeamMemberRole = :teamMemberRole
+			  AND AssignmentType__c = :assignmentType
+			WITH USER_MODE
+		];
+	}
 }

@@ -300,7 +300,7 @@
                                         <div class="detail-row__value">{woInfoStatus}</div>
                                     </div>
                                     <div class="detail-row">
-                                        <span class="detail-row__label">Repair Warranty</span>
+                                        <span class="detail-row__label">Warranty Review</span>
                                         <div class="detail-row__value">{woInfoRepairWarranty}</div>
                                     </div>
                                     <div class="detail-row">
@@ -445,6 +445,10 @@
 
                     <template lwc:elseif={isPhotosTab}>
                         <c-evaluation-photos work-order-id={workOrderId}></c-evaluation-photos>
+                    </template>
+
+                    <template lwc:elseif={isCioTab}>
+                        <c-cio-evaluation-panel work-order-id={workOrderId}></c-cio-evaluation-panel>
                     </template>
 
                     <template lwc:elseif={isAddItemsTab}>
@@ -689,7 +693,7 @@
                                         <th class="summary-table__col-vendor">Vendor</th>
                                         <template lwc:if={showWarrantyRepairColumn}>
                                             <th class="summary-table__col-warranty">
-                                                Warranty Repair
+                                                Warranty Review
                                             </th>
                                         </template>
                                         <th class="summary-table__col-status">Status</th>
@@ -848,6 +852,8 @@
                         <c-modifier-codes
                             work-order-id={workOrderId}
                             variant="instrument"
+                            pending-lines={pendingModifierLines}
+                            onlinemodifier={handlePendingLineModifier}
                         ></c-modifier-codes>
                     </template>
 

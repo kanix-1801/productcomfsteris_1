@@ -1,6 +1,6 @@
 /**
- * @description GC-3542 - Saves clinical participants collected by the create-flow popup
- * and returns a Salesforce user's name and email for that popup.
+ * @description GC-3542 - Builds and saves clinical participants from the popup JSON.
+ * The create flow calls the invocable method. The LWC calls ClinicalParticipantController.
  */
 public with sharing class ClinicalParticipantService {
     public class ParticipantInput {
@@ -20,32 +20,25 @@ public with sharing class ClinicalParticipantService {
         public String email;
     }
 
-    @AuraEnabled(cacheable=true)
-    public static User getSalesforceUser(Id userId) {
-        if (userId == null) {
-            return null;
-        }
-        List<User> users = [
-            SELECT Name, Email
-            FROM User
-            WHERE Id = :userId AND IsActive = TRUE
-            LIMIT 1
-        ];
-        return users.isEmpty() ? null : users[0];
+    /**
+     * @description GC-3542 - Active User for the popup.
+     * @param userId Salesforce User Id.
+     * @return The active User, or null.
+     */
+    public static User getActiveSalesforceUser(Id userId) {
+        return ClinicalParticipantSelector.selectActiveUser(userId);
     }
 
-    @AuraEnabled
-    public static void saveForReview(Id processReviewId, String participantsJson) {
+    /**
+     * @description GC-3542 - Saves one review's participants. The controller wraps errors for the LWC.
+     * @param processReviewId Parent Process Review Id.
+     * @param participantsJson Popup JSON.
+     */
+    public static void saveClinicalParticipantsForReview(Id processReviewId, String participantsJson) {
         ParticipantInput inputRow = new ParticipantInput();
         inputRow.processReviewId = processReviewId;
         inputRow.participantsJson = participantsJson;
-        try {
-            saveParticipants(new List<ParticipantInput>{ inputRow });
-        } catch (ClinicalParticipantException ex) {
-            AuraHandledException error = new AuraHandledException(ex.getMessage());
-            error.setMessage(ex.getMessage());
-            throw error;
-        }
+        saveClinicalParticipants(new List<ParticipantInput>{ inputRow });
     }
 
     @InvocableMethod(
@@ -53,7 +46,7 @@ public with sharing class ClinicalParticipantService {
         description='GC-3542 - Creates clinical participant rows from the create-flow popup.'
         category='Key Account Process Review'
     )
-    public static void saveParticipants(List<ParticipantInput> inputs) {
+    public static void saveClinicalParticipants(List<ParticipantInput> inputs) {
         if (inputs == null || inputs.isEmpty()) {
             return;
         }
@@ -63,7 +56,7 @@ public with sharing class ClinicalParticipantService {
             if (inputRow == null || inputRow.processReviewId == null || String.isBlank(inputRow.participantsJson)) {
                 continue;
             }
-            rows.addAll(buildRows(inputRow.processReviewId, inputRow.participantsJson));
+            rows.addAll(clinicalParticipantsFromJson(inputRow.processReviewId, inputRow.participantsJson));
         }
         if (rows.isEmpty()) {
             return;
@@ -72,33 +65,31 @@ public with sharing class ClinicalParticipantService {
         try {
             insert rows;
         } catch (DmlException ex) {
+            Logger.error('ClinicalParticipantService.saveClinicalParticipants', ex);
+            Logger.saveLog();
             String message = ex.getNumDml() > 0 ? ex.getDmlMessage(0) : ex.getMessage();
-            ClinicalParticipantException error = new ClinicalParticipantException(message);
-            error.setMessage(message);
-            throw error;
+            throw new ClinicalParticipantException(message);
         }
     }
 
-    private static List<ClinicalParticipant__c> buildRows(Id processReviewId, String participantsJson) {
+    private static List<ClinicalParticipant__c> clinicalParticipantsFromJson(Id processReviewId, String participantsJson) {
         List<ParticipantDraft> drafts;
         try {
             drafts = (List<ParticipantDraft>) JSON.deserialize(participantsJson, List<ParticipantDraft>.class);
         } catch (Exception ex) {
-            ClinicalParticipantException error = new ClinicalParticipantException(
-                'Clinical participants could not be read. Add them again.'
-            );
-            error.setMessage('Clinical participants could not be read. Add them again.');
-            throw error;
+            Logger.error('ClinicalParticipantService.clinicalParticipantsFromJson', ex);
+            Logger.saveLog();
+            throw new ClinicalParticipantException('Clinical participants could not be read. Add them again.');
         }
 
         List<ClinicalParticipant__c> rows = new List<ClinicalParticipant__c>();
         Set<String> emails = new Set<String>();
-        Map<Id, User> usersById = usersFor(drafts);
+        Map<Id, User> usersById = salesforceUsersForDrafts(drafts);
         for (ParticipantDraft draft : drafts) {
             if (draft == null) {
                 continue;
             }
-            Id salesforceUserId = toUserId(draft.userId);
+            Id salesforceUserId = salesforceUserIdFromText(draft.userId);
             User salesforceUser = salesforceUserId == null ? null : usersById.get(salesforceUserId);
             String email = salesforceUser != null && String.isNotBlank(salesforceUser.Email)
                 ? salesforceUser.Email.trim()
@@ -108,11 +99,7 @@ public with sharing class ClinicalParticipantService {
             }
             String emailKey = email.toLowerCase();
             if (!emails.add(emailKey)) {
-                ClinicalParticipantException error = new ClinicalParticipantException(
-                    'Each email can be added only once on a Process Review.'
-                );
-                error.setMessage('Each email can be added only once on a Process Review.');
-                throw error;
+                throw new ClinicalParticipantException('This email is already on this Process Review.');
             }
             String participantName = salesforceUser != null && String.isNotBlank(salesforceUser.Name)
                 ? salesforceUser.Name.trim()
@@ -133,28 +120,21 @@ public with sharing class ClinicalParticipantService {
         return rows;
     }
 
-    private static Map<Id, User> usersFor(List<ParticipantDraft> drafts) {
+    private static Map<Id, User> salesforceUsersForDrafts(List<ParticipantDraft> drafts) {
         Set<Id> userIds = new Set<Id>();
         for (ParticipantDraft draft : drafts) {
             if (draft == null) {
                 continue;
             }
-            Id userId = toUserId(draft.userId);
+            Id userId = salesforceUserIdFromText(draft.userId);
             if (userId != null) {
                 userIds.add(userId);
             }
         }
-        if (userIds.isEmpty()) {
-            return new Map<Id, User>();
-        }
-        return new Map<Id, User>([
-            SELECT Name, Email
-            FROM User
-            WHERE Id IN :userIds
-        ]);
+        return ClinicalParticipantSelector.selectUsersByIds(userIds);
     }
 
-    private static Id toUserId(String userId) {
+    private static Id salesforceUserIdFromText(String userId) {
         if (String.isBlank(userId)) {
             return null;
         }

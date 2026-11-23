@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>65.0</apiVersion>
+    <isExposed>false</isExposed>
+    <masterLabel>Current Device and Instrument Work Orders</masterLabel>
+    <description
+  >GW-5310 current Device and Instrument Repair Center Work Order status.</description>
+</LightningComponentBundle>

@@ -23,6 +23,7 @@ public with sharing class ReceivingFinishService {
 
 	private static final String WO_STATUS_RECEIVED = 'Received';
 	private static final String WO_STATUS_EVALUATE = 'Evaluate';
+	private static final String WO_STATUS_DIVIDE = 'Divide';
 	private static final String WO_SUB_STATUS_CUSTOMER_CARE = 'Customer Care';
 	private static final String WO_SUB_STATUS_SHIP_TO_VENDOR = 'Ship to Vendor';
 	private static final String WO_SUB_STATUS_READY_FOR_EVAL = 'Ready for Eval';
@@ -525,6 +526,8 @@ public with sharing class ReceivingFinishService {
 		);
 		applySharedHeaderMappings(workOrder, returnOrder, request);
 		applyActionOverlays(workOrder, request, false);
+		// GW-5806 - No conflict → Divide with blank Sub Status (not Received / Ready for Eval).
+		applyInstrumentDivideStatusWhenNoConflicts(workOrder, isContaminated, request);
 		// GW-6479 / GW-5677: instrument receive (no asset) stores the list on the parent Work Order.
 		applyAdditionalServicesRequested(workOrder, returnOrder.Id);
 		WorkOrdersService.createReceivingWorkOrders(new List<WorkOrder>{ workOrder });
@@ -537,6 +540,28 @@ public with sharing class ReceivingFinishService {
 		result.parentWorkOrderId = workOrder.Id;
 		result.navigationWorkOrderId = workOrder.Id;
 		return result;
+	}
+
+	/**
+	 * @description GW-5806 - Instruments parent WO without Contaminated / Customer Care conflicts
+	 *              uses Status Divide and blank Sub Status instead of Received / Ready for Eval.
+	 * @param workOrder Instruments Work Order being created
+	 * @param isContaminated True when the item is Contaminated
+	 * @param request Finish Receiving request (Customer Care reasons)
+	 */
+	private static void applyInstrumentDivideStatusWhenNoConflicts(
+		WorkOrder workOrder,
+		Boolean isContaminated,
+		ReceivingService.FinishReceivingRequest request
+	) {
+		if (workOrder == null) {
+			return;
+		}
+		if (isContaminated == true || hasCustomerCare(request)) {
+			return;
+		}
+		workOrder.Status = WO_STATUS_DIVIDE;
+		workOrder.SubStatus__c = null;
 	}
 
 	private static WorkOrdersService.ReceivingWorkOrderCreateResult createOtherReceive(

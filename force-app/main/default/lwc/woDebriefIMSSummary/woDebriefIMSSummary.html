@@ -1,0 +1,240 @@
+<template>
+	<template lwc:if={isOffline}>
+		<div class="offline-banner">
+			<lightning-icon icon-name="utility:offline" size="x-small"></lightning-icon>
+			Offline — internet connection is required to save the summary review.
+		</div>
+	</template>
+
+	<template lwc:if={isLoading}>
+		<div class="slds-align_absolute-center slds-p-around_large">
+			<lightning-spinner alternative-text="Loading summary…" size="medium"></lightning-spinner>
+		</div>
+	</template>
+
+	<template lwc:if={showBlocked}>
+		<div class="block-message" role="status">
+			<lightning-icon icon-name="utility:info" size="small"></lightning-icon>
+			<p>{blockMessage}</p>
+		</div>
+	</template>
+
+	<template lwc:if={errorMessage}>
+		<div class="slds-box slds-theme_error slds-m-around_small">
+			{errorMessage}
+		</div>
+	</template>
+
+	<template lwc:if={showContent}>
+		<div class="summary-shell">
+			<header class="summary-header">
+				<div>
+					<h1 class="summary-title">Work Order Summary</h1>
+					<div class="summary-subtitle">{workOrderNumber}</div>
+				</div>
+				<button type="button" class="slds-button slds-button_neutral" onclick={handleCancel}>
+					Close
+				</button>
+			</header>
+
+			<nav class="tab-nav" aria-label="Summary tabs">
+				<button type="button" class={summaryTabClass} data-tab="summary" onclick={handleTabClick}>
+					Summary Review
+				</button>
+				<button type="button" class={coveredTabClass} data-tab="covered" onclick={handleTabClick}>
+					Covered Summary
+				</button>
+				<button type="button" class={billableTabClass} data-tab="billable" onclick={handleTabClick}>
+					Billable / Not Covered
+				</button>
+			</nav>
+
+			<template lwc:if={isSummaryTab}>
+				<section class="tab-panel">
+					<div class="metric-grid">
+						<div class="metric-card">
+							<div class="metric-label">Account</div>
+							<div class="metric-value">{accountName}</div>
+						</div>
+						<div class="metric-card">
+							<div class="metric-label">Service Date</div>
+							<div class="metric-value">{serviceDateLabel}</div>
+						</div>
+						<div class="metric-card">
+							<div class="metric-label">Trays Serviced</div>
+							<div class="metric-value metric-value_accent">{traysServiced}</div>
+						</div>
+						<div class="metric-card">
+							<div class="metric-label">Next Service Date</div>
+							<div class="metric-value">{nextServiceDateLabel}</div>
+						</div>
+						<div class="metric-card">
+							<div class="metric-label">Instruments Beyond Repair</div>
+							<div class="metric-value metric-value_danger">{instrumentsBeyondRepair}</div>
+						</div>
+						<div class="metric-card">
+							<div class="metric-label">Instruments Off-Site</div>
+							<div class="metric-value metric-value_warn">{instrumentsOffSite}</div>
+						</div>
+					</div>
+
+					<h2 class="section-title">Child Work Orders</h2>
+					<div class="table-wrap">
+						<table class="summary-table">
+							<thead>
+								<tr>
+									<th>Asset</th>
+									<th>Photos</th>
+									<th># Instruments</th>
+									<th># Beyond Repair</th>
+									<th># Off Site</th>
+									<th># Parts</th>
+								</tr>
+							</thead>
+							<tbody>
+								<template for:each={childAssets} for:item="row">
+									<tr key={row.workOrderId}>
+										<td>
+											<div class="cell-strong">{row.assetName}</div>
+											<div class="cell-muted">{row.workOrderNumber}</div>
+										</td>
+										<td>
+											<template lwc:if={row.hasPhotos}>
+												<lightning-icon icon-name="utility:photo" size="x-small" alternative-text="Has photos"></lightning-icon>
+											</template>
+											<template lwc:else>
+												<span class="cell-muted">—</span>
+											</template>
+										</td>
+										<td>{row.instrumentCount}</td>
+										<td>{row.beyondRepairCount}</td>
+										<td>{row.offSiteCount}</td>
+										<td>{row.partsReplacedCount}</td>
+									</tr>
+								</template>
+							</tbody>
+						</table>
+					</div>
+
+					<h2 class="section-title">Photos for Service Summary Report</h2>
+					<p class="section-help">Tap photos to include them. Up to 8 per category.</p>
+					<template for:each={photoCategories} for:item="group">
+						<div key={group.category} class="photo-group">
+							<div class="photo-group-header">
+								<strong>{group.category}</strong>
+								<span class="cell-muted">{group.limitLabel}</span>
+							</div>
+							<div class="photo-grid">
+								<template for:each={group.items} for:item="photo">
+									<button
+										key={photo.contentVersionId}
+										type="button"
+										class={photo.cardClass}
+										data-version-id={photo.contentVersionId}
+										data-category={group.category}
+										onclick={handlePhotoToggle}
+										disabled={disableActions}>
+										<template lwc:if={photo.previewUrl}>
+											<img src={photo.previewUrl} alt={photo.metaLabel} />
+										</template>
+										<template lwc:else>
+											<div class="photo-placeholder">
+												<lightning-icon icon-name="utility:image" size="small"></lightning-icon>
+											</div>
+										</template>
+										<div class="photo-meta">{photo.metaLabel}</div>
+									</button>
+								</template>
+							</div>
+						</div>
+					</template>
+
+					<div class="footer-row">
+						<div>
+							<template lwc:if={returnOrderLabel}>
+								<div class="return-order">Return Order: {returnOrderLabel}</div>
+							</template>
+						</div>
+						<button
+							type="button"
+							class="slds-button slds-button_neutral"
+							onclick={handleSavePhotos}
+							disabled={disableActions}>
+							Save Photo Selection
+						</button>
+					</div>
+				</section>
+			</template>
+
+			<template lwc:if={isCoveredTab}>
+				<section class="tab-panel">
+					<p class="section-help">Contract-covered lines. Read only.</p>
+					<template for:each={coveredGroups} for:item="group">
+						<article key={group.workOrderId} class="asset-card">
+							<header class="asset-card-header">{group.title}</header>
+							<template for:each={group.lines} for:item="line">
+								<div key={line.lineId} class="line-row">
+									<div class="line-main">{line.lineLabel}</div>
+									<div class="line-meta">{line.billingType}</div>
+									<div class="line-meta">Qty {line.quantityLabel}</div>
+								</div>
+							</template>
+						</article>
+					</template>
+				</section>
+			</template>
+
+			<template lwc:if={isBillableTab}>
+				<section class="tab-panel">
+					<div class="billable-header">
+						<p class="section-help">
+							Change coverage to Warranty or Courtesy to set pricing to $0.00.
+						</p>
+						<div class="grand-total">Grand Total: {billableGrandTotalLabel}</div>
+					</div>
+					<template for:each={billableGroups} for:item="group">
+						<article key={group.workOrderId} class="asset-card">
+							<header class="asset-card-header">{group.title}</header>
+							<template for:each={group.lines} for:item="line">
+								<div key={line.lineId} class={line.rowClass}>
+									<div class="line-main">{line.lineLabel}</div>
+									<lightning-combobox
+										label="Coverage"
+										variant="label-hidden"
+										data-line-id={line.lineId}
+										value={line.billingType}
+										options={line.billingOptions}
+										onchange={handleBillingChange}
+										disabled={disableActions}>
+									</lightning-combobox>
+									<div class="line-meta">{line.unitPriceLabel}</div>
+									<div class="line-meta">Qty {line.quantityLabel}</div>
+									<div class="line-total">{line.totalPriceLabel}</div>
+								</div>
+							</template>
+						</article>
+					</template>
+					<div class="footer-row footer-row_end">
+						<button
+							type="button"
+							class="slds-button slds-button_neutral"
+							onclick={handleSaveCoverage}
+							disabled={disableActions}>
+							Save Coverage Changes
+						</button>
+					</div>
+				</section>
+			</template>
+
+			<footer class="summary-footer">
+				<button
+					type="button"
+					class="slds-button slds-button_brand approve-button"
+					onclick={handleApprove}
+					disabled={disableActions}>
+					{approveLabel}
+				</button>
+			</footer>
+		</div>
+	</template>
+</template>

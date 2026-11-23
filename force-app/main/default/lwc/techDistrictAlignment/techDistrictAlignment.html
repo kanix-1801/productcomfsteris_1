@@ -5,13 +5,15 @@
             <p class="slds-text-body_small slds-m-bottom_medium">{label.instructionsColumns}</p>
 
             <div class="slds-m-bottom_medium">
-                <lightning-file-upload
-                    label={label.uploadLabel}
-                    name="techDistrictAlignmentUpload"
-                    accept={acceptedFormats}
-                    onuploadfinished={handleUploadFinished}
-                    disabled={isBusy}
-                ></lightning-file-upload>
+                <div class="file-upload">
+                    <lightning-file-upload
+                        label={label.uploadLabel}
+                        name="techDistrictAlignmentUpload"
+                        accept={acceptedFormats}
+                        onuploadfinished={handleUploadFinished}
+                        disabled={isBusy}
+                    ></lightning-file-upload>
+                </div>
                 <template lwc:if={uploadedFileName}>
                     <p class="slds-m-top_x-small slds-text-body_small" data-id="uploaded-file">{selectedFileText}</p>
                 </template>
@@ -27,7 +29,7 @@
                     data-id="start-upload"
                 ></lightning-button>
                 <lightning-button
-                    variant="neutral"
+                    variant="brand"
                     label={label.downloadTemplate}
                     onclick={handleDownloadTemplate}
                     disabled={isBusy}
@@ -35,7 +37,7 @@
                     data-id="download-template"
                 ></lightning-button>
                 <lightning-button
-                    variant="neutral"
+                    variant="brand"
                     label={label.downloadErrorFile}
                     onclick={handleDownloadErrorFile}
                     disabled={isBusy}

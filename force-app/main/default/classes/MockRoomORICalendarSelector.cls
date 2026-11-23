@@ -18,24 +18,24 @@ public without sharing class MockRoomORICalendarSelector {
 * @param requestorId Running user. Only this user's saved drafts are returned.
 * @return Requests that can appear on the calendar.
 */
-    public static List<MockRoomOrORIRequest__c> selectActiveRequests(Date rangeStart, Date rangeEnd, Id requestorId) {
-        Date lookbackStart = rangeStart.addDays(-366);
-        List<MockRoomOrORIRequest__c> requests = [
-            SELECT Id, Name, Status__c, RecordType.Name, Account__r.Name,
-            PrimaryRequestedDate__c, BackupRequestedDate__c, ConfirmedDate__c, EventDurationDays__c
-            FROM MockRoomOrORIRequest__c
-            WHERE (
-                Status__c IN ('Submitted', 'Submitted for Approval', 'Approved')
-                OR (Status__c = 'Draft' AND Requestor__c = :requestorId AND CustomerLocationType__c != null)
-            )
-            AND (
-                (PrimaryRequestedDate__c >= :lookbackStart AND PrimaryRequestedDate__c <= :rangeEnd)
-                OR (BackupRequestedDate__c >= :lookbackStart AND BackupRequestedDate__c <= :rangeEnd)
-                OR (ConfirmedDate__c >= :lookbackStart AND ConfirmedDate__c <= :rangeEnd)
-            )
-        ];
-        return requests;
-    }
+	public static List<MockRoomOrORIRequest__c> selectActiveRequests(Date rangeStart, Date rangeEnd, Id requestorId) {
+		Date lookbackStart = rangeStart.addDays(-366);
+		List<MockRoomOrORIRequest__c> requests = [
+			SELECT Id, Name, Status__c, RecordType.Name, Account__r.Name,
+			PrimaryRequestedDate__c, BackupRequestedDate__c, ConfirmedDate__c, EventDurationDays__c
+			FROM MockRoomOrORIRequest__c
+			WHERE (
+				Status__c IN ('Submitted', 'Submitted for Approval', 'Approved')
+				OR (Status__c = 'Draft' AND Requestor__c = :requestorId AND CustomerLocationType__c != null)
+			)
+			AND (
+				(PrimaryRequestedDate__c >= :lookbackStart AND PrimaryRequestedDate__c <= :rangeEnd)
+				OR (BackupRequestedDate__c >= :lookbackStart AND BackupRequestedDate__c <= :rangeEnd)
+				OR (ConfirmedDate__c >= :lookbackStart AND ConfirmedDate__c <= :rangeEnd)
+			)
+		];
+		return requests;
+	}
     
     /**
 * @description Returns blocked ranges that overlap the visible calendar range.
@@ -44,12 +44,12 @@ public without sharing class MockRoomORICalendarSelector {
 * @param rangeEnd Last visible calendar day.
 * @return Overlapping Strategic Events blocks.
 */
-    public static List<MockRoomORICalendarBlock__c> selectBlocks(Date rangeStart, Date rangeEnd) {
-        List<MockRoomORICalendarBlock__c> blocks = [
-            SELECT StartDate__c, EndDate__c, Reason__c, Notes__c
-            FROM MockRoomORICalendarBlock__c
-            WHERE StartDate__c <= :rangeEnd AND EndDate__c >= :rangeStart
-        ];
-        return blocks;
-    }
+	public static List<MockRoomORICalendarBlock__c> selectBlocks(Date rangeStart, Date rangeEnd) {
+		List<MockRoomORICalendarBlock__c> blocks = [
+			SELECT StartDate__c, EndDate__c, Reason__c, Notes__c
+			FROM MockRoomORICalendarBlock__c
+			WHERE StartDate__c <= :rangeEnd AND EndDate__c >= :rangeStart
+		];
+		return blocks;
+	}
 }

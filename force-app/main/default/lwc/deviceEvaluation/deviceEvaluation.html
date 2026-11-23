@@ -307,7 +307,7 @@
                                             <div class="detail-row__value">{woInfoStatus}</div>
                                         </div>
                                         <div class="detail-row">
-                                            <span class="detail-row__label">Repair Warranty</span>
+                                            <span class="detail-row__label">Warranty Review</span>
                                             <div class="detail-row__value">{woInfoRepairWarranty}</div>
                                         </div>
                                         <div class="detail-row">
@@ -455,6 +455,10 @@
                                 work-order-id={workOrderId}
                                 onmodalchange={handlePartsModalChange}
                             ></c-evaluation-photos>
+                        </template>
+
+                        <template lwc:elseif={isCioTab}>
+                            <c-cio-evaluation-panel work-order-id={workOrderId}></c-cio-evaluation-panel>
                         </template>
 
                         <template lwc:elseif={isWreTab}>
@@ -621,6 +625,8 @@
                             <c-modifier-codes
                                 work-order-id={workOrderId}
                                 variant="device"
+                                pending-lines={pendingModifierLines}
+                                onlinemodifier={handlePendingLineModifier}
                                 onmodalchange={handlePartsModalChange}
                             ></c-modifier-codes>
                         </template>

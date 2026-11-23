@@ -3,7 +3,7 @@ import LightningModal from 'lightning/modal';
 import { getFieldValue, getRecord } from 'lightning/uiRecordApi';
 import USER_NAME_FIELD from '@salesforce/schema/User.Name';
 import USER_EMAIL_FIELD from '@salesforce/schema/User.Email';
-import getSalesforceUser from '@salesforce/apex/ClinicalParticipantService.getSalesforceUser';
+import getActiveSalesforceUser from '@salesforce/apex/ClinicalParticipantController.getActiveSalesforceUser';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -169,7 +169,7 @@ export default class AddClinicalParticipantModal extends LightningModal {
                 }
                 if (!name || !email) {
                     try {
-                        const user = await getSalesforceUser({ userId });
+                        const user = await getActiveSalesforceUser({ userId });
                         name = (user?.Name || name || '').trim();
                         email = (user?.Email || email || '').trim();
                     } catch (e) {
@@ -193,7 +193,7 @@ export default class AddClinicalParticipantModal extends LightningModal {
             const duplicateKey = email ? email.toLowerCase() : userId;
             if (duplicateKey && emails.has(duplicateKey)) {
                 this.saving = false;
-                this.errorMessage = 'Each email can be added only once.';
+                this.errorMessage = 'This email is already on this Process Review.';
                 return;
             }
             if (duplicateKey) {

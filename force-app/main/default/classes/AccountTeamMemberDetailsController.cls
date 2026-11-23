@@ -12,12 +12,12 @@
  */
 public with sharing class AccountTeamMemberDetailsController {
 
-    @TestVisible
-    private static final String SALES_OPS_PERMISSION_SET_GROUP_NAME =
-        'SalesCustomerOpsSalesSupportSalesAdminPSG';
+	@TestVisible
+	private static final String SALES_OPS_PERMISSION_SET_GROUP_NAME =
+		'SalesCustomerOpsSalesSupportSalesAdminPSG';
 
-    @TestVisible
-    private static Boolean canViewAccessFieldsForTest;
+	@TestVisible
+	private static Boolean canViewAccessFieldsForTest;
 
     /**
      * @description
@@ -28,24 +28,24 @@ public with sharing class AccountTeamMemberDetailsController {
      * @return List of AccountTeamMemberDTO objects for UI rendering.
      * @throws AuraHandledException when the service layer fails to retrieve data.
      */
-    @AuraEnabled
-    public static List<AccountTeamMemberDTO> getAccountTeamMembers(Id accountId) {
+	@AuraEnabled
+	public static List<AccountTeamMemberDTO> getAccountTeamMembers(Id accountId) {
 
-        try {
-            Boolean canViewAccessFields =
-                canViewAccessFieldsForTest != null
-                ? canViewAccessFieldsForTest
-                : currentUserHasSalesOpsPermissionSetGroup();
+		try {
+			Boolean canViewAccessFields =
+				canViewAccessFieldsForTest != null
+				? canViewAccessFieldsForTest
+				: currentUserHasSalesOpsPermissionSetGroup();
 
-            return AccountTeamMemberService.getAccountTeamMemberDetails(
-                accountId,
-                canViewAccessFields
-            );
+			return AccountTeamMemberService.getAccountTeamMemberDetails(
+				accountId,
+				canViewAccessFields
+			);
 
-        } catch (AccountTeamMemberService.AccountTeamMemberException exceptionRecord) {
-            throw new AuraHandledException(exceptionRecord.getMessage());
-        }
-    }
+		} catch (AccountTeamMemberService.AccountTeamMemberException exceptionRecord) {
+			throw new AuraHandledException(exceptionRecord.getMessage());
+		}
+	}
 
     /**
      * @description
@@ -55,27 +55,27 @@ public with sharing class AccountTeamMemberDetailsController {
      *
      * @return true when the running user is assigned SalesCustomerOpsSalesSupportSalesAdminPSG.
      */
-    @TestVisible
-    private static Boolean currentUserHasSalesOpsPermissionSetGroup() {
-        List<PermissionSetGroup> salesOpsPermissionSetGroups = [
-            SELECT Id
-            FROM PermissionSetGroup
-            WHERE DeveloperName = :SALES_OPS_PERMISSION_SET_GROUP_NAME
-            LIMIT 1
-        ];
+	@TestVisible
+	private static Boolean currentUserHasSalesOpsPermissionSetGroup() {
+		List<PermissionSetGroup> salesOpsPermissionSetGroups = [
+			SELECT Id
+			FROM PermissionSetGroup
+			WHERE DeveloperName = :SALES_OPS_PERMISSION_SET_GROUP_NAME
+			LIMIT 1
+		];
 
-        if (salesOpsPermissionSetGroups.isEmpty()) {
-            return false;
-        }
+		if (salesOpsPermissionSetGroups.isEmpty()) {
+			return false;
+		}
 
-        List<PermissionSetAssignment> salesOpsAssignments = [
-            SELECT Id
-            FROM PermissionSetAssignment
-            WHERE AssigneeId = :UserInfo.getUserId()
-            AND PermissionSetGroupId = :salesOpsPermissionSetGroups[0].Id
-            LIMIT 1
-        ];
-        Boolean isSalesOpsUser = !salesOpsAssignments.isEmpty();
-        return isSalesOpsUser;
-    }
+		List<PermissionSetAssignment> salesOpsAssignments = [
+			SELECT Id
+			FROM PermissionSetAssignment
+			WHERE AssigneeId = :UserInfo.getUserId()
+			AND PermissionSetGroupId = :salesOpsPermissionSetGroups[0].Id
+			LIMIT 1
+		];
+		Boolean isSalesOpsUser = !salesOpsAssignments.isEmpty();
+		return isSalesOpsUser;
+	}
 }

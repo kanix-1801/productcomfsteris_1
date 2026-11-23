@@ -58,6 +58,42 @@ private class LSAccountSelectorTest {
         Test.stopTest();
     }
 
+    @IsTest
+    static void accountLookupMethodsCoverBillToReturnOrderAndOwner() {
+        Account customer = insertAccount(
+            'LS Selector Lookup Customer',
+            'LS-SEL-LK',
+            'Customer',
+            'SC',
+            null,
+            'LS-SEL-ADDR-LK'
+        );
+        Account billTo = insertAccount(
+            'LS Selector Bill To',
+            'LS-SEL-BT',
+            'Address',
+            'SC',
+            customer.Id,
+            'LS-SEL-ADDR-BT'
+        );
+        billTo.BilltoAddressStatus__c = 'Primary';
+        update billTo;
+
+        Test.startTest();
+        System.assertEquals(0, AccountSelector.selectById(null).size());
+        System.assertEquals(1, AccountSelector.selectById(customer.Id).size());
+        System.assertEquals(0, AccountSelector.selectBillToAddressAccountsByParentId(null).size());
+        List<Account> billToRows = AccountSelector.selectBillToAddressAccountsByParentId(customer.Id);
+        System.assertEquals(0, AccountSelector.selectForCreateReturnOrderById(null).size());
+        List<Account> returnOrderRows = AccountSelector.selectForCreateReturnOrderById(customer.Id);
+        Test.stopTest();
+
+        System.assertEquals(1, billToRows.size());
+        System.assertEquals(billTo.Id, billToRows[0].Id);
+        System.assertEquals(1, returnOrderRows.size());
+        System.assertEquals(customer.Id, returnOrderRows[0].Id);
+    }
+
     private static Boolean containsId(List<Account> accounts, Id accountId) {
         for (Account accountRecord : accounts) {
             if (accountRecord.Id == accountId) {

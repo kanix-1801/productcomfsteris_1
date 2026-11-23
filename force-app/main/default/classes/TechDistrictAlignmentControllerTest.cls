@@ -739,7 +739,7 @@ private class TechDistrictAlignmentControllerTest {
 		 * THEN
 		 *******************************************/
 		Assert.isNotNull(missingFile);
-		Assert.isTrue(missingFile.getMessage().contains('Upload a file'));
+		Assert.isTrue(missingFile.getMessage().contains('Excel (.xlsx)'));
 		Assert.isNotNull(missingColumns);
 		Assert.isTrue(missingColumns.getMessage().contains('Next Year ASM HRIS#'));
 		Assert.areEqual(0, [SELECT COUNT() FROM ServiceTerritoryMember WHERE EffectiveEndDate != NULL]);

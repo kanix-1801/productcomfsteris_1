@@ -271,7 +271,7 @@ public with sharing class PartExceptionService {
 			];
 			if (recordTypes.isEmpty()) {
 				throw new AuraHandledException(
-					'Unable to create the part exception case: Inbox Support record type was not found.'
+					'Unable to create the part exception case: Customer and Technical Care record type was not found.'
 				);
 			}
 			return recordTypes[0].Id;

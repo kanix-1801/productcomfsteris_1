@@ -12,30 +12,30 @@
  */
 public class TasAccountResponseItem {
 
-    public Id accountId;
+	public Id accountId;
     
-    public String prospectId;
+	public String prospectId;
 
-    public String classCode;
-    public String tasSalesCategory;
-    public String tasSalesCategoryDescription;
+	public String classCode;
+	public String tasSalesCategory;
+	public String tasSalesCategoryDescription;
 
-    public String territoryId;
-    public String territoryNumber;
-    public String territoryDescription;
+	public String territoryId;
+	public String territoryNumber;
+	public String territoryDescription;
 
-    public String salesRepId;
-    public String salesRepEmployeeNumber;
-    public String salesRepName;
+	public String salesRepId;
+	public String salesRepEmployeeNumber;
+	public String salesRepName;
 
-    public String regionName;
-    public String regionManagerEmployeeNumber;
-    public String regionManagerName;
+	public String regionName;
+	public String regionManagerEmployeeNumber;
+	public String regionManagerName;
 
-    public String zoneName;
-    public String zoneManagerEmployeeNumber;
-    public String zoneManagerName;
+	public String zoneName;
+	public String zoneManagerEmployeeNumber;
+	public String zoneManagerName;
 
-    public String gbuName;
-    public String buName;
+	public String gbuName;
+	public String buName;
 }

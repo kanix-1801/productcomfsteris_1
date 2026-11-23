@@ -885,8 +885,12 @@ public class TestDataFactory {
      */
     public static User insertOverlayTestUser(String firstName, String lastName) {
         User overlayUser = buildOverlayTestUser(firstName, lastName);
-        insert overlayUser;
-        assignSalesCustomerOpsPermissionSetGroup(overlayUser.Id);
+        // GCL-390 : Tech Story - Hc x LS code dependency resolution
+        // User and permission-set assignment are setup records. Keep them apart from Account changes.
+        System.runAs(new User(Id = UserInfo.getUserId())) {
+            insert overlayUser;
+            assignSalesCustomerOpsPermissionSetGroup(overlayUser.Id);
+        }
         return overlayUser;
     }
 

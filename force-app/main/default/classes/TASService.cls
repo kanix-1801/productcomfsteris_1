@@ -21,9 +21,9 @@ public with sharing class TASService {
      * @author Suraj Thapliyal
      * @param newRecords Trigger.new rows
      */
-    public static void processBeforeInsert(List<OrderLineContact__c> newRecords) {
-        runAssignment(newRecords, null, 'processBeforeInsert');
-    }
+	public static void processBeforeInsert(List<OrderLineContact__c> newRecords) {
+		runAssignment(newRecords, null, 'processBeforeInsert');
+	}
 
     /**
      * Before update entry point from OrderLineContactTriggerHandler.
@@ -31,17 +31,17 @@ public with sharing class TASService {
      * @param newRecords Trigger.new rows
      * @param oldMap Trigger.oldMap keyed by record Id
      */
-    public static void processBeforeUpdate(
-        List<OrderLineContact__c> newRecords,
-        Map<Id, OrderLineContact__c> oldMap
-    ) {
-        if (oldMap == null || oldMap.isEmpty()) {
-            Logger.warn('TASService.processBeforeUpdate: oldMap is null or empty');
-            Logger.saveLog();
-        } else {
-            runAssignment(newRecords, oldMap, 'processBeforeUpdate');
-        }
-    }
+	public static void processBeforeUpdate(
+		List<OrderLineContact__c> newRecords,
+		Map<Id, OrderLineContact__c> oldMap
+	) {
+		if (oldMap == null || oldMap.isEmpty()) {
+			Logger.warn('TASService.processBeforeUpdate: oldMap is null or empty');
+			Logger.saveLog();
+		} else {
+			runAssignment(newRecords, oldMap, 'processBeforeUpdate');
+		}
+	}
 
     /**
      * Shared wrapper for insert and update assignment.
@@ -50,32 +50,32 @@ public with sharing class TASService {
      * @param oldMap Null on insert; Trigger.oldMap on update
      * @param methodName Caller name used in log messages
      */
-    private static void runAssignment(
-        List<OrderLineContact__c> records,
-        Map<Id, OrderLineContact__c> oldMap,
-        String methodName
-    ) {
-        try {
-            Logger.info('TASService.' + methodName + ': started');
+	private static void runAssignment(
+		List<OrderLineContact__c> records,
+		Map<Id, OrderLineContact__c> oldMap,
+		String methodName
+	) {
+		try {
+			Logger.info('TASService.' + methodName + ': started');
 
-            if (records != null && !records.isEmpty()) {
-                assertCanAssignSalesRep();
+			if (records != null && !records.isEmpty()) {
+				assertCanAssignSalesRep();
 
-                Integer assignedCount = assignSalesRepFromHris(records, oldMap);
+				Integer assignedCount = assignSalesRepFromHris(records, oldMap);
 
-                Logger.info(
-                    'TASService.' + methodName + ': assignedCount=' + assignedCount
-                );
-            } else {
-                Logger.warn('TASService.' + methodName + ': no records in trigger context');
-            }
-        } catch (Exception e) {
-            Logger.error('TASService.' + methodName, e);
-            throw e;
-        } finally {
-            Logger.saveLog();
-        }
-    }
+				Logger.info(
+					'TASService.' + methodName + ': assignedCount=' + assignedCount
+				);
+			} else {
+				Logger.warn('TASService.' + methodName + ': no records in trigger context');
+			}
+		} catch (Exception e) {
+			Logger.error('TASService.' + methodName, e);
+			throw e;
+		} finally {
+			Logger.saveLog();
+		}
+	}
 
     /**
      * Resolves AssignedSalesRep__c for all eligible rows in the trigger batch.
@@ -88,36 +88,36 @@ public with sharing class TASService {
      * @param oldMap Null on insert; prior field values on update
      * @return Number of rows where AssignedSalesRep__c was evaluated
      */
-    private static Integer assignSalesRepFromHris(
-        List<OrderLineContact__c> records,
-        Map<Id, OrderLineContact__c> oldMap
-    ) {
-        Set<String> hrisIds = new Set<String>();
-        List<OrderLineContact__c> recordsToAssign = new List<OrderLineContact__c>();
+	private static Integer assignSalesRepFromHris(
+		List<OrderLineContact__c> records,
+		Map<Id, OrderLineContact__c> oldMap
+	) {
+		Set<String> hrisIds = new Set<String>();
+		List<OrderLineContact__c> recordsToAssign = new List<OrderLineContact__c>();
 
-        for (OrderLineContact__c orderLineContact : records) {
-            if (!shouldAssignSalesRep(orderLineContact, oldMap)) {
-                continue;
-            }
+		for (OrderLineContact__c orderLineContact : records) {
+			if (!shouldAssignSalesRep(orderLineContact, oldMap)) {
+				continue;
+			}
 
-            hrisIds.add(normalizeHrisId(orderLineContact.HRISSalesRepId__c));
-            recordsToAssign.add(orderLineContact);
-        }
+			hrisIds.add(normalizeHrisId(orderLineContact.HRISSalesRepId__c));
+			recordsToAssign.add(orderLineContact);
+		}
 
-        if (recordsToAssign.isEmpty()) {
-            return 0;
-        }
+		if (recordsToAssign.isEmpty()) {
+			return 0;
+		}
 
-        Map<String, User> activeUsersByHrisId =
-            UserSelector.selectActiveUsersByEmployeeNumber(hrisIds);
+		Map<String, User> activeUsersByHrisId =
+			UserSelector.selectActiveUsersByEmployeeNumber(hrisIds);
 
-        for (OrderLineContact__c orderLineContact : recordsToAssign) {
-            String hrisId = normalizeHrisId(orderLineContact.HRISSalesRepId__c);
-            orderLineContact.AssignedSalesRep__c = resolveUserId(hrisId, activeUsersByHrisId);
-        }
+		for (OrderLineContact__c orderLineContact : recordsToAssign) {
+			String hrisId = normalizeHrisId(orderLineContact.HRISSalesRepId__c);
+			orderLineContact.AssignedSalesRep__c = resolveUserId(hrisId, activeUsersByHrisId);
+		}
 
-        return recordsToAssign.size();
-    }
+		return recordsToAssign.size();
+	}
 
     /**
      * Decides whether a row needs sales rep assignment in the current trigger pass.
@@ -129,36 +129,36 @@ public with sharing class TASService {
      * @param orderLineContact Current trigger row
      * @param oldMap Null on insert; Trigger.oldMap on update
      */
-    private static Boolean shouldAssignSalesRep(
-        OrderLineContact__c orderLineContact,
-        Map<Id, OrderLineContact__c> oldMap
-    ) {
-        String newHrisId = normalizeHrisId(orderLineContact.HRISSalesRepId__c);
+	private static Boolean shouldAssignSalesRep(
+		OrderLineContact__c orderLineContact,
+		Map<Id, OrderLineContact__c> oldMap
+	) {
+		String newHrisId = normalizeHrisId(orderLineContact.HRISSalesRepId__c);
 
-        if (newHrisId == null) {
-            return false;
-        }
+		if (newHrisId == null) {
+			return false;
+		}
 
         // Insert path — any populated HRIS id is eligible.
-        if (oldMap == null) {
-            return true;
-        }
+		if (oldMap == null) {
+			return true;
+		}
 
-        OrderLineContact__c priorVersion = oldMap.get(orderLineContact.Id);
+		OrderLineContact__c priorVersion = oldMap.get(orderLineContact.Id);
 
-        if (priorVersion == null) {
-            Logger.warn(
-                'TASService.shouldAssignSalesRep: prior version missing for Id=' +
-                orderLineContact.Id
-            );
-            return false;
-        }
+		if (priorVersion == null) {
+			Logger.warn(
+				'TASService.shouldAssignSalesRep: prior version missing for Id=' +
+				orderLineContact.Id
+			);
+			return false;
+		}
 
         // Update path — only when HRIS id actually changed.
-        Boolean shouldAssign =
-            newHrisId != normalizeHrisId(priorVersion.HRISSalesRepId__c);
-        return shouldAssign;
-    }
+		Boolean shouldAssign =
+			newHrisId != normalizeHrisId(priorVersion.HRISSalesRepId__c);
+		return shouldAssign;
+	}
 
     /**
      * Looks up the active User Id for a HRIS employee number.
@@ -167,16 +167,16 @@ public with sharing class TASService {
      * @param hrisId Normalized HRISSalesRepId__c value
      * @param activeUsersByHrisId Users keyed by EmployeeNumber__c from UserSelector
      */
-    private static Id resolveUserId(
-        String hrisId,
-        Map<String, User> activeUsersByHrisId
-    ) {
-        if (!activeUsersByHrisId.containsKey(hrisId)) {
-            return null;
-        }
+	private static Id resolveUserId(
+		String hrisId,
+		Map<String, User> activeUsersByHrisId
+	) {
+		if (!activeUsersByHrisId.containsKey(hrisId)) {
+			return null;
+		}
 
-        return activeUsersByHrisId.get(hrisId).Id;
-    }
+		return activeUsersByHrisId.get(hrisId).Id;
+	}
 
     /**
      * Normalizes HRIS text for consistent comparison and map lookups.
@@ -184,24 +184,24 @@ public with sharing class TASService {
      *
      * @param hrisId Raw HRISSalesRepId__c value
      */
-    private static String normalizeHrisId(String hrisId) {
-        String normalizedHrisId;
-        if (String.isBlank(hrisId)) {
-            normalizedHrisId = null;
-        } else {
-            normalizedHrisId = hrisId.trim();
-        }
-        return normalizedHrisId;
-    }
+	private static String normalizeHrisId(String hrisId) {
+		String normalizedHrisId;
+		if (String.isBlank(hrisId)) {
+			normalizedHrisId = null;
+		} else {
+			normalizedHrisId = hrisId.trim();
+		}
+		return normalizedHrisId;
+	}
 
     /**
      * Ensures the running user can read HRIS/User data and update AssignedSalesRep__c.
      */
-    private static void assertCanAssignSalesRep() {
-        if (!Schema.sObjectType.OrderLineContact__c.fields.AssignedSalesRep__c.isUpdateable()) {
-            throw new TASTeamAccessException('User does not has access to the field AssignedSalesRep__c');
-        }
-    }
+	private static void assertCanAssignSalesRep() {
+		if (!Schema.sObjectType.OrderLineContact__c.fields.AssignedSalesRep__c.isUpdateable()) {
+			throw new TASTeamAccessException('User does not has access to the field AssignedSalesRep__c');
+		}
+	}
     
     
 }

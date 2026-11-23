@@ -10,7 +10,7 @@
  * they are not resolved from OrderLineContact__c / TAS by Territory ID.
  */
 public with sharing class QuoteLineSalesCategoryService {
-    public static final String UNCATEGORIZED_SALES_CATEGORY = 'Uncategorized';
+	public static final String UNCATEGORIZED_SALES_CATEGORY = 'Uncategorized';
 
     /**
      * @description Resolves Sales Category from a Sales Connection quote line payload.
@@ -18,156 +18,161 @@ public with sharing class QuoteLineSalesCategoryService {
      * @param salesCategoryDescription Optional sales category description from integration.
      * @return Resolved sales category value for QuoteLineItem.SalesCategory__c.
      */
-    public static String resolveSalesCategoryFromIntegration(
-        String tasSalesCategory,
-        String salesCategoryDescription
-    ) {
-        if (String.isNotBlank(tasSalesCategory)) {
-            return tasSalesCategory.trim();
-        }
+	public static String resolveSalesCategoryFromIntegration(
+		String tasSalesCategory,
+		String salesCategoryDescription
+	) {
+		if (String.isNotBlank(tasSalesCategory)) {
+			return tasSalesCategory.trim();
+		}
 
-        if (String.isNotBlank(salesCategoryDescription)) {
-            return salesCategoryDescription.trim();
-        }
+		if (String.isNotBlank(salesCategoryDescription)) {
+			return salesCategoryDescription.trim();
+		}
 
-        return null;
-    }
+		return null;
+	}
 
     /**
      * @description Builds accordion subgroup rows grouped by TAS sales category.
      * @param quoteLineItems Quote line items for one quote.
      * @return Grouped sales category summary rows.
      */
-    public static List<GenerateQuoteController.ProductSubgroupSummaryWrapper> buildGroupedSummary(
-        List<QuoteLineItem> quoteLineItems
-    ) {
-        Map<String, GenerateQuoteController.ProductSubgroupSummaryWrapper> groupsByCategory =
-            new Map<String, GenerateQuoteController.ProductSubgroupSummaryWrapper>();
+	public static List<GenerateQuoteController.ProductSubgroupSummaryWrapper> buildGroupedSummary(
+		List<QuoteLineItem> quoteLineItems
+	) {
+		Map<String, GenerateQuoteController.ProductSubgroupSummaryWrapper> groupsByCategory =
+			new Map<String, GenerateQuoteController.ProductSubgroupSummaryWrapper>();
 
-        if (quoteLineItems == null || quoteLineItems.isEmpty()) {
-            return new List<GenerateQuoteController.ProductSubgroupSummaryWrapper>();
-        }
+		if (quoteLineItems == null || quoteLineItems.isEmpty()) {
+			return new List<GenerateQuoteController.ProductSubgroupSummaryWrapper>();
+		}
 
-        for (QuoteLineItem quoteLineItem : quoteLineItems) {
-            String salesCategory = resolveSalesCategoryLabel(quoteLineItem);
-            String famCode = PsamQuoteLineGroupingService.resolveFamCode(quoteLineItem);
-            Decimal quantity = normalizeQuantity(quoteLineItem.Quantity);
-            Decimal unitPrice = quoteLineItem.UnitPrice == null ? 0 : quoteLineItem.UnitPrice;
-            Decimal lineTotal = calculateLineTotal(quoteLineItem, quantity, unitPrice);
+		for (QuoteLineItem quoteLineItem : quoteLineItems) {
+			String salesCategory = resolveSalesCategoryLabel(quoteLineItem);
+			String famCode = PsamQuoteLineGroupingService.resolveFamCode(quoteLineItem);
+			Decimal quantity = normalizeQuantity(quoteLineItem.Quantity);
+			Decimal unitPrice = quoteLineItem.UnitPrice == null ? 0 : quoteLineItem.UnitPrice;
+			Decimal lineTotal = calculateLineTotal(quoteLineItem, quantity, unitPrice);
 
-            if (!groupsByCategory.containsKey(salesCategory)) {
-                GenerateQuoteController.ProductSubgroupSummaryWrapper groupWrapper =
-                    new GenerateQuoteController.ProductSubgroupSummaryWrapper();
-                groupWrapper.productSubgroupDetailName = salesCategory;
-                groupWrapper.totalUnitPrice = 0;
-                groupWrapper.quoteLines = new List<GenerateQuoteController.QuoteLineDetailWrapper>();
-                groupsByCategory.put(salesCategory, groupWrapper);
-            }
+			if (!groupsByCategory.containsKey(salesCategory)) {
+				GenerateQuoteController.ProductSubgroupSummaryWrapper groupWrapper =
+					new GenerateQuoteController.ProductSubgroupSummaryWrapper();
+				groupWrapper.productSubgroupDetailName = salesCategory;
+				groupWrapper.totalUnitPrice = 0;
+				groupWrapper.quoteLines = new List<GenerateQuoteController.QuoteLineDetailWrapper>();
+				groupsByCategory.put(salesCategory, groupWrapper);
+			}
 
-            GenerateQuoteController.ProductSubgroupSummaryWrapper groupEntry = groupsByCategory.get(
-                salesCategory
-            );
-            groupEntry.totalUnitPrice += lineTotal;
-            groupEntry.quoteLines.add(
-                buildLineDetailWrapper(quoteLineItem, famCode, salesCategory, quantity, unitPrice, lineTotal)
-            );
-        }
+			GenerateQuoteController.ProductSubgroupSummaryWrapper groupEntry = groupsByCategory.get(
+				salesCategory
+			);
+			groupEntry.totalUnitPrice += lineTotal;
+			groupEntry.quoteLines.add(
+				buildLineDetailWrapper(quoteLineItem, famCode, salesCategory, quantity, unitPrice, lineTotal)
+			);
+		}
 
-        return groupsByCategory.values();
-    }
+		return groupsByCategory.values();
+	}
 
-    private static String resolveSalesCategoryLabel(QuoteLineItem quoteLineItem) {
-        if (quoteLineItem == null) {
-            return UNCATEGORIZED_SALES_CATEGORY;
-        }
+	private static String resolveSalesCategoryLabel(QuoteLineItem quoteLineItem) {
+		if (quoteLineItem == null) {
+			return UNCATEGORIZED_SALES_CATEGORY;
+		}
 
-        if (String.isNotBlank(quoteLineItem.SalesCategory__c)) {
-            return quoteLineItem.SalesCategory__c.trim();
-        }
+		if (String.isNotBlank(quoteLineItem.SalesCategory__c)) {
+			return quoteLineItem.SalesCategory__c.trim();
+		}
 
-        return UNCATEGORIZED_SALES_CATEGORY;
-    }
+		return UNCATEGORIZED_SALES_CATEGORY;
+	}
 
-    private static GenerateQuoteController.QuoteLineDetailWrapper buildLineDetailWrapper(
-        QuoteLineItem quoteLineItem,
-        String famCode,
-        String salesCategory,
-        Decimal quantity,
-        Decimal unitPrice,
-        Decimal lineTotal
-    ) {
-        GenerateQuoteController.QuoteLineDetailWrapper lineWrapper =
-            new GenerateQuoteController.QuoteLineDetailWrapper();
-        lineWrapper.id = quoteLineItem.Id;
-        lineWrapper.quoteLineId = String.isNotBlank(quoteLineItem.SalesConnectionQuoteLineID__c)
-            ? quoteLineItem.SalesConnectionQuoteLineID__c
-            : String.valueOf(quoteLineItem.Id);
-        lineWrapper.productFAMCode = famCode;
-        lineWrapper.productCode = resolveProductCode(quoteLineItem);
-        lineWrapper.productName = resolveProductName(quoteLineItem);
-        lineWrapper.uom = quoteLineItem.UOM__c;
-        lineWrapper.productSubgroupDetailName = salesCategory;
-        lineWrapper.tasSalesCategory = quoteLineItem.SalesCategory__c;
-        lineWrapper.salesCategoryDescription = quoteLineItem.SalesCategory__c;
-        lineWrapper.territoryId = quoteLineItem.TerritoryID__c;
-        lineWrapper.quantity = quantity;
-        lineWrapper.unitPrice = unitPrice;
-        lineWrapper.lineTotal = lineTotal;
-        return lineWrapper;
-    }
+	private static GenerateQuoteController.QuoteLineDetailWrapper buildLineDetailWrapper(
+		QuoteLineItem quoteLineItem,
+		String famCode,
+		String salesCategory,
+		Decimal quantity,
+		Decimal unitPrice,
+		Decimal lineTotal
+	) {
+		GenerateQuoteController.QuoteLineDetailWrapper lineWrapper =
+			new GenerateQuoteController.QuoteLineDetailWrapper();
+		lineWrapper.id = quoteLineItem.Id;
+		lineWrapper.quoteLineId = String.isNotBlank(quoteLineItem.SalesConnectionQuoteLineID__c)
+			? quoteLineItem.SalesConnectionQuoteLineID__c
+			: String.valueOf(quoteLineItem.Id);
+		lineWrapper.productFAMCode = famCode;
+		lineWrapper.productCode = resolveProductCode(quoteLineItem);
+		lineWrapper.productName = resolveProductName(quoteLineItem);
+		lineWrapper.uom = quoteLineItem.UOM__c;
+		lineWrapper.productSubgroupDetailName = salesCategory;
+		lineWrapper.tasSalesCategory = quoteLineItem.SalesCategory__c;
+		lineWrapper.salesCategoryDescription = quoteLineItem.SalesCategory__c;
+		lineWrapper.territoryId = quoteLineItem.TerritoryID__c;
+		lineWrapper.quantity = quantity;
+		lineWrapper.unitPrice = unitPrice;
+		lineWrapper.lineTotal = lineTotal;
+		lineWrapper.productNumber = quoteLineItem.ProductCode__c;
+		lineWrapper.productDescription = quoteLineItem.Description;
+		lineWrapper.lineStatus = quoteLineItem.LS_Status__c;
+		lineWrapper.expectedOrderDate = quoteLineItem.LS_ExpectedOrderDate__c;
+		lineWrapper.expectedShipDate = quoteLineItem.LS_ExpectedShipDate__c;
+		return lineWrapper;
+	}
 
-    private static String resolveProductCode(QuoteLineItem quoteLineItem) {
-        if (
-            quoteLineItem == null
-            || quoteLineItem.PricebookEntry == null
-            || quoteLineItem.PricebookEntry.Product2 == null
-        ) {
-            return null;
-        }
+	private static String resolveProductCode(QuoteLineItem quoteLineItem) {
+		if (
+			quoteLineItem == null
+			|| quoteLineItem.PricebookEntry == null
+			|| quoteLineItem.PricebookEntry.Product2 == null
+		) {
+			return null;
+		}
 
-        return quoteLineItem.PricebookEntry.Product2.ProductCode;
-    }
+		return quoteLineItem.PricebookEntry.Product2.ProductCode;
+	}
 
-    private static String resolveProductName(QuoteLineItem quoteLineItem) {
-        if (String.isNotBlank(quoteLineItem.Description)) {
-            return quoteLineItem.Description;
-        }
+	private static String resolveProductName(QuoteLineItem quoteLineItem) {
+		if (String.isNotBlank(quoteLineItem.Description)) {
+			return quoteLineItem.Description;
+		}
 
-        if (
-            quoteLineItem.PricebookEntry != null
-            && quoteLineItem.PricebookEntry.Product2 != null
-            && isUsableCatalogProductName(quoteLineItem.PricebookEntry.Product2.Name)
-        ) {
-            return quoteLineItem.PricebookEntry.Product2.Name;
-        }
+		if (
+			quoteLineItem.PricebookEntry != null
+			&& quoteLineItem.PricebookEntry.Product2 != null
+			&& isUsableCatalogProductName(quoteLineItem.PricebookEntry.Product2.Name)
+		) {
+			return quoteLineItem.PricebookEntry.Product2.Name;
+		}
 
-        return null;
-    }
+		return null;
+	}
 
-    private static Boolean isUsableCatalogProductName(String productName) {
-        if (String.isBlank(productName)) {
-            return false;
-        }
+	private static Boolean isUsableCatalogProductName(String productName) {
+		if (String.isBlank(productName)) {
+			return false;
+		}
 
-        return productName.trim().length() > 1;
-    }
+		return productName.trim().length() > 1;
+	}
 
-    private static Decimal calculateLineTotal(
-        QuoteLineItem quoteLineItem,
-        Decimal quantity,
-        Decimal unitPrice
-    ) {
-        if (quoteLineItem == null || quoteLineItem.LS_ExtendedPrice__c == null) {
-            return 0;
-        }
-        return quoteLineItem.LS_ExtendedPrice__c;
-    }
+	private static Decimal calculateLineTotal(
+		QuoteLineItem quoteLineItem,
+		Decimal quantity,
+		Decimal unitPrice
+	) {
+		if (quoteLineItem == null || quoteLineItem.LS_ExtendedPrice__c == null) {
+			return 0;
+		}
+		return quoteLineItem.LS_ExtendedPrice__c;
+	}
 
-    private static Decimal normalizeQuantity(Decimal quantity) {
-        if (quantity == null || quantity <= 0) {
-            return 1;
-        }
+	private static Decimal normalizeQuantity(Decimal quantity) {
+		if (quantity == null || quantity <= 0) {
+			return 1;
+		}
 
-        return quantity;
-    }
+		return quantity;
+	}
 }

@@ -138,6 +138,88 @@ private class RepairSignatureOverrideServiceTest {
 		);
 	}
 
+	@IsTest
+	static void workPerformedOmitsObservationCodes() {
+		OverrideFixture fixture = createFixture('GW5310-TYPE');
+		insertSignature(fixture.deviceWorkOrder.Id, fixture.repairLine.Id, fixture.otherUser);
+		Id repairCodeRtId = WorkOrderLineItemsService.getRepairCodeRecordTypeId();
+		insertRepairCodeLine(
+			fixture.deviceWorkOrder.Id,
+			repairCodeRtId,
+			'SP.GW5310-TYPE',
+			'Special Pricing',
+			'Special rate',
+			'Pricing'
+		);
+		insertRepairCodeLine(
+			fixture.deviceWorkOrder.Id,
+			repairCodeRtId,
+			'SV.GW5310-TYPE',
+			'Service Code',
+			'Service performed',
+			'Angulation'
+		);
+		insertRepairCodeLine(
+			fixture.deviceWorkOrder.Id,
+			repairCodeRtId,
+			'OC.GW5310-TYPE',
+			'Observation Code',
+			'Angulation out of Spec',
+			'Angulation'
+		);
+
+		Test.startTest();
+		RepairSignatureOverrideService.OverrideWorkspace loaded =
+			RepairSignatureOverrideService.loadWorkPerformed(fixture.deviceWorkOrder.Id);
+		Test.stopTest();
+
+		Set<String> itemNumbers = new Set<String>();
+		for (RepairSignatureOverrideService.WorkPerformedRow row : loaded.rows) {
+			itemNumbers.add(row.itemNumber);
+		}
+		Assert.areEqual(3, loaded.rows.size());
+		Assert.isTrue(itemNumbers.contains('SC.GW5310-TYPE'));
+		Assert.isTrue(itemNumbers.contains('SP.GW5310-TYPE'));
+		Assert.isTrue(itemNumbers.contains('SV.GW5310-TYPE'));
+		Assert.isFalse(itemNumbers.contains('OC.GW5310-TYPE'));
+	}
+
+	private static void insertRepairCodeLine(
+		Id workOrderId,
+		Id repairCodeRtId,
+		String productCode,
+		String lineType,
+		String description,
+		String category
+	) {
+		Product2 product = new Product2(
+			Name = description,
+			ProductCode = productCode,
+			Description = description,
+			EvalCategory__c = category,
+			ProductType__c = lineType,
+			IsActive = true
+		);
+		insert product;
+		PricebookEntry entry = new PricebookEntry(
+			Pricebook2Id = Test.getStandardPricebookId(),
+			Product2Id = product.Id,
+			UnitPrice = 1,
+			IsActive = true
+		);
+		insert entry;
+		WorkOrderLineItem lineItem = new WorkOrderLineItem(
+			WorkOrderId = workOrderId,
+			RecordTypeId = repairCodeRtId,
+			PricebookEntryId = entry.Id,
+			Quantity = 1,
+			Status = 'Approved',
+			LineType__c = lineType
+		);
+		lineItem.put('Product__c', product.Id);
+		insert lineItem;
+	}
+
 	private static void assertOverrideError(String scanValue, String expectedFragment) {
 		Boolean threw = false;
 		try {
@@ -290,7 +372,8 @@ private class RepairSignatureOverrideServiceTest {
 			RecordTypeId = repairCodeRtId,
 			PricebookEntryId = repairEntry.Id,
 			Quantity = 1,
-			Status = 'Approved'
+			Status = 'Approved',
+			LineType__c = 'Category Code'
 		);
 		fixture.repairLine.put('Product__c', repairProduct.Id);
 
@@ -310,7 +393,8 @@ private class RepairSignatureOverrideServiceTest {
 			ParentWorkOrderLineItemId = parentLine.Id,
 			PricebookEntryId = repairEntry.Id,
 			Quantity = 1,
-			Status = 'Waiting for Approval'
+			Status = 'Waiting for Approval',
+			LineType__c = 'Category Code'
 		);
 		fixture.instrumentRepairLine.put('Product__c', repairProduct.Id);
 		insert fixture.instrumentRepairLine;
@@ -330,7 +414,9 @@ private class RepairSignatureOverrideServiceTest {
 		}
 		Schema.Location resourceLocation = new Schema.Location(
 			Name = name + ' Location',
-			LocationType = 'Repair Center'
+			LocationType = 'Repair Center',
+			IsInventoryLocation = true,
+			IsMobile = true
 		);
 		insert resourceLocation;
 		ServiceResource resource = new ServiceResource(

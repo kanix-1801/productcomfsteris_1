@@ -10,19 +10,19 @@ public with sharing class ScOpportunityQuoteEventSelector {
      * @param quoteIds Salesforce Quote Ids included in the event.
      * @return Quote rows with Id and SalesConnectionQuoteID__c.
      */
-    public static List<Quote> selectQuotesByIds(Set<Id> quoteIds) {
-        if (quoteIds == null || quoteIds.isEmpty()) {
-            return new List<Quote>();
-        }
+	public static List<Quote> selectQuotesByIds(Set<Id> quoteIds) {
+		if (quoteIds == null || quoteIds.isEmpty()) {
+			return new List<Quote>();
+		}
 
-        return [
-            SELECT Id,
-                SalesConnectionQuoteID__c
-            FROM Quote
-            WHERE Id IN :quoteIds
-            WITH SYSTEM_MODE
-        ];
-    }
+		return [
+			SELECT Id,
+				SalesConnectionQuoteID__c
+			FROM Quote
+			WHERE Id IN :quoteIds
+			WITH SYSTEM_MODE
+		];
+	}
 
     /**
      * @description Loads Quotes on an Opportunity that match Sales Connection Quote Ids from the SC response.
@@ -30,21 +30,21 @@ public with sharing class ScOpportunityQuoteEventSelector {
      * @param salesConnectionQuoteIds Sales Connection Quote Ids returned by the integration.
      * @return Matching Quote rows.
      */
-    public static List<Quote> selectQuotesBySalesConnectionIds(
-        Id opportunityId,
-        Set<String> salesConnectionQuoteIds
-    ) {
-        if (opportunityId == null || salesConnectionQuoteIds == null || salesConnectionQuoteIds.isEmpty()) {
-            return new List<Quote>();
-        }
+	public static List<Quote> selectQuotesBySalesConnectionIds(
+		Id opportunityId,
+		Set<String> salesConnectionQuoteIds
+	) {
+		if (opportunityId == null || salesConnectionQuoteIds == null || salesConnectionQuoteIds.isEmpty()) {
+			return new List<Quote>();
+		}
 
-        return [
-            SELECT Id,
-                SalesConnectionQuoteID__c
-            FROM Quote
-            WHERE OpportunityId = :opportunityId
-              AND SalesConnectionQuoteID__c IN :salesConnectionQuoteIds
-            WITH SYSTEM_MODE
-        ];
-    }
+		return [
+			SELECT Id,
+				SalesConnectionQuoteID__c
+			FROM Quote
+			WHERE OpportunityId = :opportunityId
+			  AND SalesConnectionQuoteID__c IN :salesConnectionQuoteIds
+			WITH SYSTEM_MODE
+		];
+	}
 }

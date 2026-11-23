@@ -13,29 +13,29 @@
  */
 public without sharing class TASTeamAccessSelector {
 
-    public static final String DELTA_INSERT_RECORD = 'Insert Record';
-    public static final String DELTA_DELETE_RECORD = 'Delete Record';
+	public static final String DELTA_INSERT_RECORD = 'Insert Record';
+	public static final String DELTA_DELETE_RECORD = 'Delete Record';
 
-    private static final List<String> PENDING_DELTA_SCENARIOS = new List<String>{
-        DELTA_INSERT_RECORD,
-        DELTA_DELETE_RECORD
-    };
+	private static final List<String> PENDING_DELTA_SCENARIOS = new List<String>{
+		DELTA_INSERT_RECORD,
+		DELTA_DELETE_RECORD
+	};
 
     /**
      * @description GC-2596 - Resolves delta scenarios for the batch locator; omits Delete Record during an active freeze.
      *              Insert Record rows continue to process while delete processing is paused.
      * @return Pending DeltaScenario__c values for OrderLineContact__c batch query.
      */
-    private static List<String> resolveBatchScenarios() {
-        List<String> batchScenarios;
+	private static List<String> resolveBatchScenarios() {
+		List<String> batchScenarios;
         // GC-2596 - Query-only skip: exclude Delete Record while freeze window is active.
-        if (TASFreezeWindowUtil.isDeleteFreezeActive()) {
-            batchScenarios = new List<String>{ DELTA_INSERT_RECORD };
-        } else {
-            batchScenarios = new List<String>(PENDING_DELTA_SCENARIOS);
-        }
-        return batchScenarios;
-    }
+		if (TASFreezeWindowUtil.isDeleteFreezeActive()) {
+			batchScenarios = new List<String>{ DELTA_INSERT_RECORD };
+		} else {
+			batchScenarios = new List<String>(PENDING_DELTA_SCENARIOS);
+		}
+		return batchScenarios;
+	}
 
     /**
      * @description Query locator for pending OrderLineContact__c staging rows.
@@ -48,37 +48,37 @@ public without sharing class TASTeamAccessSelector {
      *              GC-3352 - Includes TAS territory number and sales category fields for AccountTeamMember insert.
      * @return Query locator for Insert/Delete rows with HRIS, TAS address, and eligible sales rep populated.
      */
-    public static Database.QueryLocator getOrderLineContactsQueryLocator() {
-        Id healthcareSalesProfileId = UserSelector.getHealthcareSalesProfileId();
-        if (healthcareSalesProfileId == null) {
-            throw new TASTeamAccessException(
-                'Healthcare Sales profile not found: ' +
-                UserSelector.HEALTHCARE_SALES_PROFILE_NAME
-            );
-        }
+	public static Database.QueryLocator getOrderLineContactsQueryLocator() {
+		Id healthcareSalesProfileId = UserSelector.getHealthcareSalesProfileId();
+		if (healthcareSalesProfileId == null) {
+			throw new TASTeamAccessException(
+				'Healthcare Sales profile not found: ' +
+				UserSelector.HEALTHCARE_SALES_PROFILE_NAME
+			);
+		}
 
-        List<String> pendingDeltaScenarios = resolveBatchScenarios(); // GC-2596 - Insert only during active delete freeze
+		List<String> pendingDeltaScenarios = resolveBatchScenarios(); // GC-2596 - Insert only during active delete freeze
 
-        return Database.getQueryLocator([
-            SELECT
-                Id,
-                HRISSalesRepId__c,
-                TASAddressId__c,
-                DeltaScenario__c,
-                AssignedSalesRep__c,
-                AssignedSalesRep__r.ProfileId,
-                TerritoryNumber__c,
-                TAS_Sales_Category__c,
-                SalesCategoryDescription__c
-            FROM OrderLineContact__c
-            WHERE DeltaScenario__c IN :pendingDeltaScenarios
-              AND AssignedSalesRep__c != null
-              AND AssignedSalesRep__r.ProfileId = :healthcareSalesProfileId
-              AND AssignedSalesRep__r.IsActive = true
-              AND HRISSalesRepId__c != null
-              AND TASAddressId__c != null
-        ]);
-    }
+		return Database.getQueryLocator([
+			SELECT
+				Id,
+				HRISSalesRepId__c,
+				TASAddressId__c,
+				DeltaScenario__c,
+				AssignedSalesRep__c,
+				AssignedSalesRep__r.ProfileId,
+				TerritoryNumber__c,
+				TAS_Sales_Category__c,
+				SalesCategoryDescription__c
+			FROM OrderLineContact__c
+			WHERE DeltaScenario__c IN :pendingDeltaScenarios
+			  AND AssignedSalesRep__c != null
+			  AND AssignedSalesRep__r.ProfileId = :healthcareSalesProfileId
+			  AND AssignedSalesRep__r.IsActive = true
+			  AND HRISSalesRepId__c != null
+			  AND TASAddressId__c != null
+		]);
+	}
 
     /**
      * @description [GCL-1]: Query locator for pending OrderLineContact__c staging rows for LS.
@@ -91,37 +91,37 @@ public without sharing class TASTeamAccessSelector {
      *              GC-3352 - Includes TAS territory number and sales category fields for AccountTeamMember insert.
      * @return Query locator for Insert/Delete rows with HRIS, TAS address, and eligible sales rep populated.
      */
-    public static Database.QueryLocator getLSOrderLineContactsQueryLocator() {
-        Id lifeSciencesSalesProfileId = UserSelector.getLifeSciencesSalesProfileId();
-        if (lifeSciencesSalesProfileId == null) {
-            throw new TASTeamAccessException(
-                'Life Sciences Sales profile not found: ' +
-                UserSelector.LIFESCIENCES_SALES_PROFILE_NAME
-            );
-        }
+	public static Database.QueryLocator getLSOrderLineContactsQueryLocator() {
+		Id lifeSciencesSalesProfileId = UserSelector.getLifeSciencesSalesProfileId();
+		if (lifeSciencesSalesProfileId == null) {
+			throw new TASTeamAccessException(
+				'Life Sciences Sales profile not found: ' +
+				UserSelector.LIFESCIENCES_SALES_PROFILE_NAME
+			);
+		}
 
-        List<String> pendingDeltaScenarios = resolveBatchScenarios(); // GC-2596 - Insert only during active delete freeze
+		List<String> pendingDeltaScenarios = resolveBatchScenarios(); // GC-2596 - Insert only during active delete freeze
 
-        return Database.getQueryLocator([
-            SELECT
-                Id,
-                HRISSalesRepId__c,
-                TASAddressId__c,
-                DeltaScenario__c,
-                AssignedSalesRep__c,
-                AssignedSalesRep__r.ProfileId,
-                TerritoryNumber__c,
-                TAS_Sales_Category__c,
-                SalesCategoryDescription__c
-            FROM OrderLineContact__c
-            WHERE DeltaScenario__c IN :pendingDeltaScenarios
-              AND AssignedSalesRep__c != null
-              AND AssignedSalesRep__r.ProfileId = :lifeSciencesSalesProfileId
-              AND AssignedSalesRep__r.IsActive = true
-              AND HRISSalesRepId__c != null
-              AND TASAddressId__c != null
-        ]);
-    }
+		return Database.getQueryLocator([
+			SELECT
+				Id,
+				HRISSalesRepId__c,
+				TASAddressId__c,
+				DeltaScenario__c,
+				AssignedSalesRep__c,
+				AssignedSalesRep__r.ProfileId,
+				TerritoryNumber__c,
+				TAS_Sales_Category__c,
+				SalesCategoryDescription__c
+			FROM OrderLineContact__c
+			WHERE DeltaScenario__c IN :pendingDeltaScenarios
+			  AND AssignedSalesRep__c != null
+			  AND AssignedSalesRep__r.ProfileId = :lifeSciencesSalesProfileId
+			  AND AssignedSalesRep__r.IsActive = true
+			  AND HRISSalesRepId__c != null
+			  AND TASAddressId__c != null
+		]);
+	}
 
     /**
      * @description Unused — HRIS user lookup delegated to UserSelector.
@@ -161,32 +161,32 @@ public without sharing class TASTeamAccessSelector {
      * @param tasAddressIds TAS address ids from OrderLineContact__c.TASAddressId__c.
      * @return Map of OracleAddressId__c to Account.
      */
-    public static Map<String, Account> selectAccountsByOracleAddressId(Set<String> tasAddressIds) {
-        Map<String, Account> accountByOracleAddressId = new Map<String, Account>();
+	public static Map<String, Account> selectAccountsByOracleAddressId(Set<String> tasAddressIds) {
+		Map<String, Account> accountByOracleAddressId = new Map<String, Account>();
 
-        if (tasAddressIds == null || tasAddressIds.isEmpty()) {
-            return accountByOracleAddressId;
-        }
+		if (tasAddressIds == null || tasAddressIds.isEmpty()) {
+			return accountByOracleAddressId;
+		}
 
-        for (Account acc : [
-            SELECT Id, OracleAddressId__c
-            FROM Account
-            WHERE OracleAddressId__c IN :tasAddressIds
-              AND OracleAddressId__c != null
-        ]) {
-            if (String.isBlank(acc.OracleAddressId__c)) {
-                continue;
-            }
+		for (Account acc : [
+			SELECT Id, OracleAddressId__c
+			FROM Account
+			WHERE OracleAddressId__c IN :tasAddressIds
+			  AND OracleAddressId__c != null
+		]) {
+			if (String.isBlank(acc.OracleAddressId__c)) {
+				continue;
+			}
 
-            String oracleAddressKey = acc.OracleAddressId__c.trim();
+			String oracleAddressKey = acc.OracleAddressId__c.trim();
 
-            if (!accountByOracleAddressId.containsKey(oracleAddressKey)) {
-                accountByOracleAddressId.put(oracleAddressKey, acc);
-            }
-        }
+			if (!accountByOracleAddressId.containsKey(oracleAddressKey)) {
+				accountByOracleAddressId.put(oracleAddressKey, acc);
+			}
+		}
 
-        return accountByOracleAddressId;
-    }
+		return accountByOracleAddressId;
+	}
 
     /**
      * @description Unused — realtime Address lookup. Realtime team access disabled (GC-3112).
@@ -270,24 +270,24 @@ public without sharing class TASTeamAccessSelector {
      * @param userIds User Ids resolved from HRIS / EmployeeNumber__c mapping.
      * @return Set of keys in accountId|userId format.
      */
-    public static Set<String> selectExistingAccountTeamKeys(Set<Id> accountIds, Set<Id> userIds) {
-        Set<String> keys = new Set<String>();
+	public static Set<String> selectExistingAccountTeamKeys(Set<Id> accountIds, Set<Id> userIds) {
+		Set<String> keys = new Set<String>();
 
-        if (accountIds == null || accountIds.isEmpty() || userIds == null || userIds.isEmpty()) {
-            return keys;
-        }
+		if (accountIds == null || accountIds.isEmpty() || userIds == null || userIds.isEmpty()) {
+			return keys;
+		}
 
-        for (AccountTeamMember atm : [
-            SELECT AccountId, UserId
-            FROM AccountTeamMember
-            WHERE AccountId IN :accountIds
-              AND UserId IN :userIds
-        ]) {
-            keys.add(buildAccountTeamKey(atm.AccountId, atm.UserId));
-        }
+		for (AccountTeamMember atm : [
+			SELECT AccountId, UserId
+			FROM AccountTeamMember
+			WHERE AccountId IN :accountIds
+			  AND UserId IN :userIds
+		]) {
+			keys.add(buildAccountTeamKey(atm.AccountId, atm.UserId));
+		}
 
-        return keys;
-    }
+		return keys;
+	}
 
     /**
      * @description Unused — realtime Opportunity Team duplicate check. Realtime disabled (GC-3112).
@@ -320,33 +320,33 @@ public without sharing class TASTeamAccessSelector {
      * @param assignmentType AssignmentType__c value; required for TAS-driven delete safety.
      * @return AccountTeamMember SObjects matching account, user, role, and assignment type.
      */
-    public static List<SObject> selectAccountTeamMembersForDelete(
-        Set<Id> accountIds,
-        Set<Id> userIds,
-        String teamMemberRole,
-        String assignmentType
-    ) {
-        List<SObject> records = new List<SObject>();
-        if (accountIds == null || accountIds.isEmpty() || userIds == null || userIds.isEmpty()) {
-            return records;
-        }
+	public static List<SObject> selectAccountTeamMembersForDelete(
+		Set<Id> accountIds,
+		Set<Id> userIds,
+		String teamMemberRole,
+		String assignmentType
+	) {
+		List<SObject> records = new List<SObject>();
+		if (accountIds == null || accountIds.isEmpty() || userIds == null || userIds.isEmpty()) {
+			return records;
+		}
 
-        if (String.isBlank(assignmentType)) {
-            throw new TASTeamAccessException(
-                'AssignmentType__c is required when selecting AccountTeamMember rows for delete'
-            );
-        }
+		if (String.isBlank(assignmentType)) {
+			throw new TASTeamAccessException(
+				'AssignmentType__c is required when selecting AccountTeamMember rows for delete'
+			);
+		}
 
-        records.addAll([
-            SELECT Id, AccountId, UserId, TeamMemberRole, AssignmentType__c
-            FROM AccountTeamMember
-            WHERE AccountId IN :accountIds
-              AND UserId IN :userIds
-              AND TeamMemberRole = :teamMemberRole
-              AND AssignmentType__c = :assignmentType
-        ]);
-        return records;
-    }
+		records.addAll([
+			SELECT Id, AccountId, UserId, TeamMemberRole, AssignmentType__c
+			FROM AccountTeamMember
+			WHERE AccountId IN :accountIds
+			  AND UserId IN :userIds
+			  AND TeamMemberRole = :teamMemberRole
+			  AND AssignmentType__c = :assignmentType
+		]);
+		return records;
+	}
 
     /**
      * @description Unused at runtime — batch is Account Team only. Realtime disabled (GC-3112).
@@ -381,10 +381,10 @@ public without sharing class TASTeamAccessSelector {
      * @param userId User Id.
      * @return Composite key in accountId|userId format.
      */
-    public static String buildAccountTeamKey(Id accountId, Id userId) {
-        String accountTeamKey = String.valueOf(accountId) + '|' + String.valueOf(userId);
-        return accountTeamKey;
-    }
+	public static String buildAccountTeamKey(Id accountId, Id userId) {
+		String accountTeamKey = String.valueOf(accountId) + '|' + String.valueOf(userId);
+		return accountTeamKey;
+	}
 
     /**
      * @description Unused — Opportunity Team composite key; batch is Account Team only (GC-3112).
@@ -419,20 +419,20 @@ public without sharing class TASTeamAccessSelector {
      * @param deltaScenario OrderLineContact__c.DeltaScenario__c value.
      * @return True when value equals Insert Record.
      */
-    public static Boolean isInsertScenario(String deltaScenario) {
-        Boolean isInsert = DELTA_INSERT_RECORD == deltaScenario;
-        return isInsert;
-    }
+	public static Boolean isInsertScenario(String deltaScenario) {
+		Boolean isInsert = DELTA_INSERT_RECORD == deltaScenario;
+		return isInsert;
+	}
 
     /**
      * @description Indicates whether an OrderLineContact__c row should revoke team access.
      * @param deltaScenario OrderLineContact__c.DeltaScenario__c value.
      * @return True when value equals Delete Record.
      */
-    public static Boolean isDeleteScenario(String deltaScenario) {
-        Boolean isDelete = DELTA_DELETE_RECORD == deltaScenario;
-        return isDelete;
-    }
+	public static Boolean isDeleteScenario(String deltaScenario) {
+		Boolean isDelete = DELTA_DELETE_RECORD == deltaScenario;
+		return isDelete;
+	}
 
     /**
      * @description Unused — realtime OLC lookup. Realtime team access disabled (GC-3112).

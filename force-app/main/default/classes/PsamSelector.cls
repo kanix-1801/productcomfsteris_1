@@ -15,44 +15,44 @@ public with sharing class PsamSelector {
      * @param famCodes Set of Product FAM codes.
      * @return Matching PSAM records.
      */
-    public static List<PSAM__c> selectByFamCodes(Set<String> famCodes) {
-        if (famCodes == null || famCodes.isEmpty()) {
-            return new List<PSAM__c>();
-        }
+	public static List<PSAM__c> selectByFamCodes(Set<String> famCodes) {
+		if (famCodes == null || famCodes.isEmpty()) {
+			return new List<PSAM__c>();
+		}
 
-        return [
-            SELECT Id,
-                Name,
-                ProductFAMCode__c,
-                ProductGroupName__c,
-                ProductSubgroupName__c,
-                ProductSubgroupDetailName__c
-            FROM PSAM__c
-            WHERE ProductFAMCode__c IN :famCodes
-            WITH SYSTEM_MODE
-        ];
-    }
+		return [
+			SELECT Id,
+				Name,
+				ProductFAMCode__c,
+				ProductGroupName__c,
+				ProductSubgroupName__c,
+				ProductSubgroupDetailName__c
+			FROM PSAM__c
+			WHERE ProductFAMCode__c IN :famCodes
+			WITH SYSTEM_MODE
+		];
+	}
 
     /**
      * @description Selects PSAM records by Id (Product2.PSAM__c lookup target).
      * @param psamIds Set of PSAM record Ids.
      * @return PSAM__c rows with ProductSubgroupDetailName__c.
      */
-    public static List<PSAM__c> selectByIds(Set<Id> psamIds) {
-        if (psamIds == null || psamIds.isEmpty()) {
-            return new List<PSAM__c>();
-        }
+	public static List<PSAM__c> selectByIds(Set<Id> psamIds) {
+		if (psamIds == null || psamIds.isEmpty()) {
+			return new List<PSAM__c>();
+		}
 
-        return [
-            SELECT Id,
-                Name,
-                ProductFAMCode__c,
-                ProductGroupName__c,
-                ProductSubgroupName__c,
-                ProductSubgroupDetailName__c
-            FROM PSAM__c
-            WHERE Id IN :psamIds
-            WITH SYSTEM_MODE
-        ];
-    }
+		return [
+			SELECT Id,
+				Name,
+				ProductFAMCode__c,
+				ProductGroupName__c,
+				ProductSubgroupName__c,
+				ProductSubgroupDetailName__c
+			FROM PSAM__c
+			WHERE Id IN :psamIds
+			WITH SYSTEM_MODE
+		];
+	}
 }

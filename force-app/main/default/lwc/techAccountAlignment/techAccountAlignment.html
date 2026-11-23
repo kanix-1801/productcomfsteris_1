@@ -2,22 +2,24 @@
     <lightning-card title="Tech Account Alignment" icon-name="standard:service_resource">
         <div class="slds-p-around_medium">
             <p class="slds-m-bottom_small">
-                Upload the Tech Account Alignment file, then start processing. Each valid row creates an
-                AddressResourcePreference record for the Address account that matches Oracle Address Id.
+                Upload the Tech Account Alignment file, then process it. Each valid row creates an
+                AddressResourcePreference record for the Address account that matches ADDID.
             </p>
             <p class="slds-text-body_small slds-m-bottom_medium">
-                Required columns: Address ID, User ID. Optional: Territory Type, Work Type, Preference Level
-                (defaults to Preferred).
+                Required columns: ADDID, HRIS ID. Optional: Territory Type, WORK TYPE, PREFERENCE TYPE
+                (defaults to Preferred). HRIS ID is the Employee Number on the Salesforce user.
             </p>
 
             <div class="slds-m-bottom_medium">
-                <lightning-file-upload
-                    label="Upload assignment file"
-                    name="techAccountAlignmentUpload"
-                    accept={acceptedFormats}
-                    onuploadfinished={handleUploadFinished}
-                    disabled={isBusy}
-                ></lightning-file-upload>
+                <div class="file-upload">
+                    <lightning-file-upload
+                        label="Upload assignment file"
+                        name="techAccountAlignmentUpload"
+                        accept={acceptedFormats}
+                        onuploadfinished={handleUploadFinished}
+                        disabled={isBusy}
+                    ></lightning-file-upload>
+                </div>
                 <template lwc:if={uploadedFileName}>
                     <p class="slds-m-top_x-small slds-text-body_small">Selected file: {uploadedFileName}</p>
                 </template>
@@ -26,15 +28,22 @@
             <div class="slds-m-bottom_medium">
                 <lightning-button
                     variant="brand"
-                    label="Start Upload"
+                    label="Process Data"
                     onclick={handleStartUpload}
                     disabled={isStartDisabled}
                     class="slds-m-right_small"
                 ></lightning-button>
                 <lightning-button
-                    variant="neutral"
+                    variant="brand"
                     label="Download Template"
                     onclick={handleDownloadTemplate}
+                    disabled={isBusy}
+                    class="slds-m-right_small"
+                ></lightning-button>
+                <lightning-button
+                    variant="brand"
+                    label="Download Error File"
+                    onclick={handleDownloadErrorFile}
                     disabled={isBusy}
                 ></lightning-button>
             </div>

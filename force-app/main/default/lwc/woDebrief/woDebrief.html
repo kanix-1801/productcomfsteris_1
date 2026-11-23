@@ -35,7 +35,7 @@
 	<!-- ── Main content ──────────────────────────────────────────────── -->
 	<template lwc:if={showDebrief}>
 
-		<!-- ── WO Header (single row: WO #, Status, Account, Order Type) ── -->
+		<!-- ── WO Header (single row: WO #, Status, Account, Device Inspection Summary) ── -->
 		<div class="wo-header">
 			<div class="header-toolbar">
 				<lightning-button
@@ -57,9 +57,9 @@
 					<div class="field-label">Account</div>
 					<div class="field-value">{woAccountName}</div>
 				</div>
-				<div class="header-field">
-					<div class="field-label">Order Type</div>
-					<div class="field-value">{woType}</div>
+				<div class="header-field header-field_summary">
+					<div class="field-label">Device Inspection Summary</div>
+					<div class="field-value field-value_wrap">{deviceInspectionSummary}</div>
 				</div>
 			</div>
 			<div class="header-picture-action">

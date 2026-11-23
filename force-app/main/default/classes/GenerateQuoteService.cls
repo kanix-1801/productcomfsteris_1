@@ -8,29 +8,29 @@
 * GC-2642 Service class for Generate and Refresh Quote Button on Opportunity.
 */
 public with sharing class GenerateQuoteService {
-    public static final String SCENARIO = 'Generate Quote';
-    public static final String LOGGER_TAG = 'GenerateQuote';
-    public static final String QUOTE_STATUS_DRAFT = 'Draft';
-    public static final String QUOTE_STATUS_OPEN = 'Open';
-    public static final String QUOTE_RECORD_TYPE_DEVELOPER_NAME = 'HCSales';
-    public static final String QUOTE_ACCESS_DENIED_MESSAGE =
-        'You can\'t perform this operation because you don\'t have edit access to this Opportunity';
-    public static final String NO_ACTIVE_PRICEBOOK_ENTRIES_MESSAGE =
-        'No active products were found in the Opportunity Price Book. Add active Pricebook Entries before generating a Quote.';
-    public static final String QUOTE_TYPE_NORMAL = 'Normal Quote';
-    public static final String QUOTE_TYPE_TRIAL = 'Trial Quote';
-    public static final String QUOTE_TYPE_SAMPLE = 'Sample Quote';
-    public static final String QUOTE_TYPE_GOODWILL = 'Goodwill Quote';
-    public static final String OPPORTUNITY_RECORD_TYPE_GOODWILL = 'HC_Sales_Customer_Goodwill_Support';
+	public static final String SCENARIO = 'Generate Quote';
+	public static final String LOGGER_TAG = 'GenerateQuote';
+	public static final String QUOTE_STATUS_DRAFT = 'Draft';
+	public static final String QUOTE_STATUS_OPEN = 'Open';
+	public static final String QUOTE_RECORD_TYPE_DEVELOPER_NAME = 'HCSales';
+	public static final String QUOTE_ACCESS_DENIED_MESSAGE =
+		'You can\'t perform this operation because you don\'t have edit access to this Opportunity';
+	public static final String NO_ACTIVE_PRICEBOOK_ENTRIES_MESSAGE =
+		'No active products were found in the Opportunity Price Book. Add active Pricebook Entries before generating a Quote.';
+	public static final String QUOTE_TYPE_NORMAL = 'Normal Quote';
+	public static final String QUOTE_TYPE_TRIAL = 'Trial Quote';
+	public static final String QUOTE_TYPE_SAMPLE = 'Sample Quote';
+	public static final String QUOTE_TYPE_GOODWILL = 'Goodwill Quote';
+	public static final String OPPORTUNITY_RECORD_TYPE_GOODWILL = 'HC_Sales_Customer_Goodwill_Support';
 
-    @TestVisible
-    private static Boolean throwTestException = false;
+	@TestVisible
+	private static Boolean throwTestException = false;
 
-    @TestVisible
-    private static Boolean testHasEditAccessOverride;
+	@TestVisible
+	private static Boolean testHasEditAccessOverride;
 
-    public static final String QUOTE_RECORD_TYPE_DEVELOPER_NAME_LS = 'LSSales';     //GCL-66
-    public static final String QUOTE_ACCESS_DENIED_MESSAGE_LS = 'You can\'t perform this operation because you don\'t have edit access to this Opportunity. Reach out to an Opportunity Team member to request access.';    //GCL-66
+	public static final String QUOTE_RECORD_TYPE_DEVELOPER_NAME_LS = 'LSSales';     //GCL-66
+	public static final String QUOTE_ACCESS_DENIED_MESSAGE_LS = 'You can\'t perform this operation because you don\'t have edit access to this Opportunity. Reach out to an Opportunity Team member to request access.';    //GCL-66
     
 
 /**
@@ -43,9 +43,9 @@ public with sharing class GenerateQuoteService {
 * @example
 * GenerateQuoteService.getQuotes(opportunityId);
 */
-    public static List<GenerateQuoteController.QuoteWrapper> getQuotes(Id opportunityId) {
-        return getQuotes(opportunityId, null);
-    }
+	public static List<GenerateQuoteController.QuoteWrapper> getQuotes(Id opportunityId) {
+		return getQuotes(opportunityId, null);
+	}
 
     /**
      * @description Returns quotes for an Opportunity, optionally filtered by Quote Type.
@@ -53,12 +53,12 @@ public with sharing class GenerateQuoteService {
      * @param quoteTypeFilter Optional QuoteType__c value to filter results.
      * @return Quote wrapper rows for the LWC.
      */
-    public static List<GenerateQuoteController.QuoteWrapper> getQuotes(
-        Id opportunityId,
-        String quoteTypeFilter
-    ) {
-        return getQuotes(opportunityId, quoteTypeFilter, false);
-    }
+	public static List<GenerateQuoteController.QuoteWrapper> getQuotes(
+		Id opportunityId,
+		String quoteTypeFilter
+	) {
+		return getQuotes(opportunityId, quoteTypeFilter, false);
+	}
 
     /**
      * @description Returns quotes for an Opportunity with optional filters.
@@ -67,13 +67,13 @@ public with sharing class GenerateQuoteService {
      * @param excludeForecastIneligible When true, omit forecast-ineligible quotes.
      * @return Quote wrapper rows for the LWC.
      */
-    public static List<GenerateQuoteController.QuoteWrapper> getQuotes(
-        Id opportunityId,
-        String quoteTypeFilter,
-        Boolean excludeForecastIneligible
-    ) {
-        return getQuotes(opportunityId, quoteTypeFilter, excludeForecastIneligible, null);
-    }
+	public static List<GenerateQuoteController.QuoteWrapper> getQuotes(
+		Id opportunityId,
+		String quoteTypeFilter,
+		Boolean excludeForecastIneligible
+	) {
+		return getQuotes(opportunityId, quoteTypeFilter, excludeForecastIneligible, null);
+	}
 
     /**
      * @description Returns quotes for an Opportunity with optional filters.
@@ -83,21 +83,21 @@ public with sharing class GenerateQuoteService {
      * @param trialIdFilter Optional Trial__c Id to limit results to one Trial record.
      * @return Quote wrapper rows for the LWC.
      */
-    public static List<GenerateQuoteController.QuoteWrapper> getQuotes(
-        Id opportunityId,
-        String quoteTypeFilter,
-        Boolean excludeForecastIneligible,
-        Id trialIdFilter
-    ) {
-        return getQuotes(
-            opportunityId,
-            quoteTypeFilter,
-            excludeForecastIneligible,
-            trialIdFilter,
-            null,
-            false
-        );
-    }
+	public static List<GenerateQuoteController.QuoteWrapper> getQuotes(
+		Id opportunityId,
+		String quoteTypeFilter,
+		Boolean excludeForecastIneligible,
+		Id trialIdFilter
+	) {
+		return getQuotes(
+			opportunityId,
+			quoteTypeFilter,
+			excludeForecastIneligible,
+			trialIdFilter,
+			null,
+			false
+		);
+	}
 
     /**
      * @description Returns quotes for an Opportunity with optional filters.
@@ -108,22 +108,22 @@ public with sharing class GenerateQuoteService {
      * @param sampleIdFilter Optional Sample__c Id to limit results to one Sample record.
      * @return Quote wrapper rows for the LWC.
      */
-    public static List<GenerateQuoteController.QuoteWrapper> getQuotes(
-        Id opportunityId,
-        String quoteTypeFilter,
-        Boolean excludeForecastIneligible,
-        Id trialIdFilter,
-        Id sampleIdFilter
-    ) {
-        return getQuotes(
-            opportunityId,
-            quoteTypeFilter,
-            excludeForecastIneligible,
-            trialIdFilter,
-            sampleIdFilter,
-            false
-        );
-    }
+	public static List<GenerateQuoteController.QuoteWrapper> getQuotes(
+		Id opportunityId,
+		String quoteTypeFilter,
+		Boolean excludeForecastIneligible,
+		Id trialIdFilter,
+		Id sampleIdFilter
+	) {
+		return getQuotes(
+			opportunityId,
+			quoteTypeFilter,
+			excludeForecastIneligible,
+			trialIdFilter,
+			sampleIdFilter,
+			false
+		);
+	}
 
     /**
      * @description Returns quotes for an Opportunity. Portal requests omit prices until Approved.
@@ -135,47 +135,57 @@ public with sharing class GenerateQuoteService {
      * @param forDealerPortal When true, pricing is returned only for Approved quotes.
      * @return Quote wrapper rows for the LWC.
      */
-    public static List<GenerateQuoteController.QuoteWrapper> getQuotes(
-        Id opportunityId,
-        String quoteTypeFilter,
-        Boolean excludeForecastIneligible,
-        Id trialIdFilter,
-        Id sampleIdFilter,
-        Boolean forDealerPortal
-    ) {
-        validateOpportunityId(opportunityId);
+	public static List<GenerateQuoteController.QuoteWrapper> getQuotes(
+		Id opportunityId,
+		String quoteTypeFilter,
+		Boolean excludeForecastIneligible,
+		Id trialIdFilter,
+		Id sampleIdFilter,
+		Boolean forDealerPortal
+	) {
+		validateOpportunityId(opportunityId);
 
-        try {
-            if (throwTestException) {
-                throw new QueryException('Forced test exception');
-            }
+		try {
+			if (throwTestException) {
+				throw new QueryException('Forced test exception');
+			}
 
-            List<Quote> quoteRecords = QuoteSelector.selectByOpportunityIdWithLineItems(
-                opportunityId,
-                quoteTypeFilter,
-                excludeForecastIneligible == true,
-                trialIdFilter,
-                sampleIdFilter
-            );
-            Opportunity opportunityRecord = OpportunitySelector.selectById(opportunityId);
-            Account accountRecord = getAccountForSalesConnection(opportunityRecord);
-            List<GenerateQuoteController.QuoteWrapper> quoteWrappers = mapQuotesToWrappers(
-                quoteRecords,
-                opportunityRecord,
-                accountRecord
-            );
-            if (forDealerPortal == true) {
-                stripUnapprovedPortalPricing(quoteWrappers);
-            }
-            return quoteWrappers;
-        } catch (Exception exceptionValue) {
-            Logger.setScenario(SCENARIO);
-            Logger.error('Error retrieving quotes for opportunity.', exceptionValue).addTag(LOGGER_TAG);
-            throw new GenerateQuoteException('Unable to retrieve quotes.');
-        }finally {
-            Logger.saveLog();
-        }
-    }
+            //GCL-353: START
+			List<Quote> quoteRecords = GeneralUtility.getCurrentBusinessLine() == GeneralUtility.HC_STR
+                ? QuoteSelector.selectByOpportunityIdWithLineItems(   //HC
+				opportunityId,
+				quoteTypeFilter,
+				excludeForecastIneligible == true,
+				trialIdFilter,
+				sampleIdFilter
+			) : LSQuoteSelector.lsSelectByOpportunityIdWithLineItems(   //LS
+				opportunityId,
+				quoteTypeFilter,
+				excludeForecastIneligible == true,
+				trialIdFilter,
+				sampleIdFilter
+			);
+            //GCL-353: END
+
+			Opportunity opportunityRecord = OpportunitySelector.selectById(opportunityId);
+			Account accountRecord = getAccountForSalesConnection(opportunityRecord);
+			List<GenerateQuoteController.QuoteWrapper> quoteWrappers = mapQuotesToWrappers(
+				quoteRecords,
+				opportunityRecord,
+				accountRecord
+			);
+			if (forDealerPortal == true) {
+				stripUnapprovedPortalPricing(quoteWrappers);
+			}
+			return quoteWrappers;
+		} catch (Exception exceptionValue) {
+			Logger.setScenario(SCENARIO);
+			Logger.error('Error retrieving quotes for opportunity.', exceptionValue).addTag(LOGGER_TAG);
+			throw new GenerateQuoteException('Unable to retrieve quotes.');
+		}finally {
+			Logger.saveLog();
+		}
+	}
 
     /**
      * @description Syncs Quote Forecast Confidence to Sales Connection (GC-3457) then applies SF update on success.
@@ -185,82 +195,82 @@ public with sharing class GenerateQuoteService {
      * @param syncFromOpportunity When true, copies the Opportunity Forecast Confidence first.
      * @return Updated quote values for the UI.
      */
-    public static GenerateQuoteController.QuoteWrapper syncQuoteForecastConfidence(
-        Id opportunityId,
-        Id quoteId,
-        String quoteForecastConfidence,
-        Boolean syncFromOpportunity
-    ) {
-        validateOpportunityId(opportunityId);
-        validateQuoteAccess(opportunityId);
+	public static GenerateQuoteController.QuoteWrapper syncQuoteForecastConfidence(
+		Id opportunityId,
+		Id quoteId,
+		String quoteForecastConfidence,
+		Boolean syncFromOpportunity
+	) {
+		validateOpportunityId(opportunityId);
+		validateQuoteAccess(opportunityId);
 
-        if (quoteId == null) {
-            throw new GenerateQuoteException('Select a quote to sync forecast confidence.');
-        }
+		if (quoteId == null) {
+			throw new GenerateQuoteException('Select a quote to sync forecast confidence.');
+		}
 
-        List<Quote> quoteRecords = QuoteSelector.selectByIdsWithLineItems(new Set<Id>{ quoteId });
-        if (quoteRecords.isEmpty() || quoteRecords[0].OpportunityId != opportunityId) {
-            throw new GenerateQuoteException('Quote record was not found for this Opportunity.');
-        }
+		List<Quote> quoteRecords = QuoteSelector.selectByIdsWithLineItems(new Set<Id>{ quoteId });
+		if (quoteRecords.isEmpty() || quoteRecords[0].OpportunityId != opportunityId) {
+			throw new GenerateQuoteException('Quote record was not found for this Opportunity.');
+		}
 
-        Quote existingQuote = quoteRecords[0];
-        String resolvedForecastConfidence = quoteForecastConfidence;
+		Quote existingQuote = quoteRecords[0];
+		String resolvedForecastConfidence = quoteForecastConfidence;
 
-        if (syncFromOpportunity == true) {
-            Opportunity opportunityRecord = OpportunitySelector.selectForecastConfidenceByIds(
-                new Set<Id>{ opportunityId }
-            ).get(opportunityId);
+		if (syncFromOpportunity == true) {
+			Opportunity opportunityRecord = OpportunitySelector.selectForecastConfidenceByIds(
+				new Set<Id>{ opportunityId }
+			).get(opportunityId);
 
-            if (opportunityRecord == null) {
-                throw new GenerateQuoteException('Opportunity record was not found.');
-            }
+			if (opportunityRecord == null) {
+				throw new GenerateQuoteException('Opportunity record was not found.');
+			}
 
-            resolvedForecastConfidence = QuoteService.mapOpportunityForecastConfidenceToQuote(
-                opportunityRecord.ForecastConfidenceLevel__c
-            );
+			resolvedForecastConfidence = QuoteService.mapOpportunityForecastConfidenceToQuote(
+				opportunityRecord.ForecastConfidenceLevel__c
+			);
 
-            if (String.isBlank(resolvedForecastConfidence)) {
-                throw new GenerateQuoteException(
-                    'The Opportunity does not have a Forecast Confidence value to sync.'
-                );
-            }
-        }
+			if (String.isBlank(resolvedForecastConfidence)) {
+				throw new GenerateQuoteException(
+					'The Opportunity does not have a Forecast Confidence value to sync.'
+				);
+			}
+		}
 
-        if (String.isBlank(resolvedForecastConfidence)) {
-            throw new GenerateQuoteException('Select a Quote Forecast Confidence value.');
-        }
+		if (String.isBlank(resolvedForecastConfidence)) {
+			throw new GenerateQuoteException('Select a Quote Forecast Confidence value.');
+		}
 
-        GenerateQuoteController.QuoteWrapper quoteWrapper = new GenerateQuoteController.QuoteWrapper();
-        quoteWrapper.id = existingQuote.Id;
-        quoteWrapper.quoteForecastConfidence = existingQuote.QuoteForecastConfidence__c;
-        quoteWrapper.opportunityForecastConfidence = getOpportunityForecastConfidence(opportunityId);
+		GenerateQuoteController.QuoteWrapper quoteWrapper = new GenerateQuoteController.QuoteWrapper();
+		quoteWrapper.id = existingQuote.Id;
+		quoteWrapper.quoteForecastConfidence = existingQuote.QuoteForecastConfidence__c;
+		quoteWrapper.opportunityForecastConfidence = getOpportunityForecastConfidence(opportunityId);
 
-        if (resolvedForecastConfidence == existingQuote.QuoteForecastConfidence__c) {
-            return quoteWrapper;
-        }
+		if (resolvedForecastConfidence == existingQuote.QuoteForecastConfidence__c) {
+			return quoteWrapper;
+		}
 
-        ScOpportunityQuoteEventService.synchronizeForecastConfidenceUpdate(
-            opportunityId,
-            resolvedForecastConfidence,
-            new Set<Id>{ quoteId },
-            UserInfo.getUserId()
-        );
+		ScOpportunityQuoteEventService.synchronizeForecastConfidenceUpdate(
+			opportunityId,
+			resolvedForecastConfidence,
+			new Set<Id>{ quoteId },
+			UserInfo.getUserId()
+		);
 
-        List<Quote> updatedQuotes = QuoteSelector.selectByIdsWithLineItems(new Set<Id>{ quoteId });
-        if (!updatedQuotes.isEmpty()) {
-            quoteWrapper.quoteForecastConfidence = updatedQuotes[0].QuoteForecastConfidence__c;
-        }
+		List<Quote> updatedQuotes = QuoteSelector.selectByIdsWithLineItems(new Set<Id>{ quoteId });
+		if (!updatedQuotes.isEmpty()) {
+			quoteWrapper.quoteForecastConfidence = updatedQuotes[0].QuoteForecastConfidence__c;
+		}
 
-        return quoteWrapper;
-    }
+		return quoteWrapper;
+	}
 
-    private static String getOpportunityForecastConfidence(Id opportunityId) {
-        Opportunity opportunityRecord = OpportunitySelector.selectForecastConfidenceByIds(
-            new Set<Id>{ opportunityId }
-        ).get(opportunityId);
+	private static String getOpportunityForecastConfidence(Id opportunityId) {
+		Opportunity opportunityRecord = OpportunitySelector.selectForecastConfidenceByIds(
+			new Set<Id>{ opportunityId }
+		).get(opportunityId);
 
-        return opportunityRecord == null ? null : opportunityRecord.ForecastConfidenceLevel__c;
-    }
+		return opportunityRecord == null ? null : opportunityRecord.ForecastConfidenceLevel__c;
+	}
 
     /**
      * @description Triggers Refresh Quote on Sales Connection (UpsertRefreshSFQuotes). Success is HTTP 2xx only;
@@ -268,69 +278,69 @@ public with sharing class GenerateQuoteService {
      * @param opportunityId Opportunity Id.
      * @return Empty list (ack-only; UI shows toast and does not reload quote data).
      */
-    public static List<GenerateQuoteController.QuoteWrapper> refreshQuotes(Id opportunityId) {
-        validateOpportunityId(opportunityId);
-        validateQuoteAccess(opportunityId);
+	public static List<GenerateQuoteController.QuoteWrapper> refreshQuotes(Id opportunityId) {
+		validateOpportunityId(opportunityId);
+		validateQuoteAccess(opportunityId);
 
-        try {
-            if (throwTestException) {
-                throw new CalloutException('Forced test exception');
-            }
+		try {
+			if (throwTestException) {
+				throw new CalloutException('Forced test exception');
+			}
 
-            GenerateQuoteRefreshGateway.CalloutResult calloutResult =
-                GenerateQuoteRefreshGateway.refreshQuotes(
-                    RefreshQuoteRequest.fromOpportunityId(opportunityId)
-                );
+			GenerateQuoteRefreshGateway.CalloutResult calloutResult =
+				GenerateQuoteRefreshGateway.refreshQuotes(
+					RefreshQuoteRequest.fromOpportunityId(opportunityId)
+				);
 
-          if (calloutResult.retryEnqueued == true) {
-                Logger.setScenario(SCENARIO);
-                Logger.warn(
-                    'Refresh Quote callout failed; async retry enqueued. opportunityId=' + opportunityId
-                ).addTag(LOGGER_TAG);
-                throw new GenerateQuoteException(
-                    'Refresh Quote callout failed and an async retry was enqueued.'
-                );
-            }
+		  if (calloutResult.retryEnqueued == true) {
+				Logger.setScenario(SCENARIO);
+				Logger.warn(
+					'Refresh Quote callout failed; async retry enqueued. opportunityId=' + opportunityId
+				).addTag(LOGGER_TAG);
+				throw new GenerateQuoteException(
+					'Refresh Quote callout failed and an async retry was enqueued.'
+				);
+			}
 
-       	if (calloutResult.calloutSuccess != true) {
-                Logger.setScenario(SCENARIO);
-                Logger.error(
-                    'Refresh Quote callout failed. opportunityId=' + opportunityId +
-                    ', detail=' + calloutResult.errorDetail
-                ).addTag(LOGGER_TAG);
-                throw new GenerateQuoteException(
-                    String.isNotBlank(calloutResult.errorDetail)
-                        ? calloutResult.errorDetail
-                        : 'Refresh Quote callout failed.'
-                );
-            }
+	   	if (calloutResult.calloutSuccess != true) {
+				Logger.setScenario(SCENARIO);
+				Logger.error(
+					'Refresh Quote callout failed. opportunityId=' + opportunityId +
+					', detail=' + calloutResult.errorDetail
+				).addTag(LOGGER_TAG);
+				throw new GenerateQuoteException(
+					String.isNotBlank(calloutResult.errorDetail)
+						? calloutResult.errorDetail
+						: 'Refresh Quote callout failed.'
+				);
+			}
 
-            Logger.setScenario(SCENARIO);
-            Logger.info(
-                'Refresh Quote callout succeeded (ack-only). opportunityId=' + opportunityId
-            ).addTag(LOGGER_TAG);
-            return new List<GenerateQuoteController.QuoteWrapper>();
-        } catch (GenerateQuoteException exceptionValue) {
-            Logger.setScenario(SCENARIO);
-            Logger.error('Error refreshing quotes for opportunity.', exceptionValue).addTag(LOGGER_TAG);
-            throw exceptionValue;
-        } catch (Exception exceptionValue) {
-            Logger.setScenario(SCENARIO);
-            Logger.error('Error refreshing quotes for opportunity.', exceptionValue).addTag(LOGGER_TAG);
-            throw new GenerateQuoteException('Unable to refresh quotes.');
-        } finally {
-            Logger.saveLog();
-        }
-    }
+			Logger.setScenario(SCENARIO);
+			Logger.info(
+				'Refresh Quote callout succeeded (ack-only). opportunityId=' + opportunityId
+			).addTag(LOGGER_TAG);
+			return new List<GenerateQuoteController.QuoteWrapper>();
+		} catch (GenerateQuoteException exceptionValue) {
+			Logger.setScenario(SCENARIO);
+			Logger.error('Error refreshing quotes for opportunity.', exceptionValue).addTag(LOGGER_TAG);
+			throw exceptionValue;
+		} catch (Exception exceptionValue) {
+			Logger.setScenario(SCENARIO);
+			Logger.error('Error refreshing quotes for opportunity.', exceptionValue).addTag(LOGGER_TAG);
+			throw new GenerateQuoteException('Unable to refresh quotes.');
+		} finally {
+			Logger.saveLog();
+		}
+	}
 
     /**
      * @description Creates a Quote and copies Opportunity Products to Quote Line Items.
      * @param opportunityId Opportunity Id.
      * @return Create quote response DTO for the LWC.
      */
-    public static GenerateQuoteController.CreateQuoteResponse createQuote(Id opportunityId) {
-        return createQuote(opportunityId, QUOTE_TYPE_NORMAL);
-    }
+	public static GenerateQuoteController.CreateQuoteResponse createQuote(Id opportunityId) {
+		return createQuote(opportunityId, QUOTE_TYPE_NORMAL);
+	}
 
     /**
      * @description Creates a Quote and copies Opportunity Products to Quote Line Items.
@@ -338,9 +348,9 @@ public with sharing class GenerateQuoteService {
      * @param quoteType Quote Type picklist value to assign on create.
      * @return Create quote response DTO for the LWC.
      */
-    public static GenerateQuoteController.CreateQuoteResponse createQuote(Id opportunityId, String quoteType) {
-        return createQuote(opportunityId, quoteType, null);
-    }
+	public static GenerateQuoteController.CreateQuoteResponse createQuote(Id opportunityId, String quoteType) {
+		return createQuote(opportunityId, quoteType, null);
+	}
 
     /**
      * @description Creates a Quote and copies Opportunity Products to Quote Line Items.
@@ -349,13 +359,13 @@ public with sharing class GenerateQuoteService {
      * @param trialId Optional Trial record Id for Trial Quote creation.
      * @return Create quote response DTO for the LWC.
      */
-    public static GenerateQuoteController.CreateQuoteResponse createQuote(
-        Id opportunityId,
-        String quoteType,
-        Id trialId
-    ) {
-        return createQuote(opportunityId, quoteType, trialId, null);
-    }
+	public static GenerateQuoteController.CreateQuoteResponse createQuote(
+		Id opportunityId,
+		String quoteType,
+		Id trialId
+	) {
+		return createQuote(opportunityId, quoteType, trialId, null);
+	}
 
     /**
      * @description Creates a Quote and copies Opportunity Products to Quote Line Items.
@@ -365,20 +375,20 @@ public with sharing class GenerateQuoteService {
      * @param sampleId Optional Sample record Id for Sample Quote creation.
      * @return Create quote response DTO for the LWC.
      */
-    public static GenerateQuoteController.CreateQuoteResponse createQuote(
-        Id opportunityId,
-        String quoteType,
-        Id trialId,
-        Id sampleId
-    ) {
-        return createShellQuoteForSalesConnection(
-            opportunityId,
-            quoteType,
-            trialId,
-            sampleId,
-            SalesConnectionUrlService.SF_REQUEST_CREATE
-        );
-    }
+	public static GenerateQuoteController.CreateQuoteResponse createQuote(
+		Id opportunityId,
+		String quoteType,
+		Id trialId,
+		Id sampleId
+	) {
+		return createShellQuoteForSalesConnection(
+			opportunityId,
+			quoteType,
+			trialId,
+			sampleId,
+			SalesConnectionUrlService.SF_REQUEST_CREATE
+		);
+	}
 
     /**
      * @description Creates a shell Quote and returns the encrypted Sales Connection URL for copy or merge.
@@ -386,18 +396,18 @@ public with sharing class GenerateQuoteService {
      * @param sfRequest Sales Connection sfrequest value (copy or merge).
      * @return Create quote response DTO for the quick action.
      */
-    public static GenerateQuoteController.CreateQuoteResponse createShellQuoteForSalesConnectionRequest(
-        Id opportunityId,
-        String sfRequest
-    ) {
-        return createShellQuoteForSalesConnection(
-            opportunityId,
-            GenerateQuoteService.QUOTE_TYPE_NORMAL,
-            null,
-            null,
-            sfRequest
-        );
-    }
+	public static GenerateQuoteController.CreateQuoteResponse createShellQuoteForSalesConnectionRequest(
+		Id opportunityId,
+		String sfRequest
+	) {
+		return createShellQuoteForSalesConnection(
+			opportunityId,
+			GenerateQuoteService.QUOTE_TYPE_NORMAL,
+			null,
+			null,
+			sfRequest
+		);
+	}
 
     /**
      * @description Creates a shell Quote in Salesforce (Open status) and builds the Sales Connection URL.
@@ -409,98 +419,98 @@ public with sharing class GenerateQuoteService {
      * @param sfRequest Sales Connection sfrequest value (create, copy, or merge).
      * @return Create quote response DTO with encrypted Sales Connection URL.
      */
-    private static GenerateQuoteController.CreateQuoteResponse createShellQuoteForSalesConnection(
-        Id opportunityId,
-        String quoteType,
-        Id trialId,
-        Id sampleId,
-        String sfRequest
-    ) {
-        validateOpportunityId(opportunityId);
-        validateQuoteAccess(opportunityId);
-        validateSalesConnectionSfRequest(sfRequest);
+	private static GenerateQuoteController.CreateQuoteResponse createShellQuoteForSalesConnection(
+		Id opportunityId,
+		String quoteType,
+		Id trialId,
+		Id sampleId,
+		String sfRequest
+	) {
+		validateOpportunityId(opportunityId);
+		validateQuoteAccess(opportunityId);
+		validateSalesConnectionSfRequest(sfRequest);
 
-        Savepoint savepointValue = Database.setSavepoint();
+		Savepoint savepointValue = Database.setSavepoint();
 
-        try {
-            if (throwTestException) {
-                throw new DmlException('Forced test exception');
-            }
+		try {
+			if (throwTestException) {
+				throw new DmlException('Forced test exception');
+			}
 
-            Opportunity opportunityRecord = OpportunitySelector.selectById(opportunityId);
+			Opportunity opportunityRecord = OpportunitySelector.selectById(opportunityId);
 
-            if (opportunityRecord == null) {
-                throw new AuraHandledException('Opportunity record was not found.');
-            }
+			if (opportunityRecord == null) {
+				throw new AuraHandledException('Opportunity record was not found.');
+			}
 
-            if (opportunityRecord.Pricebook2Id == null) {
-                throw new AuraHandledException(
-                    'Please add a Price Book to the Opportunity before generating a Quote.'
-                );
-            }
+			if (opportunityRecord.Pricebook2Id == null) {
+				throw new AuraHandledException(
+					'Please add a Price Book to the Opportunity before generating a Quote.'
+				);
+			}
 
-            Quote newQuote = buildQuote(opportunityRecord, quoteType, trialId, sampleId);
-            insertCreatableRecords(new List<SObject>{ newQuote }, 'Quote');
+			Quote newQuote = buildQuote(opportunityRecord, quoteType, trialId, sampleId);
+			insertCreatableRecords(new List<SObject>{ newQuote }, 'Quote');
 
-            Quote insertedQuote = QuoteSelector.selectById(newQuote.Id);
+			Quote insertedQuote = QuoteSelector.selectById(newQuote.Id);
 
-            if (insertedQuote == null) {
-                throw new GenerateQuoteException('Created quote could not be retrieved.');
-            }
+			if (insertedQuote == null) {
+				throw new GenerateQuoteException('Created quote could not be retrieved.');
+			}
 
-            Account accountRecord = getAccountForSalesConnection(opportunityRecord);
-            persistStoredSalesConnectionQuoteUrl(
-                insertedQuote,
-                opportunityRecord,
-                accountRecord,
-                sfRequest
-            );
-            insertedQuote = QuoteSelector.selectById(newQuote.Id);
+			Account accountRecord = getAccountForSalesConnection(opportunityRecord);
+			persistStoredSalesConnectionQuoteUrl(
+				insertedQuote,
+				opportunityRecord,
+				accountRecord,
+				sfRequest
+			);
+			insertedQuote = QuoteSelector.selectById(newQuote.Id);
 
-            if (insertedQuote == null) {
-                throw new GenerateQuoteException('Created quote could not be retrieved.');
-            }
+			if (insertedQuote == null) {
+				throw new GenerateQuoteException('Created quote could not be retrieved.');
+			}
 
-            Logger.setScenario(SCENARIO);
-            Logger.info(
-                'Created shell quote ' +
-                resolveQuoteNumber(insertedQuote) +
-                ' for opportunity ' +
-                opportunityId +
-                ' (' +
-                sfRequest +
-                ')'
-            ).addTag(LOGGER_TAG);
+			Logger.setScenario(SCENARIO);
+			Logger.info(
+				'Created shell quote ' +
+				resolveQuoteNumber(insertedQuote) +
+				' for opportunity ' +
+				opportunityId +
+				' (' +
+				sfRequest +
+				')'
+			).addTag(LOGGER_TAG);
 
-            return mapCreateQuoteResponse(insertedQuote, opportunityRecord, accountRecord);
-        } catch (Exception exceptionValue) {
-            Database.rollback(savepointValue);
-            Logger.setScenario(SCENARIO);
-            Logger.error('Shell quote creation failed. ' + exceptionValue.getMessage()).addTag(LOGGER_TAG);
+			return mapCreateQuoteResponse(insertedQuote, opportunityRecord, accountRecord);
+		} catch (Exception exceptionValue) {
+			Database.rollback(savepointValue);
+			Logger.setScenario(SCENARIO);
+			Logger.error('Shell quote creation failed. ' + exceptionValue.getMessage()).addTag(LOGGER_TAG);
 
-            if (exceptionValue instanceof AuraHandledException) {
-                throw exceptionValue;
-            }
+			if (exceptionValue instanceof AuraHandledException) {
+				throw exceptionValue;
+			}
 
-            if (exceptionValue instanceof GenerateQuoteException) {
-                throw new AuraHandledException(exceptionValue.getMessage());
-            }
-            throw new GenerateQuoteException('Unable to create quote.');
-        } finally {
-            Logger.saveLog();
-        }
-    }
+			if (exceptionValue instanceof GenerateQuoteException) {
+				throw new AuraHandledException(exceptionValue.getMessage());
+			}
+			throw new GenerateQuoteException('Unable to create quote.');
+		} finally {
+			Logger.saveLog();
+		}
+	}
 
-    @TestVisible
-    private static void validateSalesConnectionSfRequest(String sfRequest) {
-        if (
-            !SalesConnectionUrlService.SF_REQUEST_CREATE.equals(sfRequest) &&
-            !SalesConnectionUrlService.SF_REQUEST_COPY.equals(sfRequest) &&
-            !SalesConnectionUrlService.SF_REQUEST_MERGE.equals(sfRequest)
-        ) {
-            throw new GenerateQuoteException('Unsupported Sales Connection request type.');
-        }
-    }
+	@TestVisible
+	private static void validateSalesConnectionSfRequest(String sfRequest) {
+		if (
+			!SalesConnectionUrlService.SF_REQUEST_CREATE.equals(sfRequest) &&
+			!SalesConnectionUrlService.SF_REQUEST_COPY.equals(sfRequest) &&
+			!SalesConnectionUrlService.SF_REQUEST_MERGE.equals(sfRequest)
+		) {
+			throw new GenerateQuoteException('Unsupported Sales Connection request type.');
+		}
+	}
     
     /**
 * @description
@@ -513,198 +523,198 @@ public with sharing class GenerateQuoteService {
 * GenerateQuoteService.validateOpportunityId(opportunityId);
 */
 
-    private static void validateOpportunityId(Id opportunityId) {
-        if (opportunityId == null) {
-            throw new AuraHandledException('Opportunity Id is required.');
-        }
-    }
+	private static void validateOpportunityId(Id opportunityId) {
+		if (opportunityId == null) {
+			throw new AuraHandledException('Opportunity Id is required.');
+		}
+	}
 
     /**
      * @description Ensures the current user has edit access to the Opportunity via sharing (UserRecordAccess).
      * @param opportunityId Opportunity Id.
      */
-    public static void validateQuoteAccess(Id opportunityId) {
-        validateOpportunityId(opportunityId);
+	public static void validateQuoteAccess(Id opportunityId) {
+		validateOpportunityId(opportunityId);
 
-        Opportunity opportunityRecord = OpportunitySelector.selectById(opportunityId);
+		Opportunity opportunityRecord = OpportunitySelector.selectById(opportunityId);
 
-        if (opportunityRecord == null) {
-            throw new AuraHandledException('Opportunity record was not found.');
-        }
+		if (opportunityRecord == null) {
+			throw new AuraHandledException('Opportunity record was not found.');
+		}
 
-        if (!resolveCurrentUserHasEditAccess(opportunityId)) {
+		if (!resolveCurrentUserHasEditAccess(opportunityId)) {
             //GCL-66: START
-            if(GeneralUtility.getCurrentBusinessLine() == GeneralUtility.HC_STR) {
-                throw new AuraHandledException(QUOTE_ACCESS_DENIED_MESSAGE);
-            } else {
-                throw new AuraHandledException(QUOTE_ACCESS_DENIED_MESSAGE_LS);
-            }
+			if(GeneralUtility.getCurrentBusinessLine() == GeneralUtility.HC_STR) {
+				throw new AuraHandledException(QUOTE_ACCESS_DENIED_MESSAGE);
+			} else {
+				throw new AuraHandledException(QUOTE_ACCESS_DENIED_MESSAGE_LS);
+			}
             //GCL-66: END
-        }
-    }
+		}
+	}
 
-    private static Boolean resolveCurrentUserHasEditAccess(Id opportunityId) {
-        if (Test.isRunningTest() && testHasEditAccessOverride != null) {
-            return testHasEditAccessOverride;
-        }
+	private static Boolean resolveCurrentUserHasEditAccess(Id opportunityId) {
+		if (Test.isRunningTest() && testHasEditAccessOverride != null) {
+			return testHasEditAccessOverride;
+		}
 
-        List<UserRecordAccess> accessRows = [
-            SELECT RecordId, HasEditAccess
-            FROM UserRecordAccess
-            WHERE UserId = :UserInfo.getUserId()
-            AND RecordId = :opportunityId
-            LIMIT 1
-        ];
+		List<UserRecordAccess> accessRows = [
+			SELECT RecordId, HasEditAccess
+			FROM UserRecordAccess
+			WHERE UserId = :UserInfo.getUserId()
+			AND RecordId = :opportunityId
+			LIMIT 1
+		];
 
-        return !accessRows.isEmpty() && accessRows[0].HasEditAccess;
-    }
+		return !accessRows.isEmpty() && accessRows[0].HasEditAccess;
+	}
 
-    private static Quote buildQuote(
-        Opportunity opportunityRecord,
-        String quoteType,
-        Id trialId,
-        Id sampleId
-    ) {
-        Quote newQuote = new Quote();
-        String effectiveQuoteType = resolveEffectiveQuoteType(opportunityRecord, quoteType);
-        newQuote.Name = resolveQuoteName(opportunityRecord, effectiveQuoteType);
-        newQuote.OpportunityId = opportunityRecord.Id;
-        newQuote.Pricebook2Id = opportunityRecord.Pricebook2Id;
-        newQuote.Status = QUOTE_STATUS_OPEN;
-        newQuote.ExpirationDate = Date.today().addDays(30);
-        newQuote.QuoteType__c = effectiveQuoteType;
+	private static Quote buildQuote(
+		Opportunity opportunityRecord,
+		String quoteType,
+		Id trialId,
+		Id sampleId
+	) {
+		Quote newQuote = new Quote();
+		String effectiveQuoteType = resolveEffectiveQuoteType(opportunityRecord, quoteType);
+		newQuote.Name = resolveQuoteName(opportunityRecord, effectiveQuoteType);
+		newQuote.OpportunityId = opportunityRecord.Id;
+		newQuote.Pricebook2Id = opportunityRecord.Pricebook2Id;
+		newQuote.Status = QUOTE_STATUS_OPEN;
+		newQuote.ExpirationDate = Date.today().addDays(30);
+		newQuote.QuoteType__c = effectiveQuoteType;
 
-        if (isForecastIneligibleQuoteType(effectiveQuoteType)) {
-            newQuote.IsForecastIneligible__c = true;
-        }
+		if (isForecastIneligibleQuoteType(effectiveQuoteType)) {
+			newQuote.IsForecastIneligible__c = true;
+		}
 
-        if (trialId != null && QUOTE_TYPE_TRIAL.equals(effectiveQuoteType)) {
-            newQuote.Trial__c = trialId;
-        }
+		if (trialId != null && QUOTE_TYPE_TRIAL.equals(effectiveQuoteType)) {
+			newQuote.Trial__c = trialId;
+		}
 
-        if (sampleId != null && QUOTE_TYPE_SAMPLE.equals(effectiveQuoteType)) {
-            newQuote.Sample__c = sampleId;
-        }
+		if (sampleId != null && QUOTE_TYPE_SAMPLE.equals(effectiveQuoteType)) {
+			newQuote.Sample__c = sampleId;
+		}
 
         //GCL-66: START
-        if(GeneralUtility.getCurrentBusinessLine() == GeneralUtility.HC_STR) {
-            newQuote.RecordTypeId = resolveQuoteRecordTypeId();
-        } else {
-            newQuote.RecordTypeId = resolveLSQuoteRecordTypeId();
-        }
+		if(GeneralUtility.getCurrentBusinessLine() == GeneralUtility.HC_STR) {
+			newQuote.RecordTypeId = resolveQuoteRecordTypeId();
+		} else {
+			newQuote.RecordTypeId = resolveLSQuoteRecordTypeId();
+		}
         //GCL-66: END
 
-        applyQuoteCurrencyFromOpportunity(newQuote, opportunityRecord);
+		applyQuoteCurrencyFromOpportunity(newQuote, opportunityRecord);
 
-        return newQuote;
-    }
+		return newQuote;
+	}
 
-    @TestVisible
-    private static String resolveQuoteType(String quoteType) {
-        if (QUOTE_TYPE_TRIAL.equals(quoteType)) {
-            return QUOTE_TYPE_TRIAL;
-        }
+	@TestVisible
+	private static String resolveQuoteType(String quoteType) {
+		if (QUOTE_TYPE_TRIAL.equals(quoteType)) {
+			return QUOTE_TYPE_TRIAL;
+		}
 
-        if (QUOTE_TYPE_SAMPLE.equals(quoteType)) {
-            return QUOTE_TYPE_SAMPLE;
-        }
+		if (QUOTE_TYPE_SAMPLE.equals(quoteType)) {
+			return QUOTE_TYPE_SAMPLE;
+		}
 
-        if (QUOTE_TYPE_GOODWILL.equals(quoteType)) {
-            return QUOTE_TYPE_GOODWILL;
-        }
+		if (QUOTE_TYPE_GOODWILL.equals(quoteType)) {
+			return QUOTE_TYPE_GOODWILL;
+		}
 
-        return QUOTE_TYPE_NORMAL;
-    }
+		return QUOTE_TYPE_NORMAL;
+	}
 
-    @TestVisible
-    private static String resolveEffectiveQuoteType(Opportunity opportunityRecord, String quoteType) {
-        return resolveQuoteType(quoteType);
-    }
+	@TestVisible
+	private static String resolveEffectiveQuoteType(Opportunity opportunityRecord, String quoteType) {
+		return resolveQuoteType(quoteType);
+	}
 
-    @TestVisible
-    private static Boolean isForecastIneligibleQuoteType(String quoteType) {
-        return QUOTE_TYPE_TRIAL.equals(quoteType) ||
-            QUOTE_TYPE_SAMPLE.equals(quoteType) ||
-            QUOTE_TYPE_GOODWILL.equals(quoteType);
-    }
+	@TestVisible
+	private static Boolean isForecastIneligibleQuoteType(String quoteType) {
+		return QUOTE_TYPE_TRIAL.equals(quoteType) ||
+			QUOTE_TYPE_SAMPLE.equals(quoteType) ||
+			QUOTE_TYPE_GOODWILL.equals(quoteType);
+	}
 
-    @TestVisible
-    private static Boolean isScopedQuoteType(String quoteType) {
-        return QUOTE_TYPE_TRIAL.equals(quoteType) ||
-            QUOTE_TYPE_SAMPLE.equals(quoteType) ||
-            QUOTE_TYPE_GOODWILL.equals(quoteType);
-    }
+	@TestVisible
+	private static Boolean isScopedQuoteType(String quoteType) {
+		return QUOTE_TYPE_TRIAL.equals(quoteType) ||
+			QUOTE_TYPE_SAMPLE.equals(quoteType) ||
+			QUOTE_TYPE_GOODWILL.equals(quoteType);
+	}
 
-    @TestVisible
-    private static String resolveQuoteName(Opportunity opportunityRecord, String quoteType) {
-        String resolvedQuoteType = resolveQuoteType(quoteType);
+	@TestVisible
+	private static String resolveQuoteName(Opportunity opportunityRecord, String quoteType) {
+		String resolvedQuoteType = resolveQuoteType(quoteType);
 
-        if (QUOTE_TYPE_TRIAL.equals(resolvedQuoteType)) {
-            return 'Trial Quote - ' + opportunityRecord.Name;
-        }
+		if (QUOTE_TYPE_TRIAL.equals(resolvedQuoteType)) {
+			return 'Trial Quote - ' + opportunityRecord.Name;
+		}
 
-        if (QUOTE_TYPE_SAMPLE.equals(resolvedQuoteType)) {
-            return 'Sample Quote - ' + opportunityRecord.Name;
-        }
+		if (QUOTE_TYPE_SAMPLE.equals(resolvedQuoteType)) {
+			return 'Sample Quote - ' + opportunityRecord.Name;
+		}
 
-        if (QUOTE_TYPE_GOODWILL.equals(resolvedQuoteType)) {
-            return 'Goodwill Quote - ' + opportunityRecord.Name;
-        }
+		if (QUOTE_TYPE_GOODWILL.equals(resolvedQuoteType)) {
+			return 'Goodwill Quote - ' + opportunityRecord.Name;
+		}
 
-        return 'Quote - ' + opportunityRecord.Name;
-    }
+		return 'Quote - ' + opportunityRecord.Name;
+	}
 
     /**
      * @description Aligns Quote currency with the parent Opportunity in multi-currency orgs.
      * @param quoteRecord Quote being created.
      * @param opportunityRecord Parent Opportunity.
      */
-    public static void applyQuoteCurrencyFromOpportunity(
-        Quote quoteRecord,
-        Opportunity opportunityRecord
-    ) {
-        if (
-            quoteRecord == null ||
-            opportunityRecord == null ||
-            !UserInfo.isMultiCurrencyOrganization()
-        ) {
-            return;
-        }
+	public static void applyQuoteCurrencyFromOpportunity(
+		Quote quoteRecord,
+		Opportunity opportunityRecord
+	) {
+		if (
+			quoteRecord == null ||
+			opportunityRecord == null ||
+			!UserInfo.isMultiCurrencyOrganization()
+		) {
+			return;
+		}
 
-        quoteRecord.put('CurrencyIsoCode', opportunityRecord.get('CurrencyIsoCode'));
-    }
+		quoteRecord.put('CurrencyIsoCode', opportunityRecord.get('CurrencyIsoCode'));
+	}
 
     /**
      * @description Resolves the HC_Sales Quote record type Id when available in the org.
      * @return HC_Sales record type Id, or null when unavailable.
      */
-    public static Id resolveHcSalesQuoteRecordTypeId() {
-        return resolveQuoteRecordTypeId();
-    }
+	public static Id resolveHcSalesQuoteRecordTypeId() {
+		return resolveQuoteRecordTypeId();
+	}
 
-    private static Id resolveQuoteRecordTypeId() {
-        Map<String, Schema.RecordTypeInfo> recordTypesByDeveloperName =
-            Schema.SObjectType.Quote.getRecordTypeInfosByDeveloperName();
+	private static Id resolveQuoteRecordTypeId() {
+		Map<String, Schema.RecordTypeInfo> recordTypesByDeveloperName =
+			Schema.SObjectType.Quote.getRecordTypeInfosByDeveloperName();
 
-        if (!recordTypesByDeveloperName.containsKey(QUOTE_RECORD_TYPE_DEVELOPER_NAME)) {
-            return null;
-        }
+		if (!recordTypesByDeveloperName.containsKey(QUOTE_RECORD_TYPE_DEVELOPER_NAME)) {
+			return null;
+		}
 
-        Schema.RecordTypeInfo recordTypeInfo =
-            recordTypesByDeveloperName.get(QUOTE_RECORD_TYPE_DEVELOPER_NAME);
-        return recordTypeInfo.isAvailable() ? recordTypeInfo.getRecordTypeId() : null;
-    }
+		Schema.RecordTypeInfo recordTypeInfo =
+			recordTypesByDeveloperName.get(QUOTE_RECORD_TYPE_DEVELOPER_NAME);
+		return recordTypeInfo.isAvailable() ? recordTypeInfo.getRecordTypeId() : null;
+	}
 
     /*****************************************************************************
-     * Method Name       : resolveLSSalesQuoteRecordTypeId
+     * Method Name       : resolveLSQuoteRecordTypeId
      * Author           : Sarthak Pani
      * Date of Dev      : 16th November 2026
      * Last Modified Date   : 16th November 2026
      * Description          : [GCL-66] get the LS_Sales record type Id
     *****************************************************************************/
-    public static Id resolveLSQuoteRecordTypeId() {
-        return Schema.SObjectType.Quote.getRecordTypeInfosByDeveloperName().get(QUOTE_RECORD_TYPE_DEVELOPER_NAME_LS).getRecordTypeId();
-    }
+	public static Id resolveLSQuoteRecordTypeId() {
+		return Schema.SObjectType.Quote.getRecordTypeInfosByDeveloperName().get(QUOTE_RECORD_TYPE_DEVELOPER_NAME_LS).getRecordTypeId();
+	}
 
 
     /**
@@ -712,357 +722,366 @@ public with sharing class GenerateQuoteService {
      * @param quoteRecord Quote record with custom or standard quote number fields.
      * @return Quote number from Sales Connection when available.
      */
-    public static String resolveQuoteNumber(Quote quoteRecord) {
-        if (quoteRecord == null) {
-            return null;
-        }
+	public static String resolveQuoteNumber(Quote quoteRecord) {
+		if (quoteRecord == null) {
+			return null;
+		}
 
-        if (String.isNotBlank(quoteRecord.QuoteNumber__c)) {
-            return quoteRecord.QuoteNumber__c;
-        }
+		if (String.isNotBlank(quoteRecord.QuoteNumber__c)) {
+			return quoteRecord.QuoteNumber__c;
+		}
 
-        return quoteRecord.QuoteNumber == null ? null : String.valueOf(quoteRecord.QuoteNumber);
-    }
+		return quoteRecord.QuoteNumber == null ? null : String.valueOf(quoteRecord.QuoteNumber);
+	}
 
     /**
      * @description Resolves the Sales Connection quote id used for navigation and matching.
      * @param quoteRecord Quote record with custom or legacy source-system fields.
      * @return Sales Connection quote id when available.
      */
-    public static String resolveSalesConnectionQuoteId(Quote quoteRecord) {
-        if (quoteRecord == null) {
-            return null;
-        }
+	public static String resolveSalesConnectionQuoteId(Quote quoteRecord) {
+		if (quoteRecord == null) {
+			return null;
+		}
 
-        if (String.isNotBlank(quoteRecord.SalesConnectionQuoteID__c)) {
-            return quoteRecord.SalesConnectionQuoteID__c;
-        }
+		if (String.isNotBlank(quoteRecord.SalesConnectionQuoteID__c)) {
+			return quoteRecord.SalesConnectionQuoteID__c;
+		}
 
-        return quoteRecord.Source_System_ID__c;
-    }
+		return quoteRecord.Source_System_ID__c;
+	}
 
     /**
      * @description Resolves QuoteNumber__c for Generate Quote display labels.
      * @param quoteRecord Quote record with Sales Connection quote number field.
      * @return QuoteNumber__c when populated; otherwise null.
      */
-    public static String resolveQuoteNumberLabel(Quote quoteRecord) {
-        if (quoteRecord == null || String.isBlank(quoteRecord.QuoteNumber__c)) {
-            return null;
-        }
+	public static String resolveQuoteNumberLabel(Quote quoteRecord) {
+		if (quoteRecord == null || String.isBlank(quoteRecord.QuoteNumber__c)) {
+			return null;
+		}
 
-        return quoteRecord.QuoteNumber__c.trim();
-    }
+		return quoteRecord.QuoteNumber__c.trim();
+	}
 
     /**
      * @description Resolves SalesConnectionQuoteID__c for Sales Connection view-quote URLs.
      * @param quoteRecord Quote record with Sales Connection quote id field.
      * @return Numeric Sales Connection quote id when populated; otherwise null.
      */
-    public static String resolveSalesConnectionViewQuoteId(Quote quoteRecord) {
-        if (quoteRecord == null) {
-            return null;
-        }
+	public static String resolveSalesConnectionViewQuoteId(Quote quoteRecord) {
+		if (quoteRecord == null) {
+			return null;
+		}
 
-        return normalizeSalesConnectionQuoteIdForStorage(
-            resolveSalesConnectionQuoteId(quoteRecord)
-        );
-    }
+		return normalizeSalesConnectionQuoteIdForStorage(
+			resolveSalesConnectionQuoteId(quoteRecord)
+		);
+	}
 
     /**
      * @description Normalizes Sales Connection quote ids to numeric values for URL navigation.
      * @param rawValue Raw Sales Connection quote id from integration or Salesforce.
      * @return Digits-only quote id when available.
      */
-    public static String normalizeSalesConnectionQuoteIdForStorage(String rawValue) {
-        if (String.isBlank(rawValue)) {
-            return null;
-        }
+	public static String normalizeSalesConnectionQuoteIdForStorage(String rawValue) {
+		if (String.isBlank(rawValue)) {
+			return null;
+		}
 
-        String digitsOnly = rawValue.replaceAll('[^0-9]', '');
-        return String.isBlank(digitsOnly) ? rawValue.trim() : digitsOnly;
-    }
+		String digitsOnly = rawValue.replaceAll('[^0-9]', '');
+		return String.isBlank(digitsOnly) ? rawValue.trim() : digitsOnly;
+	}
 
     /**
      * @description Normalizes Sales Connection quote numbers for QuoteNumber__c storage.
      * @param rawValue Raw quote number from integration or Salesforce.
      * @return Trimmed alphanumeric quote number when available.
      */
-    public static String normalizeQuoteNumberForStorage(String rawValue) {
-        if (String.isBlank(rawValue)) {
-            return null;
-        }
+	public static String normalizeQuoteNumberForStorage(String rawValue) {
+		if (String.isBlank(rawValue)) {
+			return null;
+		}
 
-        return rawValue.trim();
-    }
+		return rawValue.trim();
+	}
 
-    private static List<GenerateQuoteController.QuoteWrapper> mapQuotesToWrappers(
-        List<Quote> quoteRecords,
-        Opportunity opportunityRecord,
-        Account accountRecord
-    ) {
-        List<GenerateQuoteController.QuoteWrapper> quoteWrapperList =
-            new List<GenerateQuoteController.QuoteWrapper>();
-        PsamQuoteLineGroupingService.PsamIndex psamIndex =
-            PsamQuoteLineGroupingService.loadPsamForQuotes(quoteRecords);
+	private static List<GenerateQuoteController.QuoteWrapper> mapQuotesToWrappers(
+		List<Quote> quoteRecords,
+		Opportunity opportunityRecord,
+		Account accountRecord
+	) {
+		List<GenerateQuoteController.QuoteWrapper> quoteWrapperList =
+			new List<GenerateQuoteController.QuoteWrapper>();
+		PsamQuoteLineGroupingService.PsamIndex psamIndex =
+			PsamQuoteLineGroupingService.loadPsamForQuotes(quoteRecords);
 
-        for (Quote quoteRecord : quoteRecords) {
-            GenerateQuoteController.QuoteWrapper quoteWrapper = new GenerateQuoteController.QuoteWrapper();
-            quoteWrapper.id = quoteRecord.Id;
-            quoteWrapper.quoteNumber = resolveQuoteNumber(quoteRecord);
-            quoteWrapper.salesConnectionViewQuoteNumber = resolveQuoteNumberLabel(quoteRecord);
-            quoteWrapper.salesConnectionQuoteId = resolveSalesConnectionQuoteId(quoteRecord);
-            quoteWrapper.quoteName = quoteRecord.Name;
-            quoteWrapper.expirationDate = quoteRecord.ExpirationDate;
-            quoteWrapper.description = quoteRecord.Description;
-            quoteWrapper.status = quoteRecord.Status;
-            quoteWrapper.approvalStatus = quoteRecord.Approval_Status__c;
-            quoteWrapper.quoteTotalWithoutFreight = QuoteService.resolveQuoteTotalWithoutFreight(
-                quoteRecord,
-                quoteRecord.QuoteLineItems
-            );
-            quoteWrapper.currencyIsoCode = quoteRecord.CurrencyIsoCode;
-            quoteWrapper.lastModifiedDate = resolveLastModifiedDate(quoteRecord);
-            quoteWrapper.isForecastIneligible = quoteRecord.IsForecastIneligible__c == true;
-            quoteWrapper.quoteType = quoteRecord.QuoteType__c;
-            quoteWrapper.quoteForecastConfidence = quoteRecord.QuoteForecastConfidence__c;
-            quoteWrapper.opportunityForecastConfidence = opportunityRecord == null
-                ? null
-                : opportunityRecord.ForecastConfidenceLevel__c;
-            try {
-                quoteWrapper.salesConnectionUrl = SalesConnectionUrlService.buildQuoteUrl(
-                    quoteRecord,
-                    opportunityRecord,
-                    accountRecord
-                );
-            } catch (AuraHandledException exceptionValue) {
-                quoteWrapper.salesConnectionUrl = null;
+		for (Quote quoteRecord : quoteRecords) {
+			GenerateQuoteController.QuoteWrapper quoteWrapper = new GenerateQuoteController.QuoteWrapper();
+			quoteWrapper.id = quoteRecord.Id;
+			quoteWrapper.quoteNumber = resolveQuoteNumber(quoteRecord);
+			quoteWrapper.salesConnectionViewQuoteNumber = resolveQuoteNumberLabel(quoteRecord);
+			quoteWrapper.salesConnectionQuoteId = resolveSalesConnectionQuoteId(quoteRecord);
+			quoteWrapper.quoteName = quoteRecord.Name;
+			quoteWrapper.expirationDate = quoteRecord.ExpirationDate;
+			quoteWrapper.description = quoteRecord.Description;
+			quoteWrapper.status = quoteRecord.Status;
+			quoteWrapper.approvalStatus = quoteRecord.Approval_Status__c;
+			quoteWrapper.quoteTotalWithoutFreight = QuoteService.resolveQuoteTotalWithoutFreight(
+				quoteRecord,
+				quoteRecord.QuoteLineItems
+			);
+			quoteWrapper.currencyIsoCode = quoteRecord.CurrencyIsoCode;
+			quoteWrapper.lastModifiedDate = resolveLastModifiedDate(quoteRecord);
+            
+            //GCL-353: START
+            if(GeneralUtility.getCurrentBusinessLine() == GeneralUtility.LS_STR) { //LS
+                quoteWrapper.scDateCreated = quoteRecord.LSSCDateCreated__c;
+                quoteWrapper.scDateModified = quoteRecord.LSSCDateModified_f__c;
+                quoteWrapper.totalRevenue = quoteRecord.LSTotalRevenue__c;
             }
-            quoteWrapper.productSubgroupSummary = PsamQuoteLineGroupingService.buildGroupedSummary(
-                quoteRecord.QuoteLineItems,
-                psamIndex
-            );
-            quoteWrapper.salesCategorySummary = QuoteLineSalesCategoryService.buildGroupedSummary(
-                quoteRecord.QuoteLineItems
-            );
+            //GCL-353: END
+            
+			quoteWrapper.isForecastIneligible = quoteRecord.IsForecastIneligible__c == true;
+			quoteWrapper.quoteType = quoteRecord.QuoteType__c;
+			quoteWrapper.quoteForecastConfidence = quoteRecord.QuoteForecastConfidence__c;
+			quoteWrapper.opportunityForecastConfidence = opportunityRecord == null
+				? null
+				: opportunityRecord.ForecastConfidenceLevel__c;
+			try {
+				quoteWrapper.salesConnectionUrl = SalesConnectionUrlService.buildQuoteUrl(
+					quoteRecord,
+					opportunityRecord,
+					accountRecord
+				);
+			} catch (AuraHandledException exceptionValue) {
+				quoteWrapper.salesConnectionUrl = null;
+			}
+			quoteWrapper.productSubgroupSummary = PsamQuoteLineGroupingService.buildGroupedSummary(
+				quoteRecord.QuoteLineItems,
+				psamIndex
+			);
+			quoteWrapper.salesCategorySummary = QuoteLineSalesCategoryService.buildGroupedSummary(
+				quoteRecord.QuoteLineItems
+			);
 
-            quoteWrapperList.add(quoteWrapper);
-        }
+			quoteWrapperList.add(quoteWrapper);
+		}
 
-        return quoteWrapperList;
-    }
+		return quoteWrapperList;
+	}
 
-    private static void stripUnapprovedPortalPricing(
-        List<GenerateQuoteController.QuoteWrapper> quoteWrappers
-    ) {
-        if (quoteWrappers == null) {
-            return;
-        }
+	private static void stripUnapprovedPortalPricing(
+		List<GenerateQuoteController.QuoteWrapper> quoteWrappers
+	) {
+		if (quoteWrappers == null) {
+			return;
+		}
 
-        for (GenerateQuoteController.QuoteWrapper quoteWrapper : quoteWrappers) {
-            if (quoteWrapper == null || isApprovedQuote(quoteWrapper.approvalStatus)) {
-                continue;
-            }
+		for (GenerateQuoteController.QuoteWrapper quoteWrapper : quoteWrappers) {
+			if (quoteWrapper == null || isApprovedQuote(quoteWrapper.approvalStatus)) {
+				continue;
+			}
 
-            quoteWrapper.quoteTotalWithoutFreight = null;
-            clearSummaryPricing(quoteWrapper.productSubgroupSummary);
-            clearSummaryPricing(quoteWrapper.salesCategorySummary);
-        }
-    }
+			quoteWrapper.quoteTotalWithoutFreight = null;
+			clearSummaryPricing(quoteWrapper.productSubgroupSummary);
+			clearSummaryPricing(quoteWrapper.salesCategorySummary);
+		}
+	}
 
-    private static Boolean isApprovedQuote(String approvalStatus) {
-        return String.isNotBlank(approvalStatus) && approvalStatus.trim().equalsIgnoreCase('Approved');
-    }
+	private static Boolean isApprovedQuote(String approvalStatus) {
+		return String.isNotBlank(approvalStatus) && approvalStatus.trim().equalsIgnoreCase('Approved');
+	}
 
-    private static void clearSummaryPricing(
-        List<GenerateQuoteController.ProductSubgroupSummaryWrapper> summaries
-    ) {
-        if (summaries == null) {
-            return;
-        }
+	private static void clearSummaryPricing(
+		List<GenerateQuoteController.ProductSubgroupSummaryWrapper> summaries
+	) {
+		if (summaries == null) {
+			return;
+		}
 
-        for (GenerateQuoteController.ProductSubgroupSummaryWrapper summaryRow : summaries) {
-            if (summaryRow == null) {
-                continue;
-            }
+		for (GenerateQuoteController.ProductSubgroupSummaryWrapper summaryRow : summaries) {
+			if (summaryRow == null) {
+				continue;
+			}
 
-            summaryRow.totalUnitPrice = null;
-            if (summaryRow.quoteLines == null) {
-                continue;
-            }
+			summaryRow.totalUnitPrice = null;
+			if (summaryRow.quoteLines == null) {
+				continue;
+			}
 
-            for (GenerateQuoteController.QuoteLineDetailWrapper lineWrapper : summaryRow.quoteLines) {
-                if (lineWrapper == null) {
-                    continue;
-                }
+			for (GenerateQuoteController.QuoteLineDetailWrapper lineWrapper : summaryRow.quoteLines) {
+				if (lineWrapper == null) {
+					continue;
+				}
 
-                lineWrapper.unitPrice = null;
-                lineWrapper.lineTotal = null;
-            }
-        }
-    }
+				lineWrapper.unitPrice = null;
+				lineWrapper.lineTotal = null;
+			}
+		}
+	}
 
-    private static Datetime resolveLastModifiedDate(Quote quoteRecord) {
-        if (quoteRecord == null) {
-            return null;
-        }
+	private static Datetime resolveLastModifiedDate(Quote quoteRecord) {
+		if (quoteRecord == null) {
+			return null;
+		}
 
-        if (quoteRecord.LastModifiedDate__c != null) {
-            return quoteRecord.LastModifiedDate__c;
-        }
+		if (quoteRecord.LastModifiedDate__c != null) {
+			return quoteRecord.LastModifiedDate__c;
+		}
 
-        return quoteRecord.LastModifiedDate;
-    }
+		return quoteRecord.LastModifiedDate;
+	}
 
-    private static GenerateQuoteController.CreateQuoteResponse mapCreateQuoteResponse(
-        Quote insertedQuote,
-        Opportunity opportunityRecord,
-        Account accountRecord
-    ) {
-        GenerateQuoteController.CreateQuoteResponse response = new GenerateQuoteController.CreateQuoteResponse();
-        response.quoteId = insertedQuote.Id;
-        response.quoteName = insertedQuote.Name;
-        response.quoteNumber = resolveQuoteNumber(insertedQuote);
-        try {
-            response.salesConnectionUrl = SalesConnectionUrlService.buildQuoteUrl(
-                insertedQuote,
-                opportunityRecord,
-                accountRecord
-            );
-        } catch (AuraHandledException exceptionValue) {
-            Logger.setScenario(SCENARIO);
-            Logger.debug(
-                'Sales Connection URL could not be built for created quote. ' +
-                exceptionValue.getMessage()
-            ).addTag(LOGGER_TAG);
-            response.salesConnectionUrl = null;
-        }
-        return response;
-    }
+	private static GenerateQuoteController.CreateQuoteResponse mapCreateQuoteResponse(
+		Quote insertedQuote,
+		Opportunity opportunityRecord,
+		Account accountRecord
+	) {
+		GenerateQuoteController.CreateQuoteResponse response = new GenerateQuoteController.CreateQuoteResponse();
+		response.quoteId = insertedQuote.Id;
+		response.quoteName = insertedQuote.Name;
+		response.quoteNumber = resolveQuoteNumber(insertedQuote);
+		try {
+			response.salesConnectionUrl = SalesConnectionUrlService.buildQuoteUrl(
+				insertedQuote,
+				opportunityRecord,
+				accountRecord
+			);
+		} catch (AuraHandledException exceptionValue) {
+			Logger.setScenario(SCENARIO);
+			Logger.debug(
+				'Sales Connection URL could not be built for created quote. ' +
+				exceptionValue.getMessage()
+			).addTag(LOGGER_TAG);
+			response.salesConnectionUrl = null;
+		}
+		return response;
+	}
 
-    private static void persistStoredSalesConnectionQuoteUrl(
-        Quote quoteRecord,
-        Opportunity opportunityRecord,
-        Account accountRecord,
-        String sfRequest
-    ) {
-        if (SalesConnectionUrlService.SF_REQUEST_CREATE.equals(sfRequest)) {
-            persistStoredCreateQuoteUrl(quoteRecord, opportunityRecord, accountRecord);
-            return;
-        }
+	private static void persistStoredSalesConnectionQuoteUrl(
+		Quote quoteRecord,
+		Opportunity opportunityRecord,
+		Account accountRecord,
+		String sfRequest
+	) {
+		if (SalesConnectionUrlService.SF_REQUEST_CREATE.equals(sfRequest)) {
+			persistStoredCreateQuoteUrl(quoteRecord, opportunityRecord, accountRecord);
+			return;
+		}
 
-        if (quoteRecord == null || quoteRecord.Id == null || opportunityRecord == null) {
-            return;
-        }
+		if (quoteRecord == null || quoteRecord.Id == null || opportunityRecord == null) {
+			return;
+		}
 
-        try {
-            String storedUrl = SalesConnectionUrlService.buildStoredQuoteRequestUrl(
-                opportunityRecord.Id,
-                quoteRecord.Id,
-                accountRecord,
-                SalesConnectionUrlService.resolveCurrentUserEmployeeNumber(),
-                sfRequest
-            );
+		try {
+			String storedUrl = SalesConnectionUrlService.buildStoredQuoteRequestUrl(
+				opportunityRecord.Id,
+				quoteRecord.Id,
+				accountRecord,
+				SalesConnectionUrlService.resolveCurrentUserEmployeeNumber(),
+				sfRequest
+			);
 
-            if (!Schema.sObjectType.Quote.isUpdateable()) {
-                return;
-            }
+			if (!Schema.sObjectType.Quote.isUpdateable()) {
+				return;
+			}
 
-            update new Quote(
-                Id = quoteRecord.Id,
-                SalesConnectionCreateQuoteURL__c = storedUrl
-            );
-        } catch (Exception exceptionValue) {
-            Logger.setScenario(SCENARIO);
-            Logger.debug(
-                'Stored Sales Connection quote URL could not be saved. ' +
-                exceptionValue.getMessage()
-            ).addTag(LOGGER_TAG);
-        }
-    }
+			update new Quote(
+				Id = quoteRecord.Id,
+				SalesConnectionCreateQuoteURL__c = storedUrl
+			);
+		} catch (Exception exceptionValue) {
+			Logger.setScenario(SCENARIO);
+			Logger.debug(
+				'Stored Sales Connection quote URL could not be saved. ' +
+				exceptionValue.getMessage()
+			).addTag(LOGGER_TAG);
+		}
+	}
 
-    private static void persistStoredCreateQuoteUrl(
-        Quote quoteRecord,
-        Opportunity opportunityRecord,
-        Account accountRecord
-    ) {
-        if (quoteRecord == null || quoteRecord.Id == null || opportunityRecord == null) {
-            return;
-        }
+	private static void persistStoredCreateQuoteUrl(
+		Quote quoteRecord,
+		Opportunity opportunityRecord,
+		Account accountRecord
+	) {
+		if (quoteRecord == null || quoteRecord.Id == null || opportunityRecord == null) {
+			return;
+		}
 
-        try {
-            String storedCreateQuoteUrl = SalesConnectionUrlService.buildStoredCreateQuoteUrl(
-                opportunityRecord.Id,
-                quoteRecord.Id,
-                accountRecord,
-                SalesConnectionUrlService.resolveCurrentUserEmployeeNumber()
-            );
+		try {
+			String storedCreateQuoteUrl = SalesConnectionUrlService.buildStoredCreateQuoteUrl(
+				opportunityRecord.Id,
+				quoteRecord.Id,
+				accountRecord,
+				SalesConnectionUrlService.resolveCurrentUserEmployeeNumber()
+			);
 
-            if (!Schema.sObjectType.Quote.isUpdateable()) {
-                return;
-            }
+			if (!Schema.sObjectType.Quote.isUpdateable()) {
+				return;
+			}
 
-            update new Quote(
-                Id = quoteRecord.Id,
-                SalesConnectionCreateQuoteURL__c = storedCreateQuoteUrl
-            );
-        } catch (Exception exceptionValue) {
-            Logger.setScenario(SCENARIO);
-            Logger.debug(
-                'Stored Sales Connection create-quote URL could not be saved. ' +
-                exceptionValue.getMessage()
-            ).addTag(LOGGER_TAG);
-        }
-    }
+			update new Quote(
+				Id = quoteRecord.Id,
+				SalesConnectionCreateQuoteURL__c = storedCreateQuoteUrl
+			);
+		} catch (Exception exceptionValue) {
+			Logger.setScenario(SCENARIO);
+			Logger.debug(
+				'Stored Sales Connection create-quote URL could not be saved. ' +
+				exceptionValue.getMessage()
+			).addTag(LOGGER_TAG);
+		}
+	}
 
-    private static Account getAccountForSalesConnection(Opportunity opportunityRecord) {
-        if (opportunityRecord == null || opportunityRecord.AccountId == null) {
-            return null;
-        }
+	private static Account getAccountForSalesConnection(Opportunity opportunityRecord) {
+		if (opportunityRecord == null || opportunityRecord.AccountId == null) {
+			return null;
+		}
 
-        try {
-            return AccountSelector.selectAccountForSalesConnection(opportunityRecord.AccountId);
-        } catch (Exception exceptionValue) {
-            Logger.setScenario(SCENARIO);
-            Logger.debug(
-                'Account fields for Sales Connection URL are not accessible. ' +
-                exceptionValue.getMessage()
-            ).addTag(LOGGER_TAG);
-            return null;
-        }
-    }
+		try {
+			return AccountSelector.selectAccountForSalesConnection(opportunityRecord.AccountId);
+		} catch (Exception exceptionValue) {
+			Logger.setScenario(SCENARIO);
+			Logger.debug(
+				'Account fields for Sales Connection URL are not accessible. ' +
+				exceptionValue.getMessage()
+			).addTag(LOGGER_TAG);
+			return null;
+		}
+	}
 
-    private static void insertCreatableRecords(List<SObject> sObjectList, String objectName) {
-        if (sObjectList == null || sObjectList.isEmpty()) {
-            return;
-        }
+	private static void insertCreatableRecords(List<SObject> sObjectList, String objectName) {
+		if (sObjectList == null || sObjectList.isEmpty()) {
+			return;
+		}
 
-        if (!isCreateable(objectName)) {
-            throw new GenerateQuoteException('Current user cannot create ' + objectName + ' records.');
-        }
+		if (!isCreateable(objectName)) {
+			throw new GenerateQuoteException('Current user cannot create ' + objectName + ' records.');
+		}
 
-        List<SObject> recordsToInsert = sObjectList;
+		List<SObject> recordsToInsert = sObjectList;
 
-        Database.SaveResult[] saveResults = Database.insert(recordsToInsert, false);
+		Database.SaveResult[] saveResults = Database.insert(recordsToInsert, false);
 
-        for (Database.SaveResult saveResult : saveResults) {
-            if (!saveResult.isSuccess()) {
-                throw new GenerateQuoteException(
-                    objectName + ' insert failed: ' + saveResult.getErrors()[0].getMessage()
-                );
-            }
-        }
-    }
+		for (Database.SaveResult saveResult : saveResults) {
+			if (!saveResult.isSuccess()) {
+				throw new GenerateQuoteException(
+					objectName + ' insert failed: ' + saveResult.getErrors()[0].getMessage()
+				);
+			}
+		}
+	}
 
-    private static Boolean isCreateable(String objectName) {
-        if (objectName == 'Quote') {
-            return Schema.sObjectType.Quote.isCreateable();
-        }
+	private static Boolean isCreateable(String objectName) {
+		if (objectName == 'Quote') {
+			return Schema.sObjectType.Quote.isCreateable();
+		}
 
-        if (objectName == 'QuoteLineItem') {
-            return Schema.sObjectType.QuoteLineItem.isCreateable();
-        }
+		if (objectName == 'QuoteLineItem') {
+			return Schema.sObjectType.QuoteLineItem.isCreateable();
+		}
 
-        return false;
-    }
+		return false;
+	}
 }

@@ -61,4 +61,126 @@ private class QuickActionDefaultsHandlerTest {
 
         System.assertNotEquals(null, capturedException, 'Exception should be thrown for invalid Case Id.');
     }
+
+    @IsTest
+    static void testOnInitDefaultsCreditMemoCan() {
+
+        Case creditMemoCanCase = new Case(
+            Subject = 'CAN Credit Memo Case',
+            Status = 'New',
+            Origin = 'Phone',
+            EmailType__c = 'CREDITMEMOCAN'
+        );
+        insert creditMemoCanCase;
+
+        List<EmailTemplate> canTemplates = [
+            SELECT Id,
+                Name
+            FROM EmailTemplate
+            WHERE Name = 'Credit Notification Trade In CAN'
+            LIMIT 1
+        ];
+
+        System.Assert.isFalse(
+            canTemplates.isEmpty(),
+            'Expected Credit Notification Trade In CAN email template.'
+        );
+
+        List<QuickAction.QuickActionDefaults> defaults =
+            buildSendEmailDefaults(creditMemoCanCase.Id);
+
+        Test.startTest();
+
+        new QuickActionDefaultsHandler().onInitDefaults(defaults);
+
+        Test.stopTest();
+
+        QuickAction.SendEmailQuickActionDefaults sendEmailDefaults =
+            (QuickAction.SendEmailQuickActionDefaults)defaults[0];
+
+        EmailMessage emailMessage =
+            (EmailMessage)sendEmailDefaults.getTargetSObject();
+
+        System.Assert.isNotNull(
+            emailMessage,
+            'Expected an EmailMessage for CREDITMEMOCAN.'
+        );
+    }
+
+    @IsTest
+    static void testOnInitDefaultsTradeInCancellationUsa() {
+
+        Case cancellationCase = new Case(
+            Subject = 'Review & Send Trade-in Cancellation',
+            Status = 'New',
+            Origin = 'Phone',
+            EmailType__c = 'TRADEINCANCEL_USA'
+        );
+        insert cancellationCase;
+
+        List<EmailTemplate> cancellationTemplates = [
+            SELECT Id, Name
+            FROM EmailTemplate
+            WHERE Name = 'Trade In Cancellation USA'
+            LIMIT 1
+        ];
+
+        System.assertEquals(
+            1,
+            cancellationTemplates.size(),
+            'Expected the Trade In Cancellation USA email template.'
+        );
+
+        List<EmailConditionsConfiguration__mdt> configurations = [
+            SELECT EmailType__c,
+                ToExternal__c,
+                CCInternal__c
+            FROM EmailConditionsConfiguration__mdt
+            WHERE EmailType__c = 'TRADEINCANCEL_USA'
+            LIMIT 1
+        ];
+
+        System.assertEquals(
+            1,
+            configurations.size(),
+            'Expected the TRADEINCANCEL_USA metadata configuration.'
+        );
+
+        System.assertEquals(
+            'Trade-in Contact',
+            configurations[0].ToExternal__c,
+            'Expected Trade-in Contact under To External.'
+        );
+
+        List<QuickAction.QuickActionDefaults> defaults =
+            buildSendEmailDefaults(
+                cancellationCase.Id
+            );
+
+        Test.startTest();
+
+        new QuickActionDefaultsHandler().onInitDefaults(
+            defaults
+        );
+
+        Test.stopTest();
+
+        QuickAction.SendEmailQuickActionDefaults sendEmailDefaults =
+            (QuickAction.SendEmailQuickActionDefaults)defaults[0];
+
+        EmailMessage emailMessage =
+            (EmailMessage)sendEmailDefaults.getTargetSObject();
+
+        System.assertNotEquals(
+            null,
+            emailMessage,
+            'Expected an EmailMessage for TRADEINCANCEL_USA.'
+        );
+
+        System.assertEquals(
+            '',
+            emailMessage.BccAddress,
+            'Expected BccAddress to be cleared.'
+        );
+    }
 }

@@ -881,7 +881,8 @@ public with sharing class WorkOrdersService {
 			photosRequired &&
 			!unable &&
 			!hasStagedPhotos &&
-			!ContentDocumentLinksService.repairCodeWolisHaveFilesForDeviceEvaluation(workOrderId)
+			!ContentDocumentLinksService.repairCodeWolisHaveFilesForDeviceEvaluation(workOrderId) &&
+			!hasPhotosOnWorkOrder(workOrderId)
 		) {
 			throw new WorkOrdersServiceException(PHOTO_REQUIRED_MESSAGE);
 		}
@@ -1025,7 +1026,8 @@ public with sharing class WorkOrdersService {
 			applyCompletion == true &&
 			photosRequired &&
 			workOrder.UnableToTakePhoto__c != true &&
-			!ContentDocumentLinksService.repairCodeWolisHaveFilesForDeviceEvaluation(workOrderId)
+			!ContentDocumentLinksService.repairCodeWolisHaveFilesForDeviceEvaluation(workOrderId) &&
+			!hasPhotosOnWorkOrder(workOrderId)
 		) {
 			throw new WorkOrdersServiceException(PHOTO_REQUIRED_MESSAGE);
 		}
@@ -1982,7 +1984,8 @@ public with sharing class WorkOrdersService {
 	}
 
 	/**
-	 * @description GW-2891 - Loads the Work Order by Id and sets Status = Divide, Owner = current user.
+	 * @description GW-2891 / GW-5677 - Loads the Work Order by Id and sets Status = Divide,
+	 *              clears Sub Status, and sets Owner = current user.
 	 * @param workOrderId Salesforce Id of the scanned Work Order
 	 * @return DivideInstrumentsContext
 	 */
@@ -1992,6 +1995,7 @@ public with sharing class WorkOrdersService {
 		}
 		WorkOrder workOrder = requireWorkOrderForDivide(workOrderId);
 		workOrder.Status = WO_STATUS_DIVIDE;
+		workOrder.SubStatus__c = null;
 		workOrder.OwnerId = UserInfo.getUserId();
 		updateWorkOrders(new List<WorkOrder>{ workOrder });
 		return buildDivideInstrumentsContext(requireWorkOrderForDivide(workOrderId), null);
@@ -3388,7 +3392,8 @@ public with sharing class WorkOrdersService {
 	/**
 	 * @description GW-3400 - Requires at least one photo on any Instrument Evaluation item when
 	 *              Photos Required is set and Unable To Take Photo is false. Counts staged photos
-	 *              in the current draft batch and any photos already linked to Product Serviced WOLIs.
+	 *              in the current draft batch, photos linked to Product Serviced WOLIs,
+	 *              and photos stored on the Work Order from the Photos tab.
 	 * @param workOrder Parent Work Order
 	 * @param draftItems Draft entries in the current Complete request
 	 */
@@ -3423,7 +3428,24 @@ public with sharing class WorkOrdersService {
 		) {
 			return;
 		}
+		if (hasPhotosOnWorkOrder(workOrder.Id)) {
+			return;
+		}
 		throw new WorkOrdersServiceException(IE_PHOTOS_REQUIRED_WORK_ORDER_MESSAGE);
+	}
+
+	/**
+	 * @description GW-4378 - True when the Photos tab has stored at least one file on the Work Order.
+	 * @param workOrderId Work Order Id
+	 * @return True when a ContentDocumentLink exists on the Work Order
+	 */
+	private static Boolean hasPhotosOnWorkOrder(Id workOrderId) {
+		if (workOrderId == null) {
+			return false;
+		}
+		return ContentDocumentLinksService.countLinksByLinkedEntityIds(
+			new Set<Id>{ workOrderId }
+		) > 0;
 	}
 
 	/**
@@ -6032,32 +6054,6 @@ public with sharing class WorkOrdersService {
 	}
 
 	/**
-	 * @description GW-6358 - Parent Work Order Id of each Work Order.
-	 * @param workOrderIdSet Work Order Ids
-	 * @return Parent Work Order Id by Work Order Id (null value when a Work Order has no parent)
-	 * @example
-	 * Map<Id, Id> parentIdByWorkOrderIdMap = WorkOrdersService.getParentWorkOrderIdByWorkOrderId(workOrderIdSet);
-	 */
-	public static Map<Id, Id> getParentWorkOrderIdByWorkOrderId(Set<Id> workOrderIdSet) {
-		Map<Id, Id> parentWorkOrderIdByWorkOrderIdMap = new Map<Id, Id>();
-		if (workOrderIdSet == null || workOrderIdSet.isEmpty()) {
-			return parentWorkOrderIdByWorkOrderIdMap;
-		}
-		List<String> workOrderIdList = new List<String>();
-		for (Id workOrderId : workOrderIdSet) {
-			workOrderIdList.add(workOrderId);
-		}
-		List<WorkOrder> workOrderList = (List<WorkOrder>) new WorkOrdersSelector()
-			.selectFields(new List<String>{ 'Id', 'ParentWorkOrderId' })
-			.whereIn('Id', workOrderIdList)
-			.execute();
-		for (WorkOrder workOrderRecord : workOrderList) {
-			parentWorkOrderIdByWorkOrderIdMap.put(workOrderRecord.Id, workOrderRecord.ParentWorkOrderId);
-		}
-		return parentWorkOrderIdByWorkOrderIdMap;
-	}
-
-	/**
 	 * @description GW-6358 - Vendor Return Order Ids of the given Vendor Work Orders.
 	 * @param vendorWorkOrders Vendor Work Orders with VendorReturnOrder__c queried
 	 * @return Vendor Return Order Ids
@@ -6070,6 +6066,34 @@ public with sharing class WorkOrdersService {
 			}
 		}
 		return returnOrderIdSet;
+	}
+
+	/**
+	 * @description GW-3880 - Copies FedEx tracking onto Work Orders linked to Vendor Return Orders.
+	 * @param trackingByReturnOrderId Vendor Return Order Id to tracking number
+	 */
+	public static void updateWorkOrdersWithVendorFedExTracking(
+		Map<Id, String> trackingByReturnOrderId
+	) {
+		if (trackingByReturnOrderId == null || trackingByReturnOrderId.isEmpty()) {
+			return;
+		}
+		List<WorkOrder> workOrdersToUpdate = new List<WorkOrder>();
+		for (WorkOrder wo : WorkOrdersSelector.selectByVendorReturnOrderIds(
+			trackingByReturnOrderId.keySet()
+		)) {
+			String trackingNumber = trackingByReturnOrderId.get(
+				(Id) wo.get('VendorReturnOrder__c')
+			);
+			if (String.isNotBlank(trackingNumber)) {
+				workOrdersToUpdate.add(
+					new WorkOrder(Id = wo.Id, TrackingNumber__c = trackingNumber)
+				);
+			}
+		}
+		if (!workOrdersToUpdate.isEmpty()) {
+			updateWorkOrders(workOrdersToUpdate);
+		}
 	}
 
 	/**

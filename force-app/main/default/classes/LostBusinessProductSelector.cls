@@ -14,7 +14,7 @@ public with sharing class LostBusinessProductSelector {
      * @description
      * GC-3574 - Lost Business Consumables record type. Automatic product copy runs only for this type.
      */
-    public static final String LOST_BUSINESS_RECORD_TYPE = 'HCSalesLostBusinessConsumables';
+	public static final String LOST_BUSINESS_RECORD_TYPE = 'HCSalesLostBusinessConsumables';
 
     /**
      * @description
@@ -26,21 +26,21 @@ public with sharing class LostBusinessProductSelector {
      * @example
      * LostBusinessProductSelector.selectOpportunityById(opportunityId);
      */
-    public static Opportunity selectOpportunityById(Id opportunityId) {
-        if (opportunityId == null) {
-            return null;
-        }
+	public static Opportunity selectOpportunityById(Id opportunityId) {
+		if (opportunityId == null) {
+			return null;
+		}
 
-        List<Opportunity> opportunityList = [
-            SELECT Id, Pricebook2Id, CurrencyIsoCode
-            FROM Opportunity
-            WHERE Id = :opportunityId
-            WITH SYSTEM_MODE
-            LIMIT 1
-        ];
+		List<Opportunity> opportunityList = [
+			SELECT Id, Pricebook2Id, CurrencyIsoCode
+			FROM Opportunity
+			WHERE Id = :opportunityId
+			WITH SYSTEM_MODE
+			LIMIT 1
+		];
 
-        return opportunityList.isEmpty() ? null : opportunityList[0];
-    }
+		return opportunityList.isEmpty() ? null : opportunityList[0];
+	}
 
     /**
      * @description
@@ -53,13 +53,13 @@ public with sharing class LostBusinessProductSelector {
      * @example
      * LostBusinessProductSelector.selectLinesByOpportunityId(opportunityId);
      */
-    public static List<OpportunityLineItem> selectLinesByOpportunityId(Id opportunityId) {
-        if (opportunityId == null) {
-            return new List<OpportunityLineItem>();
-        }
+	public static List<OpportunityLineItem> selectLinesByOpportunityId(Id opportunityId) {
+		if (opportunityId == null) {
+			return new List<OpportunityLineItem>();
+		}
 
-        return selectLinesByOpportunityIds(new Set<Id>{ opportunityId });
-    }
+		return selectLinesByOpportunityIds(new Set<Id>{ opportunityId });
+	}
 
     /**
      * @description
@@ -71,31 +71,31 @@ public with sharing class LostBusinessProductSelector {
      * @example
      * LostBusinessProductSelector.selectLinesByOpportunityIds(opportunityIds);
      */
-    public static List<OpportunityLineItem> selectLinesByOpportunityIds(Set<Id> opportunityIds) {
-        if (opportunityIds == null || opportunityIds.isEmpty()) {
-            return new List<OpportunityLineItem>();
-        }
+	public static List<OpportunityLineItem> selectLinesByOpportunityIds(Set<Id> opportunityIds) {
+		if (opportunityIds == null || opportunityIds.isEmpty()) {
+			return new List<OpportunityLineItem>();
+		}
 
-        return [
-            SELECT Id,
-                   OpportunityId,
-                   Quantity,
-                   UnitPrice,
-                   ConsumptionFrequency__c,
-                   PricebookEntryId,
-                   PricebookEntry.IsActive,
-                   PricebookEntry.UnitPrice,
-                   PricebookEntry.Pricebook2Id,
-                   PricebookEntry.Product2Id,
-                   PricebookEntry.Product2.Name,
-                   PricebookEntry.Product2.ProductCode,
-                   PricebookEntry.CurrencyIsoCode
-            FROM OpportunityLineItem
-            WHERE OpportunityId IN :opportunityIds
-            WITH SYSTEM_MODE
-            ORDER BY PricebookEntry.Product2.Name ASC
-        ];
-    }
+		return [
+			SELECT Id,
+				   OpportunityId,
+				   Quantity,
+				   UnitPrice,
+				   ConsumptionFrequency__c,
+				   PricebookEntryId,
+				   PricebookEntry.IsActive,
+				   PricebookEntry.UnitPrice,
+				   PricebookEntry.Pricebook2Id,
+				   PricebookEntry.Product2Id,
+				   PricebookEntry.Product2.Name,
+				   PricebookEntry.Product2.ProductCode,
+				   PricebookEntry.CurrencyIsoCode
+			FROM OpportunityLineItem
+			WHERE OpportunityId IN :opportunityIds
+			WITH SYSTEM_MODE
+			ORDER BY PricebookEntry.Product2.Name ASC
+		];
+	}
 
     /**
      * @description
@@ -108,27 +108,27 @@ public with sharing class LostBusinessProductSelector {
      * @example
      * LostBusinessProductSelector.selectLostBusinessForProductCopy(opportunityIds);
      */
-    public static List<Opportunity> selectLostBusinessForProductCopy(Set<Id> opportunityIds) {
-        if (opportunityIds == null || opportunityIds.isEmpty()) {
-            return new List<Opportunity>();
-        }
+	public static List<Opportunity> selectLostBusinessForProductCopy(Set<Id> opportunityIds) {
+		if (opportunityIds == null || opportunityIds.isEmpty()) {
+			return new List<Opportunity>();
+		}
 
-        return [
-            SELECT Id,
-                   Pricebook2Id,
-                   CurrencyIsoCode,
-                   OriginatingOpportunity__c,
-                   OriginatingOpportunity__r.Pricebook2Id,
-                   SkipLostBusinessProductCopy__c,
-                   RecordType.DeveloperName
-            FROM Opportunity
-            WHERE Id IN :opportunityIds
-            AND RecordType.DeveloperName = :LOST_BUSINESS_RECORD_TYPE
-            AND OriginatingOpportunity__c != null
-            AND SkipLostBusinessProductCopy__c = false
-            WITH SYSTEM_MODE
-        ];
-    }
+		return [
+			SELECT Id,
+				   Pricebook2Id,
+				   CurrencyIsoCode,
+				   OriginatingOpportunity__c,
+				   OriginatingOpportunity__r.Pricebook2Id,
+				   SkipLostBusinessProductCopy__c,
+				   RecordType.DeveloperName
+			FROM Opportunity
+			WHERE Id IN :opportunityIds
+			AND RecordType.DeveloperName = :LOST_BUSINESS_RECORD_TYPE
+			AND OriginatingOpportunity__c != null
+			AND SkipLostBusinessProductCopy__c = false
+			WITH SYSTEM_MODE
+		];
+	}
 
     /**
      * @description
@@ -142,33 +142,33 @@ public with sharing class LostBusinessProductSelector {
      * @example
      * LostBusinessProductSelector.selectLinesByIdsAndOpportunity(lineItemIds, opportunityId);
      */
-    public static List<OpportunityLineItem> selectLinesByIdsAndOpportunity(
-        Set<Id> lineItemIds,
-        Id opportunityId
-    ) {
-        if (lineItemIds == null || lineItemIds.isEmpty() || opportunityId == null) {
-            return new List<OpportunityLineItem>();
-        }
+	public static List<OpportunityLineItem> selectLinesByIdsAndOpportunity(
+		Set<Id> lineItemIds,
+		Id opportunityId
+	) {
+		if (lineItemIds == null || lineItemIds.isEmpty() || opportunityId == null) {
+			return new List<OpportunityLineItem>();
+		}
 
-        return [
-            SELECT Id,
-                   Quantity,
-                   UnitPrice,
-                   ConsumptionFrequency__c,
-                   PricebookEntryId,
-                   PricebookEntry.IsActive,
-                   PricebookEntry.UnitPrice,
-                   PricebookEntry.Pricebook2Id,
-                   PricebookEntry.Product2Id,
-                   PricebookEntry.Product2.Name,
-                   PricebookEntry.Product2.ProductCode,
-                   PricebookEntry.CurrencyIsoCode
-            FROM OpportunityLineItem
-            WHERE Id IN :lineItemIds
-            AND OpportunityId = :opportunityId
-            WITH SYSTEM_MODE
-        ];
-    }
+		return [
+			SELECT Id,
+				   Quantity,
+				   UnitPrice,
+				   ConsumptionFrequency__c,
+				   PricebookEntryId,
+				   PricebookEntry.IsActive,
+				   PricebookEntry.UnitPrice,
+				   PricebookEntry.Pricebook2Id,
+				   PricebookEntry.Product2Id,
+				   PricebookEntry.Product2.Name,
+				   PricebookEntry.Product2.ProductCode,
+				   PricebookEntry.CurrencyIsoCode
+			FROM OpportunityLineItem
+			WHERE Id IN :lineItemIds
+			AND OpportunityId = :opportunityId
+			WITH SYSTEM_MODE
+		];
+	}
 
     /**
      * @description
@@ -181,15 +181,15 @@ public with sharing class LostBusinessProductSelector {
      * @example
      * LostBusinessProductSelector.selectPricebookEntryIds(opportunityId);
      */
-    public static Set<Id> selectPricebookEntryIds(Id opportunityId) {
-        if (opportunityId == null) {
-            return new Set<Id>();
-        }
+	public static Set<Id> selectPricebookEntryIds(Id opportunityId) {
+		if (opportunityId == null) {
+			return new Set<Id>();
+		}
 
-        Set<Id> pricebookEntryIds = selectPricebookEntryIdsByOpportunity(new Set<Id>{ opportunityId })
-            .get(opportunityId);
-        return pricebookEntryIds == null ? new Set<Id>() : pricebookEntryIds;
-    }
+		Set<Id> pricebookEntryIds = selectPricebookEntryIdsByOpportunity(new Set<Id>{ opportunityId })
+			.get(opportunityId);
+		return pricebookEntryIds == null ? new Set<Id>() : pricebookEntryIds;
+	}
 
     /**
      * @description
@@ -201,27 +201,27 @@ public with sharing class LostBusinessProductSelector {
      * @example
      * LostBusinessProductSelector.selectPricebookEntryIdsByOpportunity(opportunityIds);
      */
-    public static Map<Id, Set<Id>> selectPricebookEntryIdsByOpportunity(Set<Id> opportunityIds) {
-        Map<Id, Set<Id>> pricebookEntryIdsByOpportunityId = new Map<Id, Set<Id>>();
+	public static Map<Id, Set<Id>> selectPricebookEntryIdsByOpportunity(Set<Id> opportunityIds) {
+		Map<Id, Set<Id>> pricebookEntryIdsByOpportunityId = new Map<Id, Set<Id>>();
 
-        if (opportunityIds == null || opportunityIds.isEmpty()) {
-            return pricebookEntryIdsByOpportunityId;
-        }
+		if (opportunityIds == null || opportunityIds.isEmpty()) {
+			return pricebookEntryIdsByOpportunityId;
+		}
 
-        for (OpportunityLineItem lineItem : [
-            SELECT OpportunityId, PricebookEntryId
-            FROM OpportunityLineItem
-            WHERE OpportunityId IN :opportunityIds
-            WITH SYSTEM_MODE
-        ]) {
-            if (!pricebookEntryIdsByOpportunityId.containsKey(lineItem.OpportunityId)) {
-                pricebookEntryIdsByOpportunityId.put(lineItem.OpportunityId, new Set<Id>());
-            }
-            pricebookEntryIdsByOpportunityId.get(lineItem.OpportunityId).add(lineItem.PricebookEntryId);
-        }
+		for (OpportunityLineItem lineItem : [
+			SELECT OpportunityId, PricebookEntryId
+			FROM OpportunityLineItem
+			WHERE OpportunityId IN :opportunityIds
+			WITH SYSTEM_MODE
+		]) {
+			if (!pricebookEntryIdsByOpportunityId.containsKey(lineItem.OpportunityId)) {
+				pricebookEntryIdsByOpportunityId.put(lineItem.OpportunityId, new Set<Id>());
+			}
+			pricebookEntryIdsByOpportunityId.get(lineItem.OpportunityId).add(lineItem.PricebookEntryId);
+		}
 
-        return pricebookEntryIdsByOpportunityId;
-    }
+		return pricebookEntryIdsByOpportunityId;
+	}
 
     /**
      * @description
@@ -233,19 +233,19 @@ public with sharing class LostBusinessProductSelector {
      * @example
      * LostBusinessProductSelector.selectActiveProducts(productIds);
      */
-    public static Map<Id, Product2> selectActiveProducts(Set<Id> productIds) {
-        if (productIds == null || productIds.isEmpty()) {
-            return new Map<Id, Product2>();
-        }
+	public static Map<Id, Product2> selectActiveProducts(Set<Id> productIds) {
+		if (productIds == null || productIds.isEmpty()) {
+			return new Map<Id, Product2>();
+		}
 
-        return new Map<Id, Product2>([
-            SELECT Id, Name, ProductCode
-            FROM Product2
-            WHERE Id IN :productIds
-            AND IsActive = TRUE
-            WITH SYSTEM_MODE
-        ]);
-    }
+		return new Map<Id, Product2>([
+			SELECT Id, Name, ProductCode
+			FROM Product2
+			WHERE Id IN :productIds
+			AND IsActive = TRUE
+			WITH SYSTEM_MODE
+		]);
+	}
 
     /**
      * @description
@@ -256,27 +256,27 @@ public with sharing class LostBusinessProductSelector {
      * @example
      * LostBusinessProductSelector.selectStandardPricebookId();
      */
-    public static Id selectStandardPricebookId() {
-        List<Pricebook2> pricebookList = [
-            SELECT Id
-            FROM Pricebook2
-            WHERE IsStandard = TRUE
-            WITH SYSTEM_MODE
-            LIMIT 1
-        ];
+	public static Id selectStandardPricebookId() {
+		List<Pricebook2> pricebookList = [
+			SELECT Id
+			FROM Pricebook2
+			WHERE IsStandard = TRUE
+			WITH SYSTEM_MODE
+			LIMIT 1
+		];
 
-        if (!pricebookList.isEmpty()) {
-            return pricebookList[0].Id;
-        }
+		if (!pricebookList.isEmpty()) {
+			return pricebookList[0].Id;
+		}
 
         // The standard price book is not returned by SOQL in a unit test unless the test
         // has already called Test.getStandardPricebookId in the same transaction.
-        if (Test.isRunningTest()) {
-            return Test.getStandardPricebookId();
-        }
+		if (Test.isRunningTest()) {
+			return Test.getStandardPricebookId();
+		}
 
-        return null;
-    }
+		return null;
+	}
 
     /**
      * @description
@@ -291,23 +291,23 @@ public with sharing class LostBusinessProductSelector {
      * @example
      * LostBusinessProductSelector.selectActiveEntries(pricebookId, productIds, currencyCode);
      */
-    public static List<PricebookEntry> selectActiveEntries(
-        Id pricebookId,
-        Set<Id> productIds,
-        String currencyCode
-    ) {
-        if (pricebookId == null || productIds == null || productIds.isEmpty() || String.isBlank(currencyCode)) {
-            return new List<PricebookEntry>();
-        }
+	public static List<PricebookEntry> selectActiveEntries(
+		Id pricebookId,
+		Set<Id> productIds,
+		String currencyCode
+	) {
+		if (pricebookId == null || productIds == null || productIds.isEmpty() || String.isBlank(currencyCode)) {
+			return new List<PricebookEntry>();
+		}
 
-        return [
-            SELECT Id, Product2Id, UnitPrice, IsActive, CurrencyIsoCode
-            FROM PricebookEntry
-            WHERE Pricebook2Id = :pricebookId
-            AND Product2Id IN :productIds
-            AND IsActive = TRUE
-            AND CurrencyIsoCode = :currencyCode
-            WITH SYSTEM_MODE
-        ];
-    }
+		return [
+			SELECT Id, Product2Id, UnitPrice, IsActive, CurrencyIsoCode
+			FROM PricebookEntry
+			WHERE Pricebook2Id = :pricebookId
+			AND Product2Id IN :productIds
+			AND IsActive = TRUE
+			AND CurrencyIsoCode = :currencyCode
+			WITH SYSTEM_MODE
+		];
+	}
 }

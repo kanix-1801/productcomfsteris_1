@@ -11,8 +11,15 @@
  * rendering (name, role, sales category, email, and phone).
  */
 public class AccountTeamMemberDTO {
+    /** @description GCL-117 display values. These are panel labels only. */
+    public static final String LIFE_SCIENCES_OWNER_ROLE = 'Account Owner';
+    public static final String LIFE_SCIENCES_OWNER_ASSIGNMENT = 'Manually Assigned';
+
     /** @description Salesforce Id of the AccountTeamMember record. */
     @AuraEnabled public Id id;
+
+    /** @description GCL-117 - User Id, used when the owner row has no team-member record yet. */
+    @AuraEnabled public Id userId;
 
     /** @description Display name of the team member (from related User.Name). */
     @AuraEnabled public String teamMember;
@@ -65,11 +72,28 @@ public class AccountTeamMemberDTO {
     ) {
         AccountTeamMemberDTO dto = new AccountTeamMemberDTO();
         dto.id = accountTeamMember.Id;
+        dto.userId = accountTeamMember.UserId;
         dto.teamMember = accountTeamMember.User.Name;
         dto.teamRole = accountTeamMember.TeamMemberRole;
         dto.assignmentType = accountTeamMember.AssignmentType__c;
         dto.territoryCode = accountTeamMember.TerritoryCode__c;
         dto.salesCategoryDescription = accountTeamMember.SalesCategoryDescription__c;
+        dto.canViewAccessFields = false;
+        return dto;
+    }
+
+    /**
+     * @description GCL-117 - Builds the Account Owner display row. This does not
+     *              create or change an Account Team Member record.
+     * @param accountRecord Account whose Owner is displayed.
+     * @return Display row for the Account Owner.
+     */
+    public static AccountTeamMemberDTO fromAccountOwner(Account accountRecord) {
+        AccountTeamMemberDTO dto = new AccountTeamMemberDTO();
+        dto.userId = accountRecord.OwnerId;
+        dto.teamMember = accountRecord.Owner.Name;
+        dto.teamRole = LIFE_SCIENCES_OWNER_ROLE;
+        dto.assignmentType = LIFE_SCIENCES_OWNER_ASSIGNMENT;
         dto.canViewAccessFields = false;
         return dto;
     }

@@ -9,14 +9,18 @@ public with sharing class ModifierCodesController {
 	 * @return Tables for the requested evaluation screen
 	 */
 	@AuraEnabled
-	public static ModifierCodesService.Workspace getWorkspace(Id workOrderId, String variant) {
+	public static ModifierCodesService.Workspace getWorkspace(
+		Id workOrderId,
+		String variant
+	) {
 		try {
 			return ModifierCodesService.getWorkspace(workOrderId, variant);
-		} catch (ModifierCodesService.ModifierCodesException e) {
-			throw PlatformUtilities.buildAuraException(e.getMessage());
 		} catch (Exception e) {
-			Logger.error('ModifierCodesController.getWorkspace failed', e);
-			throw PlatformUtilities.buildAuraException('Unable to load modifier codes.');
+			throw handledException(
+				e,
+				'ModifierCodesController.getWorkspace failed',
+				'Unable to load modifier codes.'
+			);
 		} finally {
 			Logger.saveLog();
 		}
@@ -28,30 +32,11 @@ public with sharing class ModifierCodesController {
 	 * @return Dropdown options
 	 */
 	@AuraEnabled
-	public static List<ModifierCodesService.PickOption> getPricingModifierOptions(String appliesTo) {
+	public static List<ModifierCodesService.PickOption> getPricingModifierOptions(
+		String appliesTo
+	) {
 		try {
 			return ModifierCodesService.getPricingModifierOptions(appliesTo);
-		} catch (ModifierCodesService.ModifierCodesException e) {
-			throw PlatformUtilities.buildAuraException(e.getMessage());
-		} catch (Exception e) {
-			Logger.error('ModifierCodesController.getPricingModifierOptions failed', e);
-			throw PlatformUtilities.buildAuraException('Unable to load pricing modifiers.');
-		} finally {
-			Logger.saveLog();
-		}
-	}
-
-	/**
-	 * @description Modifier Reason Code picklist values.
-	 * @return Dropdown options
-	 */
-	@AuraEnabled
-	public static List<ModifierCodesService.PickOption> getReasonCodeOptions() {
-		try {
-			return ModifierCodesService.getReasonCodeOptions();
-		} catch (Exception e) {
-			Logger.error('ModifierCodesController.getReasonCodeOptions failed', e);
-			throw PlatformUtilities.buildAuraException('Unable to load modifier reason codes.');
 		} finally {
 			Logger.saveLog();
 		}
@@ -60,15 +45,19 @@ public with sharing class ModifierCodesController {
 	/**
 	 * @description Shipped work orders for the asset, newest completion first.
 	 * @param assetId Asset on the line being modified
-	 * @return Dropdown options for Modifier Reason Code and Order Reference
+	 * @param workOrderId Work order the user is on; omitted from Order Reference
+	 * @return Dropdown options for Order Reference
 	 */
 	@AuraEnabled
-	public static List<ModifierCodesService.PickOption> getPriorWorkOrders(Id assetId) {
+	public static List<ModifierCodesService.PickOption> getPriorWorkOrders(
+		Id assetId,
+		Id workOrderId
+	) {
 		try {
-			return ModifierCodesService.getPriorWorkOrders(assetId);
-		} catch (Exception e) {
-			Logger.error('ModifierCodesController.getPriorWorkOrders failed', e);
-			throw PlatformUtilities.buildAuraException('Unable to load prior work orders.');
+			return ModifierCodesService.getPriorWorkOrders(
+				assetId,
+				workOrderId
+			);
 		} finally {
 			Logger.saveLog();
 		}
@@ -99,14 +88,12 @@ public with sharing class ModifierCodesController {
 		request.applyOrderReference = applyOrderReference;
 		try {
 			ModifierCodesService.saveModifier(request);
-		} catch (ModifierCodesService.ModifierCodesException e) {
-			throw PlatformUtilities.buildAuraException(e.getMessage());
-		} catch (DmlException e) {
-			Logger.error('ModifierCodesController.saveModifier DML', e);
-			throw PlatformUtilities.buildAuraException('Unable to save the modifier: ' + e.getDmlMessage(0));
 		} catch (Exception e) {
-			Logger.error('ModifierCodesController.saveModifier failed', e);
-			throw PlatformUtilities.buildAuraException('Unable to save the modifier.');
+			throw handledException(
+				e,
+				'ModifierCodesController.saveModifier failed',
+				'Unable to save the modifier.'
+			);
 		} finally {
 			Logger.saveLog();
 		}
@@ -120,16 +107,38 @@ public with sharing class ModifierCodesController {
 	public static void removeModifier(Id workOrderLineItemId) {
 		try {
 			ModifierCodesService.removeModifier(workOrderLineItemId);
-		} catch (ModifierCodesService.ModifierCodesException e) {
-			throw PlatformUtilities.buildAuraException(e.getMessage());
-		} catch (DmlException e) {
-			Logger.error('ModifierCodesController.removeModifier DML', e);
-			throw PlatformUtilities.buildAuraException('Unable to remove the modifier: ' + e.getDmlMessage(0));
 		} catch (Exception e) {
-			Logger.error('ModifierCodesController.removeModifier failed', e);
-			throw PlatformUtilities.buildAuraException('Unable to remove the modifier.');
+			throw handledException(
+				e,
+				'ModifierCodesController.removeModifier failed',
+				'Unable to remove the modifier.'
+			);
 		} finally {
 			Logger.saveLog();
 		}
+	}
+
+	/**
+	 * @description Turns a service or DML failure into the message the Modifier Codes tab shows.
+	 * @param error Exception raised while loading or saving
+	 * @param logLabel Log entry name
+	 * @param fallback Message used when the failure has no user-facing text
+	 * @return Aura exception for the Lightning client
+	 */
+	private static AuraHandledException handledException(
+		Exception error,
+		String logLabel,
+		String fallback
+	) {
+		if (error instanceof ModifierCodesService.ModifierCodesException) {
+			return PlatformUtilities.buildAuraException(error.getMessage());
+		}
+		Logger.error(logLabel, error);
+		if (error instanceof DmlException) {
+			return PlatformUtilities.buildAuraException(
+				fallback + ': ' + ((DmlException) error).getDmlMessage(0)
+			);
+		}
+		return PlatformUtilities.buildAuraException(fallback);
 	}
 }

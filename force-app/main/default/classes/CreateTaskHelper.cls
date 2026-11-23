@@ -34,7 +34,8 @@ public with sharing class CreateTaskHelper {
                 SELECT id, Status, isMigrated__c, RegistrationNumber__c, Active__c, CreatedDate,NoOfENGHolds__c, AllCapitalLinesClosedDate__c, 
                 ParentCase__r.IPMDecision__c,ParentCase__r.Sales_Decision__c, CurrencyIsoCode, 
                 ParentCase__c,OrderClassification__c,ParentCase__r.Status,ParentCase__r.UrgentOrder__c, AreAllNonFeeAndDiscountClosed__c, FirstScheduledDateNonPreinstall__c, AllCapitalLinesClosed__c, 
-                IsTradInLineOpen__c, IsProceduralMixedExists__c, IsProceduralMixedScheduleDateMissing__c, ProceduralMixedScheduleDate__c, AllReprocessingScheduledDate__c, IsReprocessingExists__c, IsReprocessingScheduleDateMissing__c, Country__c, Type   
+                IsTradInLineOpen__c, IsProceduralMixedExists__c, IsProceduralMixedScheduleDateMissing__c, ProceduralMixedScheduleDate__c, AllReprocessingScheduledDate__c, IsReprocessingExists__c, IsReprocessingScheduleDateMissing__c, Country__c, Type,
+                ParentCase__r.TradeInContact__c,ParentCase__r.IsTradeInInitialEmailSent__c
                 from Order 
                 WHERE OrderNumber__c IN :ordNums
             ];

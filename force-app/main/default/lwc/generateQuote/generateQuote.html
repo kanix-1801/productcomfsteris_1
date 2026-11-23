@@ -555,28 +555,29 @@
                         {existingQuotesModalSubtext}
                     </p>
 
-                    <table class="slds-table slds-table_bordered slds-table_cell-buffer existing-quotes-table">
+                    <div class="slds-scrollable_x">
+                    <table class="slds-table slds-table_bordered slds-table_cell-buffer">
                         <thead>
                             <tr class="slds-line-height_reset">
-                                <th scope="col" class="existing-quotes-col-number">
+                                <th scope="col">
                                     <div class="quote-number-header">
                                         <div class="slds-truncate" title="Quote Number">Quote Number</div>
                                         <lightning-helptext content={quoteIdHelpText}></lightning-helptext>
                                     </div>
                                 </th>
-                                <th scope="col" class="existing-quotes-col-status">
+                                <th scope="col">
                                     <div class="slds-truncate" title="Status">Status</div>
                                 </th>
-                                <th scope="col" class="existing-quotes-col-approval">
+                                <th scope="col">
                                     <div class="slds-truncate" title="Approval Status">Approval Status</div>
                                 </th>
-                                <th scope="col" class="existing-quotes-col-total">
+                                <th scope="col">
                                     <div class="slds-truncate" title="Total w/o Freight">Total w/o Freight</div>
                                 </th>
-                                <th scope="col" class="existing-quotes-col-currency">
+                                <th scope="col">
                                     <div class="slds-truncate" title="Currency">Currency</div>
                                 </th>
-                                <th scope="col" class="existing-quotes-col-modified">
+                                <th scope="col">
                                     <div class="slds-truncate" title="Last Modified Date">Last Modified Date</div>
                                 </th>
                             </tr>
@@ -637,6 +638,7 @@
                             </template>
                         </tbody>
                     </table>
+                    </div>
                 </div>
 
                 <footer class={existingQuotesFooterClass}>

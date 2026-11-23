@@ -152,6 +152,177 @@ private class LSAccountTeamMemberDetailsControllerTest {
         System.assertEquals(0, result.size());
     }
 
+    /**
+     * @description GCL-117 AC1 - Prospect owner is shown. No team record is written.
+     */
+    @IsTest
+    static void testLifeSciencesProspectShowsOwnerWithoutChangingTeam() {
+        bypassAccountTrigger();
+        Account prospect = lifeSciencesAccount('GCL117 Prospect Panel', 'Prospect');
+        insert prospect;
+
+        Test.startTest();
+        List<AccountTeamMemberDTO> rows =
+            LSAccountTeamMemberDetailsController.getLifeSciencesAccountTeamMembers(prospect.Id);
+        Test.stopTest();
+
+        Account storedProspect = [SELECT OwnerId, Owner.Name FROM Account WHERE Id = :prospect.Id];
+        System.assertEquals(0, [SELECT COUNT() FROM AccountTeamMember WHERE AccountId = :prospect.Id]);
+        System.assertEquals(1, rows.size());
+        System.assertEquals(AccountTeamMemberDTO.LIFE_SCIENCES_OWNER_ROLE, rows[0].teamRole);
+        System.assertEquals(AccountTeamMemberDTO.LIFE_SCIENCES_OWNER_ASSIGNMENT, rows[0].assignmentType);
+        System.assertEquals(storedProspect.OwnerId, rows[0].userId);
+        System.assertEquals(storedProspect.Owner.Name, rows[0].teamMember);
+    }
+
+    /**
+     * @description GCL-117 AC3 - Customer owner is shown beside the existing sales
+     *              row. The sales row stored by TAS is not replaced.
+     */
+    @IsTest
+    static void testCustomerOwnerStaysSeparateFromExistingSalesRow() {
+        bypassAccountTrigger();
+        Account customer = lifeSciencesAccount('GCL117 Customer Panel', 'Customer');
+        insert customer;
+        AccountTeamMember salesMember = new AccountTeamMember(
+            AccountId = customer.Id,
+            UserId = UserInfo.getUserId(),
+            TeamMemberRole = 'Sales',
+            AssignmentType__c = 'Oracle Assigned',
+            AccountAccessLevel = 'Edit',
+            OpportunityAccessLevel = 'Read',
+            CaseAccessLevel = 'Read',
+            ContactAccessLevel = 'Read'
+        );
+        insert salesMember;
+
+        Test.startTest();
+        List<AccountTeamMemberDTO> rows =
+            LSAccountTeamMemberDetailsController.getLifeSciencesAccountTeamMembers(customer.Id);
+        Test.stopTest();
+
+        AccountTeamMember stored = [
+            SELECT TeamMemberRole, AssignmentType__c
+            FROM AccountTeamMember
+            WHERE Id = :salesMember.Id
+        ];
+        System.assertEquals('Sales', stored.TeamMemberRole);
+        System.assertEquals('Oracle Assigned', stored.AssignmentType__c);
+        System.assertEquals(1, [SELECT COUNT() FROM AccountTeamMember WHERE AccountId = :customer.Id]);
+        System.assertEquals(2, rows.size());
+        System.assertEquals(AccountTeamMemberDTO.LIFE_SCIENCES_OWNER_ROLE, rows[0].teamRole);
+        System.assertEquals(AccountTeamMemberDTO.LIFE_SCIENCES_OWNER_ASSIGNMENT, rows[0].assignmentType);
+        System.assertEquals('Sales', rows[1].teamRole);
+        System.assertEquals('Oracle Assigned', rows[1].assignmentType);
+    }
+
+    /**
+     * @description Healthcare accounts do not get an Account Owner panel row.
+     */
+    @IsTest
+    static void testHealthcareAccountDoesNotShowOwnerRow() {
+        bypassAccountTrigger();
+        Account healthcare = lifeSciencesAccount('GCL117 Healthcare Panel', 'Customer');
+        healthcare.CustomerClassCode__c = 'HC';
+        insert healthcare;
+
+        Test.startTest();
+        List<AccountTeamMemberDTO> rows =
+            LSAccountTeamMemberDetailsController.getLifeSciencesAccountTeamMembers(healthcare.Id);
+        Test.stopTest();
+
+        System.assertEquals(0, rows.size());
+        System.assertEquals(0, [SELECT COUNT() FROM AccountTeamMember WHERE AccountId = :healthcare.Id]);
+    }
+
+    /**
+     * @description Covers the shared selector and DTO paths used by Healthcare
+     *              and Life Sciences. GCL-117 does not change those query results.
+     */
+    @IsTest
+    static void testExistingSelectorAndDtoPathsRemainCovered() {
+        Account accountRecord = [
+            SELECT Id
+            FROM Account
+            WHERE Name = 'LS Coverage Panel Account'
+            LIMIT 1
+        ];
+        User member = getTestUser();
+        Set<Id> accountIds = new Set<Id>{ accountRecord.Id };
+        Set<Id> userIds = new Set<Id>{ member.Id };
+        String role = getActiveTeamMemberRole();
+        String assignmentType = getActiveAssignmentType();
+
+        System.assertEquals(1, AccountTeamMemberSelector.selectByAccountId(accountRecord.Id, false).size());
+        System.assertEquals(1, AccountTeamMemberSelector.selectByAccountId(accountRecord.Id, true).size());
+        System.assertEquals(0, AccountTeamMemberSelector.selectByAccountsAndUsers(null, userIds).size());
+        System.assertEquals(1, AccountTeamMemberSelector.selectByAccountsAndUsers(accountIds, userIds).size());
+        System.assertEquals(0, AccountTeamMemberSelector.selectByUserIds(new Set<Id>()).size());
+        System.assertEquals(1, AccountTeamMemberSelector.selectByUserIds(userIds).size());
+        System.assertEquals(0, AccountTeamMemberSelector.selectByAccountsUsersAndRole(accountIds, userIds, null).size());
+        System.assertEquals(1, AccountTeamMemberSelector.selectByAccountsUsersAndRole(accountIds, userIds, role).size());
+        System.assertEquals(
+            0,
+            AccountTeamMemberSelector.selectByAccountsUsersRoleAssignmentType(accountIds, userIds, role, null).size()
+        );
+        System.assertEquals(
+            1,
+            AccountTeamMemberSelector.selectByAccountsUsersRoleAssignmentType(
+                accountIds, userIds, role, assignmentType
+            ).size()
+        );
+        System.assertEquals(0, AccountTeamMemberSelector.selectLifeSciencesByAccountsAndUsers(accountIds, new Set<Id>()).size());
+        System.assertEquals(1, AccountTeamMemberSelector.selectLifeSciencesByAccountsAndUsers(accountIds, userIds).size());
+        System.assertEquals(0, AccountTeamMemberSelector.selectCurrentUserTeamMember(null).size());
+        AccountTeamMemberSelector.selectCurrentUserTeamMember(accountRecord.Id);
+        System.assertNotEquals(null, AccountTeamMemberSelector.selectOwnerForCoveragePanel(accountRecord.Id));
+
+        AccountTeamMember teamMember = [
+            SELECT Id, User.Name, User.Title, User.Email, User.Phone, TeamMemberRole,
+                   SalesCategoryDescription__c, ExpiryDate__c, AssignmentType__c,
+                   TerritoryCode__c, SalesCategoryCode__c, AccountAccessLevel,
+                   CaseAccessLevel, ContactAccessLevel, OpportunityAccessLevel
+            FROM AccountTeamMember
+            WHERE AccountId = :accountRecord.Id
+            LIMIT 1
+        ];
+        AccountTeamMemberDTO hiddenAccess = new AccountTeamMemberDTO(teamMember, false);
+        AccountTeamMemberDTO visibleAccess = new AccountTeamMemberDTO(teamMember, true);
+        System.assertEquals(false, hiddenAccess.canViewAccessFields);
+        System.assertEquals(null, hiddenAccess.accountAccess);
+        System.assertEquals(true, visibleAccess.canViewAccessFields);
+        System.assertEquals(teamMember.AccountAccessLevel, visibleAccess.accountAccess);
+    }
+
+    private static Account lifeSciencesAccount(String name, String recordTypeName) {
+        String suffix = String.valueOf(System.currentTimeMillis());
+        Account accountRecord = new Account(
+            Name = name + ' ' + suffix,
+            RecordTypeId = Schema.SObjectType.Account.getRecordTypeInfosByDeveloperName()
+                .get(recordTypeName)
+                .getRecordTypeId(),
+            CustomerClassCode__c = 'SC',
+            OrgIDs__c = '82',
+            BillingStreet = '123 Main St',
+            BillingCity = 'Cleveland',
+            BillingCountryCode = 'US',
+            BillingStateCode = 'OH',
+            BillingPostalCode = '44113'
+        );
+        if (recordTypeName == 'Customer') {
+            accountRecord.AccountSource = 'Oracle';
+            accountRecord.SourceSystemID__c = 'GCL117' + suffix;
+            accountRecord.OracleAddressId__c = 'GCL117' + suffix;
+        }
+        return accountRecord;
+    }
+
+    private static void bypassAccountTrigger() {
+        Automation_Setting_Trigger__c settings = Automation_Setting_Trigger__c.getInstance();
+        settings.AccountTriggerByPass__c = true;
+        upsert settings;
+    }
+
     private static User getTestUser() {
         return [
             SELECT Id

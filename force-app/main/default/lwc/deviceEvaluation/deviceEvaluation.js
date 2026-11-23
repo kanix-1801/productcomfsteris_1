@@ -8,7 +8,12 @@ import renameStagedEvaluationPhoto from '@salesforce/apex/DeviceEvaluationContro
 import deleteStagedEvaluationPhoto from '@salesforce/apex/DeviceEvaluationController.deleteStagedEvaluationPhoto';
 import removeEvaluationPhoto from '@salesforce/apex/DeviceEvaluationController.removeEvaluationPhoto';
 import saveEvaluation from '@salesforce/apex/DeviceEvaluationController.saveEvaluation';
+import getModifierWorkspace from '@salesforce/apex/ModifierCodesController.getWorkspace';
+import saveModifier from '@salesforce/apex/ModifierCodesController.saveModifier';
+import removeModifier from '@salesforce/apex/ModifierCodesController.removeModifier';
 import completeEvaluation from '@salesforce/apex/DeviceEvaluationController.completeEvaluation';
+import getEvaluationPhotos from '@salesforce/apex/EvaluationPhotosController.getPhotos';
+import getCioEvaluations from '@salesforce/apex/CIOEvaluationsController.getEvaluations';
 import returnToEvaluation from '@salesforce/apex/DeviceEvaluationController.returnToEvaluation';
 import addRepairSignature from '@salesforce/apex/DeviceEvaluationController.addRepairSignature';
 import signAllRepairCodes from '@salesforce/apex/DeviceEvaluationController.signAllRepairCodes';
@@ -29,6 +34,7 @@ const TAB_ASSET = 'asset';
 const TAB_PREFERENCES = 'preferences';
 const TAB_NOTES = 'notes';
 const TAB_PHOTOS = 'photos';
+const TAB_CIO = 'cio-evaluation';
 const TAB_WRE = 'warranty-repair-evaluation';
 const TAB_MODIFIER_CODES = 'modifier-codes';
 const TAB_CATEGORY = 'category';
@@ -42,6 +48,8 @@ const ESTIMATE_ORDER_ACKNOWLEDGEMENT = 'Order Acknowledgement';
 const ESTIMATE_PRE_APPROVED = 'Pre-Approved';
 const REPAIR_UNSIGNED_MESSAGE =
     'You cannot complete repair until all repair codes have been signed.';
+const CIO_REQUIRED_MESSAGE =
+    'You must complete the CIO Questionnaire before you can complete Evaluation.';
 const CONTAMINATION_REQUIRED_MESSAGE =
     'Please navigate to the Contamination Information section under the Work Order Details tab and specify what is contaminated.';
 const CONTAMINATION_CHECKBOX_FIELDS = [
@@ -101,6 +109,8 @@ export default class DeviceEvaluation extends LightningElement {
 
     @track evaluation;
     @track selectedProductIdSet = new Set();
+    /** Modifier choices made on codes that are not work order lines yet. */
+    pendingModifierChoices = {};
     lastPersistedProductIds = [];
     /** Staged/linked photos awaiting Complete attach to Repair Code WOLIs. */
     @track stagedPhotos = [];
@@ -238,6 +248,20 @@ export default class DeviceEvaluation extends LightningElement {
      */
     get showCioIndicator() {
         return this.evaluation?.continuousImprovementOpportunity === true;
+    }
+
+    /**
+     * GW-4749 - CIO Evaluation tab is available only when Continuous Improvement Opportunity is true.
+     */
+    get showCioTab() {
+        return this.showCioIndicator;
+    }
+
+    /**
+     * GW-4749 - Warranty Repair Evaluation tab is available only when Repair Warranty is Yes.
+     */
+    get showWarrantyRepairTab() {
+        return this.evaluation?.repairWarranty === 'Yes';
     }
 
     /**
@@ -596,9 +620,14 @@ export default class DeviceEvaluation extends LightningElement {
             { label: 'Asset Information', value: TAB_ASSET },
             { label: 'Customer Preferences', value: TAB_PREFERENCES },
             { label: 'Evaluation Notes', value: TAB_NOTES },
-            { label: 'Photos', value: TAB_PHOTOS },
-            { label: 'Warranty Repair Evaluation', value: TAB_WRE }
+            { label: 'Photos', value: TAB_PHOTOS }
         );
+        if (this.showCioTab) {
+            fixed.push({ label: 'CIO Evaluation', value: TAB_CIO });
+        }
+        if (this.showWarrantyRepairTab) {
+            fixed.push({ label: 'Warranty Repair Evaluation', value: TAB_WRE });
+        }
         if (this.showWorkPerformedTab) {
             fixed.push({ label: 'Product Requests', value: TAB_PRODUCT_REQUESTS });
             fixed.push({ label: 'Work Performed', value: TAB_WORK_PERFORMED });
@@ -671,6 +700,10 @@ export default class DeviceEvaluation extends LightningElement {
         return this.activeTab === TAB_PHOTOS;
     }
 
+    get isCioTab() {
+        return this.activeTab === TAB_CIO;
+    }
+
     get isWreTab() {
         return this.activeTab === TAB_WRE;
     }
@@ -681,6 +714,81 @@ export default class DeviceEvaluation extends LightningElement {
 
     get isModifierCodesTab() {
         return this.activeTab === TAB_MODIFIER_CODES;
+    }
+
+    /**
+     * Selected service, category, and special pricing cards that may not be saved yet.
+     * The modifier tab merges these with the saved lines.
+     */
+    get pendingModifierLines() {
+        const eligible = new Set(['Service Code', 'Category Code', 'Special Pricing']);
+        return this.collectSelectedCards()
+            .filter((card) => card?.productId && eligible.has(card.codeType))
+            .map((card) => ({
+                key: card.productId,
+                productId: card.productId,
+                lineType: card.codeType,
+                category: card.evalCategory || '',
+                itemNumber: card.productCode || '',
+                description: card.productName || '',
+                modifierChoice: this.pendingModifierChoices[card.productId] || null
+            }));
+    }
+
+    handlePendingLineModifier(event) {
+        const choice = event.detail || {};
+        if (!choice.productId) {
+            return;
+        }
+        this.pendingModifierChoices = {
+            ...this.pendingModifierChoices,
+            [choice.productId]: choice
+        };
+    }
+
+    /**
+     * Stamp a modifier the user set or cleared on a code before that line existed.
+     * Line creation copies the item modifier first; this writes the user's choice over it.
+     */
+    async applyStagedModifierChoices() {
+        const choices = Object.values(this.pendingModifierChoices || {});
+        const workOrderId = this.evaluation?.workOrderId;
+        if (!choices.length || !workOrderId) {
+            return;
+        }
+        const workspace = await getModifierWorkspace({
+            workOrderId,
+            variant: 'device'
+        });
+        const services = workspace?.services || [];
+        for (const choice of choices) {
+            const line = services.find((row) =>
+                this.sameSalesforceId(row.productId, choice.productId)
+            );
+            if (!line?.id) {
+                continue;
+            }
+            if (choice.cleared === true) {
+                if (line.hasModifier === true) {
+                    await removeModifier({ workOrderLineItemId: line.id });
+                }
+            } else if (choice.pricingModifierId) {
+                await saveModifier({
+                    workOrderLineItemId: line.id,
+                    pricingModifierId: choice.pricingModifierId,
+                    modifierReasonCode: choice.modifierReasonCode || null,
+                    orderReferenceId: choice.orderReferenceId || null,
+                    applyOrderReference: true
+                });
+            }
+        }
+        this.pendingModifierChoices = {};
+    }
+
+    sameSalesforceId(left, right) {
+        const leftKey = left ? String(left).substring(0, 15) : '';
+        const rightKey = right ? String(right).substring(0, 15) : '';
+        return leftKey !== '' && leftKey === rightKey;
     }
 
     get isProductRequestsTab() {
@@ -698,6 +806,7 @@ export default class DeviceEvaluation extends LightningElement {
             !this.isPreferencesTab &&
             !this.isNotesTab &&
             !this.isPhotosTab &&
+            !this.isCioTab &&
             !this.isWreTab &&
             !this.isCategoryTab &&
             !this.isWorkPerformedTab &&
@@ -739,6 +848,12 @@ export default class DeviceEvaluation extends LightningElement {
 
     renderedCallback() {
         if (this.activeTab === TAB_PRODUCT_REQUESTS && this.evaluation?.status !== STATUS_REPAIR) {
+            this.activeTab = TAB_WO_DETAILS;
+        }
+        if (this.activeTab === TAB_WRE && !this.showWarrantyRepairTab) {
+            this.activeTab = TAB_WO_DETAILS;
+        }
+        if (this.activeTab === TAB_CIO && !this.showCioTab) {
             this.activeTab = TAB_WO_DETAILS;
         }
         this.classList.toggle('is-evaluation', this.isWorkspaceMode);
@@ -857,15 +972,39 @@ export default class DeviceEvaluation extends LightningElement {
         return cards;
     }
 
+    /**
+     * GW-4378 - Photos Required is satisfied by a selected observation-code photo
+     * or a photo stored on the Work Order from the Photos tab.
+     */
     async ensurePhotosReady() {
         const photosRequired = this.evaluation?.photosRequired === true;
         const unable = this.evaluation?.unableToTakePhoto === true;
-        if (photosRequired && !unable && this.selectedStagedPhotos.length === 0) {
-            this.workspaceError = this.getPhotoRequiredMessage();
+        if (!photosRequired || unable || this.selectedStagedPhotos.length > 0) {
+            this.workspaceError = '';
+            return true;
+        }
+        try {
+            if (await this.hasWorkOrderPhotos(this.workOrderId)) {
+                this.workspaceError = '';
+                return true;
+            }
+        } catch (error) {
+            this.workspaceError = this.resolveErrorMessage(
+                error,
+                'Unable to verify photos on this Work Order.'
+            );
             return false;
         }
-        this.workspaceError = '';
-        return true;
+        this.workspaceError = this.getPhotoRequiredMessage();
+        return false;
+    }
+
+    async hasWorkOrderPhotos(workOrderId) {
+        if (!workOrderId) {
+            return false;
+        }
+        const rows = await getEvaluationPhotos({ workOrderId });
+        return (rows || []).some((row) => row?.isOptional === true);
     }
 
     buildEvaluationPayload() {
@@ -980,6 +1119,7 @@ export default class DeviceEvaluation extends LightningElement {
             ...this.buildEvaluationPayload(),
             contaminationJson: JSON.stringify(this.buildContaminationPayload())
         });
+        await this.applyStagedModifierChoices();
         this.applyWorkspace(workspace, true);
         if (preservedUnlinked.length > 0) {
             const linkedIds = new Set(
@@ -1010,6 +1150,7 @@ export default class DeviceEvaluation extends LightningElement {
                 ...this.buildEvaluationPayload(),
                 contaminationJson: JSON.stringify(this.buildContaminationPayload())
             });
+            await this.applyStagedModifierChoices();
             return;
         }
         await this.persistEvaluationDraft();
@@ -1126,6 +1267,10 @@ export default class DeviceEvaluation extends LightningElement {
             this.workspaceError = SHIP_TO_VENDOR_NEXT_MESSAGE;
             return;
         }
+        const cioOk = await this.ensureCioQuestionnaireComplete();
+        if (!cioOk) {
+            return;
+        }
         this.mode = MODE_SUMMARY;
         this.handleClosePhotoModal();
     }
@@ -1133,6 +1278,31 @@ export default class DeviceEvaluation extends LightningElement {
     handleContinueEvaluation() {
         this.mode = MODE_EVALUATION;
         this.workspaceError = '';
+    }
+
+    /**
+     * GW-4749 - Block summary and complete until a CIO Evaluation exists.
+     */
+    async ensureCioQuestionnaireComplete() {
+        if (this.evaluation?.continuousImprovementOpportunity !== true) {
+            return true;
+        }
+        try {
+            const rows = await getCioEvaluations({ workOrderId: this.evaluation.workOrderId });
+            if (rows && rows.length > 0) {
+                return true;
+            }
+        } catch (error) {
+            this.workspaceError = this.resolveErrorMessage(
+                error,
+                'Unable to verify the CIO Questionnaire.'
+            );
+            this.activeTab = TAB_CIO;
+            return false;
+        }
+        this.workspaceError = CIO_REQUIRED_MESSAGE;
+        this.activeTab = TAB_CIO;
+        return false;
     }
 
     async handleComplete() {
@@ -1158,6 +1328,11 @@ export default class DeviceEvaluation extends LightningElement {
 
         if (!this.hasRequiredContamination()) {
             this.workspaceError = CONTAMINATION_REQUIRED_MESSAGE;
+            this.mode = MODE_EVALUATION;
+            return;
+        }
+        const cioOk = await this.ensureCioQuestionnaireComplete();
+        if (!cioOk) {
             this.mode = MODE_EVALUATION;
             return;
         }

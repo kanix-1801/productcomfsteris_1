@@ -13,16 +13,16 @@
  */
 public with sharing class OraclePricingProductDeletionQueueable implements Queueable {
 
-    private List<Id> oliIds;
+	private List<Id> oliIds;
 
     /**
      * Creates a queueable job for the given Opporta]unity Line Item Ids.
      *
      * @param oliIds Ids of Opportunity Line Items to delete.
      */
-    public OraclePricingProductDeletionQueueable(List<Id> oliIds) {
-        this.oliIds = oliIds;
-    }
+	public OraclePricingProductDeletionQueueable(List<Id> oliIds) {
+		this.oliIds = oliIds;
+	}
 
     /**
      * Executes the deletion job.
@@ -32,15 +32,15 @@ public with sharing class OraclePricingProductDeletionQueueable implements Queue
      *
      * @param context Queueable context provided by the platform.
      */
-    public void execute(QueueableContext context) {
-        List<OpportunityLineItem> productsToDelete = [
-            SELECT Id
-            FROM OpportunityLineItem
-            WHERE Id IN :oliIds
-        ];
+	public void execute(QueueableContext context) {
+		List<OpportunityLineItem> productsToDelete = [
+			SELECT Id
+			FROM OpportunityLineItem
+			WHERE Id IN :oliIds
+		];
 
-        if (!productsToDelete.isEmpty()) {
-            delete productsToDelete;
-        }
-    }
+		if (!productsToDelete.isEmpty()) {
+			delete productsToDelete;
+		}
+	}
 }

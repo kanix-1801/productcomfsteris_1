@@ -1,0 +1,4 @@
+.cio-name-button {
+    color: var(--slds-g-color-accent-2, #0176d3);
+    text-decoration: underline;
+}

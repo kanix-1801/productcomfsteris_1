@@ -73,7 +73,16 @@ private class EmailAddressDefaultControllerTest {
                 Subject = 'Go No-Go',
                 body = 'Body Text',
                 TemplateType = 'Text'
+            ),
+                new EmailTemplate(
+                Name = 'Credit Notification Trade In CAN',
+                DeveloperName = 'Credit_Notification_Trade_In_CAN_Test',
+                FolderId = emailFolder.Id,
+                Subject = 'Trade-in Credit Notification',
+                Body = 'CAN Credit Notification Test Body',
+                TemplateType = 'Text'
             )
+            
         };
        
         // ---------- Core data ----------
@@ -1084,6 +1093,113 @@ static void test_DF_LineType_CoverageNew() {
         } catch (Exception e) {
             System.assertNotEquals(null, e, 'Exception should be thrown and rethrown');
         }
+    }
+
+    /**
+    * @description CBM-1486: Verifies that fixed CC addresses configured
+    *              for CREDITMEMOCAN are added to EmailMessage.CcAddress.
+    */
+    @IsTest
+    static void testDefaultSDNEmailAddressesCreditMemoCanFixedCc() {
+
+        Order orderRecord = [
+            SELECT Id
+            FROM Order
+            LIMIT 1
+        ];
+
+        Case creditMemoCanCase = new Case(
+            Subject = 'CBM-1486 CAN Credit Memo',
+            Status = 'New',
+            Origin = 'Phone',
+            EmailType__c = 'CREDITMEMOCAN',
+            Order__c = orderRecord.Id
+        );
+        insert creditMemoCanCase;
+
+        EmailTemplate canTemplate = [
+            SELECT Id, Name
+            FROM EmailTemplate
+            WHERE Name = 'Credit Notification Trade In CAN'
+            LIMIT 1
+        ];
+
+        List<EmailConditionsConfiguration__mdt> configurations = [
+            SELECT EmailType__c, CCFixed__c
+            FROM EmailConditionsConfiguration__mdt
+            WHERE EmailType__c = 'CREDITMEMOCAN'
+            LIMIT 1
+        ];
+
+        System.Assert.isFalse(
+            configurations.isEmpty(),
+            'Expected CREDITMEMOCAN metadata configuration.'
+        );
+
+        System.Assert.isFalse(
+            String.isBlank(configurations[0].CCFixed__c),
+            'Expected CC Fixed to be populated for CREDITMEMOCAN.'
+        );
+
+        QuickAction.SendEmailQuickActionDefaults sendDefaults =
+            Test.newSendEmailQuickActionDefaults(
+                creditMemoCanCase.Id,
+                null
+            );
+
+        Test.startTest();
+
+        EmailAddressDefaultController.defaultSDNEmailAddresses(
+            sendDefaults,
+            creditMemoCanCase,
+            canTemplate.Name
+        );
+
+        Test.stopTest();
+
+        EmailMessage emailMessage =
+            (EmailMessage)sendDefaults.getTargetSObject();
+
+        System.Assert.isNotNull(
+            emailMessage,
+            'Expected EmailMessage defaults.'
+        );
+
+        System.Assert.isFalse(
+            String.isBlank(emailMessage.CcAddress),
+            'Expected fixed CC addresses for CREDITMEMOCAN.'
+        );
+
+        Set<String> actualCcAddresses = new Set<String>();
+
+        for (String emailAddress : emailMessage.CcAddress.split(';')) {
+            if (String.isNotBlank(emailAddress)) {
+                actualCcAddresses.add(
+                    emailAddress.trim().toLowerCase()
+                );
+            }
+        }
+
+        for (
+            String configuredEmail :
+            configurations[0].CCFixed__c.split('[,;\\r\\n]+')
+        ) {
+            if (String.isNotBlank(configuredEmail)) {
+                String expectedEmail =
+                    configuredEmail.trim().toLowerCase();
+
+                System.Assert.isTrue(
+                    actualCcAddresses.contains(expectedEmail),
+                    'Expected fixed CC address: ' + expectedEmail
+                );
+            }
+        }
+
+        System.Assert.areEqual(
+            '',
+            emailMessage.BccAddress,
+            'Expected BccAddress to be cleared.'
+        );
     }
 
 }

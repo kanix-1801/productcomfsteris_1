@@ -7,13 +7,13 @@
  */
 public class OraclePricingFlowQueueable implements Queueable, Database.AllowsCallouts {
 
-    private Id opportunityId;
+	private Id opportunityId;
 
-    public OraclePricingFlowQueueable(Id opportunityId) {
-        this.opportunityId = opportunityId;
-    }
+	public OraclePricingFlowQueueable(Id opportunityId) {
+		this.opportunityId = opportunityId;
+	}
 
-    public void execute(QueueableContext context) {
-        OraclePricingIntegrationService.processOpportunity(opportunityId);
-    }
+	public void execute(QueueableContext context) {
+		OraclePricingIntegrationService.processOpportunity(opportunityId);
+	}
 }

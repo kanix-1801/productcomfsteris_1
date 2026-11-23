@@ -9,6 +9,7 @@
  *              Processes only IPTLS, Low Temp, Procedural and Endoscopy territories.
  *              Invalid rows are skipped and written to a user-specific error file, which is emailed to the
  *              uploader. "-" is treated as blank; name columns are reference-only.
+ *              User-facing problems are thrown as AuraHandledException; the controller handles the rest.
  * @group Field Service
  * @see TechDistrictAlignmentController
  */
@@ -25,17 +26,17 @@ public with sharing class TechDistrictAlignmentService {
 		'Procedural',
 		'Endoscopy'
 	};
+	public static final List<String> LOG_TAGS = new List<String>{
+		'Service Territory',
+		'Service Territory Member',
+		'Service Resource'
+	};
 	@TestVisible
 	private static final Integer MAX_ROWS = 2000;
 	@TestVisible
 	private static Date runDate = Date.today();
 	private static final Integer NAME_MAX_LENGTH = 80;
 	private static final String LOG_SCENARIO = 'Tech District Alignment';
-	private static final List<String> LOG_TAGS = new List<String>{
-		'Service Territory',
-		'Service Territory Member',
-		'Service Resource'
-	};
 	private static final List<String> TERRITORY_FIELDS = new List<String>{
 		'Id',
 		'Name',
@@ -75,7 +76,7 @@ public with sharing class TechDistrictAlignmentService {
 	};
 
 	/**
-	 * @description Counts, skip messages and error file returned to the LWC after Start Upload.
+	 * @description Counts, skip messages and error file returned to the LWC after Process Data.
 	 */
 	public class ProcessResult {
 		@AuraEnabled
@@ -127,50 +128,38 @@ public with sharing class TechDistrictAlignmentService {
 	 * @throws AuraHandledException When neither a stored template nor the packaged template exists.
 	 */
 	public static Id ensureTemplateDocumentId() {
-		try {
-			Logger.setScenario(LOG_SCENARIO);
-			return resolveTemplateDocumentId();
-		} catch (Exception e) {
-			logFailure('Template download failed', e);
-			throw e;
-		} finally {
-			Logger.saveLog();
+		FieldServiceBackofficeConfig__c config = FieldServiceBackofficeConfig__c.getOrgDefaults();
+		String storedId = config.TechDistrictAlignmentTemplateId__c;
+		Id documentId = PlatformUtilities.parseId(PlatformUtilities.trimToNull(storedId));
+		if (isAccessibleDocument(documentId)) {
+			return documentId;
 		}
+		List<ContentDocument> titledDocs = ContentDocumentsSelector.selectLatestByTitle(TEMPLATE_TITLE);
+		documentId = titledDocs.isEmpty() ? createTemplateDocument() : titledDocs[0].Id;
+		if (config.Id == null) {
+			config.SetupOwnerId = UserInfo.getOrganizationId();
+		}
+		config.TechDistrictAlignmentTemplateId__c = documentId;
+		// System mode: back-office users have no edit access to custom settings.
+		Database.upsert(config, AccessLevel.SYSTEM_MODE);
+		return documentId;
 	}
 
 	/**
-	 * @description ContentDocument Id of the running user's error file, or null when none exists yet.
+	 * @description ContentDocument Id of the running user's error file, or null before their first upload.
 	 * @return ContentDocument Id, or null.
 	 */
 	public static Id errorFileDocumentId() {
-		try {
-			Logger.setScenario(LOG_SCENARIO);
-			return storedErrorFileDocumentId();
-		} catch (Exception e) {
-			logFailure('Error file lookup failed', e);
-			throw e;
-		} finally {
-			Logger.saveLog();
-		}
+		String storedId = FieldServiceBackofficeConfig__c.getInstance().TechDistrictAlignmentErrorFileId__c;
+		Id documentId = PlatformUtilities.parseId(PlatformUtilities.trimToNull(storedId));
+		return isAccessibleDocument(documentId) ? documentId : null;
 	}
 
-	private static Id resolveTemplateDocumentId() {
-		Id storedId = toId(FieldServiceBackofficeConfig__c.getOrgDefaults().TechDistrictAlignmentTemplateId__c);
-		if (storedId != null && documentExists(storedId)) {
-			return storedId;
-		}
-
-		List<ContentDocument> titledDocs = ContentDocumentsSelector.selectLatestByTitle(TEMPLATE_TITLE);
-		if (!titledDocs.isEmpty()) {
-			saveTemplateDocumentId(titledDocs[0].Id);
-			return titledDocs[0].Id;
-		}
-
+	private static Id createTemplateDocument() {
 		List<StaticResource> resources = StaticResourcesSelector.selectByName(TEMPLATE_RESOURCE_NAME);
-		if (resources.isEmpty() || resources[0].Body == null) {
+		if (resources.isEmpty()) {
 			throw PlatformUtilities.buildAuraException(Label.TDA_TemplateUnavailable);
 		}
-
 		ContentVersion version = new ContentVersion(
 			Title = TEMPLATE_TITLE,
 			PathOnClient = TEMPLATE_FILE_NAME,
@@ -178,7 +167,7 @@ public with sharing class TechDistrictAlignmentService {
 			IsMajorVersion = true
 		);
 		Database.insert(version, AccessLevel.USER_MODE);
-		Id documentId = documentIdOf(version.Id);
+		Id documentId = ContentVersionsSelector.selectDocumentIdByVersionId(version.Id)[0].ContentDocumentId;
 		// Shared with the whole org so every back-office user downloads the same template.
 		Database.insert(
 			new ContentDocumentLink(
@@ -189,21 +178,12 @@ public with sharing class TechDistrictAlignmentService {
 			),
 			AccessLevel.USER_MODE
 		);
-		saveTemplateDocumentId(documentId);
 		return documentId;
 	}
 
-	private static Id storedErrorFileDocumentId() {
-		FieldServiceBackofficeConfig__c config = FieldServiceBackofficeConfig__c.getValues(UserInfo.getUserId());
-		Id storedId = toId(config == null ? null : config.TechDistrictAlignmentErrorFileId__c);
-		if (storedId == null || !documentExists(storedId)) {
-			return null;
-		}
-		return storedId;
-	}
-
-	private static Boolean documentExists(Id documentId) {
-		return !ContentDocumentsSelector.selectIdAndTitleByIds(new Set<Id>{ documentId }).isEmpty();
+	private static Boolean isAccessibleDocument(Id documentId) {
+		return documentId != null &&
+			!ContentDocumentsSelector.selectIdAndTitleByIds(new Set<Id>{ documentId }).isEmpty();
 	}
 
 	/**
@@ -238,32 +218,13 @@ public with sharing class TechDistrictAlignmentService {
 	 *         exceeds the row limit.
 	 */
 	public static ProcessResult processUpload(Id contentDocumentId) {
-		try {
-			Logger.setScenario(LOG_SCENARIO);
-			ProcessResult result = process(contentDocumentId);
-			Logger.info('Tech District Alignment ' + result.summary).addTags(LOG_TAGS);
-			return result;
-		} catch (Exception e) {
-			logFailure('Tech District Alignment upload failed', e);
-			throw e;
-		} finally {
-			Logger.saveLog();
-		}
-	}
-
-	private static ProcessResult process(Id contentDocumentId) {
-		ProcessResult result = new ProcessResult();
-		if (contentDocumentId == null) {
-			throw PlatformUtilities.buildAuraException(Label.TDA_FileRequired);
-		}
-
+		Logger.setScenario(LOG_SCENARIO);
 		List<List<String>> table = readUploadedFile(contentDocumentId);
 		List<AlignmentRow> rows = toRows(table);
+		ProcessResult result = new ProcessResult();
 		result.processedCount = rows.size();
 		result.nextFiscalYearStart = nextFiscalYearStart();
-		if (!rows.isEmpty()) {
-			applyRows(rows, result);
-		}
+		applyRows(rows, result);
 
 		for (AlignmentRow row : rows) {
 			if (row.errorMessage != null) {
@@ -272,11 +233,23 @@ public with sharing class TechDistrictAlignmentService {
 				result.errors.add(String.format(Label.TDA_RowError, rowErrorParams));
 			}
 		}
-		result.summary = summary(result);
+		result.summary = String.format(
+			Label.TDA_Summary,
+			new List<Object>{
+				String.valueOf(result.processedCount),
+				String.valueOf(result.movedCount),
+				String.valueOf(result.territoryCreatedCount),
+				String.valueOf(result.managerUpdatedCount),
+				String.valueOf(result.unchangedCount),
+				String.valueOf(result.skippedCount)
+			}
+		);
 
 		ContentVersion errorFile = writeErrorFile(table[0], rows);
 		result.errorFileDocumentId = errorFile.ContentDocumentId;
 		result.emailSent = sendResultEmail(result, errorFile.Id);
+		Logger.info('Tech District Alignment ' + result.summary).addTags(LOG_TAGS);
+		Logger.saveLog();
 		return result;
 	}
 
@@ -285,29 +258,13 @@ public with sharing class TechDistrictAlignmentService {
 	 */
 	private static List<List<String>> readUploadedFile(Id contentDocumentId) {
 		List<ContentVersion> versions = ContentVersionsSelector.selectLatestByContentDocumentId(contentDocumentId);
-		if (
-			versions.isEmpty() ||
-			versions[0].VersionData == null ||
-			versions[0].FileExtension?.toLowerCase() != 'xlsx'
-		) {
+		if (versions.isEmpty() || versions[0].FileExtension?.toLowerCase() != 'xlsx') {
 			throw PlatformUtilities.buildAuraException(Label.TDA_FileUnreadable);
 		}
 		try {
 			return ExcelFileParser.readFirstSheet(versions[0].VersionData);
 		} catch (ExcelFileParser.ParseException e) {
 			throw PlatformUtilities.buildAuraException(Label.TDA_FileUnreadable);
-		}
-	}
-
-	/**
-	 * @description Logs a failed request at the source: WARN for an expected, user-correctable problem
-	 *              (AuraHandledException), ERROR for anything unexpected.
-	 */
-	private static void logFailure(String message, Exception e) {
-		if (e instanceof AuraHandledException) {
-			Logger.warn(message + ': ' + e.getMessage(), e).addTags(LOG_TAGS);
-		} else {
-			Logger.error(message, e).addTags(LOG_TAGS);
 		}
 	}
 
@@ -318,38 +275,32 @@ public with sharing class TechDistrictAlignmentService {
 		}
 		result.unchangedCount = plan.unchangedCount;
 
-		if (!plan.newTerritories.isEmpty()) {
-			List<Database.SaveResult> saveResults = Database.insert(plan.newTerritories, false, AccessLevel.USER_MODE);
-			for (Integer i = 0; i < saveResults.size(); i++) {
-				if (saveResults[i].isSuccess()) {
-					result.territoryCreatedCount++;
-				} else {
-					ServiceTerritory failed = plan.newTerritories[i];
-					failRows(
-						plan.rowsByNewTerritory.get(key(failed.RegionNumber__c)),
-						String.format(
-							Label.TDA_TerritoryCreateFailed,
-							new List<Object>{ failed.RegionNumber__c, firstError(saveResults[i]) }
-						)
-					);
-				}
+		List<Database.SaveResult> saveResults = Database.insert(plan.newTerritories, false, AccessLevel.USER_MODE);
+		for (Integer i = 0; i < saveResults.size(); i++) {
+			if (!saveResults[i].isSuccess()) {
+				ServiceTerritory failed = plan.newTerritories[i];
+				List<Object> params = new List<Object>{ failed.RegionNumber__c, firstError(saveResults[i]) };
+				failRows(
+					plan.rowsByNewTerritory.get(key(failed.RegionNumber__c)),
+					String.format(Label.TDA_TerritoryCreateFailed, params)
+				);
 			}
 		}
+		result.territoryCreatedCount =
+			plan.newTerritories.size() - PlatformUtilities.logSaveFailures(plan.newTerritories, saveResults);
 
 		List<ServiceTerritory> managerUpdates = plan.managerUpdateById.values();
-		if (!managerUpdates.isEmpty()) {
-			List<Database.SaveResult> saveResults = Database.update(managerUpdates, false, AccessLevel.USER_MODE);
-			for (Integer i = 0; i < saveResults.size(); i++) {
-				if (saveResults[i].isSuccess()) {
-					result.managerUpdatedCount++;
-				} else {
-					failRows(
-						plan.rowsByManagerUpdate.get(managerUpdates[i].Id),
-						String.format(Label.TDA_ManagerUpdateFailed, new List<Object>{ firstError(saveResults[i]) })
-					);
-				}
+		saveResults = Database.update(managerUpdates, false, AccessLevel.USER_MODE);
+		for (Integer i = 0; i < saveResults.size(); i++) {
+			if (!saveResults[i].isSuccess()) {
+				failRows(
+					plan.rowsByManagerUpdate.get(managerUpdates[i].Id),
+					String.format(Label.TDA_ManagerUpdateFailed, new List<Object>{ firstError(saveResults[i]) })
+				);
 			}
 		}
+		result.managerUpdatedCount =
+			managerUpdates.size() - PlatformUtilities.logSaveFailures(managerUpdates, saveResults);
 
 		// End the current membership before creating the next year one: Salesforce rejects a new primary
 		// membership while the resource's current primary membership is still open-ended (date overlap).
@@ -362,15 +313,14 @@ public with sharing class TechDistrictAlignmentService {
 				endedMemberRows.add(row);
 			}
 		}
-		if (!endedMembers.isEmpty()) {
-			List<Database.SaveResult> saveResults = Database.update(endedMembers, false, AccessLevel.USER_MODE);
-			for (Integer i = 0; i < saveResults.size(); i++) {
-				if (!saveResults[i].isSuccess()) {
-					endedMemberRows[i].errorMessage = String.format(
-						Label.TDA_MemberEndFailed,
-						new List<Object>{ firstError(saveResults[i]) }
-					);
-				}
+		saveResults = Database.update(endedMembers, false, AccessLevel.USER_MODE);
+		PlatformUtilities.logSaveFailures(endedMembers, saveResults);
+		for (Integer i = 0; i < saveResults.size(); i++) {
+			if (!saveResults[i].isSuccess()) {
+				endedMemberRows[i].errorMessage = String.format(
+					Label.TDA_MemberEndFailed,
+					new List<Object>{ firstError(saveResults[i]) }
+				);
 			}
 		}
 
@@ -383,31 +333,28 @@ public with sharing class TechDistrictAlignmentService {
 				newMemberRows.add(row);
 			}
 		}
-		if (!newMembers.isEmpty()) {
-			List<Database.SaveResult> saveResults = Database.insert(newMembers, false, AccessLevel.USER_MODE);
-			List<ServiceTerritoryMember> restoredMembers = new List<ServiceTerritoryMember>();
-			for (Integer i = 0; i < saveResults.size(); i++) {
-				if (!saveResults[i].isSuccess()) {
-					AlignmentRow row = newMemberRows[i];
-					row.errorMessage = String.format(
-						Label.TDA_MemberCreateFailed,
-						new List<Object>{ firstError(saveResults[i]) }
+		saveResults = Database.insert(newMembers, false, AccessLevel.USER_MODE);
+		PlatformUtilities.logSaveFailures(newMembers, saveResults);
+		List<ServiceTerritoryMember> restoredMembers = new List<ServiceTerritoryMember>();
+		for (Integer i = 0; i < saveResults.size(); i++) {
+			if (!saveResults[i].isSuccess()) {
+				AlignmentRow row = newMemberRows[i];
+				row.errorMessage = String.format(
+					Label.TDA_MemberCreateFailed,
+					new List<Object>{ firstError(saveResults[i]) }
+				);
+				if (row.endMember) {
+					restoredMembers.add(
+						new ServiceTerritoryMember(
+							Id = row.currentMember.Id,
+							EffectiveEndDate = row.currentMember.EffectiveEndDate
+						)
 					);
-					if (row.endMember) {
-						restoredMembers.add(
-							new ServiceTerritoryMember(
-								Id = row.currentMember.Id,
-								EffectiveEndDate = row.currentMember.EffectiveEndDate
-							)
-						);
-					}
 				}
 			}
-			if (!restoredMembers.isEmpty()) {
-				// Undo the end date so the technician keeps the current territory when the move failed.
-				Database.update(restoredMembers, false, AccessLevel.USER_MODE);
-			}
 		}
+		// Undo the end date so the technician keeps the current territory when the move failed.
+		Database.update(restoredMembers, false, AccessLevel.USER_MODE);
 
 		for (AlignmentRow row : rows) {
 			if (row.errorMessage == null && (row.createMember || row.endMember)) {
@@ -417,14 +364,15 @@ public with sharing class TechDistrictAlignmentService {
 	}
 
 	private static void failRows(List<AlignmentRow> rows, String message) {
-		if (rows == null) {
-			return;
-		}
 		for (AlignmentRow row : rows) {
 			if (row.errorMessage == null) {
 				row.errorMessage = message;
 			}
 		}
+	}
+
+	private static String firstError(Database.SaveResult saveResult) {
+		return saveResult.getErrors()[0].getMessage();
 	}
 
 	private static ServiceTerritoryMember buildMember(AlignmentRow row, Datetime startDatetime) {
@@ -463,38 +411,62 @@ public with sharing class TechDistrictAlignmentService {
 			Set<String> asmHrisValues = new Set<String>();
 			Set<String> territoryNumbers = new Set<String>();
 			for (AlignmentRow row : rows) {
-				addIfPresent(techHrisValues, row.techHris);
-				addIfPresent(asmHrisValues, row.currentAsmHris);
-				addIfPresent(asmHrisValues, row.nextAsmHris);
-				addIfPresent(territoryNumbers, row.currentTerritory);
-				addIfPresent(territoryNumbers, row.nextTerritory);
+				techHrisValues.add(row.techHris);
+				asmHrisValues.addAll(new List<String>{ row.currentAsmHris, row.nextAsmHris });
+				territoryNumbers.addAll(new List<String>{ row.currentTerritory, row.nextTerritory });
 			}
+			techHrisValues.remove(null);
+			asmHrisValues.remove(null);
+			territoryNumbers.remove(null);
 
-			for (User activeUser : UserSelector.selectActiveByEmployeeNumbers(asmHrisValues)) {
+			// ASMs: active users of any profile, by Employee Number (HRIS ID).
+			List<User> users = (List<User>) SoqlQueryBuilder.fromObject('User')
+				.selectFields(new List<String>{ 'Id', 'Name', 'EmployeeNumber__c' })
+				.whereEquals('IsActive', true)
+				.whereIn('EmployeeNumber__c', new List<String>(asmHrisValues))
+				.execute();
+			for (User activeUser : users) {
 				userByHris.put(key(activeUser.EmployeeNumber__c), activeUser);
 			}
 
-			Set<Id> resourceIds = new Set<Id>();
-			for (ServiceResource resource : ServiceResourcesSelector.selectActiveByExternalIds(techHrisValues)) {
-				resourceIds.add(resource.Id);
+			// Technicians: active Service Resources by External ID (HRIS ID).
+			List<ServiceResource> resources = (List<ServiceResource>) new ServiceResourcesSelector()
+				.selectFields(new List<String>{ 'Id', 'Name', 'ExternalID__c', 'RelatedRecordId' })
+				.whereEquals('IsActive', true)
+				.whereIn('ExternalID__c', new List<String>(techHrisValues))
+				.execute();
+			for (ServiceResource resource : resources) {
 				resourceByExternalId.put(key(resource.ExternalID__c), resource);
 			}
 
-			Set<Id> territoryIds = new Set<Id>();
-			List<ServiceTerritory> territories = ServiceTerritoriesSelector.selectByRegionNumbers(
-				territoryNumbers,
-				TERRITORY_FIELDS
-			);
+			SoqlQueryBuilder territoryQuery = SoqlQueryBuilder.fromObject('ServiceTerritory')
+				.selectFields(TERRITORY_FIELDS)
+				.whereIn('RegionNumber__c', new List<String>(territoryNumbers));
+			List<ServiceTerritory> territories = (List<ServiceTerritory>) territoryQuery.execute();
 			for (ServiceTerritory territory : territories) {
 				territoryByNumber.put(key(territory.RegionNumber__c), territory);
-				territoryIds.add(territory.Id);
 			}
 
-			List<ServiceTerritoryMember> members = ServiceTerritoryMembersSelector.selectOpenByResourcesAndTerritories(
-				resourceIds,
-				territoryIds,
-				startOfToday
-			);
+			// Memberships of these technicians in these territories that have not ended before today, newest first.
+			List<ServiceTerritoryMember> members = (List<ServiceTerritoryMember>) new ServiceTerritoryMembersSelector()
+				.selectFields(
+					new List<String>{
+						'Id',
+						'ServiceResourceId',
+						'ServiceTerritoryId',
+						'TerritoryType',
+						'OperatingHoursId',
+						'EffectiveStartDate',
+						'EffectiveEndDate'
+					}
+				)
+				.whereIn('ServiceResourceId', new List<Id>(new Map<Id, ServiceResource>(resources).keySet()))
+				.whereIn('ServiceTerritoryId', new List<Id>(new Map<Id, ServiceTerritory>(territories).keySet()))
+				.whereEquals('EffectiveEndDate', null)
+				.whereField('EffectiveEndDate', '>=', startOfToday)
+				.withFilterLogic('1 AND 2 AND (3 OR 4)')
+				.orderByDesc('EffectiveStartDate')
+				.execute();
 			for (ServiceTerritoryMember member : members) {
 				String memberKey = memberKey(member.ServiceResourceId, member.ServiceTerritoryId);
 				if (!membersByKey.containsKey(memberKey)) {
@@ -645,10 +617,7 @@ public with sharing class TechDistrictAlignmentService {
 		 */
 		ServiceTerritoryMember activeMember(Id resourceId, Id territoryId) {
 			List<ServiceTerritoryMember> members = membersByKey.get(memberKey(resourceId, territoryId));
-			if (members == null) {
-				return null;
-			}
-			for (ServiceTerritoryMember member : members) {
+			for (ServiceTerritoryMember member : members ?? new List<ServiceTerritoryMember>()) {
 				if (member.EffectiveStartDate <= now) {
 					return member;
 				}
@@ -661,7 +630,7 @@ public with sharing class TechDistrictAlignmentService {
 		 */
 		ServiceTerritoryMember openMember(Id resourceId, Id territoryId) {
 			List<ServiceTerritoryMember> members = membersByKey.get(memberKey(resourceId, territoryId));
-			return members == null || members.isEmpty() ? null : members[0];
+			return members == null ? null : members[0];
 		}
 	}
 
@@ -713,16 +682,12 @@ public with sharing class TechDistrictAlignmentService {
 	private static Map<String, Integer> columnIndexByName(List<String> header) {
 		Map<String, Integer> columnIndexByName = new Map<String, Integer>();
 		for (Integer i = 0; i < header.size(); i++) {
-			String name = normalizeHeader(header[i]);
+			String name = header[i] == null ? '' : header[i].toLowerCase().replaceAll('[^a-z0-9]', '');
 			if (String.isNotBlank(name) && !columnIndexByName.containsKey(name)) {
 				columnIndexByName.put(name, i);
 			}
 		}
 		return columnIndexByName;
-	}
-
-	private static String normalizeHeader(String header) {
-		return header == null ? '' : header.toLowerCase().replaceAll('[^a-z0-9]', '');
 	}
 
 	private static Boolean hasColumn(Map<String, Integer> columnIndexByName, List<String> names) {
@@ -761,15 +726,15 @@ public with sharing class TechDistrictAlignmentService {
 	 */
 	private static ContentVersion writeErrorFile(List<String> header, List<AlignmentRow> rows) {
 		List<String> lines = new List<String>{
-			csvLine(Label.TDA_ErrorFileRowColumn, header, Label.TDA_ErrorFileErrorColumn, header.size())
+			errorFileLine(Label.TDA_ErrorFileRowColumn, header, Label.TDA_ErrorFileErrorColumn, header.size())
 		};
 		for (AlignmentRow row : rows) {
 			if (row.errorMessage != null) {
-				lines.add(csvLine(String.valueOf(row.rowNumber), row.cells, row.errorMessage, header.size()));
+				lines.add(errorFileLine(String.valueOf(row.rowNumber), row.cells, row.errorMessage, header.size()));
 			}
 		}
 
-		Id existingDocumentId = storedErrorFileDocumentId();
+		Id existingDocumentId = errorFileDocumentId();
 		ContentVersion version = new ContentVersion(
 			Title = ERROR_FILE_TITLE,
 			PathOnClient = ERROR_FILE_NAME,
@@ -780,32 +745,28 @@ public with sharing class TechDistrictAlignmentService {
 		Database.insert(version, AccessLevel.USER_MODE);
 
 		// ContentDocumentId is create-only, so read it back instead of setting it on the inserted record.
-		ContentVersion saved = new ContentVersion(Id = version.Id, ContentDocumentId = documentIdOf(version.Id));
+		ContentVersion saved = ContentVersionsSelector.selectDocumentIdByVersionId(version.Id)[0];
 		if (saved.ContentDocumentId != existingDocumentId) {
-			FieldServiceBackofficeConfig__c config = FieldServiceBackofficeConfig__c.getValues(UserInfo.getUserId());
-			if (config == null) {
-				config = new FieldServiceBackofficeConfig__c(SetupOwnerId = UserInfo.getUserId());
-			}
-			config.TechDistrictAlignmentErrorFileId__c = String.valueOf(saved.ContentDocumentId);
-			saveConfig(config);
+			FieldServiceBackofficeConfig__c config =
+				FieldServiceBackofficeConfig__c.getValues(UserInfo.getUserId()) ??
+				new FieldServiceBackofficeConfig__c(SetupOwnerId = UserInfo.getUserId());
+			config.TechDistrictAlignmentErrorFileId__c = saved.ContentDocumentId;
+			// System mode: back-office users have no edit access to custom settings.
+			Database.upsert(config, AccessLevel.SYSTEM_MODE);
 		}
 		return saved;
 	}
 
-	private static String csvLine(String first, List<String> cells, String last, Integer columnCount) {
-		List<String> values = new List<String>{ csvEscape(first) };
+	/**
+	 * @description One error file line: the first value, the row's cells padded to the header width, the last value.
+	 */
+	private static String errorFileLine(String first, List<String> cells, String last, Integer columnCount) {
+		List<String> values = new List<String>{ first };
 		for (Integer i = 0; i < columnCount; i++) {
-			values.add(csvEscape(i < cells.size() ? cells[i] : null));
+			values.add(i < cells.size() ? cells[i] : null);
 		}
-		values.add(csvEscape(last));
-		return String.join(values, ',');
-	}
-
-	private static String csvEscape(String value) {
-		if (value == null) {
-			return '';
-		}
-		return value.containsAny(',"\n\r') ? '"' + value.replace('"', '""') + '"' : value;
+		values.add(last);
+		return PlatformUtilities.toCsvLine(values);
 	}
 
 	private static Boolean sendResultEmail(ProcessResult result, Id errorFileVersionId) {
@@ -825,61 +786,11 @@ public with sharing class TechDistrictAlignmentService {
 		}
 	}
 
-	private static String summary(ProcessResult result) {
-		return String.format(
-			Label.TDA_Summary,
-			new List<Object>{
-				String.valueOf(result.processedCount),
-				String.valueOf(result.movedCount),
-				String.valueOf(result.territoryCreatedCount),
-				String.valueOf(result.managerUpdatedCount),
-				String.valueOf(result.unchangedCount),
-				String.valueOf(result.skippedCount)
-			}
-		);
-	}
-
-	private static void saveTemplateDocumentId(Id documentId) {
-		FieldServiceBackofficeConfig__c config = FieldServiceBackofficeConfig__c.getOrgDefaults();
-		if (config.Id == null) {
-			config.SetupOwnerId = UserInfo.getOrganizationId();
-		}
-		config.TechDistrictAlignmentTemplateId__c = String.valueOf(documentId);
-		saveConfig(config);
-	}
-
-	/**
-	 * @description Custom setting rows are saved in system mode: back-office users have no edit access to
-	 *              custom settings, and only the file Id fields are written.
-	 */
-	private static void saveConfig(FieldServiceBackofficeConfig__c config) {
-		Database.upsert(config, AccessLevel.SYSTEM_MODE);
-	}
-
-	private static void addIfPresent(Set<String> values, String value) {
-		if (String.isNotBlank(value)) {
-			values.add(value);
-		}
-	}
-
 	private static String key(String value) {
-		return value == null ? null : value.trim().toLowerCase();
+		return value?.trim().toLowerCase();
 	}
 
 	private static String memberKey(Id resourceId, Id territoryId) {
 		return String.valueOf(resourceId) + '|' + String.valueOf(territoryId);
-	}
-
-	private static String firstError(Database.SaveResult saveResult) {
-		return saveResult.getErrors().isEmpty() ? 'Unknown error.' : saveResult.getErrors()[0].getMessage();
-	}
-
-	private static Id documentIdOf(Id contentVersionId) {
-		List<ContentVersion> versions = ContentVersionsSelector.selectDocumentIdByVersionId(contentVersionId);
-		return versions.isEmpty() ? null : versions[0].ContentDocumentId;
-	}
-
-	private static Id toId(String value) {
-		return PlatformUtilities.parseId(PlatformUtilities.trimToNull(value));
 	}
 }

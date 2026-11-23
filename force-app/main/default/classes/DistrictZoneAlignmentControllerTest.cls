@@ -321,7 +321,7 @@ private class DistrictZoneAlignmentControllerTest {
 
 		// THEN
 		Assert.areEqual(5, messageList.size(), 'Every file should be rejected.');
-		Assert.areEqual(Label.DZA_FileRequired, messageList[0], 'A missing file should be rejected.');
+		Assert.areEqual(Label.DZA_FileUnreadable, messageList[0], 'A missing file should be rejected.');
 		Assert.areEqual(Label.DZA_FileUnreadable, messageList[1], 'A CSV file should be rejected.');
 		Assert.areEqual(Label.DZA_FileUnreadable, messageList[2], 'A corrupt workbook should be rejected.');
 		Assert.isTrue(messageList[3].contains('Future ASM Names, Future Zone #'), 'Missing columns should be listed.');

@@ -7,32 +7,32 @@ public with sharing class CscVisitDateChangeAction {
     /**
      * @description One visit and the date selected on the calendar.
      */
-    public class Request {
-        @InvocableVariable(label='Visit Id' required=true)
-        public Id recordId;
+	public class Request {
+		@InvocableVariable(label='Visit Id' required=true)
+		public Id recordId;
 
-        @InvocableVariable(label='Confirmed Date' required=true)
-        public Date confirmedDate;
-    }
+		@InvocableVariable(label='Confirmed Date' required=true)
+		public Date confirmedDate;
+	}
 
     /**
      * @description Saves the selected date. The approval is already complete.
      * @param requests List<Request> visits from the Change Date flow
      * @return void
      */
-    @InvocableMethod(
-        label='Change CSC Visit Date'
-        description='Replaces an existing confirmed date and sets the visit to Approved.'
-    )
-    public static void changeDates(List<Request> requests) {
-        if (requests == null) {
-            return;
-        }
-        for (Request request : requests) {
-            if (request == null) {
-                continue;
-            }
-            CscVisitStatusAction.changeVisitDate(request.recordId, request.confirmedDate);
-        }
-    }
+	@InvocableMethod(
+		label='Change CSC Visit Date'
+		description='Replaces an existing confirmed date and sets the visit to Approved.'
+	)
+	public static void changeDates(List<Request> requests) {
+		if (requests == null) {
+			return;
+		}
+		for (Request request : requests) {
+			if (request == null) {
+				continue;
+			}
+			CscVisitStatusAction.changeVisitDate(request.recordId, request.confirmedDate);
+		}
+	}
 }

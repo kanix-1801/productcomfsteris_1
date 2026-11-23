@@ -11,58 +11,6 @@ public with sharing class LsOverlayAssignmentController {
 
     /**
      * @description
-     * GCL-79 - Territory search result returned to the Life Sciences Overlay Assignment LWC.
-     */
-    public class TerritoryWrapper {
-        @AuraEnabled public String territoryId;
-        @AuraEnabled public String territoryDescription;
-    }
-
-    /**
-     * @description
-     * GCL-79 - Account result returned to the Life Sciences Overlay Assignment LWC.
-     */
-    public class AccountWrapper {
-        @AuraEnabled public Id accountId;
-        @AuraEnabled public String accountName;
-        @AuraEnabled public String accountNumber;
-        @AuraEnabled public String accountType;
-        @AuraEnabled public String territoryId;
-        @AuraEnabled public String territoryDescription;
-        @AuraEnabled public String street;
-        @AuraEnabled public String city;
-        @AuraEnabled public String state;
-        @AuraEnabled public String postalCode;
-        @AuraEnabled public String country;
-        @AuraEnabled public Id associatedAccountId;
-        @AuraEnabled public String associatedAccountName;
-    }
-
-    /**
-     * @description
-     * GCL-79 - Overlay user search result returned to the Life Sciences Overlay Assignment LWC.
-     */
-    public class UserWrapper {
-        @AuraEnabled public Id userId;
-        @AuraEnabled public String userName;
-        @AuraEnabled public String email;
-        @AuraEnabled public String role;
-        @AuraEnabled public String country;
-        @AuraEnabled public String managerName;
-    }
-
-    /**
-     * @description
-     * GCL-79 - Territory summary returned to the Life Sciences Overlay Assignment LWC before final submission.
-     */
-    public class SummaryTerritoryWrapper {
-        @AuraEnabled public String territoryId;
-        @AuraEnabled public String territoryDescription;
-        @AuraEnabled public List<AccountWrapper> selectedAccounts;
-    }
-
-    /**
-     * @description
      * GCL-79 - Returns the AssignmentType__c value this wizard writes, so the confirmation
      * screen stays in sync with LsOverlayAssignmentService.
      *
@@ -87,9 +35,10 @@ public with sharing class LsOverlayAssignmentController {
      * LsOverlayAssignmentController.searchTerritories(searchKey);
      */
     @AuraEnabled
-    public static List<TerritoryWrapper> searchTerritories(String searchKey) {
+    public static List<OverlayAssignmentController.TerritoryWrapper> searchTerritories(String searchKey) {
         try {
-            return LsOverlayAssignmentService.searchTerritories(searchKey);
+            //GCL-390 : Tech Story - Hc x LS code dependency resolution
+            return OverlayAssignmentService.searchTerritories(searchKey);
         } catch (Exception exceptionValue) {
             throw buildHandledException('Unable to search territories.', exceptionValue);
         }
@@ -108,7 +57,7 @@ public with sharing class LsOverlayAssignmentController {
      * LsOverlayAssignmentController.searchAccounts(accountSearchKey, accountType, territoryIds);
      */
     @AuraEnabled
-    public static List<AccountWrapper> searchAccounts(
+    public static List<OverlayAssignmentController.AccountWrapper> searchAccounts(
         String accountSearchKey,
         String accountType,
         List<String> territoryIds
@@ -135,7 +84,7 @@ public with sharing class LsOverlayAssignmentController {
      * LsOverlayAssignmentController.retrieveAccounts(territoryIds, accountSearchKey, accountType, selectedSearchAccountIds);
      */
     @AuraEnabled
-    public static List<AccountWrapper> retrieveAccounts(
+    public static List<OverlayAssignmentController.AccountWrapper> retrieveAccounts(
         List<String> territoryIds,
         String accountSearchKey,
         String accountType,
@@ -164,9 +113,15 @@ public with sharing class LsOverlayAssignmentController {
      * LsOverlayAssignmentController.searchOverlayUsers(searchKey);
      */
     @AuraEnabled
-    public static List<UserWrapper> searchOverlayUsers(String searchKey) {
+    public static List<OverlayAssignmentController.UserWrapper> searchOverlayUsers(String searchKey) {
         try {
-            return LsOverlayAssignmentService.searchOverlayUsers(searchKey);
+            //GCL-390 : Tech Story - Hc x LS code dependency resolution
+            List<OverlayAssignmentController.UserWrapper> users =
+                OverlayAssignmentService.searchOverlayUsers(searchKey);
+            // A blank or unmatched search is an empty list for the Life Sciences screen.
+            return users == null
+                ? new List<OverlayAssignmentController.UserWrapper>()
+                : users;
         } catch (Exception exceptionValue) {
             throw buildHandledException('Unable to search overlay users.', exceptionValue);
         }
@@ -184,7 +139,7 @@ public with sharing class LsOverlayAssignmentController {
      * LsOverlayAssignmentController.getAssignmentSummary(territoryIds, selectedAccountIds);
      */
     @AuraEnabled
-    public static List<SummaryTerritoryWrapper> getAssignmentSummary(
+    public static List<OverlayAssignmentController.SummaryTerritoryWrapper> getAssignmentSummary(
         List<String> territoryIds,
         List<Id> selectedAccountIds
     ) {
@@ -232,7 +187,7 @@ public with sharing class LsOverlayAssignmentController {
      * throw buildHandledException(message, exceptionValue);
      */
     private static AuraHandledException buildHandledException(String message, Exception exceptionValue) {
-        String safeMessage = exceptionValue instanceof LsOverlayAssignmentException
+        String safeMessage = exceptionValue instanceof OverlayAssignmentException
             ? exceptionValue.getMessage()
             : message;
         AuraHandledException auraException = new AuraHandledException(safeMessage);

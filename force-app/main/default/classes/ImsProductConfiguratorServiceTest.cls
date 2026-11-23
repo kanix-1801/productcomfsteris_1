@@ -642,6 +642,63 @@ private class ImsProductConfiguratorServiceTest {
     }
 
     /**
+     * @description GW-6468 - The ONL search returns only Active, in-date programs of Type "On Location - Mobile Van";
+     *              the regular Pricing Programs search still returns every type. The ONL assert rejects other types.
+     */
+    @IsTest
+    static void testSearchOnlPricingPrograms() {
+        /********************************************
+        * SETUP
+        ********************************************/
+        ImsProductConfiguratorTestDataFactory.grantPricingProgramAccess();
+        User contextUser = new User(Id = UserInfo.getUserId());
+        Date today = Date.today();
+        String onlType = ContractAdjustmentSelector.PRICING_PROGRAM_TYPE_MOBILE_VAN;
+        PricingProgram__c onl = ImsProductConfiguratorTestDataFactory.createPricingProgram(
+            'ZZPP Onl', 'Active', today.addDays(-10), null, new List<String>{ 'CT.ZZO01' }, onlType
+        );
+        PricingProgram__c regular = ImsProductConfiguratorTestDataFactory.createPricingProgram(
+            'ZZPP Regular', 'Active', today.addDays(-10), null, new List<String>{ 'CT.ZZR01' }, 'Pricing Program'
+        );
+        ImsProductConfiguratorTestDataFactory.createPricingProgram(
+            'ZZPP Onl Draft', 'Draft', today.addDays(-10), null, new List<String>{ 'CT.ZZO02' }, onlType
+        );
+
+        /********************************************
+        * GIVEN
+        ********************************************/
+        Assert.areEqual(2, [SELECT COUNT() FROM PricingProgram__c WHERE Type__c = :onlType], 'Two ONL programs');
+
+        /********************************************
+        * WHEN
+        ********************************************/
+        List<ImsProductConfiguratorService.PricingProgramOption> onlList;
+        List<ImsProductConfiguratorService.PricingProgramOption> allList;
+        Exception wrongTypeError;
+        Test.startTest();
+        System.runAs(contextUser) {
+            onlList = ImsProductConfiguratorService.searchOnlPricingPrograms('ZZPP');
+            allList = ImsProductConfiguratorService.searchPricingPrograms('ZZPP');
+            ImsProductConfiguratorService.assertActivePricingProgram(onl.Id, today);
+            try {
+                ImsProductConfiguratorService.assertActivePricingProgram(regular.Id, today);
+            } catch (ImsProductConfiguratorService.ImsProductConfiguratorException e) {
+                wrongTypeError = e;
+            }
+        }
+        Test.stopTest();
+
+        /********************************************
+        * THEN
+        ********************************************/
+        Assert.areEqual(new List<String>{ 'ZZPP Onl' }, programNames(onlList),
+                        'Only the Active ONL program is offered in the ONL search');
+        Assert.areEqual(new List<String>{ 'ZZPP Onl', 'ZZPP Regular' }, programNames(allList),
+                        'The Pricing Programs search is not filtered by type');
+        Assert.isNotNull(wrongTypeError, 'A non-ONL program is rejected for the ONL adjustments');
+    }
+
+    /**
      * @description Lookup by name refreshes saved rows: no status or date filter; blanks and duplicates ignored.
      */
     @IsTest

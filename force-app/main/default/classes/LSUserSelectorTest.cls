@@ -33,6 +33,64 @@ private class LSUserSelectorTest {
         Test.stopTest();
     }
 
+    @IsTest
+    static void remainingUserSelectorMethodsExecute() {
+        User lifeSciencesUser = insertUser(lifeSciencesProfileId(), 'lsrest', true);
+        String employeeNumber = ('LS' + String.valueOf(Math.abs(Crypto.getRandomInteger()))).left(20);
+        lifeSciencesUser.EmployeeNumber__c = employeeNumber;
+        System.runAs(new User(Id = UserInfo.getUserId())) {
+            update lifeSciencesUser;
+        }
+
+        UserSelector.resetLifeSciencesSalesProfileIdCacheForTest();
+        UserSelector.resetHealthcareSalesProfileIdCacheForTest();
+
+        System.assertNotEquals(null, UserSelector.getLifeSciencesSalesProfileId());
+        System.assertEquals(
+            UserSelector.getLifeSciencesSalesProfileId(),
+            UserSelector.getLifeSciencesSalesProfileId()
+        );
+        System.assertNotEquals(null, UserSelector.getLifeSciencesSalesProfileIdForOverlay());
+        Id healthcareProfileId = UserSelector.getHealthcareSalesProfileId();
+
+        System.assertEquals(0, UserSelector.selectActiveUsersBySearch(null).size());
+        System.assertEquals(0, UserSelector.selectActiveUsersBySearch('   ').size());
+        UserSelector.selectActiveUsersBySearch(lifeSciencesUser.LastName);
+
+        System.assertEquals(0, UserSelector.selectByIds(null).size());
+        System.assertEquals(0, UserSelector.selectByIds(new Set<Id>()).size());
+        System.assertEquals(1, UserSelector.selectByIds(new Set<Id>{ lifeSciencesUser.Id }).size());
+
+        System.assertEquals(0, UserSelector.selectByIdsForEmail(null).size());
+        System.assertEquals(0, UserSelector.selectByIdsForEmail(new Set<Id>()).size());
+        System.assertEquals(1, UserSelector.selectByIdsForEmail(new Set<Id>{ lifeSciencesUser.Id }).size());
+
+        System.assertEquals(0, UserSelector.selectActiveLifeSciencesSalesUsersByEmployeeNumber(null).size());
+        System.assertEquals(0, UserSelector.selectActiveLifeSciencesSalesUsersByEmployeeNumber(new Set<String>()).size());
+        Map<String, User> lifeSciencesByEmployee = UserSelector.selectActiveLifeSciencesSalesUsersByEmployeeNumber(
+            new Set<String>{ employeeNumber }
+        );
+        System.assertEquals(lifeSciencesUser.Id, lifeSciencesByEmployee.get(employeeNumber).Id);
+
+        System.assertEquals(0, UserSelector.selectActiveHealthcareSalesUsersByEmployeeNumber(null).size());
+        System.assertEquals(0, UserSelector.selectActiveHealthcareSalesUsersByEmployeeNumber(new Set<String>()).size());
+        System.assertEquals(0, UserSelector.selectActiveUsersByEmployeeNumber(null).size());
+        if (healthcareProfileId != null) {
+            UserSelector.selectActiveHealthcareSalesUsersByEmployeeNumber(new Set<String>{ employeeNumber });
+            UserSelector.selectActiveUsersByEmployeeNumber(new Set<String>{ employeeNumber });
+            UserSelector.selectActiveHealthcareSalesUsersBySearch(lifeSciencesUser.LastName);
+        }
+        System.assertEquals(0, UserSelector.selectActiveHealthcareSalesUsersBySearch(null).size());
+        System.assertEquals(0, UserSelector.selectActiveHealthcareSalesUsersBySearch('   ').size());
+
+        System.assertEquals(0, UserSelector.getInactiveUsersByIds(new Set<Id>()).size());
+        UserSelector.getInactiveUsersByIds(new Set<Id>{ lifeSciencesUser.Id });
+        System.assertEquals(0, UserSelector.getActiveUsersByIds(new Set<Id>()).size());
+        System.assertEquals(1, UserSelector.getActiveUsersByIds(new Set<Id>{ lifeSciencesUser.Id }).size());
+
+        System.assert(UserSelector.selectActiveInternalUsersForCreateReturnOrder().size() > 0);
+    }
+
     private static Id lifeSciencesProfileId() {
         return [SELECT Id FROM Profile WHERE Name = :UserSelector.LIFESCIENCES_SALES_PROFILE_NAME LIMIT 1].Id;
     }
@@ -57,6 +115,16 @@ private class LSUserSelectorTest {
             ProfileId = profileId,
             IsActive = active
         );
+        // GCL-79 : Overlay functionality implementation
+        // Life Sciences Sales users require a role in the Life Sciences role hierarchy.
+        if (profileId == lifeSciencesProfileId()) {
+            userRecord.UserRoleId = [
+                SELECT Id
+                FROM UserRole
+                WHERE PortalType = 'None'
+                LIMIT 1
+            ].Id;
+        }
         System.runAs(new User(Id = UserInfo.getUserId())) {
             insert userRecord;
         }

@@ -1,12 +1,12 @@
 /**
  * @description GW-5892 / GW-6600: Backend for the fieldServiceQuoteEditor LWC (Quote "Edit Quote" action).
  *              Loads the quote header, lines and Rate List, and saves all changes in one transaction (Save All).
+ *              Line validation runs in the LWC (validateLines) before Save All.
  * @group Field Service Quote
  * @see fieldServiceQuoteEditor
  * @see FieldServiceQuoteService
  */
 public with sharing class FieldServiceQuoteController {
-	@TestVisible
 	private static final String PRICE_OVERRIDE_PERMISSION = 'FS_Quote_Price_Override';
 
 	private static final Set<String> EDITOR_LINE_TYPES = new Set<String>{
@@ -17,37 +17,18 @@ public with sharing class FieldServiceQuoteController {
 	};
 	private static final String TRAVEL_TYPE_ACTUAL = 'Actual Travel';
 
-	/** @description Option for comboboxes. */
-	public class Option {
-		@AuraEnabled public String label;
-		@AuraEnabled public String value;
-		public Option(String label, String value) {
-			this.label = label;
-			this.value = value;
-		}
-	}
-
 	/** @description Quote header strip. */
 	public class HeaderView {
-		@AuraEnabled public Id quoteId;
 		@AuraEnabled public String quoteNumber;
-		@AuraEnabled public String name;
 		@AuraEnabled public String status;
-		@AuraEnabled public Id workOrderId;
 		@AuraEnabled public String workOrderNumber;
 		@AuraEnabled public String accountName;
 		@AuraEnabled public String assetName;
 		@AuraEnabled public Id accountId;
 		@AuraEnabled public Id contactId;
-		@AuraEnabled public String contactName;
 		@AuraEnabled public Id shipToId;
-		@AuraEnabled public String shipToName;
 		@AuraEnabled public Id ownerId;
-		@AuraEnabled public String ownerName;
 		@AuraEnabled public String rateListName;
-		@AuraEnabled public Id rateListId;
-		@AuraEnabled public Id pricebook2Id;
-		@AuraEnabled public Id regionalControlId;
 		@AuraEnabled public String currencyIsoCode;
 		@AuraEnabled public String pricingStatus;
 		@AuraEnabled public String pricingMessage;
@@ -82,13 +63,11 @@ public with sharing class FieldServiceQuoteController {
 		@AuraEnabled public Decimal listPrice;
 	}
 
-	/** @description Everything the editor needs. */
+	/** @description Everything the editor needs. Picklist options come from LDS in the LWC. */
 	public class QuoteView {
 		@AuraEnabled public HeaderView header;
 		@AuraEnabled public List<LineView> lines = new List<LineView>();
 		@AuraEnabled public WoDebriefRateListController.RateListPrices rateList;
-		@AuraEnabled public List<Option> statusOptions = new List<Option>();
-		@AuraEnabled public List<Option> expenseTypeOptions = new List<Option>();
 		@AuraEnabled public ProductView expenseProduct;
 		@AuraEnabled public Boolean canOverridePrice = false;
 	}
@@ -165,7 +144,6 @@ public with sharing class FieldServiceQuoteController {
 			Map<String, PricebookEntry> entryByKey = resolveEntries(quoteRecord, payload.lines);
 
 			for (LineView line : payload.lines) {
-				validateLine(line);
 				if (line.id == null) {
 					toInsert.add(buildNewLine(quoteRecord, line, entryByKey, canOverridePrice));
 				} else if (existingById.containsKey(line.id)) {
@@ -208,32 +186,6 @@ public with sharing class FieldServiceQuoteController {
 			header.PricingStatus__c = FieldServiceQuoteService.PRICING_REPRICING_REQUIRED;
 		}
 		return header;
-	}
-
-	private static void validateLine(LineView line) {
-		if (line.lineType == null || !EDITOR_LINE_TYPES.contains(line.lineType)) {
-			throw new FieldServiceQuoteService.FieldServiceQuoteException('Line Type is required.');
-		}
-		if (line.lineType == FieldServiceQuoteService.LINE_TYPE_PARTS && line.id == null && line.product2Id == null) {
-			throw new FieldServiceQuoteService.FieldServiceQuoteException('Select a product for each Parts line.');
-		}
-		if (line.lineType == FieldServiceQuoteService.LINE_TYPE_LABOR && String.isBlank(line.rate)) {
-			throw new FieldServiceQuoteService.FieldServiceQuoteException('Rate is required for Labor lines.');
-		}
-		if (line.lineType == FieldServiceQuoteService.LINE_TYPE_TRAVEL) {
-			if (String.isBlank(line.travelType)) {
-				throw new FieldServiceQuoteService.FieldServiceQuoteException('Travel Type is required for Travel lines.');
-			}
-			if (line.travelType == TRAVEL_TYPE_ACTUAL && String.isBlank(line.rate)) {
-				throw new FieldServiceQuoteService.FieldServiceQuoteException('Rate is required for Actual Travel.');
-			}
-		}
-		if (line.lineType == FieldServiceQuoteService.LINE_TYPE_EXPENSE && String.isBlank(line.expenseType)) {
-			throw new FieldServiceQuoteService.FieldServiceQuoteException('Expense Type is required for Expense lines.');
-		}
-		if (line.quantity == null || line.quantity <= 0) {
-			throw new FieldServiceQuoteService.FieldServiceQuoteException('Quantity must be greater than zero.');
-		}
 	}
 
 	/** @description Zone travel is a flat amount: quantity 1 and no rate. */
@@ -348,7 +300,6 @@ public with sharing class FieldServiceQuoteController {
 			: configuredProductCode(line.lineType);
 	}
 
-	@TestVisible
 	private static String configuredProductCode(String lineType) {
 		if (lineType == FieldServiceQuoteService.LINE_TYPE_LABOR) {
 			return System.Label.FS_Quote_Labor_Product_Code;
@@ -372,8 +323,6 @@ public with sharing class FieldServiceQuoteController {
 			}
 		}
 		view.rateList = selectRateList(quoteRecord.RateList__c);
-		view.statusOptions = picklistOptions(Quote.Status.getDescribe());
-		view.expenseTypeOptions = picklistOptions(QuoteLineItem.ExpenseType__c.getDescribe());
 		view.canOverridePrice = FeatureManagement.checkPermission(PRICE_OVERRIDE_PERMISSION);
 		view.expenseProduct = selectExpenseProduct(quoteRecord);
 		return view;
@@ -394,18 +343,9 @@ public with sharing class FieldServiceQuoteController {
 		return entry == null ? null : toProductView(entry);
 	}
 
+	/** @description Rate List prices for the editor, same query and shape as the ES debrief (GW-2967). */
 	private static WoDebriefRateListController.RateListPrices selectRateList(Id rateListId) {
-		if (rateListId == null) {
-			return null;
-		}
-		// Same fields as RateListSelector.selectByIdsForDebriefPricing (API 67, user mode); queried here in this
-		// class's context so the editor does not depend on the caller's Rate List field access.
-		List<RateList__c> rateLists = [
-			SELECT Id, Name, LaborHour__c, TravelHour__c, PremiumRateHour__c, ExtendedOvertimeRatePerHour__c,
-				TravelZone1__c, TravelZone2__c, TravelZone3__c, TravelZone4__c
-			FROM RateList__c
-			WHERE Id = :rateListId
-		];
+		List<RateList__c> rateLists = RateListSelector.selectByIdsForDebriefPricing(new Set<Id>{ rateListId });
 		if (rateLists.isEmpty()) {
 			return null;
 		}
@@ -425,14 +365,11 @@ public with sharing class FieldServiceQuoteController {
 	}
 
 	private static Quote selectQuote(Id quoteId) {
-		if (quoteId == null) {
-			throw new FieldServiceQuoteService.FieldServiceQuoteException('No quote was provided to the editor.');
-		}
 		List<Quote> quotes = [
-			SELECT Id, QuoteNumber, Name, Status, WorkOrder__c, WorkOrder__r.WorkOrderNumber, AccountId, Account.Name,
-				QuoteAccountId, QuoteAccount.Name, Asset__c, Asset__r.Name, ContactId, Contact.Name,
-				ShipToAccount__c, ShipToAccount__r.Name, OwnerId, Owner.Name, RateList__c, RateList__r.Name,
-				CurrencyIsoCode, Pricebook2Id, RegionalControl__c, PricingStatus__c, PricingMessage__c, GrandTotal
+			SELECT Id, QuoteNumber, Status, WorkOrder__c, WorkOrder__r.WorkOrderNumber, AccountId, Account.Name,
+				QuoteAccountId, QuoteAccount.Name, Asset__c, Asset__r.Name, ContactId, ShipToAccount__c, OwnerId,
+				RateList__c, RateList__r.Name, CurrencyIsoCode, Pricebook2Id, PricingStatus__c, PricingMessage__c,
+				GrandTotal
 			FROM Quote
 			WHERE Id = :quoteId
 		];
@@ -457,25 +394,16 @@ public with sharing class FieldServiceQuoteController {
 
 	private static HeaderView toHeaderView(Quote quoteRecord) {
 		HeaderView header = new HeaderView();
-		header.quoteId = quoteRecord.Id;
 		header.quoteNumber = quoteRecord.QuoteNumber;
-		header.name = quoteRecord.Name;
 		header.status = quoteRecord.Status;
-		header.workOrderId = quoteRecord.WorkOrder__c;
 		header.workOrderNumber = quoteRecord.WorkOrder__r?.WorkOrderNumber;
 		header.accountId = quoteRecord.AccountId != null ? quoteRecord.AccountId : quoteRecord.QuoteAccountId;
 		header.accountName = quoteRecord.AccountId != null ? quoteRecord.Account?.Name : quoteRecord.QuoteAccount?.Name;
 		header.assetName = quoteRecord.Asset__r?.Name;
 		header.contactId = quoteRecord.ContactId;
-		header.contactName = quoteRecord.Contact?.Name;
 		header.shipToId = quoteRecord.ShipToAccount__c;
-		header.shipToName = quoteRecord.ShipToAccount__r?.Name;
 		header.ownerId = quoteRecord.OwnerId;
-		header.ownerName = quoteRecord.Owner?.Name;
 		header.rateListName = quoteRecord.RateList__r?.Name;
-		header.rateListId = quoteRecord.RateList__c;
-		header.pricebook2Id = quoteRecord.Pricebook2Id;
-		header.regionalControlId = quoteRecord.RegionalControl__c;
 		header.currencyIsoCode = quoteRecord.CurrencyIsoCode;
 		header.pricingStatus = quoteRecord.PricingStatus__c;
 		header.pricingMessage = quoteRecord.PricingMessage__c;
@@ -513,20 +441,9 @@ public with sharing class FieldServiceQuoteController {
 		return product;
 	}
 
-	private static List<Option> picklistOptions(Schema.DescribeFieldResult field) {
-		List<Option> options = new List<Option>();
-		for (Schema.PicklistEntry entry : field.getPicklistValues()) {
-			if (entry.isActive()) {
-				options.add(new Option(entry.getLabel(), entry.getValue()));
-			}
-		}
-		return options;
-	}
-
 	private static AuraHandledException toAuraException(Exception ex) {
-		String message = ex instanceof DmlException ? ((DmlException) ex).getDmlMessage(0) : ex.getMessage();
-		AuraHandledException auraException = new AuraHandledException(message);
-		auraException.setMessage(message);
-		return auraException;
+		return PlatformUtilities.buildAuraException(
+			ex instanceof DmlException ? ((DmlException) ex).getDmlMessage(0) : ex.getMessage()
+		);
 	}
 }

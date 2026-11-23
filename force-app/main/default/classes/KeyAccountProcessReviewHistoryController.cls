@@ -8,9 +8,9 @@ public with sharing class KeyAccountProcessReviewHistoryController {
      * @param accountId Current Account record Id.
      * @return Account-scoped Process Review response.
      */
-    @AuraEnabled(cacheable=true)
-    public static KeyAccountProcessReviewHistoryService.ProcessReviewHistoryResponse
-        getProcessReviewHistory(Id accountId) {
-        return KeyAccountProcessReviewHistoryService.getProcessReviewHistory(accountId);
-    }
+	@AuraEnabled(cacheable=true)
+	public static KeyAccountProcessReviewHistoryService.ProcessReviewHistoryResponse
+		getProcessReviewHistory(Id accountId) {
+		return KeyAccountProcessReviewHistoryService.getProcessReviewHistory(accountId);
+	}
 }

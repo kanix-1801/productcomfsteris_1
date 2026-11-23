@@ -48,7 +48,7 @@ private class OrderLineTaskControllerTest {
         );
         insert new List<OrderItem>{ oi1, oi2 };
 
-        // 6) Tasks linked to the Order and Order Lines
+        // 6) Tasks linked to the Orders and Order Lines
         // phase__c is treated as a numeric/Decimal field
         Task t1 = new Task(
             Subject      = 'Main Task',

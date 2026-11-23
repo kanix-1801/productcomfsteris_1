@@ -1,6 +1,6 @@
 import { LightningElement, api, track, wire } from 'lwc';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
-import { CurrentPageReference } from 'lightning/navigation';
+import { CurrentPageReference, NavigationMixin } from 'lightning/navigation';
 import { getRecord, getFieldValue, getRecordNotifyChange } from 'lightning/uiRecordApi';
 import { registerRefreshHandler, unregisterRefreshHandler, RefreshEvent } from 'lightning/refresh';
 import OPPORTUNITY_QUOTE_COUNT from '@salesforce/schema/Opportunity.Quote_Count__c';
@@ -36,7 +36,7 @@ const QUOTE_TYPE_GOODWILL = 'Goodwill Quote';
 const QUOTE_TYPE_TRIAL = 'Trial Quote';
 const QUOTE_TYPE_SAMPLE = 'Sample Quote';
 
-export default class GenerateQuote extends LightningElement {
+export default class GenerateQuote extends NavigationMixin(LightningElement) {
     @api recordId;
     @api isDealerPortal = false;
     @api opportunityRecordId;
@@ -1228,7 +1228,7 @@ export default class GenerateQuote extends LightningElement {
             if (result?.salesConnectionUrl) {
                 this.openUrlInNewTab(result.salesConnectionUrl);
                 if (this.isQuickAction) {
-                    this.closeQuickActionPanel();
+                    this.closeQuickActionAfterExternalNavigation();//GC-3609
                 }
             } else {
                 this.clearDealerPortalNavigationTab();
@@ -1286,7 +1286,7 @@ export default class GenerateQuote extends LightningElement {
                 }
 
                 if (this.isQuickAction) {
-                    this.closeQuickActionPanel();
+                    this.closeQuickActionAfterExternalNavigation();//GC-3609
                 }
                 return;
             }
@@ -1499,9 +1499,37 @@ export default class GenerateQuote extends LightningElement {
             url.startsWith('http://') || url.startsWith('https://')
                 ? url
                 : `${window.location.origin}${url.startsWith('/') ? '' : '/'}${url}`;
+        //GC-3609
+        if (this.isIosDevice()) {
+            this.deferQuickActionCloseForIos = true;
+            this[NavigationMixin.Navigate]({
+                type: 'standard__webPage',
+                attributes: {
+                    url: resolvedUrl
+                }
+            });
+            return true;
+        }
 
         const openedWindow = window.open(resolvedUrl, '_blank', 'noopener,noreferrer');
         return Boolean(openedWindow);
+    }
+    //GC-3609
+    isIosDevice() {
+        const userAgent = window.navigator?.userAgent || '';
+        return /iPad|iPhone|iPod/.test(userAgent);
+    }
+
+    closeQuickActionAfterExternalNavigation() {
+        if (!this.deferQuickActionCloseForIos) {
+            this.closeQuickActionPanel();
+            return;
+        }
+
+        this.deferQuickActionCloseForIos = false;
+        window.setTimeout(() => {
+            this.closeQuickActionPanel();
+        }, 600);
     }
 
     handleCloseDealerLaunchPanel() {

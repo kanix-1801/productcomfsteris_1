@@ -14,20 +14,20 @@ public with sharing class CscAvailabilityController {
      * @param endDate Date last date shown on the calendar
      * @return List<CscVisitRequestService.UnavailableDate> dates to disable in the LWC
      */
-    @AuraEnabled
-    public static List<CscVisitRequestService.UnavailableDate> getUnavailableDates(
-        String requestType,
-        String visitLocation,
-        Date startDate,
-        Date endDate
-    ) {
-        return CscVisitRequestService.getUnavailableDates(
-            requestType,
-            visitLocation,
-            startDate,
-            endDate
-        );
-    }
+	@AuraEnabled
+	public static List<CscVisitRequestService.UnavailableDate> getUnavailableDates(
+		String requestType,
+		String visitLocation,
+		Date startDate,
+		Date endDate
+	) {
+		return CscVisitRequestService.getUnavailableDates(
+			requestType,
+			visitLocation,
+			startDate,
+			endDate
+		);
+	}
 
     /**
      * @description #GC-3579 Same calendar occupancy, ignoring the visit being rescheduled
@@ -39,20 +39,20 @@ public with sharing class CscAvailabilityController {
      * @param excludeVisitId Id visit whose dates should not block the calendar
      * @return List<CscVisitRequestService.UnavailableDate> dates to disable in the LWC
      */
-    @AuraEnabled
-    public static List<CscVisitRequestService.UnavailableDate> getUnavailableDatesForVisit(
-        String requestType,
-        String visitLocation,
-        Date startDate,
-        Date endDate,
-        Id excludeVisitId
-    ) {
-        return CscVisitRequestService.getUnavailableDates(
-            requestType,
-            visitLocation,
-            startDate,
-            endDate,
-            excludeVisitId
-        );
-    }
+	@AuraEnabled
+	public static List<CscVisitRequestService.UnavailableDate> getUnavailableDatesForVisit(
+		String requestType,
+		String visitLocation,
+		Date startDate,
+		Date endDate,
+		Id excludeVisitId
+	) {
+		return CscVisitRequestService.getUnavailableDates(
+			requestType,
+			visitLocation,
+			startDate,
+			endDate,
+			excludeVisitId
+		);
+	}
 }

@@ -10,27 +10,27 @@
 */
 public without sharing class UserSelector {
     
-    public static final Integer USER_SEARCH_LIMIT = 50;
-    public static final String HEALTHCARE_SALES_PROFILE_NAME = 'Healthcare Sales';
-    public static final String LIFESCIENCES_SALES_PROFILE_NAME = 'Life Sciences Sales';     //GCL-1: Added for LS profile
+	public static final Integer USER_SEARCH_LIMIT = 50;
+	public static final String HEALTHCARE_SALES_PROFILE_NAME = 'Healthcare Sales';
+	public static final String LIFESCIENCES_SALES_PROFILE_NAME = 'Life Sciences Sales';     //GCL-1: Added for LS profile
 
     /** Lazy-loaded per transaction for Healthcare Sales profile filtering (GC-3189). */
-    private static Id healthcareSalesProfileIdCache;
+	private static Id healthcareSalesProfileIdCache;
     
-    @TestVisible
-    private static void resetHealthcareSalesProfileIdCacheForTest() {
-        healthcareSalesProfileIdCache = null;
-    }
+	@TestVisible
+	private static void resetHealthcareSalesProfileIdCacheForTest() {
+		healthcareSalesProfileIdCache = null;
+	}
 
     /**GCL-1: START */
     /** Lazy-loaded per transaction for Life Sciences Sales profile filtering (GCL-1). */
-    private static Id lifeSciencesSalesProfileIdCache;
-    private static Id lifeSciencesOverlayProfileIdCache;
+	private static Id lifeSciencesSalesProfileIdCache;
+	private static Id lifeSciencesOverlayProfileIdCache;
 
-    @TestVisible
-    private static void resetLifeSciencesSalesProfileIdCacheForTest() {
-        lifeSciencesSalesProfileIdCache = null;
-    }
+	@TestVisible
+	private static void resetLifeSciencesSalesProfileIdCacheForTest() {
+		lifeSciencesSalesProfileIdCache = null;
+	}
     /**GCL-1: END */
 
     /**
@@ -39,17 +39,17 @@ public without sharing class UserSelector {
      * previously used SYSTEM_MODE for that reason.
      * @return Profile Id, or null when the profile does not exist in the org.
      */
-    public static Id getHealthcareSalesProfileId() {
-        if (healthcareSalesProfileIdCache == null) {
-            List<Profile> profiles = (List<Profile>) SoqlQueryBuilder.fromObject('Profile')
-                .selectFields(new List<String>{ 'Id' })
-                .whereEquals('Name', HEALTHCARE_SALES_PROFILE_NAME)
-                .limitTo(1)
-                .execute();
-            healthcareSalesProfileIdCache = profiles.isEmpty() ? null : profiles[0].Id;
-        }
-        return healthcareSalesProfileIdCache;
-    }
+	public static Id getHealthcareSalesProfileId() {
+		if (healthcareSalesProfileIdCache == null) {
+			List<Profile> profiles = (List<Profile>) SoqlQueryBuilder.fromObject('Profile')
+				.selectFields(new List<String>{ 'Id' })
+				.whereEquals('Name', HEALTHCARE_SALES_PROFILE_NAME)
+				.limitTo(1)
+				.execute();
+			healthcareSalesProfileIdCache = profiles.isEmpty() ? null : profiles[0].Id;
+		}
+		return healthcareSalesProfileIdCache;
+	}
 
     /**
      * @description: [GCL-1] Returns Life Sciences Sales Profile Id (lazy-loaded, cached per transaction).
@@ -57,17 +57,17 @@ public without sharing class UserSelector {
      * previously used SYSTEM_MODE for that reason.
      * @return Profile Id, or null when the profile does not exist in the org.
      */
-    public static Id getLifeSciencesSalesProfileId() {
-        if (lifeSciencesSalesProfileIdCache == null) {
-            List<Profile> profiles = (List<Profile>) SoqlQueryBuilder.fromObject('Profile')
-                .selectFields(new List<String>{ 'Id' })
-                .whereEquals('Name', LIFESCIENCES_SALES_PROFILE_NAME)
-                .limitTo(1)
-                .execute();
-            lifeSciencesSalesProfileIdCache = profiles.isEmpty() ? null : profiles[0].Id;
-        }
-        return lifeSciencesSalesProfileIdCache;
-    }
+	public static Id getLifeSciencesSalesProfileId() {
+		if (lifeSciencesSalesProfileIdCache == null) {
+			List<Profile> profiles = (List<Profile>) SoqlQueryBuilder.fromObject('Profile')
+				.selectFields(new List<String>{ 'Id' })
+				.whereEquals('Name', LIFESCIENCES_SALES_PROFILE_NAME)
+				.limitTo(1)
+				.execute();
+			lifeSciencesSalesProfileIdCache = profiles.isEmpty() ? null : profiles[0].Id;
+		}
+		return lifeSciencesSalesProfileIdCache;
+	}
     
     /**
 * @description
@@ -79,26 +79,26 @@ public without sharing class UserSelector {
 * @example
 * UserSelector.selectActiveUsersBySearch(searchKey);
 */
-    public static List<User> selectActiveUsersBySearch(String searchKey) {
-        String key = '%' + String.escapeSingleQuotes(String.isBlank(searchKey) ? '' : searchKey.trim()) + '%';
-        if (!String.isBlank(searchKey) && Schema.sObjectType.User.isAccessible()) {
-        return [
-            SELECT Id,
-            Name,
-            Email,
-            Country,
-            Manager.Name,
-            UserRole.Name,
-            Title,
-            Phone
-            FROM User
-            WHERE IsActive = true
-            AND (Name LIKE :key OR Email LIKE :key)
-            LIMIT : USER_SEARCH_LIMIT
-        ];
-        }
-         return new List<User>();
-    }
+	public static List<User> selectActiveUsersBySearch(String searchKey) {
+		String key = '%' + String.escapeSingleQuotes(String.isBlank(searchKey) ? '' : searchKey.trim()) + '%';
+		if (!String.isBlank(searchKey) && Schema.sObjectType.User.isAccessible()) {
+		return [
+			SELECT Id,
+			Name,
+			Email,
+			Country,
+			Manager.Name,
+			UserRole.Name,
+			Title,
+			Phone
+			FROM User
+			WHERE IsActive = true
+			AND (Name LIKE :key OR Email LIKE :key)
+			LIMIT : USER_SEARCH_LIMIT
+		];
+		}
+		 return new List<User>();
+	}
     /**
 * @description
 * GC-3088 - Selects Users by IDs for TAS writeback mapping.
@@ -109,20 +109,20 @@ public without sharing class UserSelector {
 * @example
 * UserSelector.selectByIds(userIdSet);
 */
-    public static List<User> selectByIds(Set<Id> userIdSet) {
+	public static List<User> selectByIds(Set<Id> userIdSet) {
        
-      if (userIdSet != null &&!userIdSet.isEmpty() && Schema.sObjectType.User.isAccessible()) {
+	  if (userIdSet != null &&!userIdSet.isEmpty() && Schema.sObjectType.User.isAccessible()) {
 
-        return [
-            SELECT Id,
-            Name,
-            EmployeeNumber__c
-            FROM User
-            WHERE Id IN :userIdSet
-        ];
-        }
-         return new List<User>();
-    }
+		return [
+			SELECT Id,
+			Name,
+			EmployeeNumber__c
+			FROM User
+			WHERE Id IN :userIdSet
+		];
+		}
+		 return new List<User>();
+	}
 
     /**
      * @author Suraj Thapliyal
@@ -130,18 +130,18 @@ public without sharing class UserSelector {
      * @param userIdSet User Ids.
      * @return User rows with Id, Name, Email, and IsActive.
      */
-    public static List<User> selectByIdsForEmail(Set<Id> userIdSet) {
-        if (userIdSet != null &&!userIdSet.isEmpty() && Schema.sObjectType.User.isAccessible()) {
+	public static List<User> selectByIdsForEmail(Set<Id> userIdSet) {
+		if (userIdSet != null &&!userIdSet.isEmpty() && Schema.sObjectType.User.isAccessible()) {
 
-        return [
-            SELECT Id, Name, Email, IsActive
-            FROM User
-            WHERE Id IN :userIdSet and IsActive = true
-            WITH USER_MODE
-        ];
-        }
-         return new List<User>();
-    }
+		return [
+			SELECT Id, Name, Email, IsActive
+			FROM User
+			WHERE Id IN :userIdSet and IsActive = true
+			WITH USER_MODE
+		];
+		}
+		 return new List<User>();
+	}
 
     /**
      * GC-3112 / GC-3189 — Loads active Healthcare Sales users keyed by trimmed EmployeeNumber__c
@@ -150,68 +150,68 @@ public without sharing class UserSelector {
      * @param employeeNumbers HRIS employee numbers from OrderLineContact__c.HRISSalesRepId__c
      * @return Map of trimmed EmployeeNumber__c to active Healthcare Sales User; first match wins on duplicates
      */
-    public static Map<String, User> selectActiveHealthcareSalesUsersByEmployeeNumber(
-        Set<String> employeeNumbers
-    ) {
-        Map<String, User> userByEmployeeNumber = new Map<String, User>();
+	public static Map<String, User> selectActiveHealthcareSalesUsersByEmployeeNumber(
+		Set<String> employeeNumbers
+	) {
+		Map<String, User> userByEmployeeNumber = new Map<String, User>();
 
-        if (employeeNumbers == null || employeeNumbers.isEmpty()) {
-            return userByEmployeeNumber;
-        }
+		if (employeeNumbers == null || employeeNumbers.isEmpty()) {
+			return userByEmployeeNumber;
+		}
 
-        Id healthcareSalesProfileId = getHealthcareSalesProfileId();
-        if (healthcareSalesProfileId == null) {
-            throw new TASTeamAccessException(
-                'Healthcare Sales profile not found: ' + HEALTHCARE_SALES_PROFILE_NAME
-            );
-        }
+		Id healthcareSalesProfileId = getHealthcareSalesProfileId();
+		if (healthcareSalesProfileId == null) {
+			throw new TASTeamAccessException(
+				'Healthcare Sales profile not found: ' + HEALTHCARE_SALES_PROFILE_NAME
+			);
+		}
 
-        for (User activeUser : [
-            SELECT Id, EmployeeNumber__c
-            FROM User
-            WHERE ProfileId = :healthcareSalesProfileId
-              AND EmployeeNumber__c IN :employeeNumbers
-              AND IsActive = true
-        ]) {
-            String employeeNumber = activeUser.EmployeeNumber__c.trim();
+		for (User activeUser : [
+			SELECT Id, EmployeeNumber__c
+			FROM User
+			WHERE ProfileId = :healthcareSalesProfileId
+			  AND EmployeeNumber__c IN :employeeNumbers
+			  AND IsActive = true
+		]) {
+			String employeeNumber = activeUser.EmployeeNumber__c.trim();
 
-            if (!userByEmployeeNumber.containsKey(employeeNumber)) {
-                userByEmployeeNumber.put(employeeNumber, activeUser);
-            }
-        }
+			if (!userByEmployeeNumber.containsKey(employeeNumber)) {
+				userByEmployeeNumber.put(employeeNumber, activeUser);
+			}
+		}
 
-        return userByEmployeeNumber;
-    }
-    public static Map<String, User> selectActiveLifeSciencesSalesUsersByEmployeeNumber(Set<String> employeeNumbers) {
-        Map<String, User> userByEmployeeNumber = new Map<String, User>();
+		return userByEmployeeNumber;
+	}
+	public static Map<String, User> selectActiveLifeSciencesSalesUsersByEmployeeNumber(Set<String> employeeNumbers) {
+		Map<String, User> userByEmployeeNumber = new Map<String, User>();
 
-        if (employeeNumbers == null || employeeNumbers.isEmpty()) {
-            return userByEmployeeNumber;
-        }
+		if (employeeNumbers == null || employeeNumbers.isEmpty()) {
+			return userByEmployeeNumber;
+		}
 
-        Id lifeScienceSalesProfileId = getLifeSciencesSalesProfileId();
-        if (lifeScienceSalesProfileId == null) {
-            throw new TASTeamAccessException(
-                'Life Science Sales profile not found: ' + LIFESCIENCES_SALES_PROFILE_NAME
-            );
-        }
+		Id lifeScienceSalesProfileId = getLifeSciencesSalesProfileId();
+		if (lifeScienceSalesProfileId == null) {
+			throw new TASTeamAccessException(
+				'Life Science Sales profile not found: ' + LIFESCIENCES_SALES_PROFILE_NAME
+			);
+		}
 
-        for (User activeUser : [
-            SELECT Id, EmployeeNumber__c
-            FROM User
-            WHERE ProfileId = :lifeScienceSalesProfileId
-              AND EmployeeNumber__c IN :employeeNumbers
-              AND IsActive = true
-        ]) {
-            String employeeNumber = activeUser.EmployeeNumber__c.trim();
+		for (User activeUser : [
+			SELECT Id, EmployeeNumber__c
+			FROM User
+			WHERE ProfileId = :lifeScienceSalesProfileId
+			  AND EmployeeNumber__c IN :employeeNumbers
+			  AND IsActive = true
+		]) {
+			String employeeNumber = activeUser.EmployeeNumber__c.trim();
 
-            if (!userByEmployeeNumber.containsKey(employeeNumber)) {
-                userByEmployeeNumber.put(employeeNumber, activeUser);
-            }
-        }
+			if (!userByEmployeeNumber.containsKey(employeeNumber)) {
+				userByEmployeeNumber.put(employeeNumber, activeUser);
+			}
+		}
 
-        return userByEmployeeNumber;
-    }
+		return userByEmployeeNumber;
+	}
 
     /**
      * GC-3112-Loads active Users keyed by trimmed EmployeeNumber__c for HRIS sales rep resolution.
@@ -219,9 +219,9 @@ public without sharing class UserSelector {
      * @param employeeNumbers HRIS employee numbers from OrderLineContact__c.HRISSalesRepId__c
      * @return Map of trimmed EmployeeNumber__c to active User; first match wins on duplicates
      */
-    public static Map<String, User> selectActiveUsersByEmployeeNumber(Set<String> employeeNumbers) {
-        return selectActiveHealthcareSalesUsersByEmployeeNumber(employeeNumbers);
-    }
+	public static Map<String, User> selectActiveUsersByEmployeeNumber(Set<String> employeeNumbers) {
+		return selectActiveHealthcareSalesUsersByEmployeeNumber(employeeNumbers);
+	}
     /**
      * Returns inactive Users matching the provided User Ids.
      * Used by existing inactive user cleanup logic to identify deactivated accounts for removal.
@@ -230,18 +230,18 @@ public without sharing class UserSelector {
      * @return List of inactive Users whose Id is in the provided set; empty list if none match
      * #GC 2641,GC 3098
      */
-    public static List<User> getInactiveUsersByIds(Set<Id> userIds) {
-      if (!userIds.isEmpty() && Schema.sObjectType.User.isAccessible()) {
-        return [
-            SELECT Id
-            FROM User
-            WHERE Id IN :userIds
-            AND IsActive = false
+	public static List<User> getInactiveUsersByIds(Set<Id> userIds) {
+	  if (!userIds.isEmpty() && Schema.sObjectType.User.isAccessible()) {
+		return [
+			SELECT Id
+			FROM User
+			WHERE Id IN :userIds
+			AND IsActive = false
             
-        ];
-        }
-         return new List<User>();
-    }
+		];
+		}
+		 return new List<User>();
+	}
     
     /**
      * Returns active Users matching the provided User Ids.
@@ -250,18 +250,18 @@ public without sharing class UserSelector {
      * @param userIds Set of Salesforce User Ids to filter active records
      * @return List of active Users whose Id is in the provided set; empty list if none match
      */
-    public static List<User> getActiveUsersByIds(Set<Id> userIds) {
-      if (!userIds.isEmpty() && Schema.sObjectType.User.isAccessible()) {
-        return [
-            SELECT Id
-            FROM User
-            WHERE Id IN :userIds
-            AND IsActive = true
-            WITH USER_MODE
-        ];
-    }
-         return new List<User>();
-    }
+	public static List<User> getActiveUsersByIds(Set<Id> userIds) {
+	  if (!userIds.isEmpty() && Schema.sObjectType.User.isAccessible()) {
+		return [
+			SELECT Id
+			FROM User
+			WHERE Id IN :userIds
+			AND IsActive = true
+			WITH USER_MODE
+		];
+	}
+		 return new List<User>();
+	}
 
     /**
      * @description
@@ -273,50 +273,50 @@ public without sharing class UserSelector {
      * @example
      * UserSelector.selectActiveHealthcareSalesUsersBySearch(searchKey);
      */
-    public static List<User> selectActiveHealthcareSalesUsersBySearch(String searchKey) {
-        String key = '%' + String.escapeSingleQuotes(String.isBlank(searchKey) ? '' : searchKey.trim()) + '%';
+	public static List<User> selectActiveHealthcareSalesUsersBySearch(String searchKey) {
+		String key = '%' + String.escapeSingleQuotes(String.isBlank(searchKey) ? '' : searchKey.trim()) + '%';
 
-        Id healthcareSalesProfileId = getHealthcareSalesProfileId();
-        if (healthcareSalesProfileId == null) {
-            throw new TASTeamAccessException(
-                'Healthcare Sales profile not found: ' + HEALTHCARE_SALES_PROFILE_NAME
-            );
-        }
+		Id healthcareSalesProfileId = getHealthcareSalesProfileId();
+		if (healthcareSalesProfileId == null) {
+			throw new TASTeamAccessException(
+				'Healthcare Sales profile not found: ' + HEALTHCARE_SALES_PROFILE_NAME
+			);
+		}
 
-        if (!String.isBlank(searchKey) && Schema.sObjectType.User.isAccessible()) {
-            return [
-                SELECT Id,
-                    Name,
-                    Email,
-                    Profile.Name,
-                    Country,
-                    Manager.Name,
-                    UserRole.Name,
-                    Title,
-                    Phone
-                FROM User
-                WHERE IsActive = TRUE
-                AND ProfileId = :healthcareSalesProfileId
-                AND (Name LIKE :key OR Email LIKE :key)
-                LIMIT :USER_SEARCH_LIMIT
-            ];
-        }
+		if (!String.isBlank(searchKey) && Schema.sObjectType.User.isAccessible()) {
+			return [
+				SELECT Id,
+					Name,
+					Email,
+					Profile.Name,
+					Country,
+					Manager.Name,
+					UserRole.Name,
+					Title,
+					Phone
+				FROM User
+				WHERE IsActive = TRUE
+				AND ProfileId = :healthcareSalesProfileId
+				AND (Name LIKE :key OR Email LIKE :key)
+				LIMIT :USER_SEARCH_LIMIT
+			];
+		}
 
-        return new List<User>();
-    }
+		return new List<User>();
+	}
 
     /**
      * @description GW-1509 - Active internal Users for Create Return Order assignee picklists.
      * @return Active Standard/CsnOnly Users ordered by Name
      */
-    public static List<User> selectActiveInternalUsersForCreateReturnOrder() {
-        return (List<User>) SoqlQueryBuilder.fromObject('User')
-            .selectFields(new List<String>{ 'Id', 'Name' })
-            .whereEquals('IsActive', true)
-            .whereField('UserType', 'IN', new List<String>{ 'Standard', 'CsnOnly' })
-            .orderBy('Name')
-            .execute();
-    }
+	public static List<User> selectActiveInternalUsersForCreateReturnOrder() {
+		return (List<User>) SoqlQueryBuilder.fromObject('User')
+			.selectFields(new List<String>{ 'Id', 'Name' })
+			.whereEquals('IsActive', true)
+			.whereField('UserType', 'IN', new List<String>{ 'Standard', 'CsnOnly' })
+			.orderBy('Name')
+			.execute();
+	}
 
     /**
      * @description GW-2707: Active users of any profile whose Employee Number (HRIS ID) matches.
@@ -326,16 +326,16 @@ public without sharing class UserSelector {
      * @example
      * UserSelector.selectActiveByEmployeeNumbers(new Set<String>{ '50708' });
      */
-    public static List<User> selectActiveByEmployeeNumbers(Set<String> employeeNumbers) {
-        if (employeeNumbers == null || employeeNumbers.isEmpty()) {
-            return new List<User>();
-        }
-        return (List<User>) SoqlQueryBuilder.fromObject('User')
-            .selectFields(new List<String>{ 'Id', 'Name', 'EmployeeNumber__c' })
-            .whereEquals('IsActive', true)
-            .whereIn('EmployeeNumber__c', new List<String>(employeeNumbers))
-            .execute();
-    }
+	public static List<User> selectActiveByEmployeeNumbers(Set<String> employeeNumbers) {
+		if (employeeNumbers == null || employeeNumbers.isEmpty()) {
+			return new List<User>();
+		}
+		return (List<User>) SoqlQueryBuilder.fromObject('User')
+			.selectFields(new List<String>{ 'Id', 'Name', 'EmployeeNumber__c' })
+			.whereEquals('IsActive', true)
+			.whereIn('EmployeeNumber__c', new List<String>(employeeNumbers))
+			.execute();
+	}
 
     /**
      * @description GCL-79 - Searches active Life Sciences Sales users by name or email.
@@ -344,21 +344,21 @@ public without sharing class UserSelector {
      * @param searchKey User-entered search text.
      * @return Matching active Life Sciences Sales users. Empty when the search text is blank.
      */
-    public static List<User> selectActiveLifeSciencesSalesUsersBySearch(String searchKey) {
-        if (String.isBlank(searchKey)) {
-            return new List<User>();
-        }
-        Id lifeSciencesProfileId = getLifeSciencesSalesProfileIdForOverlay();
-        String key = '%' + searchKey.trim() + '%';
-        return [
-            SELECT Id, Name, Email, Country, UserRole.Name, Manager.Name
-            FROM User
-            WHERE IsActive = true
-            AND ProfileId = :lifeSciencesProfileId
-            AND (Name LIKE :key OR Email LIKE :key)
-            LIMIT :USER_SEARCH_LIMIT
-        ];
-    }
+	public static List<User> selectActiveLifeSciencesSalesUsersBySearch(String searchKey) {
+		if (String.isBlank(searchKey)) {
+			return new List<User>();
+		}
+		Id lifeSciencesProfileId = getLifeSciencesSalesProfileIdForOverlay();
+		String key = '%' + searchKey.trim() + '%';
+		return [
+			SELECT Id, Name, Email, Country, UserRole.Name, Manager.Name, Phone, Title
+			FROM User
+			WHERE IsActive = true
+			AND ProfileId = :lifeSciencesProfileId
+			AND (Name LIKE :key OR Email LIKE :key)
+			LIMIT :USER_SEARCH_LIMIT
+		];
+	}
 
     /**
      * @description GCL-79 - Active Life Sciences Sales users among the submitted Ids.
@@ -366,19 +366,19 @@ public without sharing class UserSelector {
      * @param userIds User Ids to check.
      * @return Active Life Sciences Sales users from the given Ids.
      */
-    public static List<User> selectActiveLifeSciencesSalesUsersByIds(Set<Id> userIds) {
-        if (userIds == null || userIds.isEmpty()) {
-            return new List<User>();
-        }
-        Id lifeSciencesProfileId = getLifeSciencesSalesProfileIdForOverlay();
-        return [
-            SELECT Id
-            FROM User
-            WHERE Id IN :userIds
-            AND IsActive = true
-            AND ProfileId = :lifeSciencesProfileId
-        ];
-    }
+	public static List<User> selectActiveLifeSciencesSalesUsersByIds(Set<Id> userIds) {
+		if (userIds == null || userIds.isEmpty()) {
+			return new List<User>();
+		}
+		Id lifeSciencesProfileId = getLifeSciencesSalesProfileIdForOverlay();
+		return [
+			SELECT Id
+			FROM User
+			WHERE Id IN :userIds
+			AND IsActive = true
+			AND ProfileId = :lifeSciencesProfileId
+		];
+	}
 
     /**
      * @description GCL-79 - Life Sciences Sales profile Id for the overlay.
@@ -386,16 +386,16 @@ public without sharing class UserSelector {
      *              getLifeSciencesSalesProfileId stays on the user-mode query builder.
      * @return Profile Id, or null when the profile does not exist.
      */
-    public static Id getLifeSciencesSalesProfileIdForOverlay() {
-        if (lifeSciencesOverlayProfileIdCache == null) {
-            List<Profile> profiles = [
-                SELECT Id
-                FROM Profile
-                WHERE Name = :LIFESCIENCES_SALES_PROFILE_NAME
-                LIMIT 1
-            ];
-            lifeSciencesOverlayProfileIdCache = profiles.isEmpty() ? null : profiles[0].Id;
-        }
-        return lifeSciencesOverlayProfileIdCache;
-    }
+	public static Id getLifeSciencesSalesProfileIdForOverlay() {
+		if (lifeSciencesOverlayProfileIdCache == null) {
+			List<Profile> profiles = [
+				SELECT Id
+				FROM Profile
+				WHERE Name = :LIFESCIENCES_SALES_PROFILE_NAME
+				LIMIT 1
+			];
+			lifeSciencesOverlayProfileIdCache = profiles.isEmpty() ? null : profiles[0].Id;
+		}
+		return lifeSciencesOverlayProfileIdCache;
+	}
 }

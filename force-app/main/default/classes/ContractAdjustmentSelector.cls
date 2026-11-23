@@ -69,6 +69,11 @@ public with sharing class ContractAdjustmentSelector extends SoqlQueryBuilder {
 	 */
 	public static final String PRICING_PROGRAM_STATUS_ACTIVE = 'Active';
 
+	/**
+	 * @description PricingProgram__c.Type__c value offered in the ONL Pricing Program search (On Location - Mobile Van).
+	 */
+	public static final String PRICING_PROGRAM_TYPE_MOBILE_VAN = 'On Location - Mobile Van';
+
 	public ContractAdjustmentSelector() {
 		this.objectName = 'ContractAdjustment__c';
 	}

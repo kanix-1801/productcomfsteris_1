@@ -58,6 +58,8 @@ public with sharing class AccountSelector extends SoqlQueryBuilder {
 					'BillingCountry',
 					'BillingPostalCode',
 					'TAS_Retry__c',
+                    'AccountSource',
+                    'SourceSystemID__c',
 					'TAS_Assignment_Status__c'
 				}
 			)

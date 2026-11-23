@@ -9,7 +9,7 @@ public class LeadSlaScheduler implements Schedulable {
      * @description Marks due clocks and sends the individual reminders.
      * @param context Schedule context. Unused.
      */
-    public void execute(SchedulableContext context) {
-        LeadSlaService.markDueClocks();
-    }
+	public void execute(SchedulableContext context) {
+		LeadSlaService.markDueClocks();
+	}
 }

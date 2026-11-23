@@ -246,4 +246,75 @@ private class PlatformUtilitiesTest {
         Assert.areEqual(1, PlatformUtilities.parsePositiveDecimal(null, 1));
         Test.stopTest();
     }
+
+    /**
+     * @description Verifies valid records save and failed records return their error by Id.
+     */
+    @IsTest
+    static void testUpdateAllowingPartialSuccess() {
+        // GIVEN
+        Account validAccount = new Account(Name = 'PlatformUtilities Partial Valid');
+        Account invalidAccount = new Account(Name = 'PlatformUtilities Partial Invalid');
+        insert new List<Account>{ validAccount, invalidAccount };
+        validAccount.Name = 'PlatformUtilities Partial Renamed';
+        invalidAccount.Name = null;
+
+        // WHEN
+        Test.startTest();
+        Map<Id, String> errorMessageById = PlatformUtilities.updateAllowingPartialSuccess(
+            new List<Account>{ validAccount, invalidAccount },
+            AccessLevel.SYSTEM_MODE
+        );
+        Map<Id, String> emptyResult = PlatformUtilities.updateAllowingPartialSuccess(null, AccessLevel.SYSTEM_MODE);
+        Test.stopTest();
+
+        // THEN
+        Assert.areEqual(1, errorMessageById.size(), 'Only the invalid record fails');
+        Assert.isTrue(errorMessageById.containsKey(invalidAccount.Id), 'Failed record is keyed by Id');
+        Assert.areEqual(
+            'PlatformUtilities Partial Renamed',
+            [SELECT Name FROM Account WHERE Id = :validAccount.Id].Name,
+            'Valid record is saved'
+        );
+        Assert.isTrue(emptyResult.isEmpty(), 'Null input returns an empty map');
+    }
+
+    /**
+     * @description GW-6099 - Counts (and logs) only the failed rows of a partial-success DML.
+     */
+    @IsTest
+    static void testLogSaveFailuresCountsFailedRows() {
+        List<Account> accounts = new List<Account>{
+            new Account(Name = 'PlatformUtilities Saved'),
+            new Account(Name = 'PlatformUtilities Failed')
+        };
+        List<Database.SaveResult> saveResults = (List<Database.SaveResult>) JSON.deserialize(
+            '[{"success":true,"errors":[]},' +
+            '{"success":false,"errors":[{"message":"Required field missing","statusCode":"REQUIRED_FIELD_MISSING"}]}]',
+            List<Database.SaveResult>.class
+        );
+
+        Test.startTest();
+        Integer failedCount = PlatformUtilities.logSaveFailures(accounts, saveResults);
+        Test.stopTest();
+
+        Assert.areEqual(1, failedCount, 'Only the failed row should be counted');
+    }
+
+	/**
+	 * @description GW-2706: Quotes only the values that need it and turns null into an empty cell.
+	 */
+	@IsTest
+	static void testToCsvLine() {
+		// GIVEN
+		List<String> values = new List<String>{ 'Row 2', null, 'Zone, "Z1"', 'Line\nbreak' };
+
+		// WHEN
+		Test.startTest();
+		String line = PlatformUtilities.toCsvLine(values);
+		Test.stopTest();
+
+		// THEN
+		Assert.areEqual('Row 2,,"Zone, ""Z1""","Line\nbreak"', line, 'Unexpected CSV line');
+	}
 }

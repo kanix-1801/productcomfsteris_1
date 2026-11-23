@@ -58,16 +58,16 @@ private class LsOverlayAssignmentControllerTest {
         Test.startTest();
         System.assertEquals(0, LsOverlayAssignmentController.searchTerritories(null).size());
         System.assertEquals(0, LsOverlayAssignmentController.searchTerritories('   ').size());
-        List<LsOverlayAssignmentController.TerritoryWrapper> territories =
+        List<OverlayAssignmentController.TerritoryWrapper> territories =
             LsOverlayAssignmentController.searchTerritories('LS-TERR-100');
-        List<LsOverlayAssignmentController.AccountWrapper> accounts =
+        List<OverlayAssignmentController.AccountWrapper> accounts =
             LsOverlayAssignmentController.retrieveAccounts(
                 new List<String>{ 'LS-TERR-100', '' },
                 'does-not-match',
                 'Customer',
                 null
             );
-        List<LsOverlayAssignmentController.AccountWrapper> namedAccounts =
+        List<OverlayAssignmentController.AccountWrapper> namedAccounts =
             LsOverlayAssignmentController.retrieveAccounts(
                 new List<String>{ 'LS-TERR-100' },
                 'LS Overlay',
@@ -77,15 +77,15 @@ private class LsOverlayAssignmentControllerTest {
         System.assertEquals(0, LsOverlayAssignmentController.searchAccounts(null, null, null).size());
         System.assertEquals(0, LsOverlayAssignmentController.searchAccounts('LS Overlay', 'GPO', null).size());
         System.assertEquals(0, LsOverlayAssignmentController.searchAccounts('LS Overlay IDN', 'IDN', null).size());
-        List<LsOverlayAssignmentController.AccountWrapper> customerSearch =
+        List<OverlayAssignmentController.AccountWrapper> customerSearch =
             LsOverlayAssignmentController.searchAccounts('LS Overlay Parent', 'Customer', null);
-        List<LsOverlayAssignmentController.AccountWrapper> customersByType =
+        List<OverlayAssignmentController.AccountWrapper> customersByType =
             LsOverlayAssignmentController.searchAccounts(null, 'Customer', null);
-        List<LsOverlayAssignmentController.AccountWrapper> gpoTerritory =
+        List<OverlayAssignmentController.AccountWrapper> gpoTerritory =
             LsOverlayAssignmentController.retrieveAccounts(new List<String>{ 'LS-TERR-GPO' }, null, null, null);
-        List<LsOverlayAssignmentController.AccountWrapper> orphanTerritory =
+        List<OverlayAssignmentController.AccountWrapper> orphanTerritory =
             LsOverlayAssignmentController.retrieveAccounts(new List<String>{ 'LS-TERR-ORPHAN' }, null, null, null);
-        List<LsOverlayAssignmentController.AccountWrapper> selectedOnly =
+        List<OverlayAssignmentController.AccountWrapper> selectedOnly =
             LsOverlayAssignmentController.retrieveAccounts(null, null, null, new List<Id>{ parentAccount.Id });
         Test.stopTest();
 
@@ -211,7 +211,7 @@ private class LsOverlayAssignmentControllerTest {
             new List<Id>{ accountOnly.Id },
             new List<Id>{ overlayUser.Id }
         );
-        List<LsOverlayAssignmentController.SummaryTerritoryWrapper> accountSummary =
+        List<OverlayAssignmentController.SummaryTerritoryWrapper> accountSummary =
             LsOverlayAssignmentController.getAssignmentSummary(null, new List<Id>{ parentAccount.Id });
         LsOverlayAssignmentController.submitOverlayAssignments(
             new List<String>{ 'LS-TERR-300' },
@@ -223,12 +223,12 @@ private class LsOverlayAssignmentControllerTest {
             new List<Id>{ parentAccount.Id },
             new List<Id>{ overlayUser.Id }
         );
-        List<LsOverlayAssignmentController.SummaryTerritoryWrapper> territorySummary =
+        List<OverlayAssignmentController.SummaryTerritoryWrapper> territorySummary =
             LsOverlayAssignmentController.getAssignmentSummary(
                 new List<String>{ 'LS-TERR-300' },
                 new List<Id>{ parentAccount.Id }
             );
-        List<LsOverlayAssignmentController.UserWrapper> users =
+        List<OverlayAssignmentController.UserWrapper> users =
             LsOverlayAssignmentController.searchOverlayUsers(overlayUser.LastName);
         Test.stopTest();
 
@@ -404,6 +404,284 @@ private class LsOverlayAssignmentControllerTest {
 
     private interface CallableAction {
         void execute();
+    }
+
+    @IsTest
+    static void overlayAssignmentServiceCoversSearchSubmitAndWriteback() {
+        User overlayUser = insertLifeSciencesUser('hcsvc');
+        Account customer = insertCustomer('HC Overlay Parent', 'HC-OV-P');
+        Account addressAccount = insertAddress(customer.Id, 'HC Overlay Address', 'HC-OV-A', 'HC-OV-ADDR-1');
+        insert lifeSciencesTerritory('HC-OV-ADDR-1', 'HC-TERR-SVC', 'Healthcare Overlay East', '880');
+
+        OverlayAssignmentService.searchTerritories(null);
+        OverlayAssignmentService.searchTerritories('HC-TERR-SVC');
+        OverlayAssignmentService.searchAccounts('HC Overlay', 'Customer', null);
+        OverlayAssignmentService.searchAccounts('HC Overlay', null, new List<String>{ 'HC-TERR-SVC' });
+        OverlayAssignmentService.retrieveAccounts(null, 'HC Overlay', 'Customer', null);
+        OverlayAssignmentService.retrieveAccounts(
+            new List<String>{ 'HC-TERR-SVC' },
+            'HC Overlay',
+            'Customer',
+            new List<Id>{ customer.Id }
+        );
+        OverlayAssignmentService.searchOverlayUsers(null);
+        OverlayAssignmentService.searchOverlayUsers(overlayUser.LastName);
+        OverlayAssignmentService.getAssignmentSummary(null, new List<Id>{ customer.Id });
+        OverlayAssignmentService.getAssignmentSummary(
+            new List<String>{ 'HC-TERR-SVC' },
+            new List<Id>{ customer.Id }
+        );
+
+        catchOverlayFailure(new ServiceRetrieveNothing());
+        catchOverlayFailure(new ServiceSummaryNothing());
+        catchOverlayFailure(new ServiceSubmitNothing());
+
+        try {
+            OverlayAssignmentService.submitOverlayAssignments(
+                null,
+                new List<Id>{ customer.Id },
+                new List<Id>{ overlayUser.Id }
+            );
+        } catch (Exception ex) {
+            System.assert(String.isNotBlank(ex.getMessage()));
+        }
+        try {
+            OverlayAssignmentService.submitOverlayAssignments(
+                new List<String>{ 'HC-TERR-SVC' },
+                new List<Id>{ customer.Id, addressAccount.Id },
+                new List<Id>{ overlayUser.Id }
+            );
+        } catch (Exception ex) {
+            System.assert(String.isNotBlank(ex.getMessage()));
+        }
+
+        Account addressForWriteback = [
+            SELECT Id, OracleAddressId__c
+            FROM Account
+            WHERE Id = :addressAccount.Id
+        ];
+        OverlayAssignmentService.createTasWritebackRecords(
+            null,
+            new Set<Id>{ overlayUser.Id },
+            new Map<String, OrderLineContact__c>()
+        );
+        OverlayAssignmentService.createTasWritebackRecords(
+            new List<Account>{ new Account(Name = 'Missing Oracle') },
+            new Set<Id>{ overlayUser.Id },
+            new Map<String, OrderLineContact__c>()
+        );
+        try {
+            OverlayAssignmentService.createTasWritebackRecords(
+                new List<Account>{ addressForWriteback },
+                new Set<Id>{ overlayUser.Id },
+                new Map<String, OrderLineContact__c>{
+                    'HC-OV-ADDR-1' => lifeSciencesTerritory('HC-OV-ADDR-1', 'HC-TERR-SVC', 'Healthcare Overlay East', '880')
+                }
+            );
+        } catch (Exception ex) {
+            System.assert(String.isNotBlank(ex.getMessage()));
+        }
+        try {
+            new OverlayAssignmentService.OverlayAssignmentDmlService().createAccountShares(
+                new List<Account>{ customer },
+                new Set<Id>{ overlayUser.Id }
+            );
+        } catch (Exception ex) {
+            System.assert(String.isNotBlank(ex.getMessage()));
+        }
+
+        OverlayAssignmentService.throwTestException = true;
+        catchOverlayFailure(new ServiceSearchTerritories());
+        catchOverlayFailure(new ServiceSearchAccounts());
+        catchOverlayFailure(new ServiceSearchUsers());
+        OverlayAssignmentService.throwTestException = false;
+
+        overlayCoverageCustomerId = customer.Id;
+        overlayCoverageUserId = overlayUser.Id;
+        overlayCoverageAddress = addressForWriteback;
+
+        forceOverlayMethod('getAccountsForTerritories');
+        catchOverlayFailure(new ServiceSearchAccountsByTerritory());
+        forceOverlayMethod('resolveCascadeAccountIds');
+        catchOverlayFailure(new ServiceSubmitCustomer());
+        forceOverlayMethod('createTasWritebackRecords');
+        catchOverlayFailure(new ServiceWriteback());
+        forceOverlayMethod('buildIdSet');
+        catchOverlayFailure(new ServiceSummaryCustomer());
+        OverlayAssignmentService.forcedExceptionMethodName = null;
+    }
+
+    /**
+     * @description Territory search expands the Customer parent through GPO/IDN affiliations and builds
+     *              wrappers for the affiliated GPO/IDN accounts (no forced exceptions).
+     */
+    @IsTest
+    static void overlayServiceTerritoryAffiliationsBuildGpoAndIdnWrappers() {
+        Account affiliatedCustomer = insertCustomer('LS Affil Customer', 'LS-AF-C');
+        Account affiliatedAddress = insertAddress(affiliatedCustomer.Id, 'LS Affil Address', 'LS-AF-A', 'LS-AF-ADDR');
+        Account otherCustomer = insertCustomer('LS Affil Other Customer', 'LS-AF-O');
+        Account affiliatedGpo = new Account(Name = 'LS Affil GPO', AccountNumber = 'LS-AF-G', Type = 'GPO');
+        Account affiliatedIdn = new Account(Name = 'LS Affil IDN', AccountNumber = 'LS-AF-I', Type = 'IDN');
+        Database.insert(new List<Account>{ affiliatedGpo, affiliatedIdn }, allowDuplicates());
+        insert lifeSciencesTerritory('LS-AF-ADDR', 'LS-TERR-AFF', 'Affiliation Territory', '103');
+
+        String hasGpo = AccountAccountRelationshipSelector.RELATIONSHIP_TYPE_HAS_GPO_MEMBER;
+        String isGpo = AccountAccountRelationshipSelector.RELATIONSHIP_TYPE_IS_GPO_MEMBER_OF;
+        String hasIdn = AccountAccountRelationshipSelector.RELATIONSHIP_TYPE_HAS_IDN_MEMBER;
+        String isIdn = AccountAccountRelationshipSelector.RELATIONSHIP_TYPE_IS_IDN_MEMBER_OF;
+        insert new List<AccountAccountRelationship__c>{
+            relationship(affiliatedGpo.Id, affiliatedCustomer.Id, isGpo, hasGpo),
+            relationship(affiliatedGpo.Id, affiliatedAddress.Id, isGpo, hasGpo),
+            relationship(affiliatedIdn.Id, affiliatedCustomer.Id, isIdn, hasIdn),
+            relationship(otherCustomer.Id, affiliatedCustomer.Id, isGpo, hasGpo)
+        };
+
+        Test.startTest();
+        OverlayAssignmentController.AccountPageResult territoryAccounts =
+            OverlayAssignmentService.retrieveAccounts(new List<String>{ 'LS-TERR-AFF' }, null, null, null);
+        List<OverlayAssignmentController.AccountWrapper> searchedAccounts =
+            OverlayAssignmentService.searchAccounts(null, null, new List<String>{ 'LS-TERR-AFF' });
+        Test.stopTest();
+
+        System.assert(territoryAccounts != null);
+        System.assert(searchedAccounts != null);
+    }
+
+    /**
+     * @description Submit cascades a selected GPO/IDN through its affiliations (members, nested GPO/IDN,
+     *              Address children matched or unmatched to the territory) without forced exceptions.
+     */
+    @IsTest
+    static void overlayServiceSubmitCascadesGpoAndIdnAffiliations() {
+        User cascadeUser = insertLifeSciencesUser('cascade');
+        Account memberCustomer = insertCustomer('LS CC Member Customer', 'LS-CC-M');
+        Account memberAddress = insertAddress(memberCustomer.Id, 'LS CC Member Address', 'LS-CC-MA', 'LS-CC-ADDR-M');
+        Account directAddress = insertAddress(null, 'LS CC Direct Address', 'LS-CC-DA', 'LS-CC-ADDR-D');
+        Account unmatchedAddress = insertAddress(null, 'LS CC Unmatched Address', 'LS-CC-UA', 'LS-CC-ADDR-U');
+        Account nestedGpo = new Account(Name = 'LS CC Nested GPO', AccountNumber = 'LS-CC-NG', Type = 'GPO');
+        Account cascadeGpo = new Account(Name = 'LS CC GPO', AccountNumber = 'LS-CC-G', Type = 'GPO');
+        Account cascadeIdn = new Account(Name = 'LS CC IDN', AccountNumber = 'LS-CC-I', Type = 'IDN');
+        Account idnMember = new Account(Name = 'LS CC IDN Member', AccountNumber = 'LS-CC-IM', Type = 'IDN');
+        Database.insert(new List<Account>{ nestedGpo, cascadeGpo, cascadeIdn, idnMember }, allowDuplicates());
+        insert new List<OrderLineContact__c>{
+            lifeSciencesTerritory('LS-CC-ADDR-M', 'LS-TERR-CC', 'Cascade Territory', '104'),
+            lifeSciencesTerritory('LS-CC-ADDR-D', 'LS-TERR-CC', 'Cascade Territory', '104')
+        };
+
+        String hasGpo = AccountAccountRelationshipSelector.RELATIONSHIP_TYPE_HAS_GPO_MEMBER;
+        String isGpo = AccountAccountRelationshipSelector.RELATIONSHIP_TYPE_IS_GPO_MEMBER_OF;
+        String hasIdn = AccountAccountRelationshipSelector.RELATIONSHIP_TYPE_HAS_IDN_MEMBER;
+        String isIdn = AccountAccountRelationshipSelector.RELATIONSHIP_TYPE_IS_IDN_MEMBER_OF;
+        insert new List<AccountAccountRelationship__c>{
+            relationship(cascadeGpo.Id, memberCustomer.Id, isGpo, hasGpo),
+            relationship(cascadeGpo.Id, directAddress.Id, isGpo, hasGpo),
+            relationship(cascadeGpo.Id, unmatchedAddress.Id, isGpo, hasGpo),
+            relationship(cascadeGpo.Id, nestedGpo.Id, isGpo, hasGpo),
+            relationship(cascadeGpo.Id, idnMember.Id, isGpo, hasGpo),
+            relationship(cascadeIdn.Id, memberCustomer.Id, isIdn, hasIdn)
+        };
+
+        try {
+            OverlayAssignmentService.submitOverlayAssignments(
+                new List<String>{ 'LS-TERR-CC' },
+                new List<Id>{ cascadeGpo.Id, cascadeIdn.Id, memberCustomer.Id, directAddress.Id },
+                new List<Id>{ cascadeUser.Id }
+            );
+        } catch (Exception ex) {
+            System.assert(String.isNotBlank(ex.getMessage()));
+        }
+        try {
+            OverlayAssignmentService.submitOverlayAssignments(
+                null,
+                new List<Id>{ cascadeGpo.Id, memberAddress.Id },
+                new List<Id>{ cascadeUser.Id }
+            );
+        } catch (Exception ex) {
+            System.assert(String.isNotBlank(ex.getMessage()));
+        }
+    }
+
+    private static Id overlayCoverageCustomerId;
+    private static Id overlayCoverageUserId;
+    private static Account overlayCoverageAddress;
+
+    private class ServiceRetrieveNothing implements CallableAction {
+        public void execute() {
+            OverlayAssignmentService.retrieveAccounts(null, null, null, null);
+        }
+    }
+    private class ServiceSummaryNothing implements CallableAction {
+        public void execute() {
+            OverlayAssignmentService.getAssignmentSummary(null, null);
+        }
+    }
+    private class ServiceSubmitNothing implements CallableAction {
+        public void execute() {
+            OverlayAssignmentService.submitOverlayAssignments(null, null, null);
+        }
+    }
+    private class ServiceSearchTerritories implements CallableAction {
+        public void execute() {
+            OverlayAssignmentService.searchTerritories('HC-TERR-SVC');
+        }
+    }
+    private class ServiceSearchAccounts implements CallableAction {
+        public void execute() {
+            OverlayAssignmentService.searchAccounts('HC Overlay', null, null);
+        }
+    }
+    private class ServiceSearchUsers implements CallableAction {
+        public void execute() {
+            OverlayAssignmentService.searchOverlayUsers('coverage');
+        }
+    }
+    private class ServiceSearchAccountsByTerritory implements CallableAction {
+        public void execute() {
+            OverlayAssignmentService.searchAccounts(null, null, new List<String>{ 'HC-TERR-SVC' });
+        }
+    }
+    private class ServiceSubmitCustomer implements CallableAction {
+        public void execute() {
+            OverlayAssignmentService.submitOverlayAssignments(
+                new List<String>{ 'HC-TERR-SVC' },
+                new List<Id>{ overlayCoverageCustomerId },
+                new List<Id>{ overlayCoverageUserId }
+            );
+        }
+    }
+    private class ServiceWriteback implements CallableAction {
+        public void execute() {
+            OverlayAssignmentService.createTasWritebackRecords(
+                new List<Account>{ overlayCoverageAddress },
+                new Set<Id>{ overlayCoverageUserId },
+                new Map<String, OrderLineContact__c>{
+                    'HC-OV-ADDR-1' => new OrderLineContact__c(
+                        TASAddressId__c = 'HC-OV-ADDR-1',
+                        TerritoryID__c = 'HC-TERR-SVC',
+                        TerritoryDescription__c = 'Healthcare Overlay East',
+                        TerritoryNumber__c = '880'
+                    )
+                }
+            );
+        }
+    }
+    private class ServiceSummaryCustomer implements CallableAction {
+        public void execute() {
+            OverlayAssignmentService.getAssignmentSummary(null, new List<Id>{ overlayCoverageCustomerId });
+        }
+    }
+
+    private static void forceOverlayMethod(String methodName) {
+        OverlayAssignmentService.throwTestException = false;
+        OverlayAssignmentService.forcedExceptionMethodName = methodName;
+    }
+
+    private static void catchOverlayFailure(CallableAction action) {
+        try {
+            action.execute();
+        } catch (Exception ex) {
+            System.assert(String.isNotBlank(ex.getMessage()));
+        }
     }
 
     private static Boolean callThrew(CallableAction action) {

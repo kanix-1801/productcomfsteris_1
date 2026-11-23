@@ -5,250 +5,250 @@
  * @description GC-3457 UC3 - Stages and processes quote closure after Capital → EPP conversion.
  */
 public with sharing class OppEppConversionQuoteService {
-    private static final String CLASS_NAME = 'OppEppConversionQuoteService';
+	private static final String CLASS_NAME = 'OppEppConversionQuoteService';
 
-    public class QuoteRow {
-        @AuraEnabled
-        public Id id;
+	public class QuoteRow {
+		@AuraEnabled
+		public Id id;
 
-        @AuraEnabled
-        public String quoteNumber;
+		@AuraEnabled
+		public String quoteNumber;
 
-        @AuraEnabled
-        public String status;
+		@AuraEnabled
+		public String status;
 
-        @AuraEnabled
-        public Boolean forecastEligible;
-    }
+		@AuraEnabled
+		public Boolean forecastEligible;
+	}
 
-    public class BannerContext {
-        @AuraEnabled
-        public Boolean showBanner;
+	public class BannerContext {
+		@AuraEnabled
+		public Boolean showBanner;
 
-        @AuraEnabled
-        public String message;
+		@AuraEnabled
+		public String message;
 
-        @AuraEnabled
-        public String confirmMessage;
+		@AuraEnabled
+		public String confirmMessage;
 
-        @AuraEnabled
-        public Integer openQuoteCount;
+		@AuraEnabled
+		public Integer openQuoteCount;
 
-        @AuraEnabled
-        public List<QuoteRow> quotes;
-    }
+		@AuraEnabled
+		public List<QuoteRow> quotes;
+	}
 
     /**
      * @description Sets PendingEppConversionQuoteClosure__c when open SC quotes exist after conversion.
      * @param opportunityId Converted EPP Opportunity Id.
      */
-    public static void stageBannerAfterConversion(Id opportunityId) {
-        if (opportunityId == null) {
-            return;
-        }
+	public static void stageBannerAfterConversion(Id opportunityId) {
+		if (opportunityId == null) {
+			return;
+		}
 
-        Integer openQuoteCount =
-            QuoteSelector.countOpenSalesConnectionQuotesByOpportunityIds(new Set<Id>{ opportunityId })
-                .get(opportunityId);
+		Integer openQuoteCount =
+			QuoteSelector.countOpenSalesConnectionQuotesByOpportunityIds(new Set<Id>{ opportunityId })
+				.get(opportunityId);
 
-        Database.update(
-            new Opportunity(
-                Id = opportunityId,
-                PendingEppConversionQuoteClosure__c = openQuoteCount != null && openQuoteCount > 0
-            ),
-            false,
-            AccessLevel.SYSTEM_MODE
-        );
-    }
+		Database.update(
+			new Opportunity(
+				Id = opportunityId,
+				PendingEppConversionQuoteClosure__c = openQuoteCount != null && openQuoteCount > 0
+			),
+			false,
+			AccessLevel.SYSTEM_MODE
+		);
+	}
 
     /**
      * @description Clears stale EPP conversion banner flags when open quotes no longer exist.
      */
-    public static void syncBannerStateForOpportunityIds(Set<Id> opportunityIds) {
-        if (opportunityIds == null || opportunityIds.isEmpty()) {
-            return;
-        }
+	public static void syncBannerStateForOpportunityIds(Set<Id> opportunityIds) {
+		if (opportunityIds == null || opportunityIds.isEmpty()) {
+			return;
+		}
 
-        Map<Id, Integer> openQuoteCountsByOpportunityId =
-            QuoteSelector.countOpenSalesConnectionQuotesByOpportunityIds(opportunityIds);
-        List<Opportunity> opportunitiesToClear = new List<Opportunity>();
+		Map<Id, Integer> openQuoteCountsByOpportunityId =
+			QuoteSelector.countOpenSalesConnectionQuotesByOpportunityIds(opportunityIds);
+		List<Opportunity> opportunitiesToClear = new List<Opportunity>();
 
-        for (Opportunity opportunityRecord : [
-            SELECT Id
-            FROM Opportunity
-            WHERE Id IN :opportunityIds
-              AND PendingEppConversionQuoteClosure__c = TRUE
-            WITH SYSTEM_MODE
-        ]) {
-            Integer openQuoteCount = openQuoteCountsByOpportunityId.get(opportunityRecord.Id);
-            if (openQuoteCount != null && openQuoteCount > 0) {
-                continue;
-            }
+		for (Opportunity opportunityRecord : [
+			SELECT Id
+			FROM Opportunity
+			WHERE Id IN :opportunityIds
+			  AND PendingEppConversionQuoteClosure__c = TRUE
+			WITH SYSTEM_MODE
+		]) {
+			Integer openQuoteCount = openQuoteCountsByOpportunityId.get(opportunityRecord.Id);
+			if (openQuoteCount != null && openQuoteCount > 0) {
+				continue;
+			}
 
-            opportunitiesToClear.add(
-                new Opportunity(
-                    Id = opportunityRecord.Id,
-                    PendingEppConversionQuoteClosure__c = false
-                )
-            );
-        }
+			opportunitiesToClear.add(
+				new Opportunity(
+					Id = opportunityRecord.Id,
+					PendingEppConversionQuoteClosure__c = false
+				)
+			);
+		}
 
-        if (!opportunitiesToClear.isEmpty()) {
-            Database.update(opportunitiesToClear, false, AccessLevel.SYSTEM_MODE);
-        }
-    }
+		if (!opportunitiesToClear.isEmpty()) {
+			Database.update(opportunitiesToClear, false, AccessLevel.SYSTEM_MODE);
+		}
+	}
 
-    public static BannerContext getBannerContext(Id opportunityId) {
-        BannerContext context = new BannerContext();
-        context.showBanner = false;
-        context.openQuoteCount = 0;
-        context.quotes = new List<QuoteRow>();
+	public static BannerContext getBannerContext(Id opportunityId) {
+		BannerContext context = new BannerContext();
+		context.showBanner = false;
+		context.openQuoteCount = 0;
+		context.quotes = new List<QuoteRow>();
 
-        if (opportunityId == null) {
-            return context;
-        }
+		if (opportunityId == null) {
+			return context;
+		}
 
-        List<Opportunity> opportunityRecords = [
-            SELECT Id, PendingEppConversionQuoteClosure__c
-            FROM Opportunity
-            WHERE Id = :opportunityId
-            WITH USER_MODE
-            LIMIT 1
-        ];
+		List<Opportunity> opportunityRecords = [
+			SELECT Id, PendingEppConversionQuoteClosure__c
+			FROM Opportunity
+			WHERE Id = :opportunityId
+			WITH USER_MODE
+			LIMIT 1
+		];
 
-        if (opportunityRecords.isEmpty() || opportunityRecords[0].PendingEppConversionQuoteClosure__c != true) {
-            return context;
-        }
+		if (opportunityRecords.isEmpty() || opportunityRecords[0].PendingEppConversionQuoteClosure__c != true) {
+			return context;
+		}
 
-        context.message = System.Label.OpportunityEppConversionQuoteBannerMessage;
-        context.confirmMessage = System.Label.OpportunityEppConversionQuoteConfirmMessage;
+		context.message = System.Label.OpportunityEppConversionQuoteBannerMessage;
+		context.confirmMessage = System.Label.OpportunityEppConversionQuoteConfirmMessage;
 
-        for (Quote quoteRecord : QuoteSelector.selectOpenSalesConnectionQuotesByOpportunityId(opportunityId)) {
-            QuoteRow quoteRow = new QuoteRow();
-            quoteRow.id = quoteRecord.Id;
-            quoteRow.quoteNumber = quoteRecord.QuoteNumber__c;
-            quoteRow.status = quoteRecord.Status;
-            quoteRow.forecastEligible = quoteRecord.Forecast_Eligible__c == true;
-            context.quotes.add(quoteRow);
-        }
+		for (Quote quoteRecord : QuoteSelector.selectOpenSalesConnectionQuotesByOpportunityId(opportunityId)) {
+			QuoteRow quoteRow = new QuoteRow();
+			quoteRow.id = quoteRecord.Id;
+			quoteRow.quoteNumber = quoteRecord.QuoteNumber__c;
+			quoteRow.status = quoteRecord.Status;
+			quoteRow.forecastEligible = quoteRecord.Forecast_Eligible__c == true;
+			context.quotes.add(quoteRow);
+		}
 
-        context.openQuoteCount = context.quotes.size();
-        if (context.openQuoteCount == 0) {
-            return context;
-        }
+		context.openQuoteCount = context.quotes.size();
+		if (context.openQuoteCount == 0) {
+			return context;
+		}
 
-        context.showBanner = true;
-        return context;
-    }
+		context.showBanner = true;
+		return context;
+	}
 
     /**
      * @description Clears a stale banner flag when no open SC quotes remain (non-cacheable; may DML).
      */
-    public static void reconcileStaleBanner(Id opportunityId) {
-        if (opportunityId == null) {
-            return;
-        }
+	public static void reconcileStaleBanner(Id opportunityId) {
+		if (opportunityId == null) {
+			return;
+		}
 
-        List<Opportunity> opportunityRecords = [
-            SELECT Id, PendingEppConversionQuoteClosure__c
-            FROM Opportunity
-            WHERE Id = :opportunityId
-            WITH USER_MODE
-            LIMIT 1
-        ];
+		List<Opportunity> opportunityRecords = [
+			SELECT Id, PendingEppConversionQuoteClosure__c
+			FROM Opportunity
+			WHERE Id = :opportunityId
+			WITH USER_MODE
+			LIMIT 1
+		];
 
-        if (
-            opportunityRecords.isEmpty() ||
-            opportunityRecords[0].PendingEppConversionQuoteClosure__c != true
-        ) {
-            return;
-        }
+		if (
+			opportunityRecords.isEmpty() ||
+			opportunityRecords[0].PendingEppConversionQuoteClosure__c != true
+		) {
+			return;
+		}
 
-        if (!QuoteSelector.selectOpenSalesConnectionQuotesByOpportunityId(opportunityId).isEmpty()) {
-            return;
-        }
+		if (!QuoteSelector.selectOpenSalesConnectionQuotesByOpportunityId(opportunityId).isEmpty()) {
+			return;
+		}
 
-        clearBannerFlag(opportunityId);
-    }
+		clearBannerFlag(opportunityId);
+	}
 
     /**
      * @description Closes only the quotes the user selected during Convert to EPP.
      *              Quotes that are not open Sales Connection quotes on this Opportunity are ignored.
      */
-    public static void closeSelectedQuotes(Id opportunityId, Set<Id> quoteIds) {
-        if (opportunityId == null || quoteIds == null || quoteIds.isEmpty()) {
-            return;
-        }
+	public static void closeSelectedQuotes(Id opportunityId, Set<Id> quoteIds) {
+		if (opportunityId == null || quoteIds == null || quoteIds.isEmpty()) {
+			return;
+		}
 
-        Set<Id> openQuoteIds = new Map<Id, Quote>(
-            QuoteSelector.selectOpenSalesConnectionQuotesByOpportunityId(opportunityId)
-        ).keySet();
-        quoteIds.retainAll(openQuoteIds);
-        if (quoteIds.isEmpty()) {
-            return;
-        }
+		Set<Id> openQuoteIds = new Map<Id, Quote>(
+			QuoteSelector.selectOpenSalesConnectionQuotesByOpportunityId(opportunityId)
+		).keySet();
+		quoteIds.retainAll(openQuoteIds);
+		if (quoteIds.isEmpty()) {
+			return;
+		}
 
-        ScOpportunityQuoteEventService.synchronizeEppConversionQuoteClosure(
-            opportunityId,
-            quoteIds,
-            UserInfo.getUserId()
-        );
-    }
+		ScOpportunityQuoteEventService.synchronizeEppConversionQuoteClosure(
+			opportunityId,
+			quoteIds,
+			UserInfo.getUserId()
+		);
+	}
 
-    public static void closeAllOpenQuotes(Id opportunityId) {
-        if (opportunityId == null) {
-            throw new AuraHandledException('Opportunity Id is required.');
-        }
+	public static void closeAllOpenQuotes(Id opportunityId) {
+		if (opportunityId == null) {
+			throw new AuraHandledException('Opportunity Id is required.');
+		}
 
-        Opportunity opportunityRecord = [
-            SELECT Id, PendingEppConversionQuoteClosure__c
-            FROM Opportunity
-            WHERE Id = :opportunityId
-            WITH USER_MODE
-            LIMIT 1
-        ];
+		Opportunity opportunityRecord = [
+			SELECT Id, PendingEppConversionQuoteClosure__c
+			FROM Opportunity
+			WHERE Id = :opportunityId
+			WITH USER_MODE
+			LIMIT 1
+		];
 
-        if (opportunityRecord.PendingEppConversionQuoteClosure__c != true) {
-            throw new AuraHandledException('The EPP conversion quote closure banner is no longer active.');
-        }
+		if (opportunityRecord.PendingEppConversionQuoteClosure__c != true) {
+			throw new AuraHandledException('The EPP conversion quote closure banner is no longer active.');
+		}
 
-        Set<Id> quoteIdsToClose = new Set<Id>();
-        for (Quote quoteRecord : QuoteSelector.selectOpenSalesConnectionQuotesByOpportunityId(opportunityId)) {
-            quoteIdsToClose.add(quoteRecord.Id);
-        }
+		Set<Id> quoteIdsToClose = new Set<Id>();
+		for (Quote quoteRecord : QuoteSelector.selectOpenSalesConnectionQuotesByOpportunityId(opportunityId)) {
+			quoteIdsToClose.add(quoteRecord.Id);
+		}
 
-        if (!quoteIdsToClose.isEmpty()) {
-            ScOpportunityQuoteEventService.synchronizeEppConversionQuoteClosure(
-                opportunityId,
-                quoteIdsToClose,
-                UserInfo.getUserId()
-            );
-        }
+		if (!quoteIdsToClose.isEmpty()) {
+			ScOpportunityQuoteEventService.synchronizeEppConversionQuoteClosure(
+				opportunityId,
+				quoteIdsToClose,
+				UserInfo.getUserId()
+			);
+		}
 
-        clearBannerFlag(opportunityId);
-    }
+		clearBannerFlag(opportunityId);
+	}
 
-    public static void dismissBanner(Id opportunityId) {
-        if (opportunityId == null) {
-            return;
-        }
+	public static void dismissBanner(Id opportunityId) {
+		if (opportunityId == null) {
+			return;
+		}
 
-        clearBannerFlag(opportunityId);
-    }
+		clearBannerFlag(opportunityId);
+	}
 
-    private static void clearBannerFlag(Id opportunityId) {
-        try {
-            Database.update(
-                new Opportunity(
-                    Id = opportunityId,
-                    PendingEppConversionQuoteClosure__c = false
-                ),
-                false,
-                AccessLevel.SYSTEM_MODE
-            );
-        } catch (Exception exceptionValue) {
-            ErrorLogger.logException(exceptionValue, CLASS_NAME, 'clearBannerFlag');
-            throw new AuraHandledException('Unable to update the EPP conversion quote closure banner.');
-        }
-    }
+	private static void clearBannerFlag(Id opportunityId) {
+		try {
+			Database.update(
+				new Opportunity(
+					Id = opportunityId,
+					PendingEppConversionQuoteClosure__c = false
+				),
+				false,
+				AccessLevel.SYSTEM_MODE
+			);
+		} catch (Exception exceptionValue) {
+			ErrorLogger.logException(exceptionValue, CLASS_NAME, 'clearBannerFlag');
+			throw new AuraHandledException('Unable to update the EPP conversion quote closure banner.');
+		}
+	}
 }

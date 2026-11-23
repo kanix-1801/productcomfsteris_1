@@ -12,65 +12,65 @@ public inherited sharing class CscVisitAttendeeService {
      * @param visits Saved CSC visit records.
      * @param oldVisits Prior CSC visit records. Null on insert.
      */
-    public static void handleAfterSave(
-        List<CSC_Visit_Request__c> visits,
-        Map<Id, CSC_Visit_Request__c> oldVisits
-    ) {
-        CscVisitConfirmationService.handleAfterSave(visits, oldVisits);
-    }
+	public static void handleAfterSave(
+		List<CSC_Visit_Request__c> visits,
+		Map<Id, CSC_Visit_Request__c> oldVisits
+	) {
+		CscVisitConfirmationService.handleAfterSave(visits, oldVisits);
+	}
 
     /**
      * @description Refreshes calendar invitees after STERIS attendees change
      *              on a confirmed visit. Does not send the confirmation email.
      * @param visitIds CSC visit Ids from the attendee records.
      */
-    public static void syncAttendees(Set<Id> visitIds) {
-        CscVisitConfirmationService.syncAttendees(visitIds);
-    }
+	public static void syncAttendees(Set<Id> visitIds) {
+		CscVisitConfirmationService.syncAttendees(visitIds);
+	}
     
-    private static final String ATTENDEE_TYPE_STERIS = 'STERIS';
+	private static final String ATTENDEE_TYPE_STERIS = 'STERIS';
     
-    public static void addDefaultRequestors(List<CSC_Visit_Request__c> visits) {
-        Map<Id, Id> requestorByVisit = new Map<Id, Id>();
-        for (CSC_Visit_Request__c visit : visits) {
-            if (visit.Id != null && visit.VisitRequestor__c != null) {
-                requestorByVisit.put(visit.Id, visit.VisitRequestor__c);
-            }
-        }
-        if (requestorByVisit.isEmpty()) {
-            return;
-        }
+	public static void addDefaultRequestors(List<CSC_Visit_Request__c> visits) {
+		Map<Id, Id> requestorByVisit = new Map<Id, Id>();
+		for (CSC_Visit_Request__c visit : visits) {
+			if (visit.Id != null && visit.VisitRequestor__c != null) {
+				requestorByVisit.put(visit.Id, visit.VisitRequestor__c);
+			}
+		}
+		if (requestorByVisit.isEmpty()) {
+			return;
+		}
         
-        Set<Id> visitIds = requestorByVisit.keySet();
-        Set<Id> requestorIds = new Set<Id>(requestorByVisit.values());
-        Set<String> existingKeys = new Set<String>();
-        for (CSCVisitAttendee__c attendee : [
-            SELECT CSCVisit__c, STERISAttendee__c
-            FROM CSCVisitAttendee__c
-            WHERE CSCVisit__c IN :visitIds
-            AND STERISAttendee__c IN :requestorIds
-        ]) {
-            existingKeys.add(key(attendee.CSCVisit__c, attendee.STERISAttendee__c));
-        }
+		Set<Id> visitIds = requestorByVisit.keySet();
+		Set<Id> requestorIds = new Set<Id>(requestorByVisit.values());
+		Set<String> existingKeys = new Set<String>();
+		for (CSCVisitAttendee__c attendee : [
+			SELECT CSCVisit__c, STERISAttendee__c
+			FROM CSCVisitAttendee__c
+			WHERE CSCVisit__c IN :visitIds
+			AND STERISAttendee__c IN :requestorIds
+		]) {
+			existingKeys.add(key(attendee.CSCVisit__c, attendee.STERISAttendee__c));
+		}
         
-        List<CSCVisitAttendee__c> attendeesToInsert = new List<CSCVisitAttendee__c>();
-        for (Id visitId : requestorByVisit.keySet()) {
-            Id requestorId = requestorByVisit.get(visitId);
-            if (!existingKeys.contains(key(visitId, requestorId))) {
-                attendeesToInsert.add(new CSCVisitAttendee__c(
-                    CSCVisit__c = visitId,
-                    STERISAttendee__c = requestorId,
-                    AttendeeType__c = ATTENDEE_TYPE_STERIS
-                ));
-            }
-        }
+		List<CSCVisitAttendee__c> attendeesToInsert = new List<CSCVisitAttendee__c>();
+		for (Id visitId : requestorByVisit.keySet()) {
+			Id requestorId = requestorByVisit.get(visitId);
+			if (!existingKeys.contains(key(visitId, requestorId))) {
+				attendeesToInsert.add(new CSCVisitAttendee__c(
+					CSCVisit__c = visitId,
+					STERISAttendee__c = requestorId,
+					AttendeeType__c = ATTENDEE_TYPE_STERIS
+				));
+			}
+		}
         
-        if (!attendeesToInsert.isEmpty()) {
-            insert attendeesToInsert;
-        }
-    }
+		if (!attendeesToInsert.isEmpty()) {
+			insert attendeesToInsert;
+		}
+	}
     
-    private static String key(Id visitId, Id userId) {
-        return String.valueOf(visitId) + '|' + String.valueOf(userId);
-    }
+	private static String key(Id visitId, Id userId) {
+		return String.valueOf(visitId) + '|' + String.valueOf(userId);
+	}
 }

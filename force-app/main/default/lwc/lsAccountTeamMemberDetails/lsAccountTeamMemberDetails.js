@@ -32,7 +32,10 @@ export default class LsAccountTeamMemberDetails extends LightningElement {
 
             this.accountTeamMembers = result.map(row => ({
                 ...row,
-                teamMemberUrl: row.id ? `/lightning/r/AccountTeamMember/${row.id}/view` : null
+                rowKey: row.id || row.userId,
+                teamMemberUrl: row.id
+                    ? `/lightning/r/AccountTeamMember/${row.id}/view`
+                    : (row.userId ? `/lightning/r/User/${row.userId}/view` : null)
             }));
             this.error = undefined;
         } catch (error) {

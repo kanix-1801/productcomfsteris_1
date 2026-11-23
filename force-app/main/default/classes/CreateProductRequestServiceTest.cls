@@ -239,9 +239,9 @@ private class CreateProductRequestServiceTest {
             System.assertEquals(true, context.requiredParts[0].requiredOnWorkOrder, 'The row is marked required.');
             System.assertEquals(2, context.requiredParts[0].quantity, 'The required quantity is returned.');
             System.assertEquals(
-                'Seal substitute',
+                'Seal substitute-PC-SUB',
                 context.requiredParts[0].substitutePart,
-                'The substitute part name is returned.'
+                'The substitute part name and item number are returned.'
             );
             System.assert(
                 context.shipToAccounts[0].name.contains('Dock address'),
@@ -1088,9 +1088,9 @@ private class CreateProductRequestServiceTest {
             System.assertEquals('Seal kit', matches[0].name, 'The product name is returned.');
             System.assertEquals('PC-4471', matches[0].productCode, 'The product code is returned.');
             System.assertEquals(
-                'Seal substitute',
+                'Seal substitute-PC-SUB',
                 matches[0].substitutePart,
-                'The substitute part name is returned.'
+                'The substitute part name and item number are returned.'
             );
             System.assertEquals(
                 'Check the seal before install.',

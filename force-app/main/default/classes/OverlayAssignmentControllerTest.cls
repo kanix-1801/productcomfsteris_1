@@ -9,6 +9,8 @@
  * Covers territory/account/user search, account retrieval, assignment summary, submit flows, exception paths, and selector queries.
  * GC-3352 - Overlay ATM insert copies coverage fields from a matching source Order Line Contact.
  * Also covers AccountAccountRelationshipSelector (GW-4861).
+ * GCL-390 : Tech Story - Hc x LS code dependency resolution
+
  */
 @IsTest(SeeAllData=false)
 private class OverlayAssignmentControllerTest {
@@ -39,6 +41,11 @@ private class OverlayAssignmentControllerTest {
         TestDataFactory.setupOverlayAssignmentBaseScenario();
     }
 
+    // GCL-390 : Tech Story - Hc x LS code dependency resolution
+    static {
+        GeneralUtility.currentBusinessLine = GeneralUtility.HC_STR;
+    }
+
     /**
      * @description
      * Clears service-layer test hooks between test methods.
@@ -48,6 +55,8 @@ private class OverlayAssignmentControllerTest {
     private static void resetServiceTestFlags() {
         OverlayAssignmentService.throwTestException = false;
         OverlayAssignmentService.forcedExceptionMethodName = null;
+        // GCL-390 : Tech Story - Hc x LS code dependency resolution
+        GeneralUtility.currentBusinessLine = GeneralUtility.HC_STR;
     }
 
     private static void insertParentCustomerAddressAndGpoTestAccounts() {

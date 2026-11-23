@@ -70,7 +70,8 @@ private class GenerateQuoteServiceTest {
         insert new Opportunity(
             Name = TEST_OPPORTUNITY_NAME,
             AccountId = accountRecord.Id,
-            StageName = getValidStageName(),
+            StageName = 'Discovery',
+            ForecastConfidenceLevel__c = 'Pipeline',
             CloseDate = Date.today().addDays(30),
             Amount = 1000,
             Probability = 10,

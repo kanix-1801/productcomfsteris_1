@@ -1546,21 +1546,31 @@ private class WorkOrdersServiceTest {
     }
 
     /**
-     * @description GW-2891 - Verifies initialize sets Status = Divide and Owner = current user.
+     * @description GW-2891 / GW-5677 - Verifies initialize sets Status = Divide, clears Sub Status,
+     *              and sets Owner = current user.
      */
     @IsTest
     static void testInitializeDivideInstruments_WhenValidId_SetsDivideAndOwner() {
         User testUser = new User(Id = UserInfo.getUserId());
         System.runAs(testUser) {
             WorkOrder created = createDivideInstrumentsParentWorkOrder();
+            created.Status = 'Received';
+            created.SubStatus__c = 'Ready for Eval';
+            update created;
 
             Test.startTest();
             WorkOrdersService.DivideInstrumentsContext context =
                 WorkOrdersService.initializeDivideInstruments(created.Id);
             Test.stopTest();
 
-            Assert.areEqual('Divide', context.workOrder.Status, 'Parent Status should be Divide');
-            Assert.areEqual(UserInfo.getUserId(), context.workOrder.OwnerId, 'Owner should be current user');
+            WorkOrder refreshed = [
+                SELECT Status, SubStatus__c, OwnerId
+                FROM WorkOrder
+                WHERE Id = :created.Id
+            ];
+            Assert.areEqual('Divide', refreshed.Status, 'Parent Status should be Divide');
+            Assert.isNull(refreshed.SubStatus__c, 'Parent Sub Status should be cleared');
+            Assert.areEqual(UserInfo.getUserId(), refreshed.OwnerId, 'Owner should be current user');
             Assert.areEqual(
                 WorkOrdersService.getInstrumentsRecordTypeId(),
                 context.instrumentsRecordTypeId,
@@ -3784,6 +3794,60 @@ private class WorkOrdersServiceTest {
             }
             Test.stopTest();
             Assert.isTrue(threw, 'Missing photos should fail when Photos Required');
+        }
+    }
+
+    /**
+     * @description GW-4378 - Photos Required allows Complete when the only photo is stored on the Work Order.
+     */
+    @IsTest
+    static void testCompleteInstrumentEvaluationDraft_WhenWorkOrderPhoto_Succeeds() {
+        User testUser = new User(Id = UserInfo.getUserId());
+        System.runAs(testUser) {
+            Id productServicedRtId = WorkOrderLineItemsService.getProductServicedRecordTypeId();
+            Id repairCodeRtId = WorkOrderLineItemsService.getRepairCodeRecordTypeId();
+            if (productServicedRtId == null || repairCodeRtId == null) {
+                Assert.isTrue(true, 'Required WOLI record types unavailable; skip');
+                return;
+            }
+
+            WorkOrder created = createInstrumentEvaluationWorkOrderWithCategory('Stainless');
+            created.PhotosRequired__c = true;
+            created.UnableToTakePhoto__c = false;
+            update created;
+            Product2 instrumentProduct = insertInstrumentCatalogProduct('IE-PHOTO-WO-01', 'Forceps', '10');
+            Product2 repairCode = insertInstrumentRepairCodeProduct('IE-PHOTO-WO-RC-01');
+            insertInstrumentPricebookEntries(
+                created.Pricebook2Id,
+                new Set<Id>{ instrumentProduct.Id, repairCode.Id }
+            );
+
+            insert new ContentVersion(
+                Title = 'Photos Tab Photo',
+                PathOnClient = 'photos-tab.jpg',
+                VersionData = Blob.valueOf('IE-photo-test'),
+                FirstPublishLocationId = created.Id
+            );
+
+            WorkOrdersService.InstrumentEvaluationDraftItem draft =
+                new WorkOrdersService.InstrumentEvaluationDraftItem();
+            draft.productId = instrumentProduct.Id;
+            draft.quantity = 1;
+            draft.repairCodeProductIds = new List<Id>{ repairCode.Id };
+            draft.contentDocumentIds = new List<Id>();
+
+            Test.startTest();
+            List<Id> productServicedIds = WorkOrdersService.completeInstrumentEvaluationDraft(
+                created.Id,
+                new List<WorkOrdersService.InstrumentEvaluationDraftItem>{ draft }
+            );
+            Test.stopTest();
+
+            Assert.areEqual(
+                1,
+                productServicedIds.size(),
+                'A Work Order photo should satisfy Photos Required'
+            );
         }
     }
 
@@ -8065,10 +8129,10 @@ private class WorkOrdersServiceTest {
 
     /**
      * @description GW-6358 - Vendor header tracking number comes from the first Shipment of the
-     *              Vendor Return Order, and the parent Work Order lookup is returned per Work Order.
+     *              Vendor Return Order.
      */
     @IsTest
-    static void testVendorShipmentTracking_readsFirstShipmentAndParent() {
+    static void testGetVendorWorkOrderHeaderDetails_readsFirstShipment() {
         Account customer = new Account(
             Name = 'WOS FedEx Track Cust',
             SystemID__c = 'LEG-WOS-FXC',
@@ -8101,42 +8165,93 @@ private class WorkOrdersServiceTest {
         Id otherRtId = Schema.SObjectType.WorkOrder.getRecordTypeInfosByDeveloperName()
             .get('RepairCenterVendor')
             ?.getRecordTypeId();
-        WorkOrder parentWo = new WorkOrder(
-            Subject = 'WOS FX Track Parent WO',
-            Status = 'Received',
-            AccountId = customer.Id,
-            Pricebook2Id = Test.getStandardPricebookId()
-        );
-        insert parentWo;
         WorkOrder vendorWo = new WorkOrder(
             Subject = 'WOS FX Track WO',
             Status = 'Ship to Vendor',
             AccountId = customer.Id,
             RecordTypeId = otherRtId,
             Pricebook2Id = Test.getStandardPricebookId(),
-            Vendor__c = vendor.Id,
-            ParentWorkOrderId = parentWo.Id
+            Vendor__c = vendor.Id
         );
         vendorWo.put('VendorReturnOrder__c', vendorRo.Id);
         insert vendorWo;
 
         // The first shipment of the Vendor Return Order holds the tracking number shown in the evaluation
-        Shipment firstShipment = ShipmentsService.buildFedExShipment(vendorRo.Id, parentWo.Id, 'TRACK-WOS-001', 'Vendor');
-        insert firstShipment;
-        Shipment laterShipment = ShipmentsService.buildFedExShipment(vendorRo.Id, parentWo.Id, 'TRACK-WOS-002', 'Vendor');
-        insert laterShipment;
+        insert ShipmentsService.buildFedExShipment(vendorRo.Id, null, 'TRACK-WOS-001', 'Vendor');
+        insert ShipmentsService.buildFedExShipment(vendorRo.Id, null, 'TRACK-WOS-002', 'Vendor');
 
         Test.startTest();
         WorkOrdersService.VendorHeaderDetails details =
             WorkOrdersService.getVendorWorkOrderHeaderDetails(vendorWo.Id);
-        Map<Id, Id> parentByWorkOrderId =
-            WorkOrdersService.getParentWorkOrderIdByWorkOrderId(new Set<Id>{ vendorWo.Id });
         Test.stopTest();
 
         Assert.areEqual('TRACK-WOS-001', details.trackingNumber, 'The first shipment tracking number should be used');
-        Assert.areEqual(parentWo.Id, parentByWorkOrderId.get(vendorWo.Id), 'The parent Work Order should be returned');
-        Assert.isTrue(WorkOrdersService.getParentWorkOrderIdByWorkOrderId(null).isEmpty(), 'Null input');
-        Assert.isTrue(WorkOrdersService.getParentWorkOrderIdByWorkOrderId(new Set<Id>()).isEmpty(), 'Empty input');
+    }
+
+
+    /**
+     * @description GW-3880 - Copies FedEx tracking onto Work Orders linked to Vendor Return Orders.
+     */
+    @IsTest
+    static void testUpdateWorkOrdersWithVendorFedExTracking_copiesTracking() {
+        Account customer = new Account(
+            Name = 'WOS FedEx Track Cust RO',
+            SystemID__c = 'LEG-WOS-FXC2',
+            SourceSystemID__c = 'TEST-ORACLE-WOS-FXC2',
+            OrgIDs__c = '82'
+        );
+        Account vendor = new Account(
+            Name = 'WOS FedEx Track Vend RO',
+            SystemID__c = 'LEG-WOS-FXV2',
+            SourceSystemID__c = 'TEST-ORACLE-WOS-FXV2',
+            OrgIDs__c = '82'
+        );
+        insert new List<Account>{ customer, vendor };
+
+        Schema.Location repairCenter = new Schema.Location(
+            Name = 'WOS FX RC RO',
+            LocationType = 'Repair Center'
+        );
+        insert repairCenter;
+
+        ReturnOrder vendorRo = new ReturnOrder(
+            AccountId = vendor.Id,
+            Status = 'Submitted',
+            DestinationLocationId = repairCenter.Id,
+            OperatingUnit__c = '82',
+            ReturnOrderType__c = 'Serialized'
+        );
+        insert vendorRo;
+
+        Id otherRtId = Schema.SObjectType.WorkOrder.getRecordTypeInfosByDeveloperName()
+            .get('RepairCenterOther')
+            ?.getRecordTypeId();
+        WorkOrder vendorWo = new WorkOrder(
+            Subject = 'WOS FX Track WO RO',
+            Status = 'Ship to Vendor',
+            AccountId = customer.Id,
+            RecordTypeId = otherRtId,
+            Pricebook2Id = Test.getStandardPricebookId(),
+            Vendor__c = vendor.Id
+        );
+        vendorWo.put('VendorReturnOrder__c', vendorRo.Id);
+        insert vendorWo;
+
+        WorkOrdersService.updateWorkOrdersWithVendorFedExTracking(null);
+        WorkOrdersService.updateWorkOrdersWithVendorFedExTracking(new Map<Id, String>());
+
+        Test.startTest();
+        WorkOrdersService.updateWorkOrdersWithVendorFedExTracking(
+            new Map<Id, String>{ vendorRo.Id => 'TRACK-WOS-001' }
+        );
+        Test.stopTest();
+
+        WorkOrder refreshed = [
+            SELECT TrackingNumber__c
+            FROM WorkOrder
+            WHERE Id = :vendorWo.Id
+        ];
+        Assert.areEqual('TRACK-WOS-001', refreshed.TrackingNumber__c);
     }
 
     /**

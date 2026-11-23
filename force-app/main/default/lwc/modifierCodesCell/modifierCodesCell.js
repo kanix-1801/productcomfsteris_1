@@ -18,6 +18,10 @@ export default class ModifierCodesCell extends LightningElement {
         return this.row?.canEdit === true;
     }
 
+    get showRemove() {
+        return this.showValue && this.row?.canRemove !== false;
+    }
+
     handleAdd() {
         this.dispatchEvent(new CustomEvent('add', { detail: this.row }));
     }

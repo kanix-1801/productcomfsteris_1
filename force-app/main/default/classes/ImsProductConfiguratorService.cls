@@ -506,28 +506,34 @@ public with sharing class ImsProductConfiguratorService {
 	 * @return Matching programs sorted by name (at most 50); empty for a blank or too-short term
 	 */
 	public static List<PricingProgramOption> searchPricingPrograms(String searchTerm) {
-		String term = searchTerm?.trim();
-		if (String.isBlank(term) || term.length() < PRICING_PROGRAM_MIN_SEARCH_LENGTH) {
-			return new List<PricingProgramOption>();
-		}
-		return toPricingProgramOptions(selectPricingPrograms(toLikeTerm(term), null, Date.today()));
+		return searchActivePricingPrograms(searchTerm, null);
 	}
 
 	/**
-	 * @description GW-6468 - Active, in-date pricing programs for the ONL Pricing Program search bar
-	 *              (On Location - Mobile Van tab). Same Active + date-window rule as the Pricing Programs search.
-	 *              When PricingProgram__c gets a program type field, the ONL-only filter belongs here, not in the LWC.
+	 * @description GW-6468 - Active, in-date pricing programs of Type "On Location - Mobile Van" for the ONL
+	 *              Pricing Program search bar (On Location - Mobile Van tab). Same Active + date-window + text rules
+	 *              as the Pricing Programs search, plus the Type__c filter.
 	 * @param searchTerm Text typed in the LWC (3 characters minimum)
 	 * @return Matching programs sorted by name (at most 50); empty for a blank or too-short term
 	 */
 	public static List<PricingProgramOption> searchOnlPricingPrograms(String searchTerm) {
-		return searchPricingPrograms(searchTerm);
+		return searchActivePricingPrograms(searchTerm, ContractAdjustmentSelector.PRICING_PROGRAM_TYPE_MOBILE_VAN);
+	}
+
+	// Shared search: blank / short terms return nothing; programType null = any Type__c.
+	private static List<PricingProgramOption> searchActivePricingPrograms(String searchTerm, String programType) {
+		String term = searchTerm?.trim();
+		if (String.isBlank(term) || term.length() < PRICING_PROGRAM_MIN_SEARCH_LENGTH) {
+			return new List<PricingProgramOption>();
+		}
+		return toPricingProgramOptions(selectPricingPrograms(toLikeTerm(term), null, Date.today(), programType));
 	}
 
 	/**
 	 * @description GW-6468 - Throws when the ONL pricing program is missing, not readable by the user, not Active,
-	 *              or outside its start/end dates on asOf. Call before writing the ONL adjustments: the LWC search
-	 *              only offers Active programs, but the server must not trust the Id it receives.
+	 *              not of Type "On Location - Mobile Van", or outside its start/end dates on asOf. Call before
+	 *              writing the ONL adjustments: the LWC search only offers Active ONL programs, but the server must
+	 *              not trust the Id it receives.
 	 * @param programId PricingProgram__c Id picked in the ONL search bar
 	 * @param asOf Date the program must be valid on (today when null)
 	 */
@@ -537,10 +543,12 @@ public with sharing class ImsProductConfiguratorService {
 		}
 		Date validOn = asOf == null ? Date.today() : asOf;
 		String status = ContractAdjustmentSelector.PRICING_PROGRAM_STATUS_ACTIVE;
+		String programType = ContractAdjustmentSelector.PRICING_PROGRAM_TYPE_MOBILE_VAN;
 		List<PricingProgram__c> programList = [
 			SELECT Id FROM PricingProgram__c
 			WHERE Id = :programId
 			AND Status__c = :status
+			AND Type__c = :programType
 			AND (StartDate__c = null OR StartDate__c <= :validOn)
 			AND (EndDate__c = null OR EndDate__c >= :validOn)
 			WITH USER_MODE
@@ -567,7 +575,7 @@ public with sharing class ImsProductConfiguratorService {
 		if (nameSet.isEmpty()) {
 			return new List<PricingProgramOption>();
 		}
-		return toPricingProgramOptions(selectPricingPrograms(null, nameSet, null));
+		return toPricingProgramOptions(selectPricingPrograms(null, nameSet, null, null));
 	}
 
 	/* =====================  MODEL QTY  ===================== */
@@ -1194,7 +1202,9 @@ public with sharing class ImsProductConfiguratorService {
 	// SoqlQueryBuilder has no child subqueries (same approach as WorkOrdersSelector.selectByIdWithLineItems);
 	// user input is only ever a bind variable. The programs matching on a CT code / CT name are found first:
 	// a semi-join is not allowed inside the OR.
-	private static List<PricingProgram__c> selectPricingPrograms(String likeTerm, Set<String> nameSet, Date asOf) {
+	private static List<PricingProgram__c> selectPricingPrograms(
+		String likeTerm, Set<String> nameSet, Date asOf, String programType
+	) {
 		Set<Id> ctMatchIdSet = new Set<Id>();
 		if (likeTerm != null) {
 			for (PricingProgramLines__c lineRecord : [
@@ -1212,6 +1222,7 @@ public with sharing class ImsProductConfiguratorService {
 			'ctMatchIdSet' => ctMatchIdSet,
 			'asOf' => asOf,
 			'status' => ContractAdjustmentSelector.PRICING_PROGRAM_STATUS_ACTIVE,
+			'programType' => programType,
 			'maxRows' => PRICING_PROGRAM_MAX_RESULTS
 		};
 		String soql = 'SELECT Id, Name, ProgramName__c, DisplayName__c, ProductLine__c, Manufacturer__c, '
@@ -1227,6 +1238,9 @@ public with sharing class ImsProductConfiguratorService {
 				+ 'AND (EndDate__c = null OR EndDate__c >= :asOf) '
 				+ 'AND (Name LIKE :likeTerm OR ProgramName__c LIKE :likeTerm OR DisplayName__c LIKE :likeTerm '
 				+ 'OR Id IN :ctMatchIdSet)';
+			if (programType != null) {
+				soql += ' AND Type__c = :programType';
+			}
 		}
 		soql += ' ORDER BY Name LIMIT :maxRows';
 		return (List<PricingProgram__c>) Database.queryWithBinds(soql, bindMap, AccessLevel.USER_MODE);

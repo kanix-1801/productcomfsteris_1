@@ -9,11 +9,11 @@
 public with sharing class CasesService {
 
 	/**
-	 * GW-1279 - Case record type name for Inbox Support (matches keys from getRecordTypeInfosByName()).
+	 * GW-1279 - Case record type name for Customer and Technical Care (matches keys from getRecordTypeInfosByName()).
 	 * TODO Temporary: hardcoded label lookup; replace with Custom Metadata, DeveloperName, or another
 	 * org-standard approach when routing configuration is finalized.
 	 */
-	private static final String INBOX_SUPPORT_RECORD_TYPE_NAME = 'Inbox Support';
+	private static final String INBOX_SUPPORT_RECORD_TYPE_NAME = 'Customer and Technical Care';
 
 	/** GW-1279 - Value for Case.CaseSource__c when routing rule IsSystemGenerated__c is true. */
 	private static final String CASE_ROUTING_SOURCE_SYSTEM = 'System';
@@ -21,7 +21,7 @@ public with sharing class CasesService {
 	/**
 	 * @description GW-1279 - Applies active routing rules to each new Case before insert.
 	 * @param newRecords Case records from Trigger.new
-	 * @return Cases in the domain working set after Inbox Support filtering (same instances as in newRecords where
+	 * @return Cases in the domain working set after Customer and Technical Care filtering (same instances as in newRecords where
 	 *         included); empty when none qualify
 	 */
 	public static List<Case> applyCaseRoutingRules(List<Case> newRecords) {
@@ -149,7 +149,7 @@ public with sharing class CasesService {
 	/**
 	 * @description GW-1279 - Collects distinct Case Assignment values from Cases. Case Assignment corresponds to Case.Origin
 	 *              (aligned with CaseRoutingRule__c.CaseAssignment__c).
-	 * @param cases Case records to read Origin from (typically Inbox Support routing candidates)
+	 * @param cases Case records to read Origin from (typically Customer and Technical Care routing candidates)
 	 * @return Distinct non-blank Origin strings
 	 */
 	public static Set<String> getCaseAssignmentOrigins(List<Case> cases) {

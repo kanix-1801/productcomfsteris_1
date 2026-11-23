@@ -1,0 +1,45 @@
+:host {
+    display: block;
+}
+
+.highlights {
+    position: relative;
+    min-height: 4.5rem;
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 0.25rem;
+}
+
+.object-label {
+    color: #444444;
+    font-size: 0.75rem;
+    line-height: 1.25;
+}
+
+.detail-row {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0.75rem 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.detail-block {
+    flex: 1 1 8rem;
+    max-width: 13rem;
+    min-width: 6.5rem;
+    margin: 0 1rem 0.25rem 0;
+}
+
+.field-label {
+    color: #444444;
+    font-size: 0.75rem;
+    line-height: 1.25;
+}
+
+.field-value {
+    color: #181818;
+    font-size: 0.8125rem;
+    line-height: 1.25;
+    min-height: 1.125rem;
+}

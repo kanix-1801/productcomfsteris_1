@@ -52,6 +52,7 @@
 
             return [
                 SELECT Id,
+                       UserId,
                        User.Name,
                        TeamMemberRole,
                        AssignmentType__c,
@@ -62,6 +63,31 @@
                 WITH USER_MODE
                 ORDER BY User.Name
             ];
+        }
+
+        /**
+         * @description GCL-117 - Reads the Account Owner and class code used by the
+         *              Life Sciences Coverage Panel. Healthcare rows are ignored by
+         *              the caller when Customer Class Code is not SC.
+         * @param accountId Account Id.
+         * @return Account with Owner fields, or null when the user cannot read it.
+         */
+        public static Account selectOwnerForCoveragePanel(Id accountId) {
+            if (accountId == null) {
+                return null;
+            }
+
+            List<Account> accounts = [
+                SELECT Id,
+                       OwnerId,
+                       Owner.Name,
+                       CustomerClassCode__c
+                FROM Account
+                WHERE Id = :accountId
+                WITH USER_MODE
+                LIMIT 1
+            ];
+            return accounts.isEmpty() ? null : accounts[0];
         }
         
         /**

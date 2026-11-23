@@ -1047,10 +1047,15 @@ public without sharing class WoDebriefIMSchildWOController {
 			SELECT LinkedEntityId
 			FROM ContentDocumentLink
 			WHERE ContentDocumentId = :contentDocumentId
-			LIMIT 1
 		]) {
-			linkedEntityId = link.LinkedEntityId;
-			break;
+			Schema.SObjectType linkedType = link.LinkedEntityId.getSobjectType();
+			if (linkedType == WorkOrderLineItem.SObjectType) {
+				linkedEntityId = link.LinkedEntityId;
+				break;
+			}
+			if (linkedType == WorkOrder.SObjectType && linkedEntityId == null) {
+				linkedEntityId = link.LinkedEntityId;
+			}
 		}
 		return toMobileDevicePicture(version, linkedEntityId);
 	}
@@ -2097,16 +2102,9 @@ public without sharing class WoDebriefIMSchildWOController {
 				&& String.valueOf(workOrderId).substring(0, 15).toLowerCase() == key) {
 				return String.valueOf(workOrderId);
 			}
-			String linePrefix = idPrefix(token);
-			for (WorkOrderLineItem line : [
-				SELECT Id
-				FROM WorkOrderLineItem
-				WHERE WorkOrderId = :workOrderId
-					AND LineType__c = 'Product Serviced'
-			]) {
-				if (linePrefix != null && idPrefix(String.valueOf(line.Id)) == linePrefix) {
-					return String.valueOf(line.Id);
-				}
+			Id matchedLineId = matchProductServicedLineByPrefix(workOrderId, idPrefix(token));
+			if (matchedLineId != null) {
+				return String.valueOf(matchedLineId);
 			}
 		}
 		Id direct = parseRecordId(token);
@@ -2183,7 +2181,10 @@ public without sharing class WoDebriefIMSchildWOController {
 			token = restoreIdCase(token);
 		}
 		try {
-			return (Id) token;
+			Id parsed = (Id) token;
+			// A case-damaged 15-character id casts but has no SObject type.
+			parsed.getSobjectType();
+			return parsed;
 		} catch (Exception ex) {
 			return null;
 		}

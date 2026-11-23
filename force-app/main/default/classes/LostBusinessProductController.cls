@@ -16,36 +16,36 @@ public with sharing class LostBusinessProductController {
      * @description
      * GC-3574 - Logger constants used in the class.
      */
-    public static final String SCENARIO = 'Lost Business Products';
-    public static final String LOGGER_TAG = 'LostBusinessProduct';
+	public static final String SCENARIO = 'Lost Business Products';
+	public static final String LOGGER_TAG = 'LostBusinessProduct';
 
     /**
      * @description
      * GC-3574 - One originating Opportunity Product returned to the selection screen.
      */
-    public class OriginatingProductRow {
-        @AuraEnabled public Id sourceLineItemId;
-        @AuraEnabled public Id productId;
-        @AuraEnabled public String productName;
-        @AuraEnabled public String productSku;
-        @AuraEnabled public Decimal quantity;
-        @AuraEnabled public String consumptionFrequency;
-        @AuraEnabled public Decimal unitPrice;
-        @AuraEnabled public Id pricebookEntryId;
-        @AuraEnabled public Boolean copyable;
-        @AuraEnabled public String unavailableReason;
-    }
+	public class OriginatingProductRow {
+		@AuraEnabled public Id sourceLineItemId;
+		@AuraEnabled public Id productId;
+		@AuraEnabled public String productName;
+		@AuraEnabled public String productSku;
+		@AuraEnabled public Decimal quantity;
+		@AuraEnabled public String consumptionFrequency;
+		@AuraEnabled public Decimal unitPrice;
+		@AuraEnabled public Id pricebookEntryId;
+		@AuraEnabled public Boolean copyable;
+		@AuraEnabled public String unavailableReason;
+	}
 
     /**
      * @description
      * GC-3574 - Active product returned to the catalogue search. The LWC paginates these rows client side.
      */
-    public class ProductWrapper {
-        @AuraEnabled public Id productId;
-        @AuraEnabled public String productName;
-        @AuraEnabled public String productCode;
-        @AuraEnabled public Decimal unitPrice;
-    }
+	public class ProductWrapper {
+		@AuraEnabled public Id productId;
+		@AuraEnabled public String productName;
+		@AuraEnabled public String productCode;
+		@AuraEnabled public Decimal unitPrice;
+	}
 
     /**
      * @description
@@ -53,18 +53,18 @@ public with sharing class LostBusinessProductController {
      * Catalogue rows set productId. Passing the list as a parameter left every field null after
      * Aura deserialisation, so the LWC sends a JSON string.
      */
-    public class ProductInput {
-        @AuraEnabled public String sourceLineItemId;
-        @AuraEnabled public String productId;
-        @AuraEnabled public Decimal quantity;
-        @AuraEnabled public Decimal unitPrice;
-        @AuraEnabled public String consumptionFrequency;
-        @AuraEnabled public String status;
-        @AuraEnabled public String confidenceLevel;
-        @AuraEnabled public Date expectedShipDate;
-        @AuraEnabled public String contractValue;
-        @AuraEnabled public String comments;
-    }
+	public class ProductInput {
+		@AuraEnabled public String sourceLineItemId;
+		@AuraEnabled public String productId;
+		@AuraEnabled public Decimal quantity;
+		@AuraEnabled public Decimal unitPrice;
+		@AuraEnabled public String consumptionFrequency;
+		@AuraEnabled public String status;
+		@AuraEnabled public String confidenceLevel;
+		@AuraEnabled public Date expectedShipDate;
+		@AuraEnabled public String contractValue;
+		@AuraEnabled public String comments;
+	}
 
     /**
      * @description
@@ -76,28 +76,28 @@ public with sharing class LostBusinessProductController {
      * @example
      * LostBusinessProductController.getOriginatingProducts(originatingOpportunityId);
      */
-    @AuraEnabled
-    public static List<OriginatingProductRow> getOriginatingProducts(String originatingOpportunityId) {
-        try {
-            return LostBusinessProductService.getOriginatingProducts(originatingOpportunityId);
-        } catch (Exception exceptionValue) {
-            throw buildHandledException(
-                'Unable to load products from the originating opportunity.',
-                exceptionValue
-            );
-        } finally {
-            Logger.saveLog();
-        }
-    }
+	@AuraEnabled
+	public static List<OriginatingProductRow> getOriginatingProducts(String originatingOpportunityId) {
+		try {
+			return LostBusinessProductService.getOriginatingProducts(originatingOpportunityId);
+		} catch (Exception exceptionValue) {
+			throw buildHandledException(
+				'Unable to load products from the originating opportunity.',
+				exceptionValue
+			);
+		} finally {
+			Logger.saveLog();
+		}
+	}
 
     /**
      * @description
      * GC-3574 - One Consumption Frequency value for the product selection dropdown.
      */
-    public class PicklistOption {
-        @AuraEnabled public String label;
-        @AuraEnabled public String value;
-    }
+	public class PicklistOption {
+		@AuraEnabled public String label;
+		@AuraEnabled public String value;
+	}
 
     /**
      * @description
@@ -109,23 +109,23 @@ public with sharing class LostBusinessProductController {
      * @example
      * LostBusinessProductController.getConsumptionFrequencyOptions();
      */
-    @AuraEnabled(cacheable=true)
-    public static List<PicklistOption> getConsumptionFrequencyOptions() {
-        List<PicklistOption> optionList = new List<PicklistOption>();
+	@AuraEnabled(cacheable=true)
+	public static List<PicklistOption> getConsumptionFrequencyOptions() {
+		List<PicklistOption> optionList = new List<PicklistOption>();
 
-        for (Schema.PicklistEntry picklistEntry : OpportunityLineItem.ConsumptionFrequency__c.getDescribe().getPicklistValues()) {
-            if (!picklistEntry.isActive()) {
-                continue;
-            }
+		for (Schema.PicklistEntry picklistEntry : OpportunityLineItem.ConsumptionFrequency__c.getDescribe().getPicklistValues()) {
+			if (!picklistEntry.isActive()) {
+				continue;
+			}
 
-            PicklistOption option = new PicklistOption();
-            option.label = picklistEntry.getLabel();
-            option.value = picklistEntry.getValue();
-            optionList.add(option);
-        }
+			PicklistOption option = new PicklistOption();
+			option.label = picklistEntry.getLabel();
+			option.value = picklistEntry.getValue();
+			optionList.add(option);
+		}
 
-        return optionList;
-    }
+		return optionList;
+	}
 
     /**
      * @description
@@ -138,16 +138,16 @@ public with sharing class LostBusinessProductController {
      * @example
      * LostBusinessProductController.searchProducts(searchKey, lostBusinessOpportunityId);
      */
-    @AuraEnabled
-    public static List<ProductWrapper> searchProducts(String searchKey, String lostBusinessOpportunityId) {
-        try {
-            return LostBusinessProductService.searchProducts(searchKey, lostBusinessOpportunityId);
-        } catch (Exception exceptionValue) {
-            throw buildHandledException('Unable to search products.', exceptionValue);
-        } finally {
-            Logger.saveLog();
-        }
-    }
+	@AuraEnabled
+	public static List<ProductWrapper> searchProducts(String searchKey, String lostBusinessOpportunityId) {
+		try {
+			return LostBusinessProductService.searchProducts(searchKey, lostBusinessOpportunityId);
+		} catch (Exception exceptionValue) {
+			throw buildHandledException('Unable to search products.', exceptionValue);
+		} finally {
+			Logger.saveLog();
+		}
+	}
 
     /**
      * @description
@@ -161,27 +161,27 @@ public with sharing class LostBusinessProductController {
      * @example
      * LostBusinessProductController.createLostBusinessProducts(lostBusinessOpportunityId, originatingOpportunityId, productInputsJson);
      */
-    @AuraEnabled
-    public static Integer createLostBusinessProducts(
-        String lostBusinessOpportunityId,
-        String originatingOpportunityId,
-        String productInputsJson
-    ) {
-        try {
-            return LostBusinessProductService.createProducts(
-                lostBusinessOpportunityId,
-                originatingOpportunityId,
-                productInputsJson
-            );
-        } catch (Exception exceptionValue) {
-            throw buildHandledException(
-                'Unable to add products to the Lost Business Opportunity.',
-                exceptionValue
-            );
-        } finally {
-            Logger.saveLog();
-        }
-    }
+	@AuraEnabled
+	public static Integer createLostBusinessProducts(
+		String lostBusinessOpportunityId,
+		String originatingOpportunityId,
+		String productInputsJson
+	) {
+		try {
+			return LostBusinessProductService.createProducts(
+				lostBusinessOpportunityId,
+				originatingOpportunityId,
+				productInputsJson
+			);
+		} catch (Exception exceptionValue) {
+			throw buildHandledException(
+				'Unable to add products to the Lost Business Opportunity.',
+				exceptionValue
+			);
+		} finally {
+			Logger.saveLog();
+		}
+	}
 
     /**
      * @description
@@ -194,20 +194,20 @@ public with sharing class LostBusinessProductController {
      * @example
      * throw buildHandledException(message, exceptionValue);
      */
-    private static AuraHandledException buildHandledException(String message, Exception exceptionValue) {
-        Logger.setScenario(SCENARIO);
-        Logger.error(message + ' ' + exceptionValue.getMessage()).addTag(LOGGER_TAG);
+	private static AuraHandledException buildHandledException(String message, Exception exceptionValue) {
+		Logger.setScenario(SCENARIO);
+		Logger.error(message + ' ' + exceptionValue.getMessage()).addTag(LOGGER_TAG);
 
-        if (exceptionValue instanceof AuraHandledException) {
-            return (AuraHandledException) exceptionValue;
-        }
+		if (exceptionValue instanceof AuraHandledException) {
+			return (AuraHandledException) exceptionValue;
+		}
 
-        if (exceptionValue instanceof LostBusinessProductException) {
-            AuraHandledException validationException = new AuraHandledException(exceptionValue.getMessage());
-            validationException.setMessage(exceptionValue.getMessage());
-            return validationException;
-        }
+		if (exceptionValue instanceof LostBusinessProductException) {
+			AuraHandledException validationException = new AuraHandledException(exceptionValue.getMessage());
+			validationException.setMessage(exceptionValue.getMessage());
+			return validationException;
+		}
 
-        return new AuraHandledException(message);
-    }
+		return new AuraHandledException(message);
+	}
 }

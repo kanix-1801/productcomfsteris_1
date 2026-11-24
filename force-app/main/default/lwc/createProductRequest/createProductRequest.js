@@ -14,62 +14,15 @@ import createProductRequestFromJson from '@salesforce/apex/CreateProductRequestC
 import submitProductRequest from '@salesforce/apex/CreateProductRequestController.submitProductRequest';
 import getOracleSubmitPreview from '@salesforce/apex/CreateProductRequestController.getOracleSubmitPreview';
 
-import title from '@salesforce/label/c.CreateProductRequest_Title';
-import requestDetails from '@salesforce/label/c.CreateProductRequest_RequestDetails';
-import workOrder from '@salesforce/label/c.CreateProductRequest_WorkOrder';
-import serviceResource from '@salesforce/label/c.CreateProductRequest_ServiceResource';
-import requiredDeliveryDate from '@salesforce/label/c.CreateProductRequest_RequiredDeliveryDate';
-import shipmentTypeLabel from '@salesforce/label/c.CreateProductRequest_ShipmentType';
-import shipTo from '@salesforce/label/c.CreateProductRequest_ShipTo';
-import myLocation from '@salesforce/label/c.CreateProductRequest_MyLocation';
-import customer from '@salesforce/label/c.CreateProductRequest_Customer';
-import address from '@salesforce/label/c.CreateProductRequest_Address';
-import parts from '@salesforce/label/c.CreateProductRequest_Parts';
-import addPart from '@salesforce/label/c.CreateProductRequest_AddPart';
-import addSelected from '@salesforce/label/c.CreateProductRequest_AddSelected';
-import substitutePart from '@salesforce/label/c.CreateProductRequest_SubstitutePart';
-import oeNotes from '@salesforce/label/c.CreateProductRequest_OeNotes';
-import scanPart from '@salesforce/label/c.CreateProductRequest_ScanPart';
-import requiredOnWorkOrder from '@salesforce/label/c.CreateProductRequest_RequiredOnWorkOrder';
-import quantity from '@salesforce/label/c.CreateProductRequest_Quantity';
-import partsSummary from '@salesforce/label/c.CreateProductRequest_PartsSummary';
-import noSearchTerm from '@salesforce/label/c.CreateProductRequest_NoSearchTerm';
-import noProducts from '@salesforce/label/c.CreateProductRequest_NoProducts';
-import cancel from '@salesforce/label/c.CreateProductRequest_Cancel';
-import save from '@salesforce/label/c.CreateProductRequest_Save';
-import submitQuestion from '@salesforce/label/c.CreateProductRequest_SubmitQuestion';
-import yes from '@salesforce/label/c.CreateProductRequest_Yes';
-import no from '@salesforce/label/c.CreateProductRequest_No';
-import created from '@salesforce/label/c.CreateProductRequest_Created';
-import erpScreenTitle from '@salesforce/label/c.CreateProductRequest_ErpScreenTitle';
-import erpSubmitHeading from '@salesforce/label/c.CreateProductRequest_ErpSubmitHeading';
-import erpSubmitBody from '@salesforce/label/c.CreateProductRequest_ErpSubmitBody';
-import erpSubmitContinue from '@salesforce/label/c.CreateProductRequest_ErpSubmitContinue';
-import erpPriorHeading from '@salesforce/label/c.CreateProductRequest_ErpPriorHeading';
-import erpStatus from '@salesforce/label/c.CreateProductRequest_ErpStatus';
-import erpMessage from '@salesforce/label/c.CreateProductRequest_ErpMessage';
-import erpSubmit from '@salesforce/label/c.CreateProductRequest_ErpSubmit';
-import erpSavedHeading from '@salesforce/label/c.CreateProductRequest_ErpSavedHeading';
-import erpSavedBody from '@salesforce/label/c.CreateProductRequest_ErpSavedBody';
-import erpSavedBoomi from '@salesforce/label/c.CreateProductRequest_ErpSavedBoomi';
-import finish from '@salesforce/label/c.CreateProductRequest_Finish';
-import cannotSubmit from '@salesforce/label/c.CreateProductRequest_CannotSubmit';
-import close from '@salesforce/label/c.CreateProductRequest_Close';
-import loading from '@salesforce/label/c.CreateProductRequest_Loading';
-import saving from '@salesforce/label/c.CreateProductRequest_Saving';
-import removePart from '@salesforce/label/c.CreateProductRequest_RemovePart';
-import decreaseQuantity from '@salesforce/label/c.CreateProductRequest_DecreaseQuantity';
-import increaseQuantity from '@salesforce/label/c.CreateProductRequest_IncreaseQuantity';
-import searchResults from '@salesforce/label/c.CreateProductRequest_SearchResults';
-import scannerUnavailable from '@salesforce/label/c.CreateProductRequest_ScannerUnavailable';
-import noAddresses from '@salesforce/label/c.CreateProductRequest_NoAddresses';
 import deliveryDateRequired from '@salesforce/label/c.CreateProductRequest_DeliveryDateRequired';
 import shipmentTypeRequired from '@salesforce/label/c.CreateProductRequest_ShipmentTypeRequired';
-import shipSetLabel from '@salesforce/label/c.CreateProductRequest_ShipSet';
 import addressRequired from '@salesforce/label/c.CreateProductRequest_AddressRequired';
 import customerRequired from '@salesforce/label/c.CreateProductRequest_CustomerRequired';
 import partsRequired from '@salesforce/label/c.CreateProductRequest_PartsRequired';
 import unexpected from '@salesforce/label/c.CreateProductRequest_Unexpected';
+
+const PARTS_SUMMARY = '{0} parts · {1} units';
+const CREATED_MESSAGE = 'Product Request {0} was created.';
 
 const SHIP_TO_MY_LOCATION = 'MyLocation';
 const SHIP_TO_CUSTOMER = 'Customer';
@@ -102,56 +55,58 @@ function defaultNeedByDate() {
 
 export default class CreateProductRequest extends NavigationMixin(LightningElement) {
     labels = {
-        title,
-        requestDetails,
-        workOrder,
-        serviceResource,
-        requiredDeliveryDate,
-        shipmentType: shipmentTypeLabel,
-        shipTo,
-        myLocation,
-        customer,
-        address,
-        parts,
-        addPart,
-        addSelected,
-        substitutePart,
-        oeNotes,
-        scanPart,
-        requiredOnWorkOrder,
-        quantity,
-        noSearchTerm,
-        noProducts,
-        cancel,
-        save,
-        submitQuestion,
-        yes,
-        no,
-        close,
-        erpScreenTitle,
-        erpSubmitHeading,
-        erpSubmitBody,
-        erpSubmitContinue,
-        erpPriorHeading,
-        erpStatus,
-        erpMessage,
-        erpSubmit,
-        erpSavedHeading,
-        erpSavedBody,
-        erpSavedBoomi,
-        finish,
-        cannotSubmit,
-        loading,
-        saving,
-        removePart,
-        decreaseQuantity,
-        increaseQuantity,
-        searchResults,
-        scannerUnavailable,
-        noAddresses,
+        title: 'New product request',
+        requestDetails: 'Request details',
+        workOrder: 'Work order',
+        serviceResource: 'Service Resource',
+        requiredDeliveryDate: 'Need By Date',
+        shipmentType: 'Shipment Type',
+        shipTo: 'Ship To',
+        myLocation: 'My location',
+        customer: 'Customer',
+        address: 'Address',
+        parts: 'Parts',
+        addPart: 'Add a part by name or code',
+        addSelected: 'Add selected',
+        substitutePart: 'This product has a substitute part:',
+        oeNotes: 'This Part has OE notes',
+        scanPart: 'Scan a part',
+        requiredOnWorkOrder: 'Required on work order',
+        quantity: 'Quantity',
+        noSearchTerm: 'Enter a product name or item number.',
+        noProducts: 'No products matched your search. Type a different search term.',
+        cancel: 'Cancel',
+        save: 'Save request',
+        submitQuestion: 'Do you want to submit this Product Request to Oracle?',
+        yes: 'Yes',
+        no: 'No',
+        close: 'Close',
+        erpScreenTitle: 'Product Request - SCR - Submit to ERP',
+        erpSubmitHeading: 'Submit Product Request to ERP',
+        erpSubmitBody:
+            'Product Request <b>{0}</b> will be marked <b>Submit Create</b>. The Oracle callout runs after that save, including when the field is set outside this screen.',
+        erpSubmitContinue: 'Click <b>Submit</b> to continue.',
+        erpPriorHeading: 'Prior integration result',
+        erpStatus: 'Integration Status',
+        erpMessage: 'Message',
+        erpSubmit: 'Submit',
+        erpSavedHeading: 'Submit Create saved',
+        erpSavedBody:
+            'The Oracle callout runs from this status change. When the callout returns, Submission to ERP changes to <b>Submitted</b> and Integration Status, Integration Message, and ERP Order Number are updated.',
+        erpSavedBoomi: 'ERP submit failed. Fix the issue and submit again.',
+        finish: 'Finish',
+        cannotSubmit: 'This Parts Request cannot be submitted to Oracle.',
+        loading: 'Loading',
+        saving: 'Saving',
+        removePart: 'Remove',
+        decreaseQuantity: 'Decrease quantity',
+        increaseQuantity: 'Increase quantity',
+        searchResults: 'Matching parts',
+        scannerUnavailable: 'The barcode scanner is not available on this device.',
+        noAddresses: 'No addresses were found for your service resource location.',
         deliveryDateRequired,
         shipmentTypeRequired,
-        shipSet: shipSetLabel,
+        shipSet: 'Ship Set',
         addressRequired,
         customerRequired,
         partsRequired,
@@ -354,11 +309,11 @@ export default class CreateProductRequest extends NavigationMixin(LightningEleme
     }
 
     get partsSummaryText() {
-        return partsSummary.replace('{0}', String(this.partCount)).replace('{1}', String(this.unitCount));
+        return PARTS_SUMMARY.replace('{0}', String(this.partCount)).replace('{1}', String(this.unitCount));
     }
 
     get createdMessage() {
-        return created.replace('{0}', this.productRequestNumber || '');
+        return CREATED_MESSAGE.replace('{0}', this.productRequestNumber || '');
     }
 
     get isSaveDisabled() {

@@ -33,16 +33,17 @@ public with sharing class RepairCenterQuoteEmailService {
 			return;
 		}
 
-		String resolvedIntent = String.isBlank(intent)
-			? INTENT_HELP
-			: intent;
-		List<WorkOrder> quoteWorkOrders = resolveQuoteWorkOrders(parsedWorkOrder);
+		String resolvedIntent = String.isBlank(intent) ? INTENT_HELP : intent;
+		List<WorkOrder> quoteWorkOrders = resolveQuoteWorkOrders(
+			parsedWorkOrder
+		);
 		if (quoteWorkOrders.isEmpty()) {
 			if (INTENT_HELP.equals(resolvedIntent)) {
 				applyHelp(parsedWorkOrder);
 			} else {
 				Logger.info(
-					'RepairCenterQuoteEmailService.applyReply: no Active Quote for ' + parsedWorkOrder.Id
+					'RepairCenterQuoteEmailService.applyReply: no Active Quote for ' +
+					parsedWorkOrder.Id
 				);
 			}
 			return;
@@ -101,13 +102,19 @@ public with sharing class RepairCenterQuoteEmailService {
 			return null;
 		}
 
-		WorkOrder workOrder = WorkOrdersSelector.selectForQuoteEmailReply(String.valueOf(workOrderId));
+		WorkOrder workOrder = WorkOrdersSelector.selectForQuoteEmailReply(
+			String.valueOf(workOrderId)
+		);
 		if (workOrder == null) {
-			throw new RepairCenterQuoteEmailException('Work Order was not found.');
+			throw new RepairCenterQuoteEmailException(
+				'Work Order was not found.'
+			);
 		}
 
 		List<WorkOrder> quoteWorkOrders = resolveQuoteWorkOrders(workOrder);
-		WorkOrder quoteWorkOrder = quoteWorkOrders.isEmpty() ? workOrder : quoteWorkOrders[0];
+		WorkOrder quoteWorkOrder = quoteWorkOrders.isEmpty()
+			? workOrder
+			: quoteWorkOrders[0];
 		Id parentWorkOrderId = workOrder.ParentWorkOrderId != null
 			? workOrder.ParentWorkOrderId
 			: workOrder.Id;
@@ -117,7 +124,9 @@ public with sharing class RepairCenterQuoteEmailService {
 			: quoteWorkOrder.ContactId;
 		String contactEmail = quoteWorkOrder.EstimateContact__c != null
 			? quoteWorkOrder.EstimateContact__r.Email
-			: quoteWorkOrder.Contact != null ? quoteWorkOrder.Contact.Email : null;
+			: quoteWorkOrder.Contact != null
+					? quoteWorkOrder.Contact.Email
+					: null;
 		if (contactId == null || String.isBlank(contactEmail)) {
 			throw new RepairCenterQuoteEmailException(
 				'An Estimate Contact or Work Order Contact with an email address is required.'
@@ -125,7 +134,9 @@ public with sharing class RepairCenterQuoteEmailService {
 		}
 
 		Boolean poRequired = quoteWorkOrder.CustomerPORequired__c == true;
-		String accountName = quoteWorkOrder.Account != null ? quoteWorkOrder.Account.Name : '';
+		String accountName = quoteWorkOrder.Account != null
+			? quoteWorkOrder.Account.Name
+			: '';
 		String htmlBody = buildCustomerHtml(poRequired);
 		String textBody = buildCustomerText(poRequired);
 
@@ -135,7 +146,9 @@ public with sharing class RepairCenterQuoteEmailService {
 		mail.setWhatId(parentWorkOrderId);
 		mail.setSaveAsActivity(true);
 		mail.setUseSignature(false);
-		mail.setReplyTo(ExternalSystemEndpointSelector.repairCenterQuoteInboundEmail());
+		mail.setReplyTo(
+			ExternalSystemEndpointSelector.repairCenterQuoteInboundEmail()
+		);
 		mail.setSubject(buildQuoteEmailSubject(quoteWorkOrder, accountName));
 		mail.setHtmlBody(htmlBody);
 		mail.setPlainTextBody(textBody);
@@ -146,17 +159,24 @@ public with sharing class RepairCenterQuoteEmailService {
 		if (quoteDocument != null && quoteDocument.Document != null) {
 			Messaging.EmailFileAttachment attachment = new Messaging.EmailFileAttachment();
 			attachment.setFileName(
-				String.isBlank(quoteDocument.Name) ? 'Quote.pdf' : quoteDocument.Name + '.pdf'
+				String.isBlank(quoteDocument.Name)
+					? 'Quote.pdf'
+					: quoteDocument.Name + '.pdf'
 			);
 			attachment.setBody(quoteDocument.Document);
-			mail.setFileAttachments(new List<Messaging.EmailFileAttachment>{ attachment });
+			mail.setFileAttachments(
+				new List<Messaging.EmailFileAttachment>{ attachment }
+			);
 		}
 
 		if (Test.isRunningTest()) {
 			sendEmailInvoked = true;
 			return parentWorkOrderId;
 		}
-		Messaging.sendEmail(new List<Messaging.SingleEmailMessage>{ mail }, false);
+		Messaging.sendEmail(
+			new List<Messaging.SingleEmailMessage>{ mail },
+			false
+		);
 		return parentWorkOrderId;
 	}
 
@@ -167,13 +187,22 @@ public with sharing class RepairCenterQuoteEmailService {
 	 * @return Subject line matching the Repair Center estimate template
 	 */
 	@TestVisible
-	private static String buildQuoteEmailSubject(WorkOrder workOrder, String accountName) {
+	private static String buildQuoteEmailSubject(
+		WorkOrder workOrder,
+		String accountName
+	) {
 		String srn = resolveReturnOrderNumber(workOrder);
-		String orderNumber = workOrder == null || String.isBlank(workOrder.WorkOrderNumber)
+		String orderNumber = workOrder == null ||
+			String.isBlank(workOrder.WorkOrderNumber)
 			? ''
 			: workOrder.WorkOrderNumber;
 		String account = String.isBlank(accountName) ? '' : accountName;
-		return 'Estimate for SRN #' + srn + ', Order #' + orderNumber + ' - ' + account;
+		return 'Estimate for SRN #' +
+			srn +
+			', Order #' +
+			orderNumber +
+			' - ' +
+			account;
 	}
 
 	private static String resolveReturnOrderNumber(WorkOrder workOrder) {
@@ -182,7 +211,9 @@ public with sharing class RepairCenterQuoteEmailService {
 		}
 		if (workOrder.Id != null) {
 			List<WorkOrder> rows = [
-				SELECT ReturnOrder.ReturnOrderNumber, ReturnOrder__r.ReturnOrderNumber
+				SELECT
+					ReturnOrder.ReturnOrderNumber,
+					ReturnOrder__r.ReturnOrderNumber
 				FROM WorkOrder
 				WHERE Id = :workOrder.Id
 				WITH SYSTEM_MODE
@@ -196,10 +227,16 @@ public with sharing class RepairCenterQuoteEmailService {
 	}
 
 	private static String firstReturnOrderNumber(WorkOrder workOrder) {
-		if (workOrder.ReturnOrder__r != null && String.isNotBlank(workOrder.ReturnOrder__r.ReturnOrderNumber)) {
+		if (
+			workOrder.ReturnOrder__r != null &&
+			String.isNotBlank(workOrder.ReturnOrder__r.ReturnOrderNumber)
+		) {
 			return workOrder.ReturnOrder__r.ReturnOrderNumber;
 		}
-		if (workOrder.ReturnOrder != null && String.isNotBlank(workOrder.ReturnOrder.ReturnOrderNumber)) {
+		if (
+			workOrder.ReturnOrder != null &&
+			String.isNotBlank(workOrder.ReturnOrder.ReturnOrderNumber)
+		) {
 			return workOrder.ReturnOrder.ReturnOrderNumber;
 		}
 		return '';
@@ -213,8 +250,7 @@ public with sharing class RepairCenterQuoteEmailService {
 	@TestVisible
 	private static String buildCustomerHtml(Boolean poRequired) {
 		String connectCareUrl = ExternalSystemEndpointSelector.connectCareQuoteApprovalUrl();
-		String html =
-			'<p>Attached is a repair estimate for your review.</p>';
+		String html = '<p>Attached is a repair estimate for your review.</p>';
 		if (poRequired != true) {
 			html +=
 				'<p>Please reply to this email. Put <b>Approved</b> or <b>Reject</b> on the first line ' +
@@ -254,15 +290,16 @@ public with sharing class RepairCenterQuoteEmailService {
 			ExternalSystemEndpointSelector.connectCareQuoteApprovalUrl() +
 			').\n';
 		if (poRequired == true) {
-			text +=
-				'A purchase order is required. Enter a PO# and/or upload a digital PO document through ConnectCare.\n';
+			text += 'A purchase order is required. Enter a PO# and/or upload a digital PO document through ConnectCare.\n';
 		}
 		text += '\nThank you for choosing STERIS.';
 		return text;
 	}
 
 	@TestVisible
-	private static List<WorkOrder> resolveQuoteWorkOrders(WorkOrder parsedWorkOrder) {
+	private static List<WorkOrder> resolveQuoteWorkOrders(
+		WorkOrder parsedWorkOrder
+	) {
 		List<WorkOrder> results = new List<WorkOrder>();
 		if (parsedWorkOrder == null) {
 			return results;
@@ -271,10 +308,9 @@ public with sharing class RepairCenterQuoteEmailService {
 			results.add(parsedWorkOrder);
 			return results;
 		}
-		List<WorkOrder> children =
-			WorkOrdersSelector.selectChildrenWithActiveQuoteByParentIds(
-				new Set<Id>{ parsedWorkOrder.Id }
-			);
+		List<WorkOrder> children = WorkOrdersSelector.selectChildrenWithActiveQuoteByParentIds(
+			new Set<Id>{ parsedWorkOrder.Id }
+		);
 		if (!children.isEmpty()) {
 			return children;
 		}
@@ -282,7 +318,10 @@ public with sharing class RepairCenterQuoteEmailService {
 			WorkOrder parentWorkOrder = WorkOrdersSelector.selectForQuoteEmailReply(
 				String.valueOf(parsedWorkOrder.ParentWorkOrderId)
 			);
-			if (parentWorkOrder != null && parentWorkOrder.ActiveQuote__c != null) {
+			if (
+				parentWorkOrder != null &&
+				parentWorkOrder.ActiveQuote__c != null
+			) {
 				results.add(parentWorkOrder);
 			}
 		}
@@ -290,34 +329,51 @@ public with sharing class RepairCenterQuoteEmailService {
 	}
 
 	private static void applyApproved(WorkOrder quoteWorkOrder) {
-		List<QuoteLineItem> lineItems =
-			QuoteLineItemService.getForQuoteEmailReplyByQuoteId(quoteWorkOrder.ActiveQuote__c);
+		List<QuoteLineItem> lineItems = QuoteLineItemService.getForQuoteEmailReplyByQuoteId(
+			quoteWorkOrder.ActiveQuote__c
+		);
 		List<QuoteLineItem> lineUpdates = new List<QuoteLineItem>();
 		for (QuoteLineItem lineItem : lineItems) {
-			lineUpdates.add(new QuoteLineItem(Id = lineItem.Id, Status__c = QLI_STATUS_APPROVED));
+			lineUpdates.add(
+				new QuoteLineItem(
+					Id = lineItem.Id,
+					Status__c = QLI_STATUS_APPROVED
+				)
+			);
 		}
 		if (!lineUpdates.isEmpty()) {
 			update lineUpdates;
 		}
 		updateQuotes(
 			new List<Quote>{
-				new Quote(Id = quoteWorkOrder.ActiveQuote__c, Status = QUOTE_STATUS_APPROVED)
+				new Quote(
+					Id = quoteWorkOrder.ActiveQuote__c,
+					Status = QUOTE_STATUS_APPROVED
+				)
 			}
 		);
 	}
 
 	private static void applyRejected(WorkOrder quoteWorkOrder) {
-		List<QuoteLineItem> lineItems =
-			QuoteLineItemService.getForQuoteEmailReplyByQuoteId(quoteWorkOrder.ActiveQuote__c);
+		List<QuoteLineItem> lineItems = QuoteLineItemService.getForQuoteEmailReplyByQuoteId(
+			quoteWorkOrder.ActiveQuote__c
+		);
 		Map<Id, Product2> productsById = loadProducts(lineItems);
 		List<QuoteLineItem> lineUpdates = new List<QuoteLineItem>();
 		List<QuoteLineItem> productServicedRejected = new List<QuoteLineItem>();
 
 		for (QuoteLineItem lineItem : lineItems) {
 			Boolean disinfection = isDisinfection(lineItem, productsById);
-			String statusValue = disinfection ? QLI_STATUS_APPROVED : QLI_STATUS_REJECTED;
-			lineUpdates.add(new QuoteLineItem(Id = lineItem.Id, Status__c = statusValue));
-			if (!disinfection && LINE_TYPE_PRODUCT_SERVICED.equals(lineItem.LineType__c)) {
+			String statusValue = disinfection
+				? QLI_STATUS_APPROVED
+				: QLI_STATUS_REJECTED;
+			lineUpdates.add(
+				new QuoteLineItem(Id = lineItem.Id, Status__c = statusValue)
+			);
+			if (
+				!disinfection &&
+				LINE_TYPE_PRODUCT_SERVICED.equals(lineItem.LineType__c)
+			) {
 				productServicedRejected.add(lineItem);
 			}
 		}
@@ -327,10 +383,17 @@ public with sharing class RepairCenterQuoteEmailService {
 		}
 		updateQuotes(
 			new List<Quote>{
-				new Quote(Id = quoteWorkOrder.ActiveQuote__c, Status = QUOTE_STATUS_REJECTED)
+				new Quote(
+					Id = quoteWorkOrder.ActiveQuote__c,
+					Status = QUOTE_STATUS_REJECTED
+				)
 			}
 		);
-		createInspectionFeeLines(quoteWorkOrder, productServicedRejected, productsById);
+		createInspectionFeeLines(
+			quoteWorkOrder,
+			productServicedRejected,
+			productsById
+		);
 	}
 
 	private static void applyHelp(WorkOrder quoteWorkOrder) {
@@ -344,7 +407,9 @@ public with sharing class RepairCenterQuoteEmailService {
 		);
 	}
 
-	private static Map<Id, Product2> loadProducts(List<QuoteLineItem> lineItems) {
+	private static Map<Id, Product2> loadProducts(
+		List<QuoteLineItem> lineItems
+	) {
 		Set<Id> productIds = new Set<Id>();
 		for (QuoteLineItem lineItem : lineItems) {
 			if (lineItem.Product2Id != null) {
@@ -358,24 +423,37 @@ public with sharing class RepairCenterQuoteEmailService {
 		if (productIds.isEmpty()) {
 			return productsById;
 		}
-		for (Product2 product : ProductsSelector.selectForQuoteEmailReplyByIds(productIds)) {
+		for (
+			Product2 product : ProductsSelector.selectForQuoteEmailReplyByIds(
+				productIds
+			)
+		) {
 			productsById.put(product.Id, product);
 		}
 		return productsById;
 	}
 
-	private static Boolean isDisinfection(QuoteLineItem lineItem, Map<Id, Product2> productsById) {
+	private static Boolean isDisinfection(
+		QuoteLineItem lineItem,
+		Map<Id, Product2> productsById
+	) {
 		Id productId = lineItem.Product2Id;
-		if (serviceCodeTypeByProductIdOverride != null &&
+		if (
+			serviceCodeTypeByProductIdOverride != null &&
 			productId != null &&
-			serviceCodeTypeByProductIdOverride.containsKey(productId)) {
+			serviceCodeTypeByProductIdOverride.containsKey(productId)
+		) {
 			return SERVICE_CODE_TYPE_DISINFECTION.equalsIgnoreCase(
 				serviceCodeTypeByProductIdOverride.get(productId)
 			);
 		}
-		Product2 product = productId == null ? null : productsById.get(productId);
+		Product2 product = productId == null
+			? null
+			: productsById.get(productId);
 		return product != null &&
-			SERVICE_CODE_TYPE_DISINFECTION.equalsIgnoreCase(product.ServiceCodeType__c);
+			SERVICE_CODE_TYPE_DISINFECTION.equalsIgnoreCase(
+				product.ServiceCodeType__c
+			);
 	}
 
 	/**
@@ -402,23 +480,32 @@ public with sharing class RepairCenterQuoteEmailService {
 			return;
 		}
 
-		Set<Id> inspectionProductIds = new Set<Id>(inspectionProductByQliProduct.values());
-		for (Product2 inspectionProduct : ProductsSelector.selectForQuoteEmailReplyByIds(inspectionProductIds)) {
+		Set<Id> inspectionProductIds = new Set<Id>(
+			inspectionProductByQliProduct.values()
+		);
+		for (
+			Product2 inspectionProduct : ProductsSelector.selectForQuoteEmailReplyByIds(
+				inspectionProductIds
+			)
+		) {
 			products.put(inspectionProduct.Id, inspectionProduct);
 		}
 
 		Quote quoteRecord = selectQuoteForReply(quoteWorkOrder.ActiveQuote__c);
-		Id pricebookId = quoteRecord != null && quoteRecord.Pricebook2Id != null
+		Id pricebookId = quoteRecord != null &&
+			quoteRecord.Pricebook2Id != null
 			? quoteRecord.Pricebook2Id
 			: quoteWorkOrder.Pricebook2Id;
-		if (pricebookId == null || String.isBlank(quoteWorkOrder.CurrencyIsoCode)) {
+		if (
+			pricebookId == null ||
+			String.isBlank(quoteWorkOrder.CurrencyIsoCode)
+		) {
 			return;
 		}
 
 		Map<Id, PricebookEntry> pbeByProductId = new Map<Id, PricebookEntry>();
 		for (
-			PricebookEntry entry :
-			PricebookEntriesSelector.selectActiveWithProductByPricebookProductAndCurrency(
+			PricebookEntry entry : PricebookEntriesSelector.selectActiveWithProductByPricebookProductAndCurrency(
 				pricebookId,
 				new Set<Id>(inspectionProductByQliProduct.values()),
 				quoteWorkOrder.CurrencyIsoCode
@@ -434,8 +521,12 @@ public with sharing class RepairCenterQuoteEmailService {
 
 		List<WorkOrderLineItem> linesToInsert = new List<WorkOrderLineItem>();
 		for (QuoteLineItem lineItem : productServicedLines) {
-			Id qliProductId = lineItem.Product2Id != null ? lineItem.Product2Id : lineItem.Item__c;
-			Id inspectionProductId = inspectionProductByQliProduct.get(qliProductId);
+			Id qliProductId = lineItem.Product2Id != null
+				? lineItem.Product2Id
+				: lineItem.Item__c;
+			Id inspectionProductId = inspectionProductByQliProduct.get(
+				qliProductId
+			);
 			if (inspectionProductId == null) {
 				continue;
 			}
@@ -451,28 +542,41 @@ public with sharing class RepairCenterQuoteEmailService {
 
 			WorkOrderLineItem inspectionLine = new WorkOrderLineItem();
 			inspectionLine.RecordTypeId = repairCodeRtId;
-			inspectionLine.LineType__c = resolveInspectionLineType(inspectionProduct);
+			inspectionLine.LineType__c = resolveInspectionLineType(
+				inspectionProduct
+			);
 			inspectionLine.AssetId = lineItem.Asset__c;
 			inspectionLine.SerialNumber__c = lineItem.SerialNumber__c;
-			inspectionLine.Model__c = qliProduct == null ? null : qliProduct.Model__c;
+			inspectionLine.Model__c = qliProduct == null
+				? null
+				: qliProduct.Model__c;
 			inspectionLine.Item__c = qliProductId;
 			inspectionLine.ItemCode__c = lineItem.ItemCode__c;
-			inspectionLine.ItemDescription__c = String.isNotBlank(lineItem.ItemDescription__c)
+			inspectionLine.ItemDescription__c = String.isNotBlank(
+					lineItem.ItemDescription__c
+				)
 				? lineItem.ItemDescription__c
 				: lineItem.Description;
 			inspectionLine.PricebookEntryId = entry.Id;
+			inspectionLine.Product__c = inspectionProductId;
 			inspectionLine.ProductCodeWoli__c = firstNonBlank(
-				inspectionProduct == null ? null : inspectionProduct.ProductCode,
+				inspectionProduct == null
+					? null
+					: inspectionProduct.ProductCode,
 				entry.Product2 == null ? null : entry.Product2.ProductCode
 			);
 			inspectionLine.ProductDescription__c = firstNonBlank(
-				inspectionProduct == null ? null : inspectionProduct.Description,
+				inspectionProduct == null
+					? null
+					: inspectionProduct.Description,
 				entry.Product2 == null ? null : entry.Product2.Description
 			);
 			inspectionLine.WorkOrderId = workOrderId;
 			inspectionLine.TopLevelWorkOrder__c = lineItem.TopLevelWorkOrder__c;
 			inspectionLine.ParentWorkOrderLineItemId = lineItem.ParentWorkOrderLineItem__c;
-			inspectionLine.Quantity = lineItem.Quantity == null ? 1 : lineItem.Quantity;
+			inspectionLine.Quantity = lineItem.Quantity == null
+				? 1
+				: lineItem.Quantity;
 			inspectionLine.Status = WOLI_STATUS_APPROVED;
 			linesToInsert.add(inspectionLine);
 		}
@@ -485,19 +589,27 @@ public with sharing class RepairCenterQuoteEmailService {
 	) {
 		Map<Id, Id> inspectionProductByQliProduct = new Map<Id, Id>();
 		if (inspectionServiceProductByQliProductIdOverride != null) {
-			inspectionProductByQliProduct.putAll(inspectionServiceProductByQliProductIdOverride);
+			inspectionProductByQliProduct.putAll(
+				inspectionServiceProductByQliProductIdOverride
+			);
 			return inspectionProductByQliProduct;
 		}
 
 		for (QuoteLineItem lineItem : productServicedLines) {
-			Id qliProductId = lineItem.Product2Id != null ? lineItem.Product2Id : lineItem.Item__c;
+			Id qliProductId = lineItem.Product2Id != null
+				? lineItem.Product2Id
+				: lineItem.Item__c;
 			Id inspectionProductId = inspectionProductFromProduct(
-				qliProductId == null || productsById == null
+				qliProductId == null ||
+					productsById == null
 					? null
 					: productsById.get(qliProductId)
 			);
 			if (qliProductId != null && inspectionProductId != null) {
-				inspectionProductByQliProduct.put(qliProductId, inspectionProductId);
+				inspectionProductByQliProduct.put(
+					qliProductId,
+					inspectionProductId
+				);
 			}
 		}
 		return inspectionProductByQliProduct;
@@ -510,11 +622,15 @@ public with sharing class RepairCenterQuoteEmailService {
 		return product.InspectionServiceCode__c;
 	}
 
-	private static String resolveInspectionLineType(Product2 inspectionProduct) {
-		if (inspectionProduct != null &&
+	private static String resolveInspectionLineType(
+		Product2 inspectionProduct
+	) {
+		if (
+			inspectionProduct != null &&
 			String.isNotBlank(inspectionProduct.ProductType__c) &&
 			(inspectionProduct.ProductType__c == LINE_TYPE_SERVICE_CODE ||
-				inspectionProduct.ProductType__c == 'Category Code')) {
+			inspectionProduct.ProductType__c == 'Category Code')
+		) {
 			return inspectionProduct.ProductType__c;
 		}
 		return LINE_TYPE_SERVICE_CODE;
@@ -536,13 +652,7 @@ public with sharing class RepairCenterQuoteEmailService {
 		}
 
 		List<Quote> quotes = [
-			SELECT
-				Id,
-				Name,
-				QuoteNumber,
-				Status,
-				Pricebook2Id,
-				WorkOrder__c
+			SELECT Id, Name, QuoteNumber, Status, Pricebook2Id, WorkOrder__c
 			FROM Quote
 			WHERE Id = :quoteId
 			WITH SYSTEM_MODE
@@ -567,7 +677,8 @@ public with sharing class RepairCenterQuoteEmailService {
 			update quotes;
 		} catch (Exception exceptionValue) {
 			Logger.error(
-				'RepairCenterQuoteEmailService.updateQuotes: ' + exceptionValue.getMessage()
+				'RepairCenterQuoteEmailService.updateQuotes: ' +
+				exceptionValue.getMessage()
 			);
 			throw exceptionValue;
 		} finally {

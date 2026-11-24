@@ -32,7 +32,8 @@ private class BinTagPrintQuantitiesServiceTest {
 			WHERE Name = 'Standard User'
 			LIMIT 1
 		];
-		String uniqueKey = 'btq' + String.valueOf(Math.abs(Crypto.getRandomInteger()));
+		String uniqueKey =
+			'btq' + String.valueOf(Math.abs(Crypto.getRandomInteger()));
 		User runner = new User(
 			Alias = uniqueKey.left(8),
 			Email = uniqueKey + '@example.com',
@@ -76,7 +77,12 @@ private class BinTagPrintQuantitiesServiceTest {
 			Test.startTest();
 			List<BinTagPrintQuantity__c> rows = (List<BinTagPrintQuantity__c>) new BinTagPrintQuantitiesSelector()
 				.selectFields(
-					new List<String>{ 'Id', 'PrintQuantity__c', 'RepairCenter__c', 'Product_Line__c' }
+					new List<String>{
+						'Id',
+						'PrintQuantity__c',
+						'RepairCenter__c',
+						'Product_Line__c'
+					}
 				)
 				.whereEquals('RepairCenter__c', repairCenter.Id)
 				.whereEquals('Product_Line__c', PRODUCT_LINE)
@@ -85,7 +91,11 @@ private class BinTagPrintQuantitiesServiceTest {
 				.execute();
 			Test.stopTest();
 
-			Assert.areEqual(1, rows.size(), 'Should return the mapping without using Country');
+			Assert.areEqual(
+				1,
+				rows.size(),
+				'Should return the mapping without using Country'
+			);
 			Assert.areEqual(3, Integer.valueOf(rows[0].PrintQuantity__c));
 		}
 	}
@@ -136,7 +146,10 @@ private class BinTagPrintQuantitiesServiceTest {
 			);
 			Test.stopTest();
 
-			Assert.areEqual(BinTagPrintQuantitiesService.DEFAULT_PRINT_QUANTITY, copies);
+			Assert.areEqual(
+				BinTagPrintQuantitiesService.DEFAULT_PRINT_QUANTITY,
+				copies
+			);
 		}
 	}
 
@@ -158,15 +171,24 @@ private class BinTagPrintQuantitiesServiceTest {
 	@IsTest
 	static void testServiceDefaultsToOneWhenInputsMissing() {
 		Test.startTest();
-		Integer copies = BinTagPrintQuantitiesService.getPrintQuantity(null, PRODUCT_LINE);
+		Integer copies = BinTagPrintQuantitiesService.getPrintQuantity(
+			null,
+			PRODUCT_LINE
+		);
 		Integer blankProductLine = BinTagPrintQuantitiesService.getPrintQuantity(
 			UserInfo.getUserId(),
 			'  '
 		);
 		Test.stopTest();
 
-		Assert.areEqual(BinTagPrintQuantitiesService.DEFAULT_PRINT_QUANTITY, copies);
-		Assert.areEqual(BinTagPrintQuantitiesService.DEFAULT_PRINT_QUANTITY, blankProductLine);
+		Assert.areEqual(
+			BinTagPrintQuantitiesService.DEFAULT_PRINT_QUANTITY,
+			copies
+		);
+		Assert.areEqual(
+			BinTagPrintQuantitiesService.DEFAULT_PRINT_QUANTITY,
+			blankProductLine
+		);
 	}
 
 	@IsTest
@@ -186,7 +208,10 @@ private class BinTagPrintQuantitiesServiceTest {
 			);
 			Test.stopTest();
 
-			Assert.areEqual(BinTagPrintQuantitiesService.DEFAULT_PRINT_QUANTITY, copies);
+			Assert.areEqual(
+				BinTagPrintQuantitiesService.DEFAULT_PRINT_QUANTITY,
+				copies
+			);
 		}
 	}
 

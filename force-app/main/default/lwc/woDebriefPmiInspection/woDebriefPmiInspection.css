@@ -1,0 +1,40 @@
+.inspection-modal {
+	z-index: 9001;
+}
+
+.inspection-backdrop {
+	z-index: 9000;
+}
+
+.reading-card {
+	border: 1px solid #d8dde6;
+	border-radius: 0.25rem;
+	padding: 0.75rem;
+	margin-bottom: 0.75rem;
+}
+
+.bounds {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 0.75rem;
+}
+
+.status-pass {
+	color: #0b6b2a;
+	font-weight: 700;
+}
+
+.status-fail {
+	color: #ba0517;
+	font-weight: 700;
+}
+
+.error-text {
+	color: #ba0517;
+}
+
+.hint {
+	margin-top: 0.5rem;
+	color: #444;
+	font-size: 0.75rem;
+}

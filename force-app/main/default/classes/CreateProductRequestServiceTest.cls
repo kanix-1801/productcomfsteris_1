@@ -1200,7 +1200,7 @@ private class CreateProductRequestServiceTest {
             WorkOrderSelector.selectByIdsForAllowedUnit(null);
             runSecuredQuery(workOrderIds, technician.Id);
             WorkOrderSelector.selectByIdsForRateList(null);
-            WorkOrderSelector.selectForProductRequest(null);
+            WorkOrdersSelector.selectForProductRequest(null);
             ServiceResourcesSelector.selectActiveWithRepairCenterByUserId(null);
             ServiceResourcesSelector.selectActiveByRelatedRecordIds(null);
             ServiceResourcesSelector.selectActiveByRelatedRecordIds(new Set<Id>{ technician.Id });

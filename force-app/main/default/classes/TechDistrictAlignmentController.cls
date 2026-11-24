@@ -19,7 +19,7 @@ public with sharing class TechDistrictAlignmentController {
 			Id documentId = TechDistrictAlignmentService.ensureTemplateDocumentId();
 			return TechDistrictAlignmentService.DOWNLOAD_URL_PREFIX + documentId;
 		} catch (Exception e) {
-			throw toAuraException(e);
+			throw PlatformUtilities.toAuraException(e);
 		}
 	}
 
@@ -37,7 +37,7 @@ public with sharing class TechDistrictAlignmentController {
 			}
 			return TechDistrictAlignmentService.DOWNLOAD_URL_PREFIX + documentId;
 		} catch (Exception e) {
-			throw toAuraException(e);
+			throw PlatformUtilities.toAuraException(e);
 		}
 	}
 
@@ -53,17 +53,7 @@ public with sharing class TechDistrictAlignmentController {
 		try {
 			return TechDistrictAlignmentService.processUpload(contentDocumentId);
 		} catch (Exception e) {
-			throw toAuraException(e);
+			throw PlatformUtilities.toAuraException(e);
 		}
-	}
-
-	/**
-	 * @description User-facing messages (AuraHandledException) pass through; anything else (already logged by the
-	 *              service) is turned into a user message.
-	 */
-	private static AuraHandledException toAuraException(Exception e) {
-		return e instanceof AuraHandledException
-			? (AuraHandledException) e
-			: PlatformUtilities.buildAuraException(PlatformUtilities.resolveExceptionMessage(e));
 	}
 }

@@ -20,7 +20,7 @@ public without sharing class AccountProspectTasIntegrationService {
 	private static final String TEAM_MEMBER_ROLE = 'Sales';
 	private static final String TEAM_MEMBER_ASSIGNMENT_TYPE = 'Oracle Assigned';
 	private static final String ACCOUNT_ACCESS_LEVEL = 'Edit';
-
+	
     // GC-3143 start
 	public static final String TAS_STATUS_ASSIGNED = 'Assigned';
 	public static final String TAS_STATUS_ASSIGNMENT_MISSING = 'Assignment Missing';
@@ -29,6 +29,10 @@ public without sharing class AccountProspectTasIntegrationService {
 	private static final String SALES_OPS_QUEUE_DEV_NAME = 'SalesOpsQueue';
 	private static final String TAS_NOTIFICATION_TYPE_DEV_NAME = 'TAS_Assignment_Failure';
     // GC-3143 end
+    
+    // GCL-4: true when the Account being processed is Life Sciences (SC); false = Healthcare (HC).
+    private static Boolean isLifeSciences = false;
+
 
     /**
      * @description Processes Prospect Accounts for TAS assignment.
@@ -64,7 +68,7 @@ public without sharing class AccountProspectTasIntegrationService {
 					Logger.warn(CLASS_NAME + '.processAccounts: skipping null Account or Account Id');
 					continue;
 				}
-
+				isLifeSciences = LSAccountService.isLifeSciencesAccount(acc); // GCL-4
                 // GC-3091 start
 				tasAssignmentStatusByAccountId.put(acc.Id, false);
                 // GC-3091 end
@@ -261,7 +265,7 @@ public without sharing class AccountProspectTasIntegrationService {
 				);
 			}
 
-			if (!assignmentMissingIds.isEmpty() && AccountProspectTasQueueable.customerClassCode == 'HC') {
+			if (!assignmentMissingIds.isEmpty() && !isLifeSciences) { 
 				createSalesOpsTasks(assignmentMissingIds);
 				notifySalesOps(assignmentMissingIds);
 			}
@@ -627,13 +631,9 @@ public without sharing class AccountProspectTasIntegrationService {
 		if (employeeNumbers == null || employeeNumbers.isEmpty()) {
 			return employeeNumberToUserId;
 		}
-         Map<String, User> usersByEmployeeNumber;
-        if(AccountProspectTasQueueable.customerClassCode == 'HC') {
-           usersByEmployeeNumber =
-                UserSelector.selectActiveUsersByEmployeeNumber(employeeNumbers);
-        } else {
-            usersByEmployeeNumber = UserSelector.selectActiveLifeSciencesSalesUsersByEmployeeNumber(employeeNumbers);
-        }
+        Map<String, User> usersByEmployeeNumber = isLifeSciences
+        ? UserSelector.selectActiveLifeSciencesSalesUsersByEmployeeNumber(employeeNumbers)
+        : UserSelector.selectActiveUsersByEmployeeNumber(employeeNumbers);
 
 		for (String employeeNumber : usersByEmployeeNumber.keySet()) {
 			employeeNumberToUserId.put(

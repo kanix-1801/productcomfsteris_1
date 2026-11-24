@@ -11,6 +11,22 @@
 @IsTest
 private class LsOverlayAssignmentControllerTest {
 
+    private static final String INSIDE_SALES = LsOverlayAssignmentService.OVERLAY_TYPE_INSIDE_SALES;
+    private static final String GAD = LsOverlayAssignmentService.OVERLAY_TYPE_GAD;
+
+    /**
+     * @description Turns off only the IDN/GPO creation rule (Account_IDN_GPO_Create), so the tests can
+     *              create IDN and GPO accounts. Other validation rules stay on. Without this, the
+     *              GPO and IDN test records are blocked for users who lack the Manage_IDN_GPO permission.
+     */
+    @TestSetup
+    static void allowIdnAndGpoTestAccounts() {
+        insert new Automation_Setting_Validation_Rule__c(
+            SetupOwnerId = UserInfo.getOrganizationId(),
+            Account_IDN_GPO_Create__c = true
+        );
+    }
+
     /**
      * @description GCL-79 - The confirmation label must come from the same constant submit writes.
      */
@@ -30,13 +46,10 @@ private class LsOverlayAssignmentControllerTest {
     static void searchesLifeSciencesTerritoriesAndCustomerAccounts() {
         Account parentAccount = insertCustomer('LS Overlay Parent', 'LS-OV-P');
         insertAddress(parentAccount.Id, 'LS Overlay Address', 'LS-OV-A', 'LS-OV-ADDR-1');
-        Database.insert(
-            new Account(Name = 'LS Overlay IDN', AccountNumber = 'LS-OV-IDN', Type = 'IDN', CustomerClassCode__c = 'SC'),
-            allowDuplicates()
-        );
+        mustInsert(new Account(Name = 'LS Overlay IDN', AccountNumber = 'LS-OV-IDN', Type = 'IDN', CustomerClassCode__c = 'SC'));
 
         Account gpoParent = new Account(Name = 'LS Overlay GPO Parent', AccountNumber = 'LS-OV-G', Type = 'GPO');
-        Database.insert(gpoParent, allowDuplicates());
+        mustInsert(gpoParent);
         insertAddress(gpoParent.Id, 'LS Overlay GPO Address', 'LS-OV-GA', 'LS-OV-ADDR-G');
         insertAddress(null, 'LS Overlay Orphan Address', 'LS-OV-OA', 'LS-OV-ADDR-O');
 
@@ -110,19 +123,16 @@ private class LsOverlayAssignmentControllerTest {
      */
     @IsTest
     static void submitCreatesTeamShareAndTasRow() {
-        User overlayUser = insertLifeSciencesUser('submit');
+        User overlayUser = insertOverlayUser('submit', INSIDE_SALES);
         Account parentAccount = insertCustomer('LS Overlay Submit Customer', 'LS-OV-C');
         Account addressAccount = insertAddress(parentAccount.Id, 'LS Overlay Submit Address', 'LS-OV-S', 'LS-OV-ADDR-2');
-        Database.insert(
-            new Account(
-                Name = 'LS Overlay Submit IDN Child',
-                AccountNumber = 'LS-OV-IC',
-                Type = 'IDN',
-                ParentId = parentAccount.Id,
-                CustomerClassCode__c = 'SC'
-            ),
-            allowDuplicates()
-        );
+        mustInsert(new Account(
+            Name = 'LS Overlay Submit IDN Child',
+            AccountNumber = 'LS-OV-IC',
+            Type = 'IDN',
+            ParentId = parentAccount.Id,
+            CustomerClassCode__c = 'SC'
+        ));
         insertAddress(parentAccount.Id, 'LS Overlay Unmatched Address', 'LS-OV-U', 'LS-OV-ADDR-UNMATCHED');
         insert new OrderLineContact__c(
             TASAddressId__c = 'LS-OV-ADDR-2',
@@ -142,12 +152,14 @@ private class LsOverlayAssignmentControllerTest {
         LsOverlayAssignmentController.submitOverlayAssignments(
             new List<String>{ 'LS-TERR-200' },
             new List<Id>{ parentAccount.Id },
-            new List<Id>{ overlayUser.Id }
+            new List<Id>{ overlayUser.Id },
+            INSIDE_SALES
         );
         LsOverlayAssignmentController.submitOverlayAssignments(
             new List<String>{ 'LS-TERR-200' },
             new List<Id>{ parentAccount.Id },
-            new List<Id>{ overlayUser.Id }
+            new List<Id>{ overlayUser.Id },
+            INSIDE_SALES
         );
         Test.stopTest();
 
@@ -159,7 +171,7 @@ private class LsOverlayAssignmentControllerTest {
         ];
         AccountTeamMember addressMember = [
             SELECT TerritoryCode__c, TeamMemberRole, AssignmentType__c, AccountAccessLevel,
-                   OpportunityAccessLevel, CaseAccessLevel
+                   ContactAccessLevel, OpportunityAccessLevel, CaseAccessLevel
             FROM AccountTeamMember
             WHERE AccountId = :addressAccount.Id AND UserId = :overlayUser.Id
         ];
@@ -167,9 +179,10 @@ private class LsOverlayAssignmentControllerTest {
         System.assertEquals('GI REPROC', customerMember.SalesCategoryCode__c);
         System.assertEquals('GI Reprocessing', customerMember.SalesCategoryDescription__c);
         System.assertEquals('200', addressMember.TerritoryCode__c);
-        System.assertEquals('Sales', addressMember.TeamMemberRole);
+        System.assertEquals('Inside Sales', addressMember.TeamMemberRole);
         System.assertEquals('Salesforce Assigned', addressMember.AssignmentType__c);
         System.assertEquals('Edit', addressMember.AccountAccessLevel);
+        System.assertEquals('Edit', addressMember.ContactAccessLevel);
         System.assertEquals('None', addressMember.OpportunityAccessLevel);
         System.assertEquals('None', addressMember.CaseAccessLevel);
         System.assertEquals(1, [
@@ -199,7 +212,7 @@ private class LsOverlayAssignmentControllerTest {
      */
     @IsTest
     static void accountSearchSummaryAndTerritorySubmit() {
-        User overlayUser = insertLifeSciencesUser('fill');
+        User overlayUser = insertOverlayUser('fill', INSIDE_SALES);
         Account parentAccount = insertCustomer('LS Overlay Fill Customer', 'LS-OV-F');
         Account accountOnly = insertCustomer('LS Overlay Account Only', 'LS-OV-AO');
         insertAddress(parentAccount.Id, 'LS Overlay Fill Address', 'LS-OV-FA', 'LS-OV-ADDR-3');
@@ -209,33 +222,37 @@ private class LsOverlayAssignmentControllerTest {
         LsOverlayAssignmentController.submitOverlayAssignments(
             new List<String>(),
             new List<Id>{ accountOnly.Id },
-            new List<Id>{ overlayUser.Id }
+            new List<Id>{ overlayUser.Id },
+            INSIDE_SALES
         );
         List<OverlayAssignmentController.SummaryTerritoryWrapper> accountSummary =
-            LsOverlayAssignmentController.getAssignmentSummary(null, new List<Id>{ parentAccount.Id });
+            LsOverlayAssignmentController.getAssignmentSummary(null, new List<Id>{ parentAccount.Id }, INSIDE_SALES);
         LsOverlayAssignmentController.submitOverlayAssignments(
             new List<String>{ 'LS-TERR-300' },
             new List<Id>{ parentAccount.Id },
-            new List<Id>{ overlayUser.Id }
+            new List<Id>{ overlayUser.Id },
+            INSIDE_SALES
         );
         LsOverlayAssignmentController.submitOverlayAssignments(
             new List<String>{ 'LS-TERR-300' },
             new List<Id>{ parentAccount.Id },
-            new List<Id>{ overlayUser.Id }
+            new List<Id>{ overlayUser.Id },
+            INSIDE_SALES
         );
         List<OverlayAssignmentController.SummaryTerritoryWrapper> territorySummary =
             LsOverlayAssignmentController.getAssignmentSummary(
                 new List<String>{ 'LS-TERR-300' },
-                new List<Id>{ parentAccount.Id }
+                new List<Id>{ parentAccount.Id },
+                INSIDE_SALES
             );
         List<OverlayAssignmentController.UserWrapper> users =
-            LsOverlayAssignmentController.searchOverlayUsers(overlayUser.LastName);
+            LsOverlayAssignmentController.searchOverlayUsers(overlayUser.LastName, INSIDE_SALES);
         Test.stopTest();
 
         System.assertEquals(LsOverlayAssignmentService.ACCOUNT_SEARCH_LABEL, accountSummary[0].territoryId);
         System.assertEquals(1, accountSummary[0].selectedAccounts.size());
         System.assertEquals('LS-TERR-300', territorySummary[0].territoryId);
-        System.assertEquals(0, LsOverlayAssignmentController.searchOverlayUsers(null).size());
+        System.assertEquals(0, LsOverlayAssignmentController.searchOverlayUsers(null, INSIDE_SALES).size());
         System.assertEquals(1, users.size());
         System.assertEquals(overlayUser.Id, users[0].userId);
         System.assertEquals('300', [
@@ -253,6 +270,9 @@ private class LsOverlayAssignmentControllerTest {
         System.assert(callThrew(new SubmitNoUsers()));
         System.assert(callThrew(new RetrieveNothing()));
         System.assert(callThrew(new SummaryNothing()));
+        System.assert(callThrew(new SubmitNoOverlayType()));
+        System.assert(callThrew(new SummaryNoOverlayType()));
+        System.assert(callThrew(new SearchUsersNoOverlayType()));
     }
 
     /**
@@ -261,7 +281,7 @@ private class LsOverlayAssignmentControllerTest {
      */
     @IsTest
     static void submitRejectsUsersOutsideLifeSciencesSales() {
-        User overlayUser = insertLifeSciencesUser('reject');
+        User overlayUser = insertOverlayUser('reject', INSIDE_SALES);
         User limitedUser = insertMinimumAccessUser();
         Account customerAccount = insertCustomer('LS Overlay Reject Customer', 'LS-OV-RJ');
 
@@ -271,10 +291,11 @@ private class LsOverlayAssignmentControllerTest {
             LsOverlayAssignmentController.submitOverlayAssignments(
                 new List<String>(),
                 new List<Id>{ customerAccount.Id },
-                new List<Id>{ overlayUser.Id, limitedUser.Id }
+                new List<Id>{ overlayUser.Id, limitedUser.Id },
+                INSIDE_SALES
             );
         } catch (AuraHandledException ex) {
-            rejected = ex.getMessage().contains('Select active Life Sciences Sales users only.');
+            rejected = ex.getMessage().contains('Select active Life Sciences Sales users with the Inside Sales permission set only.');
         }
         Test.stopTest();
 
@@ -290,15 +311,16 @@ private class LsOverlayAssignmentControllerTest {
      */
     @IsTest
     static void gpoAndIdnSelectionsFollowTheCascadeRules() {
-        User overlayUser = insertLifeSciencesUser('gpo');
+        User overlayUser = insertOverlayUser('gpo', INSIDE_SALES);
         Account gpoAccount = new Account(Name = 'LS Overlay Cascade GPO', AccountNumber = 'LS-OV-CG', Type = 'GPO');
-        Database.insert(gpoAccount, allowDuplicates());
+        mustInsert(gpoAccount);
         Account memberCustomer = insertCustomer('LS Overlay Member Customer', 'LS-OV-MC');
         Account memberAddress = insertAddress(memberCustomer.Id, 'LS Overlay Member Address', 'LS-OV-MA', 'LS-OV-ADDR-M');
         Account unmatchedAddress = insertAddress(null, 'LS Overlay Member Other', 'LS-OV-MO', 'LS-OV-ADDR-X');
         Account nestedGpo = new Account(Name = 'LS Overlay Nested GPO', AccountNumber = 'LS-OV-NG', Type = 'GPO');
         Account idnMember = new Account(Name = 'LS Overlay Member IDN', AccountNumber = 'LS-OV-MI', Type = 'IDN');
-        Database.insert(new List<Account>{ nestedGpo, idnMember }, allowDuplicates());
+        mustInsert(nestedGpo);
+        mustInsert(idnMember);
         insert lifeSciencesTerritory('LS-OV-ADDR-M', 'LS-TERR-400', 'Member Territory', '400');
 
         String hasMember = AccountAccountRelationshipSelector.RELATIONSHIP_TYPE_HAS_GPO_MEMBER;
@@ -321,7 +343,8 @@ private class LsOverlayAssignmentControllerTest {
         LsOverlayAssignmentController.submitOverlayAssignments(
             new List<String>{ 'LS-TERR-400' },
             new List<Id>{ gpoAccount.Id, idnMember.Id, unmatchedAddress.Id },
-            new List<Id>{ overlayUser.Id }
+            new List<Id>{ overlayUser.Id },
+            INSIDE_SALES
         );
         Test.stopTest();
 
@@ -361,14 +384,186 @@ private class LsOverlayAssignmentControllerTest {
         System.assert(retrieveThrew);
     }
 
+    /**
+     * @description The pre-wizard shows Inside Sales and GAD, each with the role it writes.
+     */
+    @IsTest
+    static void overlayTypeOptionsListInsideSalesAndGad() {
+        List<Map<String, String>> options = LsOverlayAssignmentController.getOverlayTypeOptions();
+        System.assertEquals(2, options.size());
+        System.assertEquals('Inside Sales', options[0].get('value'));
+        System.assertEquals('Inside Sales', options[0].get('teamMemberRole'));
+        System.assertEquals('GAD', options[1].get('value'));
+        System.assertEquals('Global Account Director', options[1].get('teamMemberRole'));
+    }
+
+    /**
+     * @description GAD search returns Global Accounts only, shows a blank Type as Global Account,
+     *              and returns nothing for a blank search.
+     */
+    @IsTest
+    static void searchGlobalAccountsReturnsGlobalAccountsOnly() {
+        Account globalAccount = insertGlobalAccount('LS GAD Search Global');
+        insertCustomer('LS GAD Search Customer', 'LS-GS-C');
+
+        Test.startTest();
+        List<OverlayAssignmentController.AccountWrapper> rows =
+            LsOverlayAssignmentController.searchGlobalAccounts('LS GAD Search');
+        List<OverlayAssignmentController.AccountWrapper> blankRows =
+            LsOverlayAssignmentController.searchGlobalAccounts('   ');
+        Test.stopTest();
+
+        System.assertEquals(1, rows.size(), 'The Customer with a similar name must not be returned.');
+        System.assertEquals(globalAccount.Id, rows[0].accountId);
+        System.assertEquals('Global Account', rows[0].accountType);
+        System.assertEquals(0, blankRows.size());
+    }
+
+    /**
+     * @description Users are limited to the permission set or group of the selected overlay type.
+     *              A Life Sciences Sales user with neither is never returned.
+     */
+    @IsTest
+    static void searchOverlayUsersFiltersByOverlayTypePermission() {
+        User insideUser = insertOverlayUser('insu', INSIDE_SALES);
+        User gadUser = insertOverlayUser('gadu', GAD);
+        User plainUser = insertLifeSciencesUser('plain');
+
+        Test.startTest();
+        Integer insideForInside = LsOverlayAssignmentController.searchOverlayUsers(insideUser.LastName, INSIDE_SALES).size();
+        Integer insideForGad = LsOverlayAssignmentController.searchOverlayUsers(insideUser.LastName, GAD).size();
+        Integer gadForGad = LsOverlayAssignmentController.searchOverlayUsers(gadUser.LastName, GAD).size();
+        Integer gadForInside = LsOverlayAssignmentController.searchOverlayUsers(gadUser.LastName, INSIDE_SALES).size();
+        Integer plainForInside = LsOverlayAssignmentController.searchOverlayUsers(plainUser.LastName, INSIDE_SALES).size();
+        Integer plainForGad = LsOverlayAssignmentController.searchOverlayUsers(plainUser.LastName, GAD).size();
+        Test.stopTest();
+
+        System.assertEquals(1, insideForInside);
+        System.assertEquals(0, insideForGad);
+        System.assertEquals(1, gadForGad);
+        System.assertEquals(0, gadForInside);
+        System.assertEquals(0, plainForInside);
+        System.assertEquals(0, plainForGad);
+    }
+
+    /**
+     * @description GAD submit adds the user to the Global Account, its Customer, and its Ship-to.
+     *              Access follows the level. An IDN child and an unrelated Customer are left out.
+     *              A second submit adds nothing.
+     */
+    @IsTest
+    static void gadSubmitCreatesHierarchyRowsWithLevelAccess() {
+        User gadUser = insertOverlayUser('gadsub', GAD);
+        Account globalAccount = insertGlobalAccount('LS GAD Hierarchy Global');
+        Account customer = insertChild(globalAccount.Id, 'LS GAD Hierarchy Customer', 'LS-GH-C', 'Customer');
+        Account shipTo = insertAddress(customer.Id, 'LS GAD Hierarchy Ship-to', 'LS-GH-S', 'LS-GH-ADDR');
+        Account idnChild = insertChild(globalAccount.Id, 'LS GAD Hierarchy IDN', 'LS-GH-I', 'IDN');
+        Account outsideCustomer = insertCustomer('LS GAD Hierarchy Outside', 'LS-GH-O');
+
+        Test.startTest();
+        List<OverlayAssignmentController.SummaryTerritoryWrapper> summary =
+            LsOverlayAssignmentController.getAssignmentSummary(null, new List<Id>{ globalAccount.Id }, GAD);
+        LsOverlayAssignmentController.submitOverlayAssignments(null, new List<Id>{ globalAccount.Id }, new List<Id>{ gadUser.Id }, GAD);
+        LsOverlayAssignmentController.submitOverlayAssignments(null, new List<Id>{ globalAccount.Id }, new List<Id>{ gadUser.Id }, GAD);
+        Test.stopTest();
+
+        System.assertEquals(1, summary.size());
+        System.assertEquals('LS GAD Hierarchy Global', summary[0].territoryId);
+        System.assertEquals(3, summary[0].selectedAccounts.size());
+
+        Map<Id, AccountTeamMember> memberByAccountId = teamMembersByAccount(gadUser.Id);
+        System.assertEquals(3, memberByAccountId.size(), 'Global Account, Customer, and Ship-to only.');
+        System.assert(!memberByAccountId.containsKey(idnChild.Id), 'An IDN child gets no row.');
+        System.assert(!memberByAccountId.containsKey(outsideCustomer.Id));
+        for (AccountTeamMember member : memberByAccountId.values()) {
+            System.assertEquals('Global Account Director', member.TeamMemberRole);
+            System.assertEquals('Salesforce Assigned', member.AssignmentType__c);
+            System.assertEquals('Edit', member.AccountAccessLevel);
+            System.assertEquals('Edit', member.ContactAccessLevel);
+            System.assertEquals('None', member.CaseAccessLevel);
+        }
+        System.assertEquals('Edit', memberByAccountId.get(globalAccount.Id).OpportunityAccessLevel);
+        System.assertEquals('Read', memberByAccountId.get(customer.Id).OpportunityAccessLevel);
+        System.assertEquals('Read', memberByAccountId.get(shipTo.Id).OpportunityAccessLevel);
+    }
+
+    /**
+     * @description GAD only accepts Global Accounts, and only users with the GAD permission set.
+     *              Nothing is saved when either check fails.
+     */
+    @IsTest
+    static void gadSubmitRejectsWrongAccountsAndUsers() {
+        User gadUser = insertOverlayUser('gadrej', GAD);
+        User insideUser = insertOverlayUser('insrej', INSIDE_SALES);
+        Account globalAccount = insertGlobalAccount('LS GAD Reject Global');
+        Account customer = insertCustomer('LS GAD Reject Customer', 'LS-GR-C');
+
+        String wrongAccountMessage;
+        String wrongUserMessage;
+        Test.startTest();
+        try {
+            LsOverlayAssignmentController.submitOverlayAssignments(null, new List<Id>{ customer.Id }, new List<Id>{ gadUser.Id }, GAD);
+        } catch (AuraHandledException ex) {
+            wrongAccountMessage = ex.getMessage();
+        }
+        try {
+            LsOverlayAssignmentController.submitOverlayAssignments(null, new List<Id>{ globalAccount.Id }, new List<Id>{ insideUser.Id }, GAD);
+        } catch (AuraHandledException ex) {
+            wrongUserMessage = ex.getMessage();
+        }
+        Test.stopTest();
+
+        System.assertEquals('Select Global Accounts only.', wrongAccountMessage);
+        System.assert(wrongUserMessage.contains('with the GAD permission set only.'), wrongUserMessage);
+        System.assertEquals(0, [SELECT COUNT() FROM AccountTeamMember WHERE AccountId IN :new Set<Id>{ globalAccount.Id, customer.Id }]);
+    }
+
+    /**
+     * @description A user with both permission sets is allowed for both types. Salesforce keeps one
+     *              Account Team row per user and account, so the existing Inside Sales row stays
+     *              and GAD only adds the accounts that have no row yet.
+     */
+    @IsTest
+    static void gadSubmitKeepsExistingInsideSalesRow() {
+        User dualUser = insertOverlayUser('dual', INSIDE_SALES);
+        assignPermissionSet(dualUser.Id, 'LSGlobalAccountDirectorPS', false);
+        Account globalAccount = insertGlobalAccount('LS GAD Dual Global');
+        Account customer = insertChild(globalAccount.Id, 'LS GAD Dual Customer', 'LS-GD-C', 'Customer');
+
+        Test.startTest();
+        LsOverlayAssignmentController.submitOverlayAssignments(null, new List<Id>{ customer.Id }, new List<Id>{ dualUser.Id }, INSIDE_SALES);
+        LsOverlayAssignmentController.submitOverlayAssignments(null, new List<Id>{ globalAccount.Id }, new List<Id>{ dualUser.Id }, GAD);
+        Test.stopTest();
+
+        Map<Id, AccountTeamMember> memberByAccountId = teamMembersByAccount(dualUser.Id);
+        System.assertEquals(2, memberByAccountId.size());
+        System.assertEquals('Inside Sales', memberByAccountId.get(customer.Id).TeamMemberRole);
+        System.assertEquals('Global Account Director', memberByAccountId.get(globalAccount.Id).TeamMemberRole);
+    }
+
     private class SubmitNoAccounts implements CallableAction {
         public void execute() {
-            LsOverlayAssignmentController.submitOverlayAssignments(null, new List<Id>(), new List<Id>{ UserInfo.getUserId() });
+            LsOverlayAssignmentController.submitOverlayAssignments(null, new List<Id>(), new List<Id>{ UserInfo.getUserId() }, INSIDE_SALES);
         }
     }
     private class SubmitNoUsers implements CallableAction {
         public void execute() {
-            LsOverlayAssignmentController.submitOverlayAssignments(null, new List<Id>{ UserInfo.getUserId() }, new List<Id>());
+            LsOverlayAssignmentController.submitOverlayAssignments(null, new List<Id>{ UserInfo.getUserId() }, new List<Id>(), INSIDE_SALES);
+        }
+    }
+    private class SubmitNoOverlayType implements CallableAction {
+        public void execute() {
+            LsOverlayAssignmentController.submitOverlayAssignments(null, new List<Id>{ UserInfo.getUserId() }, new List<Id>{ UserInfo.getUserId() }, null);
+        }
+    }
+    private class SummaryNoOverlayType implements CallableAction {
+        public void execute() {
+            LsOverlayAssignmentController.getAssignmentSummary(null, new List<Id>{ UserInfo.getUserId() }, 'Other');
+        }
+    }
+    private class SearchUsersNoOverlayType implements CallableAction {
+        public void execute() {
+            LsOverlayAssignmentController.searchOverlayUsers('LS', '');
         }
     }
     private class RetrieveNothing implements CallableAction {
@@ -378,7 +573,7 @@ private class LsOverlayAssignmentControllerTest {
     }
     private class SummaryNothing implements CallableAction {
         public void execute() {
-            LsOverlayAssignmentController.getAssignmentSummary(null, new List<Id>());
+            LsOverlayAssignmentController.getAssignmentSummary(null, new List<Id>(), INSIDE_SALES);
         }
     }
     private class SearchTerritories implements CallableAction {
@@ -393,7 +588,7 @@ private class LsOverlayAssignmentControllerTest {
     }
     private class SearchUsers implements CallableAction {
         public void execute() {
-            LsOverlayAssignmentController.searchOverlayUsers('LS');
+            LsOverlayAssignmentController.searchOverlayUsers('LS', INSIDE_SALES);
         }
     }
     private class RetrieveAccounts implements CallableAction {
@@ -522,7 +717,8 @@ private class LsOverlayAssignmentControllerTest {
         Account otherCustomer = insertCustomer('LS Affil Other Customer', 'LS-AF-O');
         Account affiliatedGpo = new Account(Name = 'LS Affil GPO', AccountNumber = 'LS-AF-G', Type = 'GPO');
         Account affiliatedIdn = new Account(Name = 'LS Affil IDN', AccountNumber = 'LS-AF-I', Type = 'IDN');
-        Database.insert(new List<Account>{ affiliatedGpo, affiliatedIdn }, allowDuplicates());
+        mustInsert(affiliatedGpo);
+        mustInsert(affiliatedIdn);
         insert lifeSciencesTerritory('LS-AF-ADDR', 'LS-TERR-AFF', 'Affiliation Territory', '103');
 
         String hasGpo = AccountAccountRelationshipSelector.RELATIONSHIP_TYPE_HAS_GPO_MEMBER;
@@ -562,7 +758,10 @@ private class LsOverlayAssignmentControllerTest {
         Account cascadeGpo = new Account(Name = 'LS CC GPO', AccountNumber = 'LS-CC-G', Type = 'GPO');
         Account cascadeIdn = new Account(Name = 'LS CC IDN', AccountNumber = 'LS-CC-I', Type = 'IDN');
         Account idnMember = new Account(Name = 'LS CC IDN Member', AccountNumber = 'LS-CC-IM', Type = 'IDN');
-        Database.insert(new List<Account>{ nestedGpo, cascadeGpo, cascadeIdn, idnMember }, allowDuplicates());
+        mustInsert(nestedGpo);
+        mustInsert(cascadeGpo);
+        mustInsert(cascadeIdn);
+        mustInsert(idnMember);
         insert new List<OrderLineContact__c>{
             lifeSciencesTerritory('LS-CC-ADDR-M', 'LS-TERR-CC', 'Cascade Territory', '104'),
             lifeSciencesTerritory('LS-CC-ADDR-D', 'LS-TERR-CC', 'Cascade Territory', '104')
@@ -700,8 +899,42 @@ private class LsOverlayAssignmentControllerTest {
             Type = 'Customer',
             CustomerClassCode__c = 'SC'
         );
-        Database.insert(customerAccount, allowDuplicates());
+        mustInsert(customerAccount);
         return customerAccount;
+    }
+
+    private static Account insertGlobalAccount(String name) {
+        Account globalAccount = new Account(
+            Name = name,
+            RecordTypeId = Schema.SObjectType.Account.getRecordTypeInfosByDeveloperName().get('GlobalAccount').getRecordTypeId()
+        );
+        mustInsert(globalAccount);
+        return globalAccount;
+    }
+
+    private static Account insertChild(Id parentId, String name, String accountNumber, String accountType) {
+        Account childAccount = new Account(
+            Name = name,
+            AccountNumber = accountNumber,
+            Type = accountType,
+            ParentId = parentId,
+            CustomerClassCode__c = 'SC'
+        );
+        mustInsert(childAccount);
+        return childAccount;
+    }
+
+    private static Map<Id, AccountTeamMember> teamMembersByAccount(Id userId) {
+        Map<Id, AccountTeamMember> memberByAccountId = new Map<Id, AccountTeamMember>();
+        for (AccountTeamMember member : [
+            SELECT AccountId, TeamMemberRole, AssignmentType__c, AccountAccessLevel, ContactAccessLevel,
+                   OpportunityAccessLevel, CaseAccessLevel
+            FROM AccountTeamMember
+            WHERE UserId = :userId
+        ]) {
+            memberByAccountId.put(member.AccountId, member);
+        }
+        return memberByAccountId;
     }
 
     private static Account insertAddress(Id parentId, String name, String accountNumber, String oracleAddressId) {
@@ -717,7 +950,7 @@ private class LsOverlayAssignmentControllerTest {
             BillingPostalCode = '44060',
             BillingCountryCode = 'US'
         );
-        Database.insert(addressAccount, allowDuplicates());
+        mustInsert(addressAccount);
         return addressAccount;
     }
 
@@ -761,6 +994,32 @@ private class LsOverlayAssignmentControllerTest {
         return insertUser(lifeSciencesProfile.Id, seed, true);
     }
 
+    /**
+     * @description Life Sciences Sales user holding the overlay type's access. Inside Sales gets the
+     *              permission set directly. GAD gets the permission set group, which covers that path.
+     */
+    private static User insertOverlayUser(String seed, String overlayType) {
+        User overlayUser = insertLifeSciencesUser(seed);
+        if (overlayType == GAD) {
+            assignPermissionSet(overlayUser.Id, 'LSGlobalAccountDirectorPSG', true);
+        } else {
+            assignPermissionSet(overlayUser.Id, 'LSInsideSalesPS', false);
+        }
+        return overlayUser;
+    }
+
+    private static void assignPermissionSet(Id userId, String developerName, Boolean isGroup) {
+        PermissionSetAssignment assignment = new PermissionSetAssignment(AssigneeId = userId);
+        if (isGroup) {
+            assignment.PermissionSetGroupId = [SELECT Id FROM PermissionSetGroup WHERE DeveloperName = :developerName LIMIT 1].Id;
+        } else {
+            assignment.PermissionSetId = [SELECT Id FROM PermissionSet WHERE Name = :developerName LIMIT 1].Id;
+        }
+        System.runAs(new User(Id = UserInfo.getUserId())) {
+            insert assignment;
+        }
+    }
+
     private static User insertMinimumAccessUser() {
         Profile minimumAccess = [
             SELECT Id
@@ -775,6 +1034,16 @@ private class LsOverlayAssignmentControllerTest {
         Database.DMLOptions options = new Database.DMLOptions();
         options.DuplicateRuleHeader.allowSave = true;
         return options;
+    }
+
+    /**
+     * @description Inserts test data and fails the test if the insert is rejected. Database.insert
+     *              alone returns the failure without throwing, so the record would have no Id.
+     * @param record Account to insert.
+     */
+    private static void mustInsert(Account record) {
+        Database.SaveResult result = Database.insert(record, allowDuplicates());
+        System.assert(result.isSuccess(), 'Test data insert failed: ' + result.getErrors());
     }
 
     private static User insertUser(Id profileId, String seed, Boolean setEmployeeNumber) {

@@ -160,6 +160,36 @@ private class DynamicSoqlQueryTest {
         assertRejected('Product2', new List<String>{ 'Id' }, null, null, 0);                        // limit
     }
 
+    @IsTest
+    static void nullEqualityFiltersEmitLiteralNullPredicates() {
+        SoqlQueryBuilder isNullBuilder = SoqlQueryBuilder.fromObject('Product2')
+            .selectFields(new List<String>{ 'Id', 'Name' })
+            .whereNull('Description')
+            .whereEquals('IsActive', true)
+            .limitTo(5);
+        Assert.areEqual(
+            'SELECT Id, Name FROM Product2 WHERE Description = NULL AND IsActive = :p1 LIMIT 5',
+            isNullBuilder.toSoql()
+        );
+
+        SoqlQueryBuilder notNullBuilder = SoqlQueryBuilder.fromObject('Product2')
+            .selectFields(new List<String>{ 'Id' })
+            .whereNotNull('ProductCode')
+            .limitTo(5);
+        Assert.areEqual(
+            'SELECT Id FROM Product2 WHERE ProductCode != NULL LIMIT 5',
+            notNullBuilder.toSoql()
+        );
+
+        Test.startTest();
+        List<Product2> openSku = (List<Product2>) isNullBuilder.execute();
+        List<Product2> withCode = (List<Product2>) notNullBuilder.execute();
+        Test.stopTest();
+
+        Assert.isTrue(openSku.size() >= 1, 'Setup products have blank Description');
+        Assert.isTrue(withCode.size() >= 1, 'Setup products have ProductCode');
+    }
+
     private static void assertRejected(
         String obj, List<String> fields, List<DynamicSoqlQuery.Filter> filters, String logic, Integer lim
     ) {

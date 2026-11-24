@@ -64,7 +64,11 @@ public with sharing class RepairCenterQuoteEmailSendAction {
 			List<Messaging.SingleEmailMessage> messages = new List<Messaging.SingleEmailMessage>();
 			for (Request request : requests) {
 				messages.add(
-					buildMessage(request, contactsById, orgWideEmailAddressIdsByAddress)
+					buildMessage(
+						request,
+						contactsById,
+						orgWideEmailAddressIdsByAddress
+					)
 				);
 			}
 			lastMessages = messages;
@@ -92,13 +96,19 @@ public with sharing class RepairCenterQuoteEmailSendAction {
 		Map<String, Id> orgWideEmailAddressIdsByAddress
 	) {
 		if (request == null || request.recipientId == null) {
-			throw new RepairCenterQuoteEmailSendException('A recipient Contact is required.');
+			throw new RepairCenterQuoteEmailSendException(
+				'A recipient Contact is required.'
+			);
 		}
 		if (request.relatedRecordId == null) {
-			throw new RepairCenterQuoteEmailSendException('A related Work Order is required.');
+			throw new RepairCenterQuoteEmailSendException(
+				'A related Work Order is required.'
+			);
 		}
 		if (request.emailTemplateId == null) {
-			throw new RepairCenterQuoteEmailSendException('An email template is required.');
+			throw new RepairCenterQuoteEmailSendException(
+				'An email template is required.'
+			);
 		}
 
 		Contact recipient = contactsById.get(request.recipientId);
@@ -111,14 +121,19 @@ public with sharing class RepairCenterQuoteEmailSendAction {
 		String senderAddress = String.isBlank(request.senderAddress)
 			? DEFAULT_SENDER_ADDRESS
 			: request.senderAddress.trim();
-		Id orgWideEmailAddressId = orgWideEmailAddressIdsByAddress.get(senderAddress.toLowerCase());
+		Id orgWideEmailAddressId = orgWideEmailAddressIdsByAddress.get(
+			senderAddress.toLowerCase()
+		);
 		if (orgWideEmailAddressId == null) {
 			throw new RepairCenterQuoteEmailSendException(
 				'No org-wide email address was found for ' + senderAddress + '.'
 			);
 		}
 
-		List<String> toAddresses = collectToAddresses(recipient.Email, request.recipientAddresses);
+		List<String> toAddresses = collectToAddresses(
+			recipient.Email,
+			request.recipientAddresses
+		);
 		Messaging.SingleEmailMessage mail = new Messaging.SingleEmailMessage();
 		mail.setTemplateId(request.emailTemplateId);
 		mail.setTargetObjectId(request.recipientId);
@@ -128,17 +143,26 @@ public with sharing class RepairCenterQuoteEmailSendAction {
 		mail.setSaveAsActivity(request.logEmailOnSend != false);
 		mail.setUseSignature(false);
 		mail.setOrgWideEmailAddressId(orgWideEmailAddressId);
-		mail.setReplyTo(ExternalSystemEndpointSelector.repairCenterQuoteInboundEmail());
+		mail.setReplyTo(
+			ExternalSystemEndpointSelector.repairCenterQuoteInboundEmail()
+		);
 
-		List<String> entityAttachmentIds = resolveAttachmentIds(request.attachmentIds);
+		List<String> entityAttachmentIds = resolveAttachmentIds(
+			request.attachmentIds
+		);
 		if (!entityAttachmentIds.isEmpty()) {
 			mail.setEntityAttachments(entityAttachmentIds);
 		}
 		return mail;
 	}
 
-	private static void sendMessages(List<Messaging.SingleEmailMessage> messages) {
-		Messaging.SendEmailResult[] results = Messaging.sendEmail(messages, false);
+	private static void sendMessages(
+		List<Messaging.SingleEmailMessage> messages
+	) {
+		Messaging.SendEmailResult[] results = Messaging.sendEmail(
+			messages,
+			false
+		);
 		List<String> errors = new List<String>();
 		for (Messaging.SendEmailResult result : results) {
 			if (result.isSuccess()) {
@@ -149,7 +173,9 @@ public with sharing class RepairCenterQuoteEmailSendAction {
 			}
 		}
 		if (!errors.isEmpty()) {
-			throw new RepairCenterQuoteEmailSendException(String.join(errors, '; '));
+			throw new RepairCenterQuoteEmailSendException(
+				String.join(errors, '; ')
+			);
 		}
 	}
 
@@ -163,13 +189,16 @@ public with sharing class RepairCenterQuoteEmailSendAction {
 		if (contactIds.isEmpty()) {
 			return new Map<Id, Contact>();
 		}
-		return new Map<Id, Contact>([SELECT Id, Email FROM Contact WHERE Id IN :contactIds]);
+		return new Map<Id, Contact>(
+			[SELECT Id, Email FROM Contact WHERE Id IN :contactIds]
+		);
 	}
 
 	private static Set<String> collectSenderAddresses(List<Request> requests) {
 		Set<String> addresses = new Set<String>();
 		for (Request request : requests) {
-			String senderAddress = request == null || String.isBlank(request.senderAddress)
+			String senderAddress = request == null ||
+				String.isBlank(request.senderAddress)
 				? DEFAULT_SENDER_ADDRESS
 				: request.senderAddress.trim();
 			addresses.add(senderAddress);
@@ -177,14 +206,19 @@ public with sharing class RepairCenterQuoteEmailSendAction {
 		return addresses;
 	}
 
-	private static Map<String, Id> queryOrgWideEmailAddressIds(Set<String> addresses) {
+	private static Map<String, Id> queryOrgWideEmailAddressIds(
+		Set<String> addresses
+	) {
 		Map<String, Id> idsByAddress = new Map<String, Id>();
 		if (addresses == null || addresses.isEmpty()) {
 			return idsByAddress;
 		}
 		if (orgWideEmailAddressIdOverride != null) {
 			for (String address : addresses) {
-				idsByAddress.put(address.toLowerCase(), orgWideEmailAddressIdOverride);
+				idsByAddress.put(
+					address.toLowerCase(),
+					orgWideEmailAddressIdOverride
+				);
 			}
 			return idsByAddress;
 		}
@@ -197,7 +231,10 @@ public with sharing class RepairCenterQuoteEmailSendAction {
 			if (String.isBlank(orgWideEmailAddress.Address)) {
 				continue;
 			}
-			idsByAddress.put(orgWideEmailAddress.Address.toLowerCase(), orgWideEmailAddress.Id);
+			idsByAddress.put(
+				orgWideEmailAddress.Address.toLowerCase(),
+				orgWideEmailAddress.Id
+			);
 		}
 		return idsByAddress;
 	}
@@ -235,7 +272,9 @@ public with sharing class RepairCenterQuoteEmailSendAction {
 		toAddresses.add(trimmed);
 	}
 
-	private static List<String> resolveAttachmentIds(List<String> attachmentIds) {
+	private static List<String> resolveAttachmentIds(
+		List<String> attachmentIds
+	) {
 		List<String> resolved = new List<String>();
 		if (attachmentIds == null) {
 			return resolved;

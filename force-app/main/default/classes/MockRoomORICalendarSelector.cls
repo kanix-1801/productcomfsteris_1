@@ -11,7 +11,7 @@ public without sharing class MockRoomORICalendarSelector {
     
     /**
 * @description Returns submitted and approved requests, plus the running user's saved drafts, with a date in range.
-* Dates up to a year before the range are included so a multi-day event that started earlier still shows.
+ * GC-3666. A request matches only when one of its dates is inside the range. Event duration is not used.
 *
 * @param rangeStart First visible calendar day.
 * @param rangeEnd Last visible calendar day.
@@ -19,19 +19,18 @@ public without sharing class MockRoomORICalendarSelector {
 * @return Requests that can appear on the calendar.
 */
 	public static List<MockRoomOrORIRequest__c> selectActiveRequests(Date rangeStart, Date rangeEnd, Id requestorId) {
-		Date lookbackStart = rangeStart.addDays(-366);
 		List<MockRoomOrORIRequest__c> requests = [
 			SELECT Id, Name, Status__c, RecordType.Name, Account__r.Name,
-			PrimaryRequestedDate__c, BackupRequestedDate__c, ConfirmedDate__c, EventDurationDays__c
+			PrimaryRequestedDate__c, BackupRequestedDate__c, ConfirmedDate__c
 			FROM MockRoomOrORIRequest__c
 			WHERE (
 				Status__c IN ('Submitted', 'Submitted for Approval', 'Approved')
 				OR (Status__c = 'Draft' AND Requestor__c = :requestorId AND CustomerLocationType__c != null)
 			)
 			AND (
-				(PrimaryRequestedDate__c >= :lookbackStart AND PrimaryRequestedDate__c <= :rangeEnd)
-				OR (BackupRequestedDate__c >= :lookbackStart AND BackupRequestedDate__c <= :rangeEnd)
-				OR (ConfirmedDate__c >= :lookbackStart AND ConfirmedDate__c <= :rangeEnd)
+				(PrimaryRequestedDate__c >= :rangeStart AND PrimaryRequestedDate__c <= :rangeEnd)
+				OR (BackupRequestedDate__c >= :rangeStart AND BackupRequestedDate__c <= :rangeEnd)
+				OR (ConfirmedDate__c >= :rangeStart AND ConfirmedDate__c <= :rangeEnd)
 			)
 		];
 		return requests;

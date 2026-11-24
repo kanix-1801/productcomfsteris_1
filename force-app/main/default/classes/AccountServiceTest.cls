@@ -301,15 +301,14 @@
             BillingPostalCode = '44114',
             BillingCountry = 'US'
         );
-        Account inactiveShipTo = new Account(
-            Name = 'Inactive Ship To',
+        Account noStatusShipTo = new Account(
+            Name = 'Ship To Without Active Status',
             ParentId = customer.Id,
             RecordTypeId = recordTypeId('Customer'),
             Type = 'Address',
-            ShiptoAddressStatus__c = 'Inactive',
             SourceSystemID__c = 'SHIPTO-INACTIVE-4786'
         );
-        insert new List<Account>{ activeShipTo, inactiveShipTo };
+        insert new List<Account>{ activeShipTo, noStatusShipTo };
 
         // When
         List<Account> matches = AccountService.getShipToAddressAccounts(customer.Id);

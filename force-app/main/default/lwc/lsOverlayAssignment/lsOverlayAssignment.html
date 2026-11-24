@@ -11,7 +11,27 @@
                     <div class="custom-modal-body">
                         <lightning-card title={cardTitle} icon-name="standard:team_member">
                             <div class="slds-p-around_small">
+                                <template if:true={isStepZero}>
+                                    <div class="slds-box slds-theme_default slds-m-bottom_medium">
+                                        <lightning-radio-group name="overlayType" label="Overlay Type"
+                                            options={overlayTypeOptions} value={overlayType}
+                                            onchange={handleOverlayTypeChange} required>
+                                        </lightning-radio-group>
+                                    </div>
+                                    <div class="button-group">
+                                        <lightning-button label="Next" variant="brand" onclick={handleOverlayTypeNext}
+                                            disabled={isOverlayTypeNextDisabled}></lightning-button>
+                                    </div>
+                                </template>
+
                                 <template if:true={isStepOne}>
+                                    <div class="slds-m-bottom_small">
+                                        <strong>Overlay Type:</strong> {overlayType} ({teamMemberRoleLabel})
+                                        <lightning-button variant="base" label="Change Overlay Type"
+                                            onclick={handleChangeOverlayType} class="slds-m-left_small">
+                                        </lightning-button>
+                                    </div>
+                                    <template if:false={isGadOverlay}>
                                     <div class="slds-box slds-theme_default slds-m-bottom_medium">
                                         <div class="section-header">
                                             <lightning-button-icon icon-name={territorySearchIconName} variant="bare"
@@ -62,13 +82,14 @@
                                             </template>
                                         </div>
                                     </template>
+                                    </template>
 
                                     <div class="slds-box slds-theme_default slds-m-bottom_medium">
                                         <div class="section-header">
                                             <lightning-button-icon icon-name={accountSearchIconName} variant="bare"
                                                 alternative-text="Toggle Account Search" onclick={toggleAccountSearchSection}>
                                             </lightning-button-icon>
-                                            <h3 class="slds-text-heading_small slds-m-left_x-small">Search Accounts</h3>
+                                            <h3 class="slds-text-heading_small slds-m-left_x-small">{accountSearchTitle}</h3>
                                         </div>
                                         <template if:false={isAccountSearchCollapsed}>
                                             <div class="account-search-row">
@@ -79,11 +100,13 @@
                                                         placeholder="Search by Account Name or Account Number">
                                                     </lightning-input>
                                                 </div>
+                                                <template if:false={isGadOverlay}>
                                                 <div class="account-type-field">
                                                     <lightning-combobox label="Account Type" value={accountType}
                                                         options={accountTypeOptions} onchange={handleAccountTypeChange}>
                                                     </lightning-combobox>
                                                 </div>
+                                                </template>
                                                 <lightning-button label="Search Accounts" variant="brand" onclick={handleSearchAccounts}
                                                     disabled={isSearchAccountsDisabled}>
                                                 </lightning-button>
@@ -112,7 +135,7 @@
                                                 <lightning-button-icon icon-name={selectedAccountsIconName} variant="bare"
                                                     alternative-text="Toggle Selected Accounts" onclick={toggleSelectedAccountsSection}>
                                                 </lightning-button-icon>
-                                                <h3 class="slds-text-heading_small slds-m-left_x-small">Selected Accounts</h3>
+                                                <h3 class="slds-text-heading_small slds-m-left_x-small">{selectedSearchAccountsTitle}</h3>
                                             </div>
                                             <template if:false={isSelectedAccountsCollapsed}>
                                                 <div class="pill-container">
@@ -222,7 +245,7 @@
                                         </div>
                                     </template>
                                     <div class="slds-m-top_medium button-group">
-                                        <lightning-button label="Back" onclick={goToStepTwo}></lightning-button>
+                                        <lightning-button label="Back" onclick={goBackFromUsers}></lightning-button>
                                         <lightning-button label="Review Summary" variant="brand" onclick={goToSummary}
                                             disabled={isSubmitDisabled}></lightning-button>
                                     </div>
@@ -234,10 +257,11 @@
                                     <table class="slds-table slds-table_cell-buffer slds-table_bordered slds-m-bottom_medium">
                                         <thead>
                                             <tr>
-                                                <th>Territory / Search Source</th>
+                                                <th>{summarySourceLabel}</th>
                                                 <th>Description</th>
                                                 <th>Selected Account Count</th>
                                                 <th>Selected Overlay Users</th>
+                                                <th>Account Team Role</th>
                                                 <th>Assignment Type</th>
                                             </tr>
                                         </thead>
@@ -251,6 +275,7 @@
                                                     <td>{row.territoryDescription}</td>
                                                     <td>{row.accountCount}</td>
                                                     <td>{row.selectedUsersText}</td>
+                                                    <td>{teamMemberRoleLabel}</td>
                                                     <td>{assignmentTypeLabel}</td>
                                                 </tr>
                                             </template>
@@ -263,6 +288,7 @@
                                                 <th>User</th>
                                                 <th>Country</th>
                                                 <th>Manager</th>
+                                                <th>Account Team Role</th>
                                                 <th>Assignment Type</th>
                                             </tr>
                                         </thead>
@@ -272,6 +298,7 @@
                                                     <td>{user.userName}</td>
                                                     <td>{user.country}</td>
                                                     <td>{user.managerName}</td>
+                                                    <td>{teamMemberRoleLabel}</td>
                                                     <td>{assignmentTypeLabel}</td>
                                                 </tr>
                                             </template>

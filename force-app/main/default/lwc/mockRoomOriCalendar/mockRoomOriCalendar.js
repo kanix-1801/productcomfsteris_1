@@ -76,9 +76,9 @@ export default class MockRoomOriCalendar extends LightningElement {
         return this.monthCursor.toLocaleString('en-US', { month: 'long', year: 'numeric' });
     }
 
-    /** Primary span uses the event duration. The backup date stays one day until it is confirmed. */
+    /** GC-3666. Only the primary and backup dates are held. Event duration is informational. */
     get selectedDates() {
-        return [...this.spanDates(this._primaryDate, this._eventDuration), ...this.spanDates(this._backupDate, 1)];
+        return [this._primaryDate, this._backupDate].filter(Boolean);
     }
 
     get dayCells() {
@@ -173,7 +173,7 @@ export default class MockRoomOriCalendar extends LightningElement {
 
     durationChanged(event) {
         this._eventDuration = toDuration(event.target.value);
-        this.refreshConflict();
+        this.publish();
     }
 
     @api
@@ -290,10 +290,6 @@ export default class MockRoomOriCalendar extends LightningElement {
             span = 'span-start';
         }
         return `bar blocked ${span}`;
-    }
-
-    spanDates(startIso, dayCount) {
-        return startIso ? Array.from({ length: dayCount }, (unused, offset) => this.shiftIso(startIso, offset)) : [];
     }
 
     shiftIso(iso, days) {

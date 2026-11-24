@@ -23,8 +23,7 @@ public with sharing class EmailInboundRoutesSelector {
 				SubjectContains__c,
 				IsActive__c
 			FROM EmailInboundRoute__mdt
-			WHERE DeveloperName = :REPAIR_CENTER_QUOTE
-				AND IsActive__c = true
+			WHERE DeveloperName = :REPAIR_CENTER_QUOTE AND IsActive__c = TRUE
 			LIMIT 1
 		];
 		return rows.isEmpty() ? null : rows[0];

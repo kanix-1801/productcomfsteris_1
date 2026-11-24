@@ -66,6 +66,22 @@ public inherited sharing class PlatformUtilities {
 	}
 
 	/**
+	 * @description GW-2707: Exception to throw from an @AuraEnabled method. An AuraHandledException (a message for
+	 *              the user) is returned as it is; any other exception becomes one with its readable message.
+	 * @param e Exception caught in the @AuraEnabled method
+	 * @return AuraHandledException
+	 * @example
+	 * } catch (Exception e) {
+	 * 	throw PlatformUtilities.toAuraException(e);
+	 * }
+	 */
+	public static AuraHandledException toAuraException(Exception e) {
+		return e instanceof AuraHandledException
+			? (AuraHandledException) e
+			: buildAuraException(resolveExceptionMessage(e));
+	}
+
+	/**
 	 * @description Returns active picklist entries for a field as Aura picklist options.
 	 * @param fieldToken SObject field token
 	 * @return Active picklist options
@@ -432,5 +448,21 @@ public inherited sharing class PlatformUtilities {
 			);
 		}
 		return String.join(cells, ',');
+	}
+
+	/**
+	 * @description GW-2707: First day of the next fiscal year after the given date, from the org's fiscal year
+	 *              start month. On the start day itself, the following year's start is returned.
+	 * @param fromDate Date to count from
+	 * @return Start date of the next fiscal year
+	 * @example
+	 * Date nextStart = PlatformUtilities.nextFiscalYearStart(Date.today());
+	 */
+	public static Date nextFiscalYearStart(Date fromDate) {
+		Organization org = (Organization) SoqlQueryBuilder.fromObject('Organization')
+			.selectField('FiscalYearStartMonth')
+			.first();
+		Date startDate = Date.newInstance(fromDate.year(), org.FiscalYearStartMonth, 1);
+		return fromDate < startDate ? startDate : startDate.addYears(1);
 	}
 }

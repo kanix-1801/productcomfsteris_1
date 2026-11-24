@@ -33,8 +33,6 @@ public with sharing class TechDistrictAlignmentService {
 	};
 	@TestVisible
 	private static final Integer MAX_ROWS = 2000;
-	@TestVisible
-	private static Date runDate = Date.today();
 	private static final Integer NAME_MAX_LENGTH = 80;
 	private static final String LOG_SCENARIO = 'Tech District Alignment';
 	private static final List<String> TERRITORY_FIELDS = new List<String>{
@@ -201,29 +199,6 @@ public with sharing class TechDistrictAlignmentService {
 	}
 
 	/**
-	 * @description First day of the next fiscal year, from the org's fiscal year start month: this year's start
-	 *              when it is still ahead, otherwise next year's.
-	 * @return Next fiscal year start date.
-	 */
-	@TestVisible
-	private static Date nextFiscalYearStart() {
-		Organization org = (Organization) SoqlQueryBuilder.fromObject('Organization')
-			.selectField('FiscalYearStartMonth')
-			.first();
-		Date thisYearStart = Date.newInstance(runDate.year(), org.FiscalYearStartMonth, 1);
-		return runDate < thisYearStart ? thisYearStart : thisYearStart.addYears(1);
-	}
-
-	/**
-	 * @description Midnight (running user's time zone) at the start of the next fiscal year.
-	 * @return Effective start date for new Service Territory Members.
-	 */
-	@TestVisible
-	private static Datetime nextFiscalYearStartDatetime() {
-		return Datetime.newInstance(nextFiscalYearStart(), Time.newInstance(0, 0, 0, 0));
-	}
-
-	/**
 	 * @description Processes the uploaded file, writes the error file and emails it to the running user.
 	 *              Side effects: inserts/updates ServiceTerritory and ServiceTerritoryMember records, adds a
 	 *              version to the user's error file, upserts the user-level custom setting and sends an email.
@@ -239,7 +214,7 @@ public with sharing class TechDistrictAlignmentService {
 			List<AlignmentRow> rows = toRows(table);
 			ProcessResult result = new ProcessResult();
 			result.processedCount = rows.size();
-			result.nextFiscalYearStart = nextFiscalYearStart();
+			result.nextFiscalYearStart = PlatformUtilities.nextFiscalYearStart(Date.today());
 			applyRows(rows, result);
 
 			for (AlignmentRow row : rows) {
@@ -356,7 +331,8 @@ public with sharing class TechDistrictAlignmentService {
 			}
 		}
 
-		Datetime startDatetime = nextFiscalYearStartDatetime();
+		// Midnight (running user's time zone) at the start of the next fiscal year.
+		Datetime startDatetime = Datetime.newInstance(result.nextFiscalYearStart, Time.newInstance(0, 0, 0, 0));
 		List<ServiceTerritoryMember> newMembers = new List<ServiceTerritoryMember>();
 		List<AlignmentRow> newMemberRows = new List<AlignmentRow>();
 		for (AlignmentRow row : rows) {

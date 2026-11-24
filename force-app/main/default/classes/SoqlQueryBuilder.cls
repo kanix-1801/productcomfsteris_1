@@ -106,12 +106,31 @@ public virtual with sharing class SoqlQueryBuilder {
 
 	/**
 	 * @description Adds an equality WHERE condition (field = value).
+	 *              A null value emits `field = NULL` (IS NULL), not a bound null.
 	 * @param field Field API name or dotted relationship path to filter on.
-	 * @param value Value to bind for this condition.
+	 * @param value Value to bind for this condition; null means IS NULL.
 	 * @return This builder, for chaining.
 	 */
 	public SoqlQueryBuilder whereEquals(String field, Object value) {
 		return whereField(field, '=', value);
+	}
+
+	/**
+	 * @description Adds `field = NULL` (open / blank field filter).
+	 * @param field Field API name or dotted relationship path to filter on.
+	 * @return This builder, for chaining.
+	 */
+	public SoqlQueryBuilder whereNull(String field) {
+		return whereEquals(field, null);
+	}
+
+	/**
+	 * @description Adds `field != NULL`.
+	 * @param field Field API name or dotted relationship path to filter on.
+	 * @return This builder, for chaining.
+	 */
+	public SoqlQueryBuilder whereNotNull(String field) {
+		return whereField(field, '!=', null);
 	}
 
 	/**

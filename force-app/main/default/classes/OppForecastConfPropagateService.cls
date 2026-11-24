@@ -258,7 +258,7 @@ public with sharing class OppForecastConfPropagateService {
 		}
 
 		if (quoteIds == null || quoteIds.isEmpty()) {
-			throw new AuraHandledException('Select at least one quote to propagate forecast confidence.');
+			throw new AuraHandledException('Select at least one quote to update forecast confidence.');
 		}
 
 		Opportunity opportunityRecord = [
@@ -272,7 +272,7 @@ public with sharing class OppForecastConfPropagateService {
 		];
 
 		if (opportunityRecord.ShowForecastConfidencePropagateBanner__c != true) {
-			throw new AuraHandledException('The forecast confidence propagation banner is no longer active.');
+			throw new AuraHandledException('The forecast confidence update banner is no longer active.');
 		}
 
 		String pendingQuoteForecastConfidence = opportunityRecord.PendingQuoteForecastConfidence__c;
@@ -322,7 +322,7 @@ public with sharing class OppForecastConfPropagateService {
 			);
 		} catch (Exception exceptionValue) {
 			ErrorLogger.logException(exceptionValue, CLASS_NAME, 'clearBannerFields');
-			throw new AuraHandledException('Unable to update the forecast confidence propagation banner.');
+			throw new AuraHandledException('Unable to update the forecast confidence banner.');
 		}
 	}
 

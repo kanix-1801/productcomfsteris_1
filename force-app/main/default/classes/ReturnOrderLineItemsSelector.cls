@@ -113,6 +113,33 @@ public with sharing class ReturnOrderLineItemsSelector extends SoqlQueryBuilder 
 	}
 
 	/**
+	* @description GW-5677 - Return Order lines used to build Additional Services Requested.
+	* @param returnOrderId Return Order Id
+	* @return All lines on the Return Order, ordered by line number
+	*/
+	public static List<ReturnOrderLineItem> selectAdditionalServicesByReturnOrderId(Id returnOrderId) {
+		if (returnOrderId == null) {
+			return new List<ReturnOrderLineItem>();
+		}
+		return [
+			SELECT
+				Id,
+				ReturnOrderLineItemNumber,
+				ItemDescription__c,
+				AdditionalServiceRepair__c,
+				ColorDipping__c,
+				NumberOfRings__c,
+				InsulationPowderCoating__c,
+				LaserMarking__c,
+				LegPositionersStirrup__c
+			FROM ReturnOrderLineItem
+			WHERE ReturnOrderId = :returnOrderId
+			WITH USER_MODE
+			ORDER BY ReturnOrderLineItemNumber
+		];
+	}
+
+	/**
 	 * @description GW-1509 - Open Return Order lines for an Asset (Create Return Order warning).
 	 * @param assetId Asset Id
 	 * @param closedStatuses Return Order statuses treated as closed
@@ -142,30 +169,4 @@ public with sharing class ReturnOrderLineItemsSelector extends SoqlQueryBuilder 
 			.execute();
 	}
 
-	/**
-	 * @description GW-5677 - Return Order lines used to build Additional Services Requested.
-	 * @param returnOrderId Return Order Id
-	 * @return All lines on the Return Order, ordered by line number
-	 */
-	public static List<ReturnOrderLineItem> selectAdditionalServicesByReturnOrderId(Id returnOrderId) {
-		if (returnOrderId == null) {
-			return new List<ReturnOrderLineItem>();
-		}
-		return [
-			SELECT
-				Id,
-				ReturnOrderLineItemNumber,
-				ItemDescription__c,
-				AdditionalServiceRepair__c,
-				ColorDipping__c,
-				NumberOfRings__c,
-				InsulationPowderCoating__c,
-				LaserMarking__c,
-				LegPositionersStirrup__c
-			FROM ReturnOrderLineItem
-			WHERE ReturnOrderId = :returnOrderId
-			WITH USER_MODE
-			ORDER BY ReturnOrderLineItemNumber
-		];
-	}
 }

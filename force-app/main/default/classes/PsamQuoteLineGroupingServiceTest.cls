@@ -87,10 +87,10 @@ private class PsamQuoteLineGroupingServiceTest {
     @IsTest
     static void testBuildGroupedSummaryGroupsByPsamSubgroupDetailName() {
         List<QuoteLineItem> quoteLineItems = new List<QuoteLineItem>{
-            buildQuoteLine('QL-001', 'AER Product 027', '027', 1, 100),
-            buildQuoteLine('QL-002', 'AER Product 045', '045', 2, 50),
-            buildQuoteLine('QL-003', 'Barrier Product 700', '700', 1, 200),
-            buildQuoteLine('QL-004', 'Barrier Product 703', '703', 3, 25)
+            withExtendedPrice(buildQuoteLine('QL-001', 'AER Product 027', '027', 1, 100), 100),
+            withExtendedPrice(buildQuoteLine('QL-002', 'AER Product 045', '045', 2, 50), 100),
+            withExtendedPrice(buildQuoteLine('QL-003', 'Barrier Product 700', '700', 1, 200), 200),
+            withExtendedPrice(buildQuoteLine('QL-004', 'Barrier Product 703', '703', 3, 25), 75)
         };
 
         Test.startTest();
@@ -216,6 +216,14 @@ private class PsamQuoteLineGroupingServiceTest {
         productRecord.putSObject(ProductPsamLookupService.PRODUCT_PSAM_RELATIONSHIP, psamRecord);
         quoteLineItem.PricebookEntry = new PricebookEntry(Product2 = productRecord);
         return quoteLineItem;
+    }
+
+    private static QuoteLineItem withExtendedPrice(QuoteLineItem quoteLineItem, Decimal extendedPrice) {
+        Map<String, Object> fieldValues = (Map<String, Object>) JSON.deserializeUntyped(
+            JSON.serialize(quoteLineItem)
+        );
+        fieldValues.put('LS_ExtendedPrice__c', extendedPrice);
+        return (QuoteLineItem) JSON.deserialize(JSON.serialize(fieldValues), QuoteLineItem.class);
     }
 
     private static QuoteLineItem buildQuoteLine(

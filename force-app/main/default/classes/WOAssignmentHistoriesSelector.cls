@@ -58,6 +58,36 @@ public with sharing class WOAssignmentHistoriesSelector {
 	}
 
 	/**
+	 * @description GW-5287 - Open assignment history for many Work Orders (EndDateTime null),
+	 *              including Technician/Rack names for View Work Order Summary. USER_MODE.
+	 * @param workOrderIds Child Work Order Ids
+	 * @return Open WAH rows ordered by StartDateTime descending; empty when input blank
+	 */
+	public static List<WOAssignmentHistory__c> selectOpenByWorkOrderIds(Set<Id> workOrderIds) {
+		if (workOrderIds == null || workOrderIds.isEmpty()) {
+			return new List<WOAssignmentHistory__c>();
+		}
+		return (List<WOAssignmentHistory__c>) SoqlQueryBuilder.fromObject('WOAssignmentHistory__c')
+			.selectFields(
+				new List<String>{
+					'Id',
+					'WorkOrder__c',
+					'Type__c',
+					'StartDateTime__c',
+					'EndDateTime__c',
+					'Technician__c',
+					'Technician__r.Name',
+					'Rack__c',
+					'Rack__r.Name'
+				}
+			)
+			.whereField('WorkOrder__c', 'IN', new List<Id>(workOrderIds))
+			.whereNull('EndDateTime__c')
+			.orderByDesc('StartDateTime__c')
+			.execute();
+	}
+
+	/**
 	 * @description GW-3891 - Most recent closed Technician assignment for a Work Order.
 	 */
 	public static List<WOAssignmentHistory__c> selectMostRecentClosedByWorkOrderIdAndType(

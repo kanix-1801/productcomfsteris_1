@@ -32,7 +32,8 @@ public with sharing class WorkOrderSummaryService {
 		'ReturnOrderId',
 		'ReturnOrder.ReturnOrderNumber',
 		'ReturnOrder__c',
-		'ReturnOrder__r.ReturnOrderNumber'
+		'ReturnOrder__r.ReturnOrderNumber',
+		'RecordType.DeveloperName'
 	};
 
 	private static final List<String> CHILD_FIELDS = new List<String>{
@@ -55,17 +56,6 @@ public with sharing class WorkOrderSummaryService {
 		'Asset.Product2.DeviceType__c'
 	};
 
-	private static final List<String> WAH_FIELDS = new List<String>{
-		'Id',
-		'WorkOrder__c',
-		'Type__c',
-		'StartDateTime__c',
-		'Technician__c',
-		'Technician__r.Name',
-		'Rack__c',
-		'Rack__r.Name'
-	};
-
 	private static final List<String> INSTRUMENT_LINE_FIELDS = new List<String>{
 		'Id',
 		'WorkOrderId',
@@ -82,35 +72,27 @@ public with sharing class WorkOrderSummaryService {
 	 */
 	public static WorkOrderSummaryWorkspace getSummary(String workOrderInput) {
 		Logger.setScenario('Work Order Summary');
-		try {
-			if (String.isBlank(workOrderInput)) {
-				throw new WorkOrderSummaryServiceException(INVALID_INPUT_MESSAGE);
-			}
-			WorkOrder scanned = resolveScannedWorkOrder(workOrderInput.trim());
-			if (scanned == null || !isAllowedRecordType(scanned.RecordType?.DeveloperName)) {
-				throw new WorkOrderSummaryServiceException(INVALID_INPUT_MESSAGE);
-			}
-
-			Id parentId = scanned.ParentWorkOrderId != null ? scanned.ParentWorkOrderId : scanned.Id;
-			WorkOrder parent = queryParent(parentId);
-			if (parent == null || !isAllowedRecordType(parent.RecordType?.DeveloperName)) {
-				throw new WorkOrderSummaryServiceException(INVALID_INPUT_MESSAGE);
-			}
-
-			List<WorkOrder> children = queryChildren(parent.Id);
-			Map<Id, AssignmentDisplay> assignmentByWorkOrderId = mapOpenAssignments(children);
-			Map<Id, List<InstrumentLineRow>> instrumentLinesByWorkOrderId =
-				mapInstrumentLines(children);
-
-			return buildWorkspace(parent, children, assignmentByWorkOrderId, instrumentLinesByWorkOrderId);
-		} catch (WorkOrderSummaryServiceException e) {
-			throw e;
-		} catch (Exception e) {
-			Logger.error('WorkOrderSummaryService.getSummary failed.', e);
-			throw new WorkOrderSummaryServiceException(INVALID_INPUT_MESSAGE, e);
-		} finally {
-			Logger.saveLog();
+		if (String.isBlank(workOrderInput)) {
+			throw new WorkOrderSummaryServiceException(INVALID_INPUT_MESSAGE);
 		}
+		WorkOrder scanned = resolveScannedWorkOrder(workOrderInput.trim());
+		if (scanned == null || !isAllowedRecordType(scanned.RecordType?.DeveloperName)) {
+			throw new WorkOrderSummaryServiceException(INVALID_INPUT_MESSAGE);
+		}
+
+		Id parentId = scanned.ParentWorkOrderId != null ? scanned.ParentWorkOrderId : scanned.Id;
+		WorkOrder parent = queryParent(parentId);
+		if (parent == null || !isAllowedRecordType(parent.RecordType?.DeveloperName)) {
+			throw new WorkOrderSummaryServiceException(INVALID_INPUT_MESSAGE);
+		}
+
+		List<WorkOrder> children = queryChildren(parent.Id);
+		return buildWorkspace(
+			parent,
+			children,
+			mapOpenAssignments(children),
+			mapInstrumentLines(children)
+		);
 	}
 
 	private static WorkOrder resolveScannedWorkOrder(String workOrderInput) {
@@ -142,10 +124,8 @@ public with sharing class WorkOrderSummaryService {
 	}
 
 	private static WorkOrder queryParent(Id parentId) {
-		List<String> fields = new List<String>(PARENT_FIELDS);
-		fields.add('RecordType.DeveloperName');
 		List<WorkOrder> rows = (List<WorkOrder>) new WorkOrdersSelector()
-			.selectFields(fields)
+			.selectFields(PARENT_FIELDS)
 			.whereEquals('Id', parentId)
 			.limitTo(1)
 			.execute();
@@ -170,7 +150,7 @@ public with sharing class WorkOrderSummaryService {
 	 */
 	private static Map<Id, AssignmentDisplay> mapOpenAssignments(List<WorkOrder> children) {
 		Map<Id, AssignmentDisplay> result = new Map<Id, AssignmentDisplay>();
-		if (children == null || children.isEmpty()) {
+		if (children.isEmpty()) {
 			return result;
 		}
 
@@ -181,48 +161,31 @@ public with sharing class WorkOrderSummaryService {
 			result.put(child.Id, new AssignmentDisplay());
 		}
 
-		// EndDateTime__c = NULL is not reliably expressed via SoqlQueryBuilder binds.
-		Map<String, Object> binds = new Map<String, Object>{ 'workOrderIds' => workOrderIds };
-		List<WOAssignmentHistory__c> openRows = Database.queryWithBinds(
-			'SELECT Id, WorkOrder__c, Type__c, StartDateTime__c, Technician__c, Technician__r.Name, ' +
-				'Rack__c, Rack__r.Name ' +
-				'FROM WOAssignmentHistory__c ' +
-				'WHERE WorkOrder__c IN :workOrderIds AND EndDateTime__c = NULL ' +
-				'ORDER BY StartDateTime__c DESC',
-			binds,
-			AccessLevel.USER_MODE
-		);
+		List<WOAssignmentHistory__c> openRows =
+			WOAssignmentHistoriesSelector.selectOpenByWorkOrderIds(workOrderIds);
 
 		for (WOAssignmentHistory__c row : openRows) {
 			AssignmentDisplay display = result.get(row.WorkOrder__c);
-			if (display == null) {
-				continue;
-			}
 			workOrdersWithOpenHistory.add(row.WorkOrder__c);
 			if (TYPE_TECHNICIAN.equals(row.Type__c) && String.isBlank(display.currentTechnician)) {
-				display.currentTechnician = row.Technician__r != null ? row.Technician__r.Name : null;
+				display.currentTechnician = row.Technician__r?.Name;
 			} else if (TYPE_RACK.equals(row.Type__c) && String.isBlank(display.currentLocation)) {
-				// Rack history fills Current Rack only; Current Technician stays blank from this path.
-				display.currentLocation = row.Rack__r != null ? row.Rack__r.Name : null;
+				display.currentLocation = row.Rack__r?.Name;
 			}
 		}
 
 		for (WorkOrder child : children) {
-			if (workOrdersWithOpenHistory.contains(child.Id)) {
+			if (workOrdersWithOpenHistory.contains(child.Id) || child.Rack__c == null) {
 				continue;
 			}
-			AssignmentDisplay display = result.get(child.Id);
-			if (display == null || child.Rack__c == null) {
-				continue;
-			}
-			display.currentLocation = child.Rack__r != null ? child.Rack__r.Name : null;
+			result.get(child.Id).currentLocation = child.Rack__r?.Name;
 		}
 		return result;
 	}
 
 	private static Map<Id, List<InstrumentLineRow>> mapInstrumentLines(List<WorkOrder> children) {
 		Map<Id, List<InstrumentLineRow>> result = new Map<Id, List<InstrumentLineRow>>();
-		if (children == null || children.isEmpty()) {
+		if (children.isEmpty()) {
 			return result;
 		}
 
@@ -246,18 +209,18 @@ public with sharing class WorkOrderSummaryService {
 			.execute();
 
 		for (WorkOrderLineItem line : lines) {
-			List<InstrumentLineRow> rows = result.get(line.WorkOrderId);
-			if (rows == null) {
-				continue;
-			}
-			InstrumentLineRow row = new InstrumentLineRow();
-			row.itemNumber = line.Product2 != null ? line.Product2.ProductCode : null;
-			row.subProductLine = line.Product2 != null ? line.Product2.SubProductLine__c : null;
-			row.deviceType = line.Product2 != null ? line.Product2.DeviceType__c : null;
-			row.quantity = line.Quantity;
-			rows.add(row);
+			result.get(line.WorkOrderId).add(toInstrumentLineRow(line));
 		}
 		return result;
+	}
+
+	private static InstrumentLineRow toInstrumentLineRow(WorkOrderLineItem line) {
+		InstrumentLineRow row = new InstrumentLineRow();
+		row.itemNumber = line.Product2?.ProductCode;
+		row.subProductLine = line.Product2?.SubProductLine__c;
+		row.deviceType = line.Product2?.DeviceType__c;
+		row.quantity = line.Quantity;
+		return row;
 	}
 
 	private static WorkOrderSummaryWorkspace buildWorkspace(
@@ -269,21 +232,16 @@ public with sharing class WorkOrderSummaryService {
 		WorkOrderSummaryWorkspace workspace = new WorkOrderSummaryWorkspace();
 		workspace.parentWorkOrderId = parent.Id;
 		workspace.parentWorkOrderNumber = parent.WorkOrderNumber;
-		workspace.parentRecordTypeDeveloperName = parent.RecordType != null
-			? parent.RecordType.DeveloperName
-			: null;
+		workspace.parentRecordTypeDeveloperName = parent.RecordType?.DeveloperName;
 		workspace.returnOrderNumber = resolveReturnOrderNumber(parent);
 		workspace.scheduledShipDate = parent.ScheduledShipDate__c;
 		workspace.quantityReceived = parent.QuantityReceived__c;
 		workspace.shipComplete = parent.ShipComplete__c == true;
 		workspace.priorityRepair = parent.IsPriorityRepair__c == true;
 		workspace.statusCounts = buildStatusCounts(children);
-		workspace.totalChildWorkOrders = children == null ? 0 : children.size();
+		workspace.totalChildWorkOrders = children.size();
 		workspace.children = new List<ChildWorkOrderSummary>();
 
-		if (children == null) {
-			return workspace;
-		}
 		for (WorkOrder child : children) {
 			ChildWorkOrderSummary childSummary = new ChildWorkOrderSummary();
 			childSummary.workOrderId = child.Id;
@@ -296,19 +254,15 @@ public with sharing class WorkOrderSummaryService {
 			childSummary.scheduledShipDate = child.ScheduledShipDate__c;
 
 			AssignmentDisplay assignment = assignmentByWorkOrderId.get(child.Id);
-			if (assignment != null) {
-				childSummary.currentTechnician = assignment.currentTechnician;
-				childSummary.currentLocation = assignment.currentLocation;
-			}
+			childSummary.currentTechnician = assignment.currentTechnician;
+			childSummary.currentLocation = assignment.currentLocation;
 
 			if (child.AssetId != null) {
 				childSummary.hasAsset = true;
 				childSummary.assetRows = new List<AssetRow>{ buildAssetRow(child) };
 			} else {
 				childSummary.hasAsset = false;
-				childSummary.instrumentRows = instrumentLinesByWorkOrderId.containsKey(child.Id)
-					? instrumentLinesByWorkOrderId.get(child.Id)
-					: new List<InstrumentLineRow>();
+				childSummary.instrumentRows = instrumentLinesByWorkOrderId.get(child.Id);
 			}
 			workspace.children.add(childSummary);
 		}
@@ -317,27 +271,23 @@ public with sharing class WorkOrderSummaryService {
 
 	private static AssetRow buildAssetRow(WorkOrder child) {
 		AssetRow row = new AssetRow();
-		row.serialNumber = child.Asset != null ? child.Asset.SerialNumber : null;
-		row.model = child.Asset != null ? child.Asset.ModelCalculated__c : null;
-		if (child.Asset != null && child.Asset.Product2 != null) {
-			row.itemNumber = child.Asset.Product2.ProductCode;
-			row.productLine = child.Asset.Product2.ProductLine__c;
-			row.subProductLine = child.Asset.Product2.SubProductLine__c;
-			row.deviceType = child.Asset.Product2.DeviceType__c;
-		}
+		row.serialNumber = child.Asset?.SerialNumber;
+		row.model = child.Asset?.ModelCalculated__c;
+		row.itemNumber = child.Asset?.Product2?.ProductCode;
+		row.productLine = child.Asset?.Product2?.ProductLine__c;
+		row.subProductLine = child.Asset?.Product2?.SubProductLine__c;
+		row.deviceType = child.Asset?.Product2?.DeviceType__c;
 		return row;
 	}
 
 	private static List<StatusCount> buildStatusCounts(List<WorkOrder> children) {
 		Map<String, Integer> countsByStatus = new Map<String, Integer>();
-		if (children != null) {
-			for (WorkOrder child : children) {
-				String statusKey = String.isBlank(child.Status) ? 'Unknown' : child.Status;
-				Integer currentCount = countsByStatus.containsKey(statusKey)
-					? countsByStatus.get(statusKey)
-					: 0;
-				countsByStatus.put(statusKey, currentCount + 1);
-			}
+		for (WorkOrder child : children) {
+			String statusKey = String.isBlank(child.Status) ? 'Unknown' : child.Status;
+			Integer currentCount = countsByStatus.containsKey(statusKey)
+				? countsByStatus.get(statusKey)
+				: 0;
+			countsByStatus.put(statusKey, currentCount + 1);
 		}
 
 		List<StatusCount> statusCounts = new List<StatusCount>();
@@ -351,13 +301,10 @@ public with sharing class WorkOrderSummaryService {
 	}
 
 	private static String resolveReturnOrderNumber(WorkOrder parent) {
-		if (parent.ReturnOrder != null && String.isNotBlank(parent.ReturnOrder.ReturnOrderNumber)) {
+		if (String.isNotBlank(parent.ReturnOrder?.ReturnOrderNumber)) {
 			return parent.ReturnOrder.ReturnOrderNumber;
 		}
-		if (
-			parent.ReturnOrder__r != null &&
-			String.isNotBlank(parent.ReturnOrder__r.ReturnOrderNumber)
-		) {
+		if (String.isNotBlank(parent.ReturnOrder__r?.ReturnOrderNumber)) {
 			return parent.ReturnOrder__r.ReturnOrderNumber;
 		}
 		return null;

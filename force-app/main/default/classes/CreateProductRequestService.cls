@@ -156,7 +156,7 @@ public with sharing class CreateProductRequestService {
         }
         WorkOrder workOrder = request.workOrderId == null
             ? null
-            : WorkOrderSelector.selectForProductRequest(request.workOrderId);
+            : WorkOrdersSelector.selectForProductRequest(request.workOrderId);
         if (request.workOrderId != null && workOrder == null) {
             throw new CreateProductRequestException(Label.CreateProductRequest_WorkOrderNotFound);
         }
@@ -294,7 +294,7 @@ public with sharing class CreateProductRequestService {
             context.hasWorkOrder = false;
             return null;
         }
-        WorkOrder workOrder = WorkOrderSelector.selectForProductRequest(workOrderId);
+        WorkOrder workOrder = WorkOrdersSelector.selectForProductRequest(workOrderId);
         if (workOrder == null) {
             context.blockMessage = Label.CreateProductRequest_WorkOrderNotFound;
             return null;

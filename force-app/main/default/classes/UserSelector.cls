@@ -381,6 +381,40 @@ public without sharing class UserSelector {
 	}
 
     /**
+     * @description Life Sciences overlay type - Active Life Sciences Sales users among the given Ids
+     *              who hold one of the permission sets or permission set groups.
+     *              Does not use USER_MODE for the same ProfileId reason as the search.
+     * @param userIds User Ids to check.
+     * @param permissionSetNames PermissionSet.Name values assigned directly.
+     * @param permissionSetGroupNames PermissionSetGroup.DeveloperName values.
+     * @return Matching user Ids. Empty when no Ids or no permission names are given.
+     */
+	public static Set<Id> selectActiveLifeSciencesUserIdsWithPermissionSets(
+		Set<Id> userIds,
+		Set<String> permissionSetNames,
+		Set<String> permissionSetGroupNames
+	) {
+		Set<Id> matchingUserIds = new Set<Id>();
+		Set<String> setNames = permissionSetNames == null ? new Set<String>() : permissionSetNames;
+		Set<String> groupNames = permissionSetGroupNames == null ? new Set<String>() : permissionSetGroupNames;
+		if (userIds == null || userIds.isEmpty() || (setNames.isEmpty() && groupNames.isEmpty())) {
+			return matchingUserIds;
+		}
+		Id lifeSciencesProfileId = getLifeSciencesSalesProfileIdForOverlay();
+		for (PermissionSetAssignment assignment : [
+			SELECT AssigneeId
+			FROM PermissionSetAssignment
+			WHERE AssigneeId IN :userIds
+			AND Assignee.IsActive = true
+			AND Assignee.ProfileId = :lifeSciencesProfileId
+			AND (PermissionSet.Name IN :setNames OR PermissionSetGroup.DeveloperName IN :groupNames)
+		]) {
+			matchingUserIds.add(assignment.AssigneeId);
+		}
+		return matchingUserIds;
+	}
+
+    /**
      * @description GCL-79 - Life Sciences Sales profile Id for the overlay.
      *              Runs without USER_MODE because the BSA persona cannot read the Profile object.
      *              getLifeSciencesSalesProfileId stays on the user-mode query builder.

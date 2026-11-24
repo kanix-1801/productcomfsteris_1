@@ -229,7 +229,7 @@ export default class OpportunityForecastConfidenceBanner extends LightningElemen
         } catch (error) {
             this.dispatchEvent(
                 new ShowToastEvent({
-                    title: 'Error propagating forecast confidence',
+                    title: 'Error updating forecast confidence',
                     message: this.reduceErrors(error),
                     variant: 'error'
                 })

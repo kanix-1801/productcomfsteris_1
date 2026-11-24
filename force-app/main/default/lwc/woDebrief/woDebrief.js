@@ -37,6 +37,7 @@ import updateMobileDevicePictureComment from '@salesforce/apex/WoDebriefIMSchild
 import resolveMobilePictureRecordId from '@salesforce/apex/WoDebriefIMSchildWOController.resolveMobilePictureRecordId';
 import findLatestProductServicedLineId from '@salesforce/apex/WoDebriefIMSchildWOController.findLatestProductServicedLineId';
 import checkWorkOrderReview from '@salesforce/apex/WoDebriefCrssReviewController.checkWorkOrderReview';
+import listSatisfiedLineIds from '@salesforce/apex/WoDebriefPmiInspectionController.listSatisfiedLineIds';
 import WO_REVIEW_DONE from '@salesforce/schema/WorkOrder.WorkOrderReviewDone__c';
 import WO_STATUS from '@salesforce/schema/WorkOrder.Status';
 import SA_STATUS from '@salesforce/schema/ServiceAppointment.Status';
@@ -472,6 +473,7 @@ const INSPECTION_OUTCOME_OPTIONS = [
 ];
 
 const DO_NOT_USE_P0 = 'Do Not Use(P0)';
+const NOT_AVAILABLE_OUTCOME = 'Not Available';
 const LINE_STATUS_CANCELED = 'Canceled';
 const LINE_STATUS_COMPLETED = 'Completed';
 const LINE_STATUS_NEW = 'New';
@@ -540,6 +542,14 @@ export default class WoDebrief extends LightningElement {
 	_resolveMissingPicturesPrompt = null;
 	_workOrder      = null;
 	_serverLines    = [];
+	/** @description GW-259 - Product Serviced line ids whose PMI checklist is satisfied. */
+	_pmiSatisfiedLineIds = new Set();
+	/** @description GW-259 - True after the checklist status call returns. */
+	_pmiChecklistLoaded = false;
+	/** @description GW-259 - Ignores a checklist status response that started before a newer load or save. */
+	_pmiChecklistRequest = 0;
+	/** @description GW-259 - Bumps line rendering after the checklist status changes. */
+	pmiChecklistEpoch = 0;
 	_serverExpenses = [];
 	_serverExpensesFromGraphql = [];
 	_serverExpensesFromRelatedList = [];
@@ -794,6 +804,7 @@ export default class WoDebrief extends LightningElement {
 				this._seedRepairCodeNameCache(this._serverLines);
 				this._syncPictureLineRegistry();
 				this._loadMobileDevicePictures();
+				this._refreshPmiChecklist();
 			}
 		}
 	}
@@ -2391,6 +2402,7 @@ export default class WoDebrief extends LightningElement {
 			notInspectedReason: state.notInspectedReason ?? edit?.notInspectedReason ?? savedRepair.notInspectedReason
 		};
 		const isComplete = this._isProductServicedComplete({
+			lineId: l.Id,
 			assetId,
 			assignedResourceId: assignedResId,
 			inspectionOutcome: outcomeText,
@@ -2405,6 +2417,7 @@ export default class WoDebrief extends LightningElement {
 			isTimeSchema: false,
 			isExpenseSchema: false,
 			isProductServicedSchema: true,
+			showInspectionButton: Boolean(assetId),
 			isAssetTimeSchema: false,
 			title,
 			metaLine: this._fmtProductServicedMeta(inspectionOutcome, assignedResName),
@@ -2473,6 +2486,7 @@ export default class WoDebrief extends LightningElement {
 			notInspectedReason: state.notInspectedReason ?? a.notInspectedReason
 		};
 		const isComplete = this._isProductServicedComplete({
+			lineId: a._tempId,
 			_bulkAssetLink: a._bulkAssetLink,
 			assetId,
 			assignedResourceId: assignedResId,
@@ -2488,6 +2502,7 @@ export default class WoDebrief extends LightningElement {
 			isTimeSchema: false,
 			isExpenseSchema: false,
 			isProductServicedSchema: true,
+			showInspectionButton: Boolean(assetId),
 			isAssetTimeSchema: false,
 			title: assetSerial || assetName || 'Product Serviced',
 			metaLine: (a._bulkAssetLink && assetSerial && assetName)
@@ -3704,6 +3719,7 @@ export default class WoDebrief extends LightningElement {
 				lineStatus: addPayload.canceled === true
 					? LINE_STATUS_CANCELED
 					: this._isProductServicedComplete({
+						lineId: null,
 						assetId: addPayload.assetId,
 						assignedResourceId,
 						inspectionOutcome: addPayload.inspectionOutcome,
@@ -5476,12 +5492,145 @@ export default class WoDebrief extends LightningElement {
 		}
 		const outcome = source.inspectionOutcome == null ? '' : String(source.inspectionOutcome).trim();
 		if (!outcome) return false;
-		if (outcome !== DO_NOT_USE_P0) return true;
-		return !!String(source.serialNumber || '').trim()
-			&& !!String(source.model || '').trim()
-			&& !!source.departmentId
-			&& !!String(source.reportedProblem || '').trim()
-			&& !!String(source.notInspectedReason || '').trim();
+		if (outcome === DO_NOT_USE_P0) {
+			const repairReady = !!String(source.serialNumber || '').trim()
+				&& !!String(source.model || '').trim()
+				&& !!source.departmentId
+				&& !!String(source.reportedProblem || '').trim()
+				&& !!String(source.notInspectedReason || '').trim();
+			if (!repairReady) return false;
+		}
+		return this._productServicedChecklistReady(source, outcome);
+	}
+
+	/**
+	 * @description GW-259 - A Product Serviced line needs a saved PMI checklist unless the outcome is Not Available.
+	 * @param {Object} source Line values
+	 * @param {string} outcome Inspection Outcome
+	 * @return {boolean}
+	 */
+	_productServicedChecklistReady(source, outcome) {
+		this.pmiChecklistEpoch;
+		if (outcome === NOT_AVAILABLE_OUTCOME) {
+			return true;
+		}
+		if (!this._pmiChecklistLoaded) {
+			return true;
+		}
+		const lineId = source?.lineId;
+		if (!this._isSavedLineId(lineId)) {
+			return false;
+		}
+		return this._pmiSatisfiedLineIds.has(lineId);
+	}
+
+	/**
+	 * @description GW-259 - True when the id is a Salesforce record id.
+	 * @param {string} lineId Line id
+	 * @return {boolean}
+	 */
+	_isSavedLineId(lineId) {
+		if (!lineId || lineId.startsWith('_new_') || lineId.startsWith('local_')) {
+			return false;
+		}
+		return /^[a-zA-Z0-9]{15,18}$/.test(lineId);
+	}
+
+	/**
+	 * @description GW-259 - Loads which Product Serviced lines already have a completed PMI checklist.
+	 */
+	async _refreshPmiChecklist() {
+		if (!this.recordId) {
+			return;
+		}
+		const request = ++this._pmiChecklistRequest;
+		try {
+			const ids = await listSatisfiedLineIds({ workOrderId: this.recordId });
+			if (request !== this._pmiChecklistRequest) {
+				return;
+			}
+			this._pmiSatisfiedLineIds = new Set(ids || []);
+			this._pmiChecklistLoaded = true;
+			this.pmiChecklistEpoch += 1;
+		} catch (error) {
+			if (request !== this._pmiChecklistRequest) {
+				return;
+			}
+			this._pmiChecklistLoaded = false;
+			// eslint-disable-next-line no-console
+			console.error('woDebrief PMI checklist status failed', error);
+		}
+	}
+
+	/**
+	 * @description GW-259 - Opens the inspection checklist for a saved Product Serviced line.
+	 * @param {Event} event Inspection button click
+	 */
+	handleOpenPmiInspection(event) {
+		event.stopPropagation();
+		const lineId = event.currentTarget?.dataset?.id;
+		if (!this._isSavedLineId(lineId)) {
+			this._toast(
+				'Save the line',
+				'Save the Product Serviced line before opening Inspection.',
+				'warning'
+			);
+			return;
+		}
+		this.template.querySelector('c-wo-debrief-pmi-inspection')?.open(lineId);
+	}
+
+	/**
+	 * @description GW-259 - Applies a saved checklist to the line outcome and completion state.
+	 * @param {CustomEvent} event Inspection saved
+	 */
+	handlePmiInspectionSaved(event) {
+		const detail = event.detail || {};
+		const lineId = detail.workOrderLineItemId;
+		if (!lineId) {
+			return;
+		}
+		if (detail.inspectionOutcome) {
+			this._applyPmiInspectionOutcome(lineId, detail.inspectionOutcome);
+		}
+		if (detail.checklistComplete) {
+			this._pmiSatisfiedLineIds.add(lineId);
+		} else {
+			this._pmiSatisfiedLineIds.delete(lineId);
+		}
+		this._pmiChecklistRequest += 1;
+		this._pmiChecklistLoaded = true;
+		this.pmiChecklistEpoch += 1;
+	}
+
+	/**
+	 * @description GW-259 - Shows the Inspection Outcome written by the checklist save.
+	 * @param {string} lineId Product Serviced line Id
+	 * @param {string} inspectionOutcome Outcome stored on the line
+	 */
+	_applyPmiInspectionOutcome(lineId, inspectionOutcome) {
+		if (this._pendingEdits[lineId]) {
+			this._stageEdit(lineId, 'inspectionOutcome', inspectionOutcome);
+		}
+		const state = this.editStateMap[lineId];
+		if (state) {
+			this.editStateMap = {
+				...this.editStateMap,
+				[lineId]: { ...state, inspectionOutcome }
+			};
+		}
+		this._serverLines = (this._serverLines || []).map((line) => {
+			if (line.Id !== lineId) {
+				return line;
+			}
+			return {
+				...line,
+				InspectionOutcome__c: {
+					...(line.InspectionOutcome__c || {}),
+					value: inspectionOutcome
+				}
+			};
+		});
 	}
 
 	/**
@@ -5520,7 +5669,7 @@ export default class WoDebrief extends LightningElement {
 		) {
 			return;
 		}
-		if (this._isProductServicedComplete(source)) {
+		if (this._isProductServicedComplete({ ...source, lineId })) {
 			if (source.lineStatus !== LINE_STATUS_COMPLETED) {
 				this._stageEdit(lineId, 'lineStatus', LINE_STATUS_COMPLETED);
 			}

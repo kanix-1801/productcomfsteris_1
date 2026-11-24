@@ -749,8 +749,8 @@ public with sharing class AccountSelector extends SoqlQueryBuilder {
 	}
 
 	/**
-	 * @description GCL-79 - Child accounts under the given Life Sciences Customer accounts.
-	 * @param parentIds Customer Account Ids.
+	 * @description GCL-79 - Child accounts under the given Life Sciences Customer or Global accounts.
+	 * @param parentIds Parent Account Ids.
 	 * @return Child accounts. The caller decides which types to keep.
 	 */
 	public static List<Account> selectLifeSciencesChildAccounts(Set<Id> parentIds) {
@@ -758,9 +758,51 @@ public with sharing class AccountSelector extends SoqlQueryBuilder {
 			return new List<Account>();
 		}
 		return [
-			SELECT Id, Type, OracleAddressId__c
+			SELECT Id, Type, ParentId, OracleAddressId__c
 			FROM Account
 			WHERE ParentId IN :parentIds
+			WITH USER_MODE
+		];
+	}
+
+	/**
+	 * @description Life Sciences GAD overlay - Global Accounts whose name or number matches.
+	 *              Every GlobalAccount record type account is returned. Class code is not filtered.
+	 * @param searchTerm Bound LIKE term, including the percent wildcards.
+	 * @param rowLimit Maximum rows to return.
+	 * @return Matching Global Accounts.
+	 */
+	public static List<Account> selectGlobalAccountsBySearch(String searchTerm, Integer rowLimit) {
+		if (String.isBlank(searchTerm) || rowLimit == null || rowLimit <= 0) {
+			return new List<Account>();
+		}
+		return [
+			SELECT Id, Name, AccountNumber, Type, ParentId, Parent.Name, OracleAddressId__c,
+				   BillingStreet, BillingCity, BillingState, BillingPostalCode, BillingCountry
+			FROM Account
+			WHERE RecordType.DeveloperName = 'GlobalAccount'
+			AND (Name LIKE :searchTerm OR AccountNumber LIKE :searchTerm)
+			WITH USER_MODE
+			ORDER BY Name
+			LIMIT :rowLimit
+		];
+	}
+
+	/**
+	 * @description Life Sciences GAD overlay - Loads the given Ids that are Global Accounts.
+	 * @param accountIds Account Ids to load.
+	 * @return Global Accounts among the given Ids.
+	 */
+	public static List<Account> selectGlobalAccountsByIds(Set<Id> accountIds) {
+		if (accountIds == null || accountIds.isEmpty()) {
+			return new List<Account>();
+		}
+		return [
+			SELECT Id, Name, AccountNumber, Type, ParentId, Parent.Name, OracleAddressId__c,
+				   BillingStreet, BillingCity, BillingState, BillingPostalCode, BillingCountry
+			FROM Account
+			WHERE Id IN :accountIds
+			AND RecordType.DeveloperName = 'GlobalAccount'
 			WITH USER_MODE
 		];
 	}

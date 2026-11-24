@@ -15,16 +15,14 @@
  */
 public with sharing class AccountProspectTasQueueable
 implements Queueable, Database.AllowsCallouts {
-    Public static String customerClassCode;
 	private Set<Id> accountIds;
     
     /**
      * @description Initializes the queueable with eligible Prospect Account Ids.
      * @param accountIds Set of Account Ids to process asynchronously.
      */
-    public AccountProspectTasQueueable(Set<Id> accountIds, String customerClassCode) {
+    public AccountProspectTasQueueable(Set<Id> accountIds) {
 		this.accountIds = accountIds == null ? new Set<Id>() : new Set<Id>(accountIds);
-        customerClassCode = customerClassCode;
 	}
     
 	public void execute(QueueableContext context) {

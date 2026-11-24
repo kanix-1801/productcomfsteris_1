@@ -64,7 +64,7 @@
 				);
                 
 				if (!eligibleAccountIds.isEmpty() && eligibleAccountIds.size() == 1) {
-					Id jobId = System.enqueueJob(new AccountProspectTasQueueable(eligibleAccountIds, AccountTriggerHandler.customerClassCode));
+					Id jobId = System.enqueueJob(new AccountProspectTasQueueable(eligibleAccountIds));
 
 					Logger.info(
 						'AccountService.assignTAStoProspect: submitted AccountProspectTasQueueable, jobId=' +
@@ -149,7 +149,7 @@
 				);
 
 				if (!eligibleAccountIds.isEmpty() && eligibleAccountIds.size() == 1) {
-					Id jobId = System.enqueueJob(new AccountProspectTasQueueable(eligibleAccountIds,AccountTriggerHandler.customerClassCode));
+					Id jobId = System.enqueueJob(new AccountProspectTasQueueable(eligibleAccountIds));
 
 					Logger.info(
 						'AccountService.assignTAStoProspectUpdate: submitted AccountProspectTasQueueable, jobId=' +
@@ -477,20 +477,25 @@
 					Logger.warn('AccountService.retryTasAssignmentFromFlow: Prospect record type not found');
 					return;
 				}
-                
+                Id customerRecordTypeId = getCustomerRecordTypeId();
 				List<Account> accounts = AccountSelector.selectByIds(accountIds);
-                
+                Set<Id> eligibleCustomerIds = new Set<Id>();
 				Set<Id> eligibleAccountIds = new Set<Id>();
                 
-				for (Account acc : accounts) {
-                    //GC-3143 Changed condition to also run if TAS_Assignment_Status__c != 'Assigned'
-					if (isValidProspectAccount(acc, prospectRecordTypeId) && 
-						(acc.TAS_Retry__c == false || acc.TAS_Assignment_Status__c != 'Assigned')
-                        
-					) {
-						eligibleAccountIds.add(acc.Id);
-					}
-				}
+		for (Account acc : accounts) {
+                  //GC-3143 Changed condition to also run if TAS_Assignment_Status__c != 'Assigned'
+			if (acc.TAS_Retry__c == true && acc.TAS_Assignment_Status__c == 'Assigned') {   // CHANGED (lines 489-491)
+				continue;
+			}
+			if (isValidProspectAccount(acc, prospectRecordTypeId)) {         
+				eligibleAccountIds.add(acc.Id);
+			} else if (                                                      
+				LSAccountService.isLifeSciencesAccount(acc) &&
+				isValidCustomerAccountForTas(acc, customerRecordTypeId)
+			) {
+				eligibleCustomerIds.add(acc.Id); // GCL-83: Life Sciences Customer retry
+			}
+		}
                 
 				Logger.info(
 					'AccountService.retryTasAssignmentFromFlow: eligibleAccountCount=' +
@@ -498,7 +503,7 @@
 				);
                 
 				if (!eligibleAccountIds.isEmpty()) {
-					Id jobId = System.enqueueJob(new AccountProspectTasQueueable(eligibleAccountIds, 'SC'));
+					Id jobId = System.enqueueJob(new AccountProspectTasQueueable(eligibleAccountIds));
                     
 					Logger.info(
 						'AccountService.retryTasAssignmentFromFlow: submitted AccountProspectTasQueueable, jobId=' +

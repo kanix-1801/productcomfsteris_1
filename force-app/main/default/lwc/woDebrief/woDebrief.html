@@ -368,6 +368,13 @@
 								</div>
 								<!-- All lines (existing and new) get edit + delete -->
 								<div class="woli-actions">
+									<template lwc:if={line.showInspectionButton}>
+										<lightning-button
+											label="Inspection"
+											data-id={line.Id}
+											onclick={handleOpenPmiInspection}>
+										</lightning-button>
+									</template>
 									<lightning-button-icon
 										icon-name="utility:edit"
 										alternative-text="Edit"
@@ -927,6 +934,14 @@
 												onchange={handleLookupChange}>
 											</lightning-record-picker>
 										</div>
+										<template lwc:if={addFormState.assetId}>
+											<div class="field-full">
+												<lightning-button
+													label="Inspection"
+													onclick={handleOpenPmiInspection}>
+												</lightning-button>
+											</div>
+										</template>
 										<div class="field-full">
 											<lightning-combobox
 												label="Inspection Outcome"
@@ -1342,5 +1357,7 @@
 		</section>
 		<div class="slds-backdrop slds-backdrop_open picture-comment-capture-backdrop"></div>
 	</template>
+
+	<c-wo-debrief-pmi-inspection oninspectionsaved={handlePmiInspectionSaved}></c-wo-debrief-pmi-inspection>
 
 </template>

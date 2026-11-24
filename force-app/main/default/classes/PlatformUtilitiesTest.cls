@@ -317,4 +317,47 @@ private class PlatformUtilitiesTest {
 		// THEN
 		Assert.areEqual('Row 2,,"Zone, ""Z1""","Line\nbreak"', line, 'Unexpected CSV line');
 	}
+
+	/**
+	 * @description GW-2707: A user message is returned as it is; any other exception becomes a user message.
+	 */
+	@IsTest
+	static void testToAuraException() {
+		// GIVEN
+		AuraHandledException userMessage = PlatformUtilities.buildAuraException('Shown to the user');
+		Exception unexpected = new DmlException('Unexpected failure');
+
+		// WHEN
+		Test.startTest();
+		AuraHandledException passedThrough = PlatformUtilities.toAuraException(userMessage);
+		AuraHandledException converted = PlatformUtilities.toAuraException(unexpected);
+		Test.stopTest();
+
+		// THEN
+		Assert.areEqual(userMessage, passedThrough, 'User message should be returned as it is');
+		Assert.areEqual('Unexpected failure', converted.getMessage(), 'Other exceptions should keep their message');
+	}
+
+	/**
+	 * @description GW-2707: The next fiscal year starts on the first day of the org's fiscal year start month after
+	 *              the given date.
+	 */
+	@IsTest
+	static void testNextFiscalYearStart() {
+		// GIVEN
+		Integer startMonth = [SELECT FiscalYearStartMonth FROM Organization].FiscalYearStartMonth;
+		Date startDay = Date.newInstance(2027, startMonth, 1);
+
+		// WHEN
+		Test.startTest();
+		Date monthsBefore = PlatformUtilities.nextFiscalYearStart(startDay.addMonths(-5));
+		Date dayBefore = PlatformUtilities.nextFiscalYearStart(startDay.addDays(-1));
+		Date onStartDay = PlatformUtilities.nextFiscalYearStart(startDay);
+		Test.stopTest();
+
+		// THEN
+		Assert.areEqual(startDay, monthsBefore, 'Months before the start: the start of this year is next');
+		Assert.areEqual(startDay, dayBefore, 'The day before the start: the start of this year is next');
+		Assert.areEqual(startDay.addYears(1), onStartDay, 'On the start day: the start of next year is next');
+	}
 }

@@ -1,0 +1,122 @@
+<template>
+	<template lwc:if={isOpen}>
+		<section
+			role="dialog"
+			tabindex="-1"
+			aria-modal="true"
+			aria-labelledby="pmi-inspection-heading"
+			class="slds-modal slds-fade-in-open slds-modal_large inspection-modal">
+			<div class="slds-modal__container">
+				<header class="slds-modal__header">
+					<h2 id="pmi-inspection-heading" class="slds-modal__title">Inspection</h2>
+				</header>
+				<div class="slds-modal__content slds-p-around_medium">
+					<template lwc:if={isLoading}>
+						<lightning-spinner alternative-text="Loading inspection" size="small"></lightning-spinner>
+					</template>
+					<template lwc:else>
+						<template lwc:if={emptyMessage}>
+							<p class="slds-m-bottom_small">{emptyMessage}</p>
+						</template>
+						<template lwc:if={workOrderClosed}>
+							<p class="slds-m-bottom_small">This work order is closed. Measurements cannot be changed.</p>
+						</template>
+						<template lwc:if={errorMessage}>
+							<p class="error-text slds-m-bottom_small">{errorMessage}</p>
+						</template>
+						<template for:each={rows} for:item="row">
+							<div key={row.key} class="reading-card">
+								<lightning-input
+									label="Measurement Name"
+									value={row.measurementName}
+									data-index={row.index}
+									data-field="measurementName"
+									read-only={row.nameReadOnly}
+									disabled={workOrderClosed}
+									required
+									onchange={handleFieldChange}>
+								</lightning-input>
+								<lightning-input
+									label="Reference Value"
+									value={row.referenceValue}
+									data-index={row.index}
+									data-field="referenceValue"
+									read-only={row.referenceReadOnly}
+									disabled={workOrderClosed}
+									required
+									onchange={handleFieldChange}>
+								</lightning-input>
+								<div class="bounds">
+									<lightning-input
+										label="Minimum"
+										value={row.minimumValue}
+										data-index={row.index}
+										data-field="minimumValue"
+										read-only={row.boundsReadOnly}
+										disabled={workOrderClosed}
+										onchange={handleFieldChange}>
+									</lightning-input>
+									<lightning-input
+										label="Maximum"
+										value={row.maximumValue}
+										data-index={row.index}
+										data-field="maximumValue"
+										read-only={row.boundsReadOnly}
+										disabled={workOrderClosed}
+										onchange={handleFieldChange}>
+									</lightning-input>
+								</div>
+								<lightning-input
+									label="Measurement Value"
+									value={row.measurementValue}
+									data-index={row.index}
+									data-field="measurementValue"
+									disabled={workOrderClosed}
+									required
+									onchange={handleFieldChange}>
+								</lightning-input>
+								<lightning-textarea
+									label="Comments"
+									value={row.comments}
+									data-index={row.index}
+									data-field="comments"
+									disabled={workOrderClosed}
+									onchange={handleFieldChange}>
+								</lightning-textarea>
+								<template lwc:if={row.showStatus}>
+									<p>
+										<template lwc:if={row.isPass}>
+											<span class="status-pass">Pass</span>
+										</template>
+										<template lwc:if={row.isFail}>
+											<span class="status-fail">Failed</span>
+										</template>
+									</p>
+								</template>
+							</div>
+						</template>
+						<template lwc:if={canAddRow}>
+							<lightning-button
+								label="Add measurement"
+								onclick={handleAddRow}>
+							</lightning-button>
+							<p class="hint">Minimum and maximum are optional on a measurement you add. Leave both blank to compare the value to the reference.</p>
+						</template>
+					</template>
+				</div>
+				<footer class="slds-modal__footer">
+					<lightning-button label="Close" onclick={handleClose}></lightning-button>
+					<template lwc:if={canSave}>
+						<lightning-button
+							label="Save"
+							variant="brand"
+							class="slds-m-left_x-small"
+							onclick={handleSave}>
+						</lightning-button>
+					</template>
+				</footer>
+			</div>
+		</section>
+		<div class="slds-backdrop slds-backdrop_open inspection-backdrop"></div>
+	</template>
+</template>

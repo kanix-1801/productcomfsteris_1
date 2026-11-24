@@ -6,24 +6,22 @@
  * GC-3281 - Shows InverseRelationshipType__c when viewing from the Parent's
  *              (IDN/GPO) perspective, and RelationshipType__c when viewing
  *              from the Child's (Customer/Address) perspective.
+ * GC-3640 - New opens the IDN/GPO relationship flow for IDN/GPO Managers.
  */
 import { LightningElement, api, wire } from 'lwc';
 import { NavigationMixin } from 'lightning/navigation';
+import { refreshApex } from '@salesforce/apex';
 import getRelationships from '@salesforce/apex/AccountAccountRelationshipController.getRelationships';
-import getAccountType from '@salesforce/apex/AccountAccountRelationshipController.getAccountType';
-import isSystemAdministrator from '@salesforce/apex/AccountAccountRelationshipController.isSystemAdministrator';
-
-const ACCOUNT_TYPE_CUSTOMER = 'Customer';
-const FIELD_CHILD_ACCOUNT = 'ChildAccount__c';
-const FIELD_PARENT_ACCOUNT = 'ParentAccount__c';
+import canManageIdnGpo from '@salesforce/customPermission/Manage_IDN_GPO';
 
 export default class AccountAccountRelationshipTab extends NavigationMixin(LightningElement) {
     @api recordId;
 
     records = [];
-    accountType;
     isLoading = true;
-    isAdmin = false;
+    showFlow = false;
+    flowInputs = [];
+    wiredRelationshipsResult;
 
     columns = [
         { label: 'Relationship Type', fieldName: 'relationshipType' },
@@ -35,7 +33,7 @@ export default class AccountAccountRelationshipTab extends NavigationMixin(Light
                 ]
             }
         },
-         {
+        {
             label: 'Related Account',
             fieldName: 'relatedAccountUrl',
             type: 'url',
@@ -46,26 +44,10 @@ export default class AccountAccountRelationshipTab extends NavigationMixin(Light
         }
     ];
 
-    @wire(getAccountType, { accountId: '$recordId' })
-    wiredAccountType({ data, error }) {
-        if (data) {
-            this.accountType = data;
-        } else if (error) {
-            // eslint-disable-next-line no-console
-            console.error('Account type fetch error', JSON.stringify(error));
-        }
-    }
-    @wire(isSystemAdministrator)
-    wiredIsSystemAdministrator({ data, error }) {
-        if (data !== undefined) {
-            this.isAdmin = data;
-        } else if (error) {
-            console.error('Admin check error', JSON.stringify(error));
-        }
-    }
-
     @wire(getRelationships, { accountId: '$recordId' })
-    wiredRelationships({ data, error }) {
+    wiredRelationships(result) {
+        this.wiredRelationshipsResult = result;
+        const { data, error } = result;
         if (data) {
             const rowList = data.map((row) => {
                 const isCurrentAccountParent = row.ParentAccount__c === this.recordId;
@@ -138,20 +120,33 @@ export default class AccountAccountRelationshipTab extends NavigationMixin(Light
         return this.records && this.records.length > 0;
     }
 
-    handleNewRelationship() {
-        const fieldName =
-            this.accountType === ACCOUNT_TYPE_CUSTOMER ? FIELD_CHILD_ACCOUNT : FIELD_PARENT_ACCOUNT;
+    get canCreateRelationship() {
+        return canManageIdnGpo === true;
+    }
 
-        this[NavigationMixin.Navigate]({
-            type: 'standard__objectPage',
-            attributes: {
-                objectApiName: 'AccountAccountRelationship__c',
-                actionName: 'new'
-            },
-            state: {
-                defaultFieldValues: `${fieldName}=${this.recordId}`
+    handleNewRelationship() {
+        // Set once per open so lightning-flow is not re-initialised on every re-render.
+        this.flowInputs = [
+            {
+                name: 'recordId',
+                type: 'String',
+                value: this.recordId
             }
-        });
+        ];
+        this.showFlow = true;
+    }
+
+    handleCloseFlow() {
+        this.showFlow = false;
+        if (this.wiredRelationshipsResult) {
+            refreshApex(this.wiredRelationshipsResult);
+        }
+    }
+
+    handleFlowStatusChange(event) {
+        if (event.detail.status === 'FINISHED') {
+            this.handleCloseFlow();
+        }
     }
 
     handleRowAction(event) {

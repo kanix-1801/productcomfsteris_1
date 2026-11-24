@@ -26,6 +26,31 @@ public with sharing class LsOverlayAssignmentController {
 
     /**
      * @description
+     * Returns the overlay types shown on the pre-wizard, with the Account Team role each one writes.
+     *
+     * @return One option per overlay type: value, label, and teamMemberRole.
+     *
+     * @example
+     * LsOverlayAssignmentController.getOverlayTypeOptions();
+     */
+    @AuraEnabled(cacheable=true)
+    public static List<Map<String, String>> getOverlayTypeOptions() {
+        return new List<Map<String, String>>{
+            new Map<String, String>{
+                'value' => LsOverlayAssignmentService.OVERLAY_TYPE_INSIDE_SALES,
+                'label' => LsOverlayAssignmentService.OVERLAY_TYPE_INSIDE_SALES,
+                'teamMemberRole' => LsOverlayAssignmentService.TEAM_MEMBER_ROLE_INSIDE_SALES
+            },
+            new Map<String, String>{
+                'value' => LsOverlayAssignmentService.OVERLAY_TYPE_GAD,
+                'label' => LsOverlayAssignmentService.OVERLAY_TYPE_GAD,
+                'teamMemberRole' => LsOverlayAssignmentService.TEAM_MEMBER_ROLE_GAD
+            }
+        };
+    }
+
+    /**
+     * @description
      * GCL-79 - Searches Life Sciences TAS territory records for matching Territory ID, Description, or Number.
      *
      * @param searchKey User-entered search text.
@@ -71,6 +96,25 @@ public with sharing class LsOverlayAssignmentController {
 
     /**
      * @description
+     * Searches Global Accounts by Account Name or Account Number for the GAD overlay.
+     *
+     * @param searchKey Account name/number search key.
+     * @return Matching Global Accounts.
+     *
+     * @example
+     * LsOverlayAssignmentController.searchGlobalAccounts(searchKey);
+     */
+    @AuraEnabled
+    public static List<OverlayAssignmentController.AccountWrapper> searchGlobalAccounts(String searchKey) {
+        try {
+            return LsOverlayAssignmentService.searchGlobalAccounts(searchKey);
+        } catch (Exception exceptionValue) {
+            throw buildHandledException('Unable to search Global Accounts.', exceptionValue);
+        }
+    }
+
+    /**
+     * @description
      * GCL-79 - Retrieves Customer accounts related to the selected territories and accounts.
      * GPO, IDN, and Address accounts are not returned.
      *
@@ -105,23 +149,19 @@ public with sharing class LsOverlayAssignmentController {
     /**
      * @description
      * GCL-79 - Searches active Life Sciences Sales users eligible for overlay assignment selection.
+     * Only users with the overlay type's permission set or permission set group are returned.
      *
      * @param searchKey User-entered search text.
+     * @param overlayType Inside Sales or GAD.
      * @return Matching users for selection.
      *
      * @example
-     * LsOverlayAssignmentController.searchOverlayUsers(searchKey);
+     * LsOverlayAssignmentController.searchOverlayUsers(searchKey, overlayType);
      */
     @AuraEnabled
-    public static List<OverlayAssignmentController.UserWrapper> searchOverlayUsers(String searchKey) {
+    public static List<OverlayAssignmentController.UserWrapper> searchOverlayUsers(String searchKey, String overlayType) {
         try {
-            //GCL-390 : Tech Story - Hc x LS code dependency resolution
-            List<OverlayAssignmentController.UserWrapper> users =
-                OverlayAssignmentService.searchOverlayUsers(searchKey);
-            // A blank or unmatched search is an empty list for the Life Sciences screen.
-            return users == null
-                ? new List<OverlayAssignmentController.UserWrapper>()
-                : users;
+            return LsOverlayAssignmentService.searchOverlayUsers(searchKey, overlayType);
         } catch (Exception exceptionValue) {
             throw buildHandledException('Unable to search overlay users.', exceptionValue);
         }
@@ -133,18 +173,20 @@ public with sharing class LsOverlayAssignmentController {
      *
      * @param territoryIds Selected Territory IDs.
      * @param selectedAccountIds Accounts still selected after Step 2 deselection.
-     * @return Territory grouped account summary.
+     * @param overlayType Inside Sales or GAD.
+     * @return Territory grouped account summary. For GAD, one row per Global Account hierarchy.
      *
      * @example
-     * LsOverlayAssignmentController.getAssignmentSummary(territoryIds, selectedAccountIds);
+     * LsOverlayAssignmentController.getAssignmentSummary(territoryIds, selectedAccountIds, overlayType);
      */
     @AuraEnabled
     public static List<OverlayAssignmentController.SummaryTerritoryWrapper> getAssignmentSummary(
         List<String> territoryIds,
-        List<Id> selectedAccountIds
+        List<Id> selectedAccountIds,
+        String overlayType
     ) {
         try {
-            return LsOverlayAssignmentService.getAssignmentSummary(territoryIds, selectedAccountIds);
+            return LsOverlayAssignmentService.getAssignmentSummary(territoryIds, selectedAccountIds, overlayType);
         } catch (Exception exceptionValue) {
             throw buildHandledException('Unable to build overlay assignment summary.', exceptionValue);
         }
@@ -153,23 +195,26 @@ public with sharing class LsOverlayAssignmentController {
     /**
      * @description
      * GCL-79 - Creates Account Team records for Life Sciences overlay assignments.
-     * Only Account access is extended. Opportunity and Case access are not granted.
+     * Inside Sales gets Account and Contact Edit with no Opportunity access. GAD gets Account and
+     * Contact Edit, Opportunity Edit on the Global Account, and Opportunity Read on its hierarchy.
      *
      * @param territoryIds Selected Territory IDs.
      * @param selectedAccountIds Final selected accounts by user.
      * @param userIds Selected overlay User IDs.
+     * @param overlayType Inside Sales or GAD.
      *
      * @example
-     * LsOverlayAssignmentController.submitOverlayAssignments(territoryIds, selectedAccountIds, userIds);
+     * LsOverlayAssignmentController.submitOverlayAssignments(territoryIds, selectedAccountIds, userIds, overlayType);
      */
     @AuraEnabled
     public static void submitOverlayAssignments(
         List<String> territoryIds,
         List<Id> selectedAccountIds,
-        List<Id> userIds
+        List<Id> userIds,
+        String overlayType
     ) {
         try {
-            LsOverlayAssignmentService.submitOverlayAssignments(territoryIds, selectedAccountIds, userIds);
+            LsOverlayAssignmentService.submitOverlayAssignments(territoryIds, selectedAccountIds, userIds, overlayType);
         } catch (Exception exceptionValue) {
             throw buildHandledException('Unable to submit overlay assignments.', exceptionValue);
         }

@@ -11,20 +11,22 @@
  * GCL-79 - Step 1 and Step 2 show Customer accounts. GPO, IDN, and Address are not searched or shown.
  * Submit adds the overlay user to the selected Customer and to that account's child accounts.
  * When a territory is selected, TerritoryCode__c is copied from the TAS territory number and a TAS row is inserted. IDN is skipped.
- * GCL-79 - Submit also creates an AccountShare for each assigned account. Opportunity and Case
- * access on the Account Team row stay None. No Opportunity Team row is created.
+ * GCL-79 - Submit also calls the Healthcare share helper for each assigned account. No Opportunity Team row is created.
+ * Account, Contact, Opportunity, and Case access are set on the Account Team row itself.
+ * Overlay type - The pre-wizard chooses Inside Sales or GAD. Inside Sales keeps the territory and
+ * account flow above with role Inside Sales. GAD assigns the selected Global Account and its
+ * ParentId hierarchy (Customer, then Ship-to Address) with role Global Account Director.
+ * Overlay users must have the Life Sciences Sales profile and the overlay type's permission set
+ * or permission set group.
  */
 public without sharing class LsOverlayAssignmentService {
     /** @description GCL-79 - Account Team Member.AssignmentType__c value for this wizard. */
     public static final String ASSIGNMENT_TYPE_SALESFORCE_ASSIGNED = 'Salesforce Assigned';
 
-    /** @description GCL-79 - Account Team Member.TeamMemberRole value created by this wizard. */
-    public static final String TEAM_MEMBER_ROLE_SALES = 'Sales';
-
-    /** @description GCL-79 - Account access level granted to overlay users. Only Account access is extended. */
+    /** @description GCL-79 - Edit access level on the Account Team row. */
     public static final String ACCOUNT_ACCESS_EDIT = 'Edit';
 
-    /** @description GCL-79 - Opportunity/Case access level for overlay rows. No access beyond Account is granted. */
+    /** @description GCL-79 - No access on the Account Team row. */
     public static final String NO_ACCESS = 'None';
 
     /** @description GCL-79 - Account type the Life Sciences wizard searches and displays. GPO, IDN, and Address are excluded. */
@@ -56,6 +58,132 @@ public without sharing class LsOverlayAssignmentService {
     private static final Set<String> LIFE_SCIENCES_CLASS_CODES = new Set<String>{
         'SC'
     };
+
+    /** @description Overlay type values sent by the pre-wizard. */
+    public static final String OVERLAY_TYPE_INSIDE_SALES = 'Inside Sales';
+    public static final String OVERLAY_TYPE_GAD = 'GAD';
+
+    /** @description Account Team roles written for each overlay type. */
+    public static final String TEAM_MEMBER_ROLE_INSIDE_SALES = 'Inside Sales';
+    public static final String TEAM_MEMBER_ROLE_GAD = 'Global Account Director';
+
+    /** @description Read access level used for GAD Customer and Ship-to opportunities. */
+    public static final String ACCESS_READ = 'Read';
+
+    /** @description Summary row description for a GAD Global Account hierarchy. */
+    public static final String GLOBAL_ACCOUNT_SUMMARY_LABEL = 'Global Account hierarchy';
+
+    /** @description Account Type shown for a Global Account with a blank Type. */
+    private static final String GLOBAL_ACCOUNT_DISPLAY_TYPE = 'Global Account';
+
+    private static final Map<String, String> TEAM_MEMBER_ROLE_BY_OVERLAY_TYPE = new Map<String, String>{
+        OVERLAY_TYPE_INSIDE_SALES => TEAM_MEMBER_ROLE_INSIDE_SALES,
+        OVERLAY_TYPE_GAD => TEAM_MEMBER_ROLE_GAD
+    };
+
+    private static final Map<String, Set<String>> PERMISSION_SETS_BY_OVERLAY_TYPE = new Map<String, Set<String>>{
+        OVERLAY_TYPE_INSIDE_SALES => new Set<String>{ 'LSInsideSalesPS' },
+        OVERLAY_TYPE_GAD => new Set<String>{ 'LSGlobalAccountDirectorPS' }
+    };
+
+    private static final Map<String, Set<String>> PERMISSION_SET_GROUPS_BY_OVERLAY_TYPE = new Map<String, Set<String>>{
+        OVERLAY_TYPE_INSIDE_SALES => new Set<String>{ 'LSInsideSalesPSG' },
+        OVERLAY_TYPE_GAD => new Set<String>{ 'LSGlobalAccountDirectorPSG' }
+    };
+
+    /** @description Inside Sales: Account and Contact Edit, no Opportunity or Case access. */
+    private static final AccessLevels INSIDE_SALES_ACCESS = new AccessLevels(ACCOUNT_ACCESS_EDIT, ACCOUNT_ACCESS_EDIT, NO_ACCESS, NO_ACCESS);
+
+    /** @description GAD on the Global Account: Account, Contact, and direct Opportunity Edit. */
+    private static final AccessLevels GAD_GLOBAL_ACCOUNT_ACCESS = new AccessLevels(ACCOUNT_ACCESS_EDIT, ACCOUNT_ACCESS_EDIT, ACCOUNT_ACCESS_EDIT, NO_ACCESS);
+
+    /** @description GAD on Customer and Ship-to: Account and Contact Edit, Opportunity Read. */
+    private static final AccessLevels GAD_HIERARCHY_ACCESS = new AccessLevels(ACCOUNT_ACCESS_EDIT, ACCOUNT_ACCESS_EDIT, ACCESS_READ, NO_ACCESS);
+
+    /**
+     * @description Account Team Member access levels for one assigned account.
+     */
+    private class AccessLevels {
+        public final String accountAccess;
+        public final String contactAccess;
+        public final String opportunityAccess;
+        public final String caseAccess;
+
+        public AccessLevels(String accountAccess, String contactAccess, String opportunityAccess, String caseAccess) {
+            this.accountAccess = accountAccess;
+            this.contactAccess = contactAccess;
+            this.opportunityAccess = opportunityAccess;
+            this.caseAccess = caseAccess;
+        }
+    }
+
+    /**
+     * @description Searches Global Accounts by Account Name or Account Number for the GAD overlay.
+     *              Every GlobalAccount record type account is searchable. Class code is not filtered.
+     * @param searchKey User-entered search text. Returns an empty list when blank.
+     * @return Matching Global Account rows.
+     */
+    public static List<OverlayAssignmentController.AccountWrapper> searchGlobalAccounts(String searchKey) {
+        try {
+            if (String.isBlank(searchKey)) {
+                return new List<OverlayAssignmentController.AccountWrapper>();
+            }
+            List<OverlayAssignmentController.AccountWrapper> rows = new List<OverlayAssignmentController.AccountWrapper>();
+            for (Account globalAccount : AccountSelector.selectGlobalAccountsBySearch(
+                '%' + searchKey.trim() + '%',
+                SEARCH_LIMIT
+            )) {
+                rows.add(toGlobalAccountWrapper(globalAccount));
+            }
+            return rows;
+        } catch (Exception ex) {
+            throw logAndWrap('Unable to search Global Accounts.', ex);
+        } finally {
+            Logger.saveLog();
+        }
+    }
+
+    /**
+     * @description Searches overlay users for the selected overlay type. Reuses the Healthcare
+     *              user search, then keeps only active Life Sciences Sales users who hold the
+     *              overlay type's permission set or permission set group.
+     * @param searchKey User-entered search text. Returns an empty list when blank.
+     * @param overlayType Inside Sales or GAD.
+     * @return Eligible overlay users.
+     */
+    public static List<OverlayAssignmentController.UserWrapper> searchOverlayUsers(String searchKey, String overlayType) {
+        try {
+            String resolvedType = requireOverlayType(overlayType);
+            List<OverlayAssignmentController.UserWrapper> eligibleUsers = new List<OverlayAssignmentController.UserWrapper>();
+            if (String.isBlank(searchKey)) {
+                return eligibleUsers;
+            }
+
+            List<OverlayAssignmentController.UserWrapper> candidates = OverlayAssignmentService.searchOverlayUsers(searchKey);
+            if (candidates == null || candidates.isEmpty()) {
+                return eligibleUsers;
+            }
+
+            Set<Id> candidateIds = new Set<Id>();
+            for (OverlayAssignmentController.UserWrapper candidate : candidates) {
+                candidateIds.add(candidate.userId);
+            }
+            Set<Id> eligibleIds = selectEligibleOverlayUserIds(candidateIds, resolvedType);
+            for (OverlayAssignmentController.UserWrapper candidate : candidates) {
+                if (eligibleIds.contains(candidate.userId)) {
+                    eligibleUsers.add(candidate);
+                }
+            }
+            return eligibleUsers;
+        } catch (OverlayAssignmentException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw logAndWrap('Unable to search Life Sciences overlay users.', ex);
+        } finally {
+            Logger.saveLog();
+        }
+    }
+
     /**
      * @description
      * GCL-79 - Searches Life Sciences Customer accounts on Step 1 by Account Name/Number
@@ -133,16 +261,22 @@ public without sharing class LsOverlayAssignmentService {
      *
      * @param territoryIds Selected Territory IDs.
      * @param selectedAccountIds Accounts still selected after Step 2 deselection.
+     * @param overlayType Inside Sales or GAD. GAD returns one row per Global Account hierarchy.
      * @return One summary row per territory (or Account Search) with its selected accounts.
      */
     public static List<OverlayAssignmentController.SummaryTerritoryWrapper> getAssignmentSummary(
         List<String> territoryIds,
-        List<Id> selectedAccountIds
+        List<Id> selectedAccountIds,
+        String overlayType
     ) {
         try {
+            String resolvedType = requireOverlayType(overlayType);
             Set<Id> selectedAccountIdSet = toIdSet(selectedAccountIds);
             if (selectedAccountIdSet.isEmpty()) {
                 throw new OverlayAssignmentException('No accounts selected for overlay assignment.');
+            }
+            if (resolvedType == OVERLAY_TYPE_GAD) {
+                return buildGlobalAccountSummary(selectedAccountIdSet);
             }
 
             List<OverlayAssignmentController.AccountWrapper> selectedRows = selectSummaryAccountRows(
@@ -163,22 +297,28 @@ public without sharing class LsOverlayAssignmentService {
      * @description
      * GCL-79 - Creates additive Account Team Member rows for every selected
      * account and overlay user combination that does not already exist.
-     * TeamMemberRole is Sales and AssignmentType__c defaults to Salesforce Assigned.
-     * Only Account access is extended on the Account Team row: AccountAccessLevel is Edit, and
-     * OpportunityAccessLevel / CaseAccessLevel are explicitly None. An AccountShare is created
+     * Inside Sales: TeamMemberRole is Inside Sales, Account and Contact access are Edit, and
+     * Opportunity / Case access are None. GAD: TeamMemberRole is Global Account Director,
+     * Account and Contact access are Edit, Opportunity access is Edit on the Global Account and
+     * Read on its Customer and Ship-to accounts, and Case access is None.
+     * AssignmentType__c defaults to Salesforce Assigned. The Healthcare share helper then runs
      * for each assigned account. When a territory is selected, a TAS OrderLineContact__c row
      * is inserted for each Address Account that matches that territory.
      *
      * @param territoryIds Selected Territory IDs. When present, child accounts must match a
      *                     territory TAS address, and TerritoryCode__c is copied from that territory.
      * @param selectedAccountIds Customer accounts still selected after Step 2 deselection.
+     *                           For GAD, the Global Accounts selected on Step 1.
      * @param userIds Overlay users selected on Step 3.
+     * @param overlayType Inside Sales or GAD.
      */
     public static void submitOverlayAssignments(
         List<String> territoryIds,
         List<Id> selectedAccountIds,
-        List<Id> userIds
+        List<Id> userIds,
+        String overlayType
     ) {
+        String resolvedType = requireOverlayType(overlayType);
         Set<Id> accountIdSet = toIdSet(selectedAccountIds);
         Set<Id> userIdSet = toIdSet(userIds);
 
@@ -188,10 +328,15 @@ public without sharing class LsOverlayAssignmentService {
         if (userIdSet.isEmpty()) {
             throw new OverlayAssignmentException('Select at least one overlay user.');
         }
-        requireActiveLifeSciencesUsers(userIdSet);
+        requireEligibleOverlayUsers(userIdSet, resolvedType);
 
         Savepoint savepointValue = Database.setSavepoint();
         try {
+            if (resolvedType == OVERLAY_TYPE_GAD) {
+                submitGlobalAccountAssignments(accountIdSet, userIdSet);
+                return;
+            }
+
             Set<String> territoryIdSet = toStringSet(territoryIds);
             Map<String, OrderLineContact__c> territoryByAddressId = loadLifeSciencesTerritories(territoryIdSet);
             Set<Id> cascadeAccountIds = resolveCascadeAccountIds(
@@ -200,19 +345,18 @@ public without sharing class LsOverlayAssignmentService {
                 territoryByAddressId.keySet()
             );
             List<Account> cascadeAccounts = queryAccountsByIds(cascadeAccountIds);
-            List<AccountTeamMember> membersToInsert = buildNewAccountTeamMembers(
+            Map<Id, AccessLevels> accessByAccountId = new Map<Id, AccessLevels>();
+            for (Account cascadeAccount : cascadeAccounts) {
+                accessByAccountId.put(cascadeAccount.Id, INSIDE_SALES_ACCESS);
+            }
+            insertAccountTeamMembers(buildNewAccountTeamMembers(
                 cascadeAccounts,
                 userIdSet,
-                territoryIdSet.isEmpty() ? new Map<String, OrderLineContact__c>() : territoryByAddressId
-            );
-
-            if (!membersToInsert.isEmpty()) {
-                SObjectAccessDecision decision = Security.stripInaccessible(AccessType.CREATABLE, membersToInsert);
-                insert decision.getRecords();
-            }
-            //GCL-390 : Tech Story - Hc x LS code dependency resolution
-            OverlayAssignmentService.OverlayAssignmentDmlService dmlService = new OverlayAssignmentService.OverlayAssignmentDmlService();
-            dmlService.createAccountShares(cascadeAccounts, userIdSet); // GCL-390 : End
+                territoryIdSet.isEmpty() ? new Map<String, OrderLineContact__c>() : territoryByAddressId,
+                TEAM_MEMBER_ROLE_INSIDE_SALES,
+                accessByAccountId
+            ));
+            createAccountShares(cascadeAccounts, userIdSet);
             if (!territoryIdSet.isEmpty()) {
                 //GCL-390 : Tech Story - Hc x LS code dependency resolution
                 OverlayAssignmentService.createTasWritebackRecords(
@@ -231,6 +375,200 @@ public without sharing class LsOverlayAssignmentService {
             Logger.saveLog();
         }
     }
+
+    /**
+     * @description GAD submit. Adds the GAD to each selected Global Account and to its ParentId
+     *              hierarchy. No territory fields are copied and no TAS row is written.
+     * @param globalAccountIds Global Accounts selected on Step 1.
+     * @param userIdSet GAD users selected on Step 3.
+     */
+    private static void submitGlobalAccountAssignments(Set<Id> globalAccountIds, Set<Id> userIdSet) {
+        requireGlobalAccounts(globalAccountIds);
+        Map<Id, AccessLevels> accessByAccountId = new Map<Id, AccessLevels>();
+        for (Set<Id> hierarchyIds : resolveGlobalAccountHierarchy(globalAccountIds).values()) {
+            for (Id accountId : hierarchyIds) {
+                accessByAccountId.put(
+                    accountId,
+                    globalAccountIds.contains(accountId) ? GAD_GLOBAL_ACCOUNT_ACCESS : GAD_HIERARCHY_ACCESS
+                );
+            }
+        }
+
+        List<Account> hierarchyAccounts = queryAccountsByIds(accessByAccountId.keySet());
+        insertAccountTeamMembers(buildNewAccountTeamMembers(
+            hierarchyAccounts,
+            userIdSet,
+            new Map<String, OrderLineContact__c>(),
+            TEAM_MEMBER_ROLE_GAD,
+            accessByAccountId
+        ));
+        createAccountShares(hierarchyAccounts, userIdSet);
+    }
+
+    /**
+     * @description Global Account hierarchy through ParentId: Global Account, its Customer children,
+     *              and the Ship-to (Address) children of those Customers. IDN children are skipped.
+     * @param globalAccountIds Selected Global Account Ids.
+     * @return Account Ids in each hierarchy, keyed by Global Account Id. Each set includes the Global Account.
+     */
+    private static Map<Id, Set<Id>> resolveGlobalAccountHierarchy(Set<Id> globalAccountIds) {
+        Map<Id, Set<Id>> hierarchyByGlobalAccountId = new Map<Id, Set<Id>>();
+        for (Id globalAccountId : globalAccountIds) {
+            hierarchyByGlobalAccountId.put(globalAccountId, new Set<Id>{ globalAccountId });
+        }
+
+        Map<Id, Id> globalAccountIdByCustomerId = new Map<Id, Id>();
+        for (Account childAccount : AccountSelector.selectLifeSciencesChildAccounts(globalAccountIds)) {
+            if (childAccount.Type == ACCOUNT_TYPE_IDN) {
+                continue;
+            }
+            hierarchyByGlobalAccountId.get(childAccount.ParentId).add(childAccount.Id);
+            if (childAccount.Type != ACCOUNT_TYPE_ADDRESS) {
+                globalAccountIdByCustomerId.put(childAccount.Id, childAccount.ParentId);
+            }
+        }
+
+        for (Account shipToAccount : AccountSelector.selectLifeSciencesChildAccounts(globalAccountIdByCustomerId.keySet())) {
+            if (shipToAccount.Type == ACCOUNT_TYPE_IDN) {
+                continue;
+            }
+            hierarchyByGlobalAccountId.get(globalAccountIdByCustomerId.get(shipToAccount.ParentId)).add(shipToAccount.Id);
+        }
+        return hierarchyByGlobalAccountId;
+    }
+
+    /**
+     * @description GAD summary. One row per selected Global Account listing every account in its hierarchy.
+     * @param globalAccountIds Global Accounts selected on Step 1.
+     * @return Summary rows for the confirmation step.
+     */
+    private static List<OverlayAssignmentController.SummaryTerritoryWrapper> buildGlobalAccountSummary(Set<Id> globalAccountIds) {
+        List<Account> globalAccounts = requireGlobalAccounts(globalAccountIds);
+        Map<Id, Set<Id>> hierarchyByGlobalAccountId = resolveGlobalAccountHierarchy(globalAccountIds);
+        Set<Id> hierarchyAccountIds = new Set<Id>();
+        for (Set<Id> hierarchyIds : hierarchyByGlobalAccountId.values()) {
+            hierarchyAccountIds.addAll(hierarchyIds);
+        }
+        Map<Id, Account> accountById = new Map<Id, Account>(queryAccountsByIds(hierarchyAccountIds));
+
+        List<OverlayAssignmentController.SummaryTerritoryWrapper> summaryRows =
+            new List<OverlayAssignmentController.SummaryTerritoryWrapper>();
+        for (Account globalAccount : globalAccounts) {
+            OverlayAssignmentController.SummaryTerritoryWrapper summaryRow =
+                new OverlayAssignmentController.SummaryTerritoryWrapper();
+            summaryRow.territoryId = globalAccount.Name;
+            summaryRow.territoryDescription = GLOBAL_ACCOUNT_SUMMARY_LABEL;
+            summaryRow.selectedAccounts = new List<OverlayAssignmentController.AccountWrapper>();
+            for (Id accountId : hierarchyByGlobalAccountId.get(globalAccount.Id)) {
+                Account hierarchyAccount = accountById.get(accountId);
+                if (hierarchyAccount == null) {
+                    continue;
+                }
+                summaryRow.selectedAccounts.add(
+                    accountId == globalAccount.Id
+                        ? toGlobalAccountWrapper(globalAccount)
+                        : toAccountWrapper(hierarchyAccount, null)
+                );
+            }
+            summaryRows.add(summaryRow);
+        }
+        return summaryRows;
+    }
+
+    /**
+     * @description Loads the selected Global Accounts and rejects any Id that is not a Global Account.
+     * @param globalAccountIds Account Ids selected on the GAD search.
+     * @return Selected Global Accounts.
+     */
+    private static List<Account> requireGlobalAccounts(Set<Id> globalAccountIds) {
+        List<Account> globalAccounts = AccountSelector.selectGlobalAccountsByIds(globalAccountIds);
+        if (globalAccounts.size() != globalAccountIds.size()) {
+            throw new OverlayAssignmentException('Select Global Accounts only.');
+        }
+        return globalAccounts;
+    }
+
+    /**
+     * @description Maps a Global Account into the LWC row. A blank Type shows as Global Account.
+     * @param globalAccount Global Account record.
+     * @return Populated AccountWrapper row.
+     */
+    private static OverlayAssignmentController.AccountWrapper toGlobalAccountWrapper(Account globalAccount) {
+        OverlayAssignmentController.AccountWrapper row = toAccountWrapper(globalAccount, null);
+        if (String.isBlank(row.accountType)) {
+            row.accountType = GLOBAL_ACCOUNT_DISPLAY_TYPE;
+        }
+        return row;
+    }
+
+    /**
+     * @description Inserts new Account Team rows. Fields the running user cannot create are stripped.
+     * @param membersToInsert New Account Team rows.
+     */
+    private static void insertAccountTeamMembers(List<AccountTeamMember> membersToInsert) {
+        if (membersToInsert.isEmpty()) {
+            return;
+        }
+        SObjectAccessDecision decision = Security.stripInaccessible(AccessType.CREATABLE, membersToInsert);
+        insert decision.getRecords();
+    }
+
+    /**
+     * @description Reuses the Healthcare share helper. It only adds a manual AccountShare when no share
+     *              exists yet. The Account Team row inserted just before already creates the Team share
+     *              with the access levels on that row, so the access comes from the row, not from here.
+     * @param accountList Accounts receiving the overlay assignment.
+     * @param userIdSet Overlay users.
+     */
+    private static void createAccountShares(List<Account> accountList, Set<Id> userIdSet) {
+        //GCL-390 : Tech Story - Hc x LS code dependency resolution
+        OverlayAssignmentService.OverlayAssignmentDmlService dmlService = new OverlayAssignmentService.OverlayAssignmentDmlService();
+        dmlService.createAccountShares(accountList, userIdSet); // GCL-390 : End
+    }
+
+    /**
+     * @description Validates the overlay type sent by the pre-wizard.
+     * @param overlayType Inside Sales or GAD.
+     * @return The trimmed overlay type.
+     */
+    private static String requireOverlayType(String overlayType) {
+        String resolvedType = overlayType == null ? null : overlayType.trim();
+        if (String.isBlank(resolvedType) || !TEAM_MEMBER_ROLE_BY_OVERLAY_TYPE.containsKey(resolvedType)) {
+            throw new OverlayAssignmentException('Select an overlay type: Inside Sales or GAD.');
+        }
+        return resolvedType;
+    }
+
+    /**
+     * @description Active Life Sciences Sales users who hold the overlay type's permission set or group.
+     * @param userIds Candidate user Ids.
+     * @param overlayType Inside Sales or GAD.
+     * @return Eligible user Ids.
+     */
+    private static Set<Id> selectEligibleOverlayUserIds(Set<Id> userIds, String overlayType) {
+        if (UserSelector.getLifeSciencesSalesProfileIdForOverlay() == null) {
+            throw new OverlayAssignmentException('Life Sciences Sales profile was not found.');
+        }
+        return UserSelector.selectActiveLifeSciencesUserIdsWithPermissionSets(
+            userIds,
+            PERMISSION_SETS_BY_OVERLAY_TYPE.get(overlayType),
+            PERMISSION_SET_GROUPS_BY_OVERLAY_TYPE.get(overlayType)
+        );
+    }
+
+    /**
+     * @description Rejects the submit when any selected user is not eligible for the overlay type.
+     * @param userIdSet User Ids submitted from the screen.
+     * @param overlayType Inside Sales or GAD.
+     */
+    private static void requireEligibleOverlayUsers(Set<Id> userIdSet, String overlayType) {
+        if (selectEligibleOverlayUserIds(userIdSet, overlayType).size() != userIdSet.size()) {
+            throw new OverlayAssignmentException(
+                'Select active Life Sciences Sales users with the ' + overlayType + ' permission set only.'
+            );
+        }
+    }
+
     /**
      * @description GCL-79 - Logs an unexpected exception and returns a sanitized exception to throw to the caller.
      * @param userMessage User-safe message to log and surface to the LWC.
@@ -764,18 +1102,22 @@ public without sharing class LsOverlayAssignmentService {
     /**
      * @description
      * GCL-79 - Builds the new Account Team Member records for submit, skipping any
-     * Account-plus-User combination that already exists. Only Account access is
-     * extended: OpportunityAccessLevel and CaseAccessLevel are explicitly None.
+     * Account-plus-User combination that already exists. Role and access levels come
+     * from the overlay type.
      *
      * @param accountList Selected Customer or GPO accounts plus their cascaded child accounts.
      * @param userIdSet Overlay users selected on Step 3.
      * @param territoryByAddressId Life Sciences territories keyed by TAS Address Id. Empty when no territory is selected.
+     * @param teamMemberRole Inside Sales or Global Account Director.
+     * @param accessByAccountId Account, Contact, Opportunity, and Case access for each account.
      * @return New AccountTeamMember records to insert. Empty when every combination already exists.
      */
     private static List<AccountTeamMember> buildNewAccountTeamMembers(
         List<Account> accountList,
         Set<Id> userIdSet,
-        Map<String, OrderLineContact__c> territoryByAddressId
+        Map<String, OrderLineContact__c> territoryByAddressId,
+        String teamMemberRole,
+        Map<Id, AccessLevels> accessByAccountId
     ) {
         Set<Id> accountIdSet = new Map<Id, Account>(accountList).keySet();
         if (accountIdSet.isEmpty() || userIdSet.isEmpty()) {
@@ -797,6 +1139,7 @@ public without sharing class LsOverlayAssignmentService {
             if (sourceTerritory == null) {
                 sourceTerritory = territoryByParentId.get(accountRecord.Id);
             }
+            AccessLevels access = accessByAccountId.get(accountRecord.Id);
             for (Id userId : userIdSet) {
                 if (existingKeys.contains(accountRecord.Id + '-' + userId)) {
                     continue;
@@ -804,11 +1147,12 @@ public without sharing class LsOverlayAssignmentService {
                 AccountTeamMember member = new AccountTeamMember(
                     AccountId = accountRecord.Id,
                     UserId = userId,
-                    TeamMemberRole = TEAM_MEMBER_ROLE_SALES,
+                    TeamMemberRole = teamMemberRole,
                     AssignmentType__c = ASSIGNMENT_TYPE_SALESFORCE_ASSIGNED,
-                    AccountAccessLevel = ACCOUNT_ACCESS_EDIT,
-                    OpportunityAccessLevel = NO_ACCESS,
-                    CaseAccessLevel = NO_ACCESS
+                    AccountAccessLevel = access.accountAccess,
+                    ContactAccessLevel = access.contactAccess,
+                    OpportunityAccessLevel = access.opportunityAccess,
+                    CaseAccessLevel = access.caseAccess
                 );
                 copyTerritoryFields(member, sourceTerritory);
                 membersToInsert.add(member);
@@ -855,29 +1199,6 @@ public without sharing class LsOverlayAssignmentService {
         member.TerritoryCode__c = sourceTerritory.TerritoryNumber__c;
         member.SalesCategoryCode__c = sourceTerritory.TAS_Sales_Category__c;
         member.SalesCategoryDescription__c = sourceTerritory.SalesCategoryDescription__c;
-    }
-
-    /**
-     * @description
-     * GCL-79 - Rejects the submit when any selected user is inactive or outside the
-     * Life Sciences Sales profile. This query does not use USER_MODE: the BSA persona
-     * cannot read User.ProfileId, and stripping that field breaks the bind variables.
-     *
-     * @param userIdSet User Ids submitted from the screen.
-     */
-    private static void requireActiveLifeSciencesUsers(Set<Id> userIdSet) {
-        Id lifeSciencesProfileId = UserSelector.getLifeSciencesSalesProfileIdForOverlay();
-        if (lifeSciencesProfileId == null) {
-            throw new OverlayAssignmentException('Life Sciences Sales profile was not found.');
-        }
-
-        Set<Id> matchingUserIds = new Map<Id, User>(
-            UserSelector.selectActiveLifeSciencesSalesUsersByIds(userIdSet)
-        ).keySet();
-
-        if (matchingUserIds.size() != userIdSet.size()) {
-            throw new OverlayAssignmentException('Select active Life Sciences Sales users only.');
-        }
     }
 
     /**

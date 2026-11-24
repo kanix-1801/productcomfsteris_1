@@ -8,6 +8,20 @@
 private class ViewWorkOrderSummaryControllerTest {
 	private static final String PARENT_SUBJECT = 'VWO Summary Parent';
 
+	/**
+	 * @description GW-5287 - Stub client that throws a non-service exception for catch coverage.
+	 */
+	private class ThrowingSummaryClient implements ViewWorkOrderSummaryController.ISummaryClient {
+		/**
+		 * @description GW-5287 - Always throws CalloutException.
+		 * @param workOrderInput Unused
+		 * @return Never returns
+		 */
+		public WorkOrderSummaryService.WorkOrderSummaryWorkspace getSummary(String workOrderInput) {
+			throw new CalloutException('Forced test exception');
+		}
+	}
+
 	@TestSetup
 	static void setupData() {
 		System.runAs(new User(Id = UserInfo.getUserId())) {
@@ -56,5 +70,27 @@ private class ViewWorkOrderSummaryControllerTest {
 		}
 		Test.stopTest();
 		Assert.isTrue(threw, 'Invalid input should throw AuraHandledException');
+	}
+
+	@IsTest
+	static void testGetSummaryWhenUnexpectedExceptionThrowsAuraHandledException() {
+		ViewWorkOrderSummaryController.clientOverride = new ThrowingSummaryClient();
+		Boolean threw = false;
+
+		Test.startTest();
+		try {
+			ViewWorkOrderSummaryController.getSummary('ANY');
+		} catch (AuraHandledException e) {
+			threw = true;
+			Assert.isTrue(
+				String.isNotBlank(e.getMessage()),
+				'Expected AuraHandledException message'
+			);
+		} finally {
+			ViewWorkOrderSummaryController.clientOverride = null;
+		}
+		Test.stopTest();
+
+		Assert.isTrue(threw, 'Unexpected exception should throw AuraHandledException');
 	}
 }

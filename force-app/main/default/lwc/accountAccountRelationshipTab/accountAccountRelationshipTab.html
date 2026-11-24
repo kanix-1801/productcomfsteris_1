@@ -1,12 +1,30 @@
 <template>
     <lightning-card>
-        <template if:true={isAdmin}>
+        <template if:true={canCreateRelationship}>
             <div slot="actions">
-                <lightning-button
-                    label="New"
-                    variant="brand"
-                    onclick={handleNewRelationship}>
-                </lightning-button>
+                <template if:false={showFlow}>
+                    <lightning-button
+                        label="New"
+                        variant="brand"
+                        onclick={handleNewRelationship}>
+                    </lightning-button>
+                </template>
+                <template if:true={showFlow}>
+                    <lightning-button
+                        label="Close"
+                        onclick={handleCloseFlow}>
+                    </lightning-button>
+                </template>
+            </div>
+        </template>
+
+        <template if:true={showFlow}>
+            <div class="slds-p-around_medium">
+                <lightning-flow
+                    flow-api-name="Account_SCR_Create_IDN_GPO_Relationship"
+                    flow-input-variables={flowInputs}
+                    onstatuschange={handleFlowStatusChange}>
+                </lightning-flow>
             </div>
         </template>
 

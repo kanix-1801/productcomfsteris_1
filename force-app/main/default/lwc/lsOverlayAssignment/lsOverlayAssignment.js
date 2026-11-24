@@ -1,12 +1,17 @@
 import { LightningElement, track } from 'lwc';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import getAssignmentTypeLabel from '@salesforce/apex/LsOverlayAssignmentController.getAssignmentTypeLabel';
+import getOverlayTypeOptions from '@salesforce/apex/LsOverlayAssignmentController.getOverlayTypeOptions';
 import searchTerritories from '@salesforce/apex/LsOverlayAssignmentController.searchTerritories';
 import searchAccounts from '@salesforce/apex/LsOverlayAssignmentController.searchAccounts';
+import searchGlobalAccounts from '@salesforce/apex/LsOverlayAssignmentController.searchGlobalAccounts';
 import retrieveAccounts from '@salesforce/apex/LsOverlayAssignmentController.retrieveAccounts';
 import searchOverlayUsers from '@salesforce/apex/LsOverlayAssignmentController.searchOverlayUsers';
 import getAssignmentSummary from '@salesforce/apex/LsOverlayAssignmentController.getAssignmentSummary';
 import submitOverlayAssignments from '@salesforce/apex/LsOverlayAssignmentController.submitOverlayAssignments';
+
+// Mirrors LsOverlayAssignmentService.OVERLAY_TYPE_GAD.
+const OVERLAY_TYPE_GAD = 'GAD';
 
 /**
  * @author PWC Developer
@@ -16,16 +21,20 @@ import submitOverlayAssignments from '@salesforce/apex/LsOverlayAssignmentContro
  * GCL-79 - Life Sciences Overlay Assignment wizard.
  *
  * Supports the end-to-end Life Sciences Sales Overlay flow:
+ * 0. Select the overlay type: Inside Sales or GAD.
+ *    GAD searches Global Accounts only, skips step 2, and assigns the Global Account hierarchy.
  * 1. Select one or more territories/Accounts.
  * 2. Review the Customer accounts for the selected search criteria.
  * GPO, IDN, and Address are not shown. Submit adds the user to the selected Customer and its child accounts.
  * 3. Select one or more overlay users.
  * 4. Review summary and confirm assignment creation.
- * Only Account access is extended on submit.
+ * Account Team access is set on submit by overlay type (see LsOverlayAssignmentService).
  */
 export default class LsOverlayAssignment extends LightningElement {
     @track showModal = true;
-    @track step = 1;
+    @track step = 0;
+    @track overlayType = '';
+    @track overlayTypeOptions = [];
     @track isLoading = false;
     @track territorySearchKey = '';
     @track territoryData = [];
@@ -109,6 +118,7 @@ export default class LsOverlayAssignment extends LightningElement {
      */
     connectedCallback() {
         this.loadAssignmentTypeLabel();
+        this.loadOverlayTypeOptions();
     }
 
     async loadAssignmentTypeLabel() {
@@ -119,6 +129,24 @@ export default class LsOverlayAssignment extends LightningElement {
         }
     }
 
+    async loadOverlayTypeOptions() {
+        try {
+            this.overlayTypeOptions = await getOverlayTypeOptions() || [];
+        } catch (error) {
+            this.showError(error);
+        }
+    }
+
+    get isStepZero() { return this.step === 0; }
+    get isGadOverlay() { return this.overlayType === OVERLAY_TYPE_GAD; }
+    get isOverlayTypeNextDisabled() { return !this.overlayType; }
+    get teamMemberRoleLabel() {
+        const option = this.overlayTypeOptions.find(item => item.value === this.overlayType);
+        return option ? option.teamMemberRole : '';
+    }
+    get accountSearchTitle() { return this.isGadOverlay ? 'Search Global Accounts' : 'Search Accounts'; }
+    get selectedSearchAccountsTitle() { return this.isGadOverlay ? 'Selected Global Accounts' : 'Selected Accounts'; }
+    get summarySourceLabel() { return this.isGadOverlay ? 'Global Account' : 'Territory / Search Source'; }
     get isStepOne() { return this.step === 1; }
     get isStepTwo() { return this.step === 2; }
     get isStepThree() { return this.step === 3; }
@@ -126,7 +154,8 @@ export default class LsOverlayAssignment extends LightningElement {
     get isRetrieveDisabled() { return !this.hasSearchCriteria; }
     get isSearchTerritoriesDisabled() { return !this.territorySearchKey || this.territorySearchKey.trim().length === 0; }
     get isSearchAccountsDisabled() {
-        return (!this.accountSearchKey || this.accountSearchKey.trim().length === 0) && !this.accountType;
+        const hasSearchKey = this.accountSearchKey && this.accountSearchKey.trim().length > 0;
+        return this.isGadOverlay ? !hasSearchKey : !hasSearchKey && !this.accountType;
     }
     get hasSearchCriteria() {
         return this.selectedTerritoryIds.length > 0 || this.selectedSearchAccountIds.length > 0;
@@ -135,6 +164,8 @@ export default class LsOverlayAssignment extends LightningElement {
     get selectedAccountCount() { return this.getSelectedAccountIdsForSubmit().length; }
     get isSubmitDisabled() { return this.selectedUserIds.length === 0; }
     get cardTitle() {
+        if (this.isStepZero) { return 'Select Overlay Type'; }
+        if (this.isStepOne && this.isGadOverlay) { return 'Select Global Accounts'; }
         if (this.isStepOne) { return 'Select Territories / Accounts'; }
         if (this.isStepTwo) { return 'Accounts For Selected Search Criteria'; }
         if (this.isStepThree) { return 'Select Overlay Users'; }
@@ -177,6 +208,31 @@ export default class LsOverlayAssignment extends LightningElement {
     goToStepTwo() { this.step = 2; }
     goToStepThree() { this.step = 3; }
     goBackToUsersFromSummary() { this.step = 3; }
+    // GAD has no step 2, so Back from the user step returns to the Global Account search.
+    goBackFromUsers() { this.step = this.isGadOverlay ? 1 : 2; }
+
+    handleOverlayTypeChange(event) { this.overlayType = event.detail.value; }
+
+    handleOverlayTypeNext() {
+        if (!this.isOverlayTypeNextDisabled) {
+            this.step = 1;
+        }
+    }
+
+    // Returns to the pre-wizard. Selections are cleared because accounts and users depend on the type.
+    handleChangeOverlayType() {
+        this.handleResetStepOne();
+        this.allAccountData = [];
+        this.accountData = [];
+        this.deselectedAccountIds = [];
+        this.userSearchKey = '';
+        this.userData = [];
+        this.selectedUserIds = [];
+        this.selectedUserRecords = [];
+        this.summaryData = [];
+        this.overlayType = '';
+        this.step = 0;
+    }
 
     // Input change handlers for Step 1 search fields.
     handleTerritorySearchChange(event) { this.territorySearchKey = event.target.value; }
@@ -265,18 +321,23 @@ export default class LsOverlayAssignment extends LightningElement {
         }
         try {
             this.isLoading = true;
-            const result = await searchAccounts({
-                accountSearchKey: this.accountSearchKey,
-                accountType: this.accountType,
-                territoryIds: this.selectedTerritoryIds
-            });
+            const result = this.isGadOverlay
+                ? await searchGlobalAccounts({ searchKey: this.accountSearchKey })
+                : await searchAccounts({
+                    accountSearchKey: this.accountSearchKey,
+                    accountType: this.accountType,
+                    territoryIds: this.selectedTerritoryIds
+                });
             this.allAccountSearchData = result || [];
             this.accountSearchTotalRecords = this.allAccountSearchData.length;
             this.accountSearchTotalPages = Math.max(Math.ceil(this.accountSearchTotalRecords / this.accountSearchPageSize), 1);
             this.accountSearchPageNumber = 1;
             this.hasAccountSearchResultsBeenDisplayed = this.accountSearchTotalRecords > 0;
             if (this.accountSearchTotalRecords === 0) {
-                this.showToast('', 'No matching Life Sciences accounts found.', 'error');
+                const message = this.isGadOverlay
+                    ? 'No matching Global Accounts found.'
+                    : 'No matching Life Sciences accounts found.';
+                this.showToast('', message, 'error');
             }
             this.refreshAccountSearchPage();
         } catch (error) {
@@ -374,6 +435,10 @@ export default class LsOverlayAssignment extends LightningElement {
      * Step 1 "Next" - Loads Step 2 accounts, then asks the user to confirm before moving on.
      */
     async handleRetrieveAccountsClick() {
+        if (this.isGadOverlay) {
+            this.showRetrievePrompt = true;
+            return;
+        }
         await this.loadAccountData();
         if (this.accountTotalRecords === 0) {
             this.showToast('', 'No matching accounts found for the selected search criteria.', 'error');
@@ -391,7 +456,7 @@ export default class LsOverlayAssignment extends LightningElement {
     // "Yes" on the confirm-selection prompt: proceed to Step 2 with the loaded accounts.
     handleConfirmRetrieveAccounts() {
         this.showRetrievePrompt = false;
-        this.step = 2;
+        this.step = this.isGadOverlay ? 3 : 2;
     }
 
     /**
@@ -478,7 +543,10 @@ export default class LsOverlayAssignment extends LightningElement {
     async handleSearchUsers() {
         try {
             this.isLoading = true;
-            const result = await searchOverlayUsers({ searchKey: this.userSearchKey });
+            const result = await searchOverlayUsers({
+                searchKey: this.userSearchKey,
+                overlayType: this.overlayType
+            });
             this.userData = (result || []).map(user => ({
                 ...user,
                 isSelected: this.selectedUserIds.includes(user.userId),
@@ -541,7 +609,8 @@ export default class LsOverlayAssignment extends LightningElement {
             this.isLoading = true;
             const result = await getAssignmentSummary({
                 territoryIds: this.selectedTerritoryIds,
-                selectedAccountIds: this.getSelectedAccountIdsForSubmit()
+                selectedAccountIds: this.getSelectedAccountIdsForSubmit(),
+                overlayType: this.overlayType
             });
             const selectedUsersText = this.selectedUserRecords.map(user => user.userName).join(', ');
             this.summaryData = (result || []).map(row => ({
@@ -558,8 +627,11 @@ export default class LsOverlayAssignment extends LightningElement {
     }
 
     // GCL-79 - Final selected-account list for summary/submit: every loaded account except
-    // the ones explicitly deselected on Step 2.
+    // the ones explicitly deselected on Step 2. GAD submits the Global Accounts picked on Step 1.
     getSelectedAccountIdsForSubmit() {
+        if (this.isGadOverlay) {
+            return [...this.selectedSearchAccountIds];
+        }
         return this.allAccountData
             .filter(row => !this.deselectedAccountIds.includes(row.accountId))
             .map(row => row.accountId);
@@ -592,7 +664,8 @@ export default class LsOverlayAssignment extends LightningElement {
             await submitOverlayAssignments({
                 territoryIds: this.selectedTerritoryIds,
                 selectedAccountIds: this.getSelectedAccountIdsForSubmit(),
-                userIds: this.selectedUserIds
+                userIds: this.selectedUserIds,
+                overlayType: this.overlayType
             });
             this.showToast('Success', 'Life Sciences overlay assignments created.', 'success');
             this.closeModal();

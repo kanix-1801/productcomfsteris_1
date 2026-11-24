@@ -7,7 +7,7 @@ private class DealerOpportunityProductControllerTest {
 
     @TestSetup
     static void setupDealer() {
-        DealerPortalTestUser.create(DEALER_KEY);
+        createPortalDealer();
     }
 
     @IsTest
@@ -247,7 +247,12 @@ private class DealerOpportunityProductControllerTest {
     }
 
     private static User dealer() {
-        return DealerPortalTestUser.getUser(DEALER_KEY);
+        return [
+            SELECT Id, Contact.AccountId
+            FROM User
+            WHERE Username = :portalDealerUsername()
+            LIMIT 1
+        ];
     }
 
     private static Opportunity insertDealerOpportunity() {
@@ -337,5 +342,65 @@ private class DealerOpportunityProductControllerTest {
             WHERE OpportunityId = :opportunity.Id
             LIMIT 1
         ].Id;
+    }
+
+    private static void createPortalDealer() {
+        User accountOwner;
+        System.runAs(new User(Id = UserInfo.getUserId())) {
+            UserRole dealerRole = new UserRole(Name = 'Dealer Test ' + DEALER_KEY, DeveloperName = 'DealerTst' + DEALER_KEY);
+            insert dealerRole;
+            accountOwner = new User(
+                Alias = 'downer',
+                Email = 'dealer.owner.' + DEALER_KEY + '@example.com',
+                EmailEncodingKey = 'UTF-8',
+                LastName = 'Dealer Owner',
+                LanguageLocaleKey = 'en_US',
+                LocaleSidKey = 'en_US',
+                ProfileId = UserInfo.getProfileId(),
+                TimeZoneSidKey = 'America/New_York',
+                UserRoleId = dealerRole.Id,
+                Username = 'dealer.owner.' + DEALER_KEY + '.' + UserInfo.getOrganizationId() + '@example.com'
+            );
+            insert accountOwner;
+        }
+        Account dealerAccount;
+        Contact dealerContact;
+        System.runAs(accountOwner) {
+            dealerAccount = new Account(Name = 'Dealer Portal ' + DEALER_KEY);
+            insert dealerAccount;
+            dealerAccount.IsPartner = true;
+            update dealerAccount;
+            dealerContact = new Contact(
+                LastName = 'Portal Dealer',
+                AccountId = dealerAccount.Id,
+                Email = 'portal.dealer@example.com'
+            );
+            insert dealerContact;
+        }
+        System.runAs(new User(Id = UserInfo.getUserId())) {
+            Profile dealerProfile = [SELECT Id FROM Profile WHERE Name = 'Healthcare Dealer' LIMIT 1];
+            User dealer = new User(
+                Alias = 'dport',
+                Email = 'portal.dealer.' + DEALER_KEY + '@example.com',
+                EmailEncodingKey = 'UTF-8',
+                LastName = 'Portal Dealer',
+                LanguageLocaleKey = 'en_US',
+                LocaleSidKey = 'en_US',
+                ProfileId = dealerProfile.Id,
+                TimeZoneSidKey = 'America/New_York',
+                Username = portalDealerUsername(),
+                ContactId = dealerContact.Id,
+                CommunityNickname = 'dport' + DEALER_KEY + UserInfo.getOrganizationId().right(6)
+            );
+            insert dealer;
+            insert new PermissionSetAssignment(
+                AssigneeId = dealer.Id,
+                PermissionSetId = [SELECT Id FROM PermissionSet WHERE Name = 'DealerPortalUser' LIMIT 1].Id
+            );
+        }
+    }
+
+    private static String portalDealerUsername() {
+        return 'dealer.' + DEALER_KEY + '.' + UserInfo.getOrganizationId() + '@example.com';
     }
 }

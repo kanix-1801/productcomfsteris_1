@@ -9,11 +9,10 @@
 */
 public without sharing class MockRoomORICalendarService {
     
-	private static final String BACKUP_ROLE = 'Backup';
-    
     /**
 * @description Builds calendar events and blocked ranges for the requested date range.
 * An approved request shows its confirmed date. Any other request holds its primary and backup dates.
+* GC-3666. Each date is one day. Event duration is informational and never blocks extra days.
 *
 * @param rangeStart First visible calendar day.
 * @param rangeEnd Last visible calendar day.
@@ -36,11 +35,21 @@ public without sharing class MockRoomORICalendarService {
 					 ? new Map<Date, String>{ requestRecord.ConfirmedDate__c => 'Confirmed' }
 				 : new Map<Date, String>{
 					 requestRecord.PrimaryRequestedDate__c => 'Primary',
-						 requestRecord.BackupRequestedDate__c => BACKUP_ROLE
+						 requestRecord.BackupRequestedDate__c => 'Backup'
 						 };
 							 dateRoleByDateMap.remove(null);
 				 for (Date eventDate : dateRoleByDateMap.keySet()) {
-					 addRequestSpan(data.events, requestRecord, eventDate, dateRoleByDateMap.get(eventDate), startDate, endDate);
+					 if (eventDate >= startDate && eventDate <= endDate) {
+						 MockRoomORICalendarController.CalendarEvent eventRow = new MockRoomORICalendarController.CalendarEvent();
+						 eventRow.requestId = requestRecord.Id;
+						 eventRow.requestName = requestRecord.Name;
+						 eventRow.requestType = requestRecord.RecordType.Name;
+						 eventRow.accountName = requestRecord.Account__r?.Name;
+						 eventRow.status = requestRecord.Status__c;
+						 eventRow.eventDate = eventDate;
+						 eventRow.dateRole = dateRoleByDateMap.get(eventDate);
+						 data.events.add(eventRow);
+					 }
 				 }
 			 }
         
@@ -53,43 +62,5 @@ public without sharing class MockRoomORICalendarService {
 			data.blocks.add(blockRow);
 		}
 		return data;
-	}
-    
-    /**
-* @description Adds each day of the request span that falls inside the visible range.
-* GC-3483 Sprint 8. A blank or invalid duration is one day. The primary date and a confirmed date use the event duration.
-* A backup requested date stays one day until Strategic Events confirms it.
-*
-* @param events Calendar events being built.
-* @param requestRecord Request that owns the date.
-* @param firstDay First day of the span.
-* @param role Confirmed, Primary, or Backup.
-* @param startDate First visible calendar day.
-* @param endDate Last visible calendar day.
-*/
-	private static void addRequestSpan(
-		List<MockRoomORICalendarController.CalendarEvent> events,
-		MockRoomOrORIRequest__c requestRecord,
-		Date firstDay,
-		String role,
-		Date startDate,
-		Date endDate
-	) {
-		Decimal duration = requestRecord.EventDurationDays__c;
-		Integer durationDays = role == BACKUP_ROLE || duration == null || duration < 1 ? 1 : duration.intValue();
-		for (Integer dayOffset = 0; dayOffset < durationDays; dayOffset++) {
-			Date spanDate = firstDay.addDays(dayOffset);
-			if (spanDate >= startDate && spanDate <= endDate) {
-				MockRoomORICalendarController.CalendarEvent eventRow = new MockRoomORICalendarController.CalendarEvent();
-				eventRow.requestId = requestRecord.Id;
-				eventRow.requestName = requestRecord.Name;
-				eventRow.requestType = requestRecord.RecordType.Name;
-				eventRow.accountName = requestRecord.Account__r?.Name;
-				eventRow.status = requestRecord.Status__c;
-				eventRow.eventDate = spanDate;
-				eventRow.dateRole = role;
-				events.add(eventRow);
-			}
-		}
 	}
 }

@@ -100,7 +100,7 @@ private class TechDistrictAlignmentControllerTest {
 		Assert.areEqual(1, result.territoryCreatedCount, 'Both rows share one new territory.');
 		Assert.areEqual(2, result.movedCount);
 		Assert.areEqual(0, result.skippedCount, String.join(result.errors, '\n'));
-		Assert.areEqual(TechDistrictAlignmentService.nextFiscalYearStart(), result.nextFiscalYearStart);
+		Assert.areEqual(PlatformUtilities.nextFiscalYearStart(Date.today()), result.nextFiscalYearStart);
 
 		ServiceTerritory current = [
 			SELECT Id, TerritoryType__c, ParentTerritoryId, OperatingHoursId
@@ -126,7 +126,7 @@ private class TechDistrictAlignmentControllerTest {
 		];
 		Assert.areEqual(2, nextMembers.size());
 		for (ServiceTerritoryMember member : nextMembers) {
-			Assert.areEqual(TechDistrictAlignmentService.nextFiscalYearStartDatetime(), member.EffectiveStartDate);
+			Assert.areEqual(nextFiscalYearStartMidnight(), member.EffectiveStartDate);
 			Assert.areEqual('P', member.TerritoryType);
 		}
 		assertCurrentMembershipsEnded(2);
@@ -174,7 +174,7 @@ private class TechDistrictAlignmentControllerTest {
 			FROM ServiceTerritoryMember
 			WHERE ServiceTerritory.RegionNumber__c = :NEXT_TERRITORY AND ServiceResource.Name = 'GW2707 Tech One'
 		];
-		Assert.areEqual(TechDistrictAlignmentService.nextFiscalYearStartDatetime(), nextMember.EffectiveStartDate);
+		Assert.areEqual(nextFiscalYearStartMidnight(), nextMember.EffectiveStartDate);
 		assertCurrentMembershipsEnded(1);
 	}
 
@@ -746,43 +746,6 @@ private class TechDistrictAlignmentControllerTest {
 	}
 
 	/**
-	 * @description The next fiscal year starts on the first day of the org's fiscal year start month after the
-	 *              run date.
-	 */
-	@IsTest
-	static void nextFiscalYearStart_isNextAprilFirst() {
-		/*******************************************
-		 * SETUP
-		 *******************************************/
-		Integer startMonth = [SELECT FiscalYearStartMonth FROM Organization].FiscalYearStartMonth;
-		Date startDay = Date.newInstance(2027, startMonth, 1);
-		List<Date> runDates = new List<Date>{ startDay.addMonths(-5), startDay.addDays(-1), startDay };
-		List<Date> starts = new List<Date>();
-
-		/*******************************************
-		 * GIVEN
-		 *******************************************/
-		Assert.isTrue(startMonth >= 1 && startMonth <= 12, 'The org has a fiscal year start month.');
-
-		/*******************************************
-		 * WHEN
-		 *******************************************/
-		Test.startTest();
-		for (Date runDate : runDates) {
-			TechDistrictAlignmentService.runDate = runDate;
-			starts.add(TechDistrictAlignmentService.nextFiscalYearStart());
-		}
-		Test.stopTest();
-
-		/*******************************************
-		 * THEN
-		 *******************************************/
-		Assert.areEqual(startDay, starts[0], 'Months before the start: the start of this year is next.');
-		Assert.areEqual(startDay, starts[1], 'The day before the start: the start of this year is next.');
-		Assert.areEqual(startDay.addYears(1), starts[2], 'On the start day: the start of next year is next.');
-	}
-
-	/**
 	 * @description Only Excel (.xlsx) uploads are read; a CSV file is rejected and changes nothing.
 	 */
 	@IsTest
@@ -822,6 +785,13 @@ private class TechDistrictAlignmentControllerTest {
 		Assert.isTrue(messages[0].contains('Excel (.xlsx)'), 'A CSV file should be rejected: ' + messages[0]);
 		Assert.isTrue(messages[1].contains('Excel (.xlsx)'), 'A corrupt workbook should be rejected: ' + messages[1]);
 		Assert.areEqual(0, [SELECT COUNT() FROM ServiceTerritoryMember WHERE EffectiveEndDate != NULL]);
+	}
+
+	/**
+	 * @description Midnight (running user's time zone) on the first day of the next fiscal year.
+	 */
+	private static Datetime nextFiscalYearStartMidnight() {
+		return Datetime.newInstance(PlatformUtilities.nextFiscalYearStart(Date.today()), Time.newInstance(0, 0, 0, 0));
 	}
 
 	private static void assertCurrentMembershipsEnded(Integer expected) {

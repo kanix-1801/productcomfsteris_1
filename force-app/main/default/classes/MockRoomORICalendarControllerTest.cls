@@ -1,5 +1,5 @@
 /**
-* @description GC-3483. Covers the shared calendar query for events, blocks, drafts, durations, and the request being edited.
+* @description GC-3483. Covers the shared calendar query for events, blocks, drafts, one-day dates regardless of event duration, and the request being edited.
 */
 @IsTest
 private class MockRoomORICalendarControllerTest {
@@ -66,6 +66,8 @@ private class MockRoomORICalendarControllerTest {
         Assert.areEqual('GC-3483 Calendar Account', data.events[0].accountName, 'Expected the customer name on the calendar entry.');
         Assert.areEqual(1, data.blocks.size(), 'Expected the trade show block.');
         Assert.areEqual('Trade Show', data.blocks[0].reason, 'Expected the block reason.');
+        Assert.areEqual(Date.today().addDays(5), data.blocks[0].startDate, 'The block should keep its start date.');
+        Assert.areEqual(Date.today().addDays(6), data.blocks[0].endDate, 'The block should keep its full range to the end date.');
     }
     
     @IsTest
@@ -86,7 +88,7 @@ private class MockRoomORICalendarControllerTest {
     }
     
     @IsTest
-    static void getCalendarKeepsBackupToOneDayUntilConfirmed() {
+    static void getCalendarShowsOneDayPerDateRegardlessOfEventDuration() {
         Opportunity capitalOpportunity = [SELECT Id, AccountId, PrimaryContact__c FROM Opportunity WHERE Name = 'GC-3483 Calendar Opportunity' LIMIT 1];
         User salesUser = getSalesUser();
         MockRoomOrORIRequest__c pendingRequest = newRequest(capitalOpportunity, salesUser.Id, DRAFT, Date.today().addDays(20), Date.today().addDays(30));
@@ -96,7 +98,7 @@ private class MockRoomORICalendarControllerTest {
         confirmedPrimary.ConfirmedDateSelection__c = PRIMARY;
         List<MockRoomOrORIRequest__c> requests = new List<MockRoomOrORIRequest__c>{ pendingRequest, confirmedBackup, confirmedPrimary };
             for (MockRoomOrORIRequest__c requestRecord : requests) {
-                requestRecord.EventDurationDays__c = 5;
+                requestRecord.EventDurationDays__c = 3;
             }
         insert requests;
         
@@ -107,10 +109,10 @@ private class MockRoomORICalendarControllerTest {
             );
             Test.stopTest();
             
-            Assert.areEqual(5, dayCounts.get(pendingRequest.Id + PRIMARY), 'The primary date should cover the event duration.');
+            Assert.areEqual(1, dayCounts.get(pendingRequest.Id + PRIMARY), 'A 3-day event should show only the primary date.');
             Assert.areEqual(1, dayCounts.get(pendingRequest.Id + BACKUP), 'A backup requested date should stay one day.');
-            Assert.areEqual(5, dayCounts.get(confirmedBackup.Id + CONFIRMED), 'Confirming the backup date should cover the event duration from that date.');
-            Assert.areEqual(5, dayCounts.get(confirmedPrimary.Id + CONFIRMED), 'Confirming the primary date should cover the event duration from that date.');
+            Assert.areEqual(1, dayCounts.get(confirmedBackup.Id + CONFIRMED), 'A confirmed backup date should show one day.');
+            Assert.areEqual(1, dayCounts.get(confirmedPrimary.Id + CONFIRMED), 'A confirmed primary date should show one day.');
         }
     }
     

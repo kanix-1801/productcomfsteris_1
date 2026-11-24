@@ -186,4 +186,27 @@ private class WOAssignmentHistoriesSelectorTest {
             Assert.areEqual(UserInfo.getUserId(), closedRows[0].Technician__c);
         }
     }
+
+    @IsTest
+    static void testSelectOpenByWorkOrderIds_WhenOpenRowsExist_ReturnsOpenRows() {
+        WorkOrder workOrder = [
+            SELECT Id
+            FROM WorkOrder
+            WHERE Subject = :WO_SUBJECT
+            LIMIT 1
+        ];
+
+        Test.startTest();
+        List<WOAssignmentHistory__c> emptyGuard =
+            WOAssignmentHistoriesSelector.selectOpenByWorkOrderIds(null);
+        List<WOAssignmentHistory__c> openRows =
+            WOAssignmentHistoriesSelector.selectOpenByWorkOrderIds(new Set<Id>{ workOrder.Id });
+        Test.stopTest();
+
+        Assert.isTrue(emptyGuard.isEmpty());
+        Assert.areEqual(1, openRows.size());
+        Assert.isNull(openRows[0].EndDateTime__c);
+        Assert.areEqual(workOrder.Id, openRows[0].WorkOrder__c);
+        Assert.areEqual('Technician', openRows[0].Type__c);
+    }
 }

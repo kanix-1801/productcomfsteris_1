@@ -52,7 +52,7 @@ public with sharing class OppForecastConfBannerController {
 				'OppForecastConfBannerController',
 				'propagateSelectedQuotes'
 			);
-			throw new AuraHandledException('Unable to propagate forecast confidence to selected quotes.');
+			throw new AuraHandledException('Unable to update forecast confidence on selected quotes.');
 		}
 	}
 

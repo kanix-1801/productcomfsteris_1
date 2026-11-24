@@ -507,6 +507,21 @@ public with sharing class DynamicSoqlQuery {
 				throw new DynamicSoqlException('LIKE requires a String value (filter #' + (i + 1) + ').');
 			}
 
+			// Bind null as "= :p" / "!= :p" is unreliable; emit literal IS NULL / != NULL.
+			if (f.value == null) {
+				if (op == '=') {
+					conditions.add(fieldPath + ' = NULL');
+					continue;
+				}
+				if (op == '!=') {
+					conditions.add(fieldPath + ' != NULL');
+					continue;
+				}
+				throw new DynamicSoqlException(
+					'Null value is only allowed with = or != (filter #' + (i + 1) + ').'
+				);
+			}
+
 			String bindName = 'p' + i;
 			binds.put(bindName, f.value);                 // value is BOUND, never concatenated
 			conditions.add(fieldPath + ' ' + op + ' :' + bindName);

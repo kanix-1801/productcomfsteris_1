@@ -249,8 +249,9 @@ public with sharing class ScOpportunityQuoteEventGateway {
 		ScOpportunityQuoteEventResponse businessResponse =
 			ScOpportunityQuoteEventResponse.parse(responseBody);
 
+		// HTTP 2xx alone is not success: Sales Connection must return status = "Success".
 		if (businessResponse == null || String.isBlank(businessResponse.status)) {
-			return true;
+			return false;
 		}
 
 		return businessResponse.isSuccessStatus();
@@ -298,6 +299,12 @@ public with sharing class ScOpportunityQuoteEventGateway {
 
 		Object serviceStatus = responseMap.get(SERVICE_STATUS_KEY);
 		Object serviceData = responseMap.get(SERVICE_DATA_KEY);
+
+		String businessStatusDetail = buildBusinessStatusErrorDetail(responseMap, serviceStatus);
+		if (String.isNotBlank(businessStatusDetail)) {
+			return businessStatusDetail;
+		}
+
 		if (serviceStatus != null) {
 			String errorDetail =
 				'Opportunity Quote SC event callout failed with HTTP status ' +
@@ -309,6 +316,46 @@ public with sharing class ScOpportunityQuoteEventGateway {
 		}
 
 		return 'SO_Callout failed with SO_SUCCESS=false';
+	}
+
+	/**
+	 * @description For an HTTP 2xx response whose body status is not "Success", explains that
+	 *              Sales Connection rejected the transaction. Returns null otherwise.
+	 */
+	@TestVisible
+	private static String buildBusinessStatusErrorDetail(
+		Map<String, Object> responseMap,
+		Object serviceStatus
+	) {
+		Integer httpStatus;
+		try {
+			httpStatus = serviceStatus == null ? null : Integer.valueOf(String.valueOf(serviceStatus));
+		} catch (Exception exceptionValue) {
+			httpStatus = null;
+		}
+
+		if (httpStatus == null || httpStatus < 200 || httpStatus >= 300) {
+			return null;
+		}
+
+		String responseBody = extractResponseBody(responseMap);
+		ScOpportunityQuoteEventResponse businessResponse;
+		try {
+			businessResponse = ScOpportunityQuoteEventResponse.parse(responseBody);
+		} catch (Exception exceptionValue) {
+			return null;
+		}
+
+		if (businessResponse == null || businessResponse.isSuccessStatus()) {
+			return null;
+		}
+
+		String statusLabel = String.isBlank(businessResponse.status)
+			? 'missing'
+			: '"' + businessResponse.status + '"';
+
+		return 'Sales Connection did not confirm the update (HTTP ' + httpStatus +
+			', status ' + statusLabel + '). Quote records were not updated. Response: ' + responseBody;
 	}
 
 	@TestVisible

@@ -8,6 +8,19 @@ private class LSAccountSelectorTest {
     private static final Set<String> LIFE_SCIENCES_CLASS_CODES = new Set<String>{ 'SC' };
     private static final Integer ROW_LIMIT = 200;
 
+    /**
+     * @description Turns off only the IDN/GPO creation rule so the IDN child in these tests is saved.
+     *              Without it the IDN insert is blocked for users without Manage_IDN_GPO, the insert
+     *              result is not checked, and the child count comes out one short.
+     */
+    @TestSetup
+    static void allowIdnTestAccounts() {
+        insert new Automation_Setting_Validation_Rule__c(
+            SetupOwnerId = UserInfo.getOrganizationId(),
+            Account_IDN_GPO_Create__c = true
+        );
+    }
+
     @IsTest
     static void lifeSciencesAccountMethodsReturnOnlyMatchingCustomers() {
         Account customer = insertAccount('LS Selector Customer', 'LS-SEL-C', 'Customer', 'SC', null, 'LS-SEL-ADDR-1');
@@ -119,7 +132,8 @@ private class LSAccountSelectorTest {
             ParentId = parentId,
             OracleAddressId__c = oracleAddressId
         );
-        Database.insert(accountRecord, allowDuplicates());
+        Database.SaveResult result = Database.insert(accountRecord, allowDuplicates());
+        System.assert(result.isSuccess(), 'Test data insert failed for ' + name + ': ' + result.getErrors());
         return accountRecord;
     }
 

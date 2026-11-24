@@ -7,6 +7,9 @@
  */
 public with sharing class ScOpportunityQuoteEventService {
 	private static final String CLASS_NAME = 'ScOpportunityQuoteEventService';
+	public static final String CALLOUT_FAILED_MESSAGE =
+		'The Quote could not be updated in Sales Connection. Please try again. ' +
+		'If you continue to experience this issue, contact your System Administrator.';
 	public static final String NO_SALES_CONNECTION_QUOTE_ID_MESSAGE =
 		'At least one Quote must have a Sales Connection Quote Id before Salesforce can sync with Sales Connection.';
 	public static final String EMPTY_RESPONSE_QUOTES_MESSAGE =
@@ -337,10 +340,8 @@ public with sharing class ScOpportunityQuoteEventService {
 		}
 
 		if (calloutResult.calloutSuccess != true) {
-			String detail = String.isNotBlank(calloutResult.errorDetail)
-				? calloutResult.errorDetail
-				: 'Sales Connection rejected the update.';
-			throw new AuraHandledException(detail);
+			// Detailed reason is logged by ScOpportunityQuoteEventGateway; users see only the generic message.
+			throw new AuraHandledException(CALLOUT_FAILED_MESSAGE);
 		}
 	}
 

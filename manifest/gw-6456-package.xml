@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- GW-6456 IMS Asset Assignment (Covered Equipment). 2026-11-25: CustomObject + CustomField deployed to cbmdev (0AfOu00000FfuIXKAZ).
+     Apex, LWC and Flow NOT deployed yet: validate first, see
+     GW-6456_IMS_ASSET_ASSIGNMENT_IMPLEMENTATION.md "Implementation status". -->
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <types>
+        <members>OpportunityAsset__c</members>
+        <name>CustomObject</name>
+    </types>
+    <types>
+        <members>OpportunityAsset__c.Opportunity__c</members>
+        <members>OpportunityAsset__c.Asset__c</members>
+        <members>OpportunityAsset__c.InventoryGroup__c</members>
+        <members>OpportunityAsset__c.UniqueKey__c</members>
+        <members>QuoteLineItem.ImsAssetSelection__c</members>
+        <name>CustomField</name>
+    </types>
+    <types>
+        <members>EsServiceAssetSelectionController</members>
+        <members>ImsAssetAssignmentController</members>
+        <members>ImsAssetAssignmentService</members>
+        <members>ImsAssetAssignmentServiceTest</members>
+        <members>OpportunityAssetSelector</members>
+        <name>ApexClass</name>
+    </types>
+    <types>
+        <members>assetPickerUtils</members>
+        <members>esServiceAssetPicker</members>
+        <members>imsAssetPicker</members>
+        <members>imsCoveredEquipment</members>
+        <members>imsInventoryGroupPicker</members>
+        <members>imsInventoryGroupPreview</members>
+        <name>LightningComponentBundle</name>
+    </types>
+    <types>
+        <members>Custom_Product_Configurator_IMS_Service_Product</members>
+        <name>Flow</name>
+    </types>
+    <version>66.0</version>
+</Package>

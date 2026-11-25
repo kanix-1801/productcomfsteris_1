@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>62.0</apiVersion>
+    <isExposed>true</isExposed>
+    <masterLabel>IMS Covered Equipment</masterLabel>
+    <description>GW-6456 - Covered Equipment (Device and Device Inventory Assignment) for the IMS Service Agreement in the RCA product configurator.</description>
+    <targets>
+        <target>lightning__FlowScreen</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightning__FlowScreen">
+            <property name="rootTransactionLineId" type="String" label="Root Transaction Line Id"/>
+            <property name="transactionId" type="String" label="Transaction (Quote) Id"/>
+            <property name="currentProductId" type="String" label="Current Product Id"/>
+            <property name="currentTransactionLineId" type="String" label="Current Transaction Line Id"/>
+            <property name="currentProductName" type="String" label="Current Product Name"
+                description="Product on screen (S01_DataManager.header.name)."/>
+            <property name="allowedProducts" type="String" label="Allowed Products"
+                description="Comma-separated product names the card is shown for; blank shows it for every product."/>
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

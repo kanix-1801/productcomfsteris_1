@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- GW-6456 IMS Asset Assignment: what is still left to deploy.
+     Already in cbmdev (2026-11-25, 0AfOu00000FfuIXKAZ): OpportunityAsset__c + its 4 fields, QuoteLineItem.ImsAssetSelection__c.
+     Must already exist in the target org (not included): SoqlQueryBuilder, QuoteLineItemSelector, QuoteSelector,
+     ContractLineItemSelector, AssetsSelector, AccountAccountRelationshipSelector, Logger,
+     EsServiceProductConfigController, ImsProductConfiguratorTestDataFactory, LWC imsProductConfigurator.
+     Validate first:
+     sf project deploy validate -x manifest/gw-6456-remaining-package.xml -o mail_steris_cbmdev -l RunSpecifiedTests -t ImsAssetAssignmentServiceTest -t EsServiceAssetSelectionControllerTest -->
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <types>
+        <members>EsServiceAssetSelectionController</members>
+        <members>ImsAssetAssignmentController</members>
+        <members>ImsAssetAssignmentService</members>
+        <members>ImsAssetAssignmentServiceTest</members>
+        <members>OpportunityAssetSelector</members>
+        <name>ApexClass</name>
+    </types>
+    <types>
+        <members>assetPickerUtils</members>
+        <members>esServiceAssetPicker</members>
+        <members>imsAssetPicker</members>
+        <members>imsCoveredEquipment</members>
+        <members>imsInventoryGroupPicker</members>
+        <members>imsInventoryGroupPreview</members>
+        <name>LightningComponentBundle</name>
+    </types>
+    <types>
+        <members>Custom_Product_Configurator_IMS_Service_Product</members>
+        <name>Flow</name>
+    </types>
+    <version>66.0</version>
+</Package>

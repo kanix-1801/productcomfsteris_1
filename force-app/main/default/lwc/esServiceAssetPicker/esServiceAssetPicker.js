@@ -12,9 +12,16 @@
 import { api } from 'lwc';
 import LightningModal from 'lightning/modal';
 import getAssets from '@salesforce/apex/EsServiceAssetSelectionController.getAssets';
-
-const PAGE_SIZE = 100;
-const SEARCH_DEBOUNCE_MS = 250;
+import {
+    PAGE_SIZE,
+    SEARCH_DEBOUNCE_MS,
+    emptyMap,
+    addSearchText,
+    filterBySearch,
+    filterByColumns,
+    compareValues,
+    formatDate
+} from 'c/assetPickerUtils';
 
 // Table columns, in order. Each column can be sorted and filtered.
 const COLUMNS = [
@@ -41,8 +48,6 @@ const CRITERIA = [
     { field: 'model', label: 'Model' }
 ];
 
-const emptyMap = (list) => Object.fromEntries(list.map((c) => [c.field, '']));
-const tokenize = (text) => String(text || '').toLowerCase().split(/\s+/).filter(Boolean);
 
 export default class EsServiceAssetPicker extends LightningModal {
     @api quoteId;
@@ -99,17 +104,8 @@ export default class EsServiceAssetPicker extends LightningModal {
 
     // Adds display values and lower-case text for matching.
     prepareRow(r) {
-        const row = { ...r, installDateLabel: r.installDate ? this.formatDate(r.installDate) : '' };
-        const lc = {};
-        COLUMNS.forEach((c) => {
-            let value = row[c.field];
-            // Install Date matches both the displayed date and yyyy-mm-dd.
-            if (c.field === 'installDate') value = [row.installDateLabel, row.installDate].filter(Boolean).join(' ');
-            lc[c.field] = String(value ?? '').toLowerCase();
-        });
-        row.lc = lc;
-        row.searchText = Object.values(lc).filter(Boolean).join(' ');
-        return row;
+        // Install Date matches both the displayed date and yyyy-mm-dd (see addSearchText).
+        return addSearchText({ ...r, installDateLabel: r.installDate ? this.formatDate(r.installDate) : '' }, COLUMNS);
     }
 
     disconnectedCallback() {
@@ -124,17 +120,7 @@ export default class EsServiceAssetPicker extends LightningModal {
         if (key === this._cache.searchKey) {
             return this._cache.searchRows;
         }
-        const searchTokens = tokenize(this.applied.search);
-        const criteria = CRITERIA.map((c) => ({ field: c.field, tokens: tokenize(this.applied.criteria[c.field]) })).filter(
-            (c) => c.tokens.length
-        );
-        let rows = this.allRows;
-        if (searchTokens.length) {
-            rows = rows.filter((r) => searchTokens.every((t) => r.searchText.includes(t)));
-        }
-        if (criteria.length) {
-            rows = rows.filter((r) => criteria.every((c) => c.tokens.every((t) => r.lc[c.field].includes(t))));
-        }
+        const rows = filterBySearch(this.allRows, this.applied.search, CRITERIA, this.applied.criteria);
         this._cache.searchRows = rows;
         this._cache.searchKey = key;
         return rows;
@@ -152,13 +138,7 @@ export default class EsServiceAssetPicker extends LightningModal {
             this.showSelectedOnly ? this.selectionVersion : 0
         ].join('|');
         if (key === this._cache.key) return this._cache.rows;
-        const columnFilters = COLUMNS.map((c) => ({ field: c.field, tokens: tokenize(this.applied.columns[c.field]) })).filter(
-            (c) => c.tokens.length
-        );
-        let rows = searchRows;
-        if (columnFilters.length) {
-            rows = rows.filter((r) => columnFilters.every((c) => c.tokens.every((t) => r.lc[c.field].includes(t))));
-        }
+        let rows = filterByColumns(searchRows, COLUMNS, this.applied.columns);
         if (this.showSelectedOnly) rows = rows.filter((r) => this.selected.has(r.id));
         this._cache.rows = [...rows].sort((a, b) => this.compare(a, b));
         this._cache.key = key;
@@ -185,16 +165,7 @@ export default class EsServiceAssetPicker extends LightningModal {
     }
 
     cmp(x, y) {
-        if (x === y) {
-            return 0;
-        }
-        if (x === null || x === undefined || x === '') {
-            return 1; // blanks last
-        }
-        if (y === null || y === undefined || y === '') {
-            return -1;
-        }
-        return String(x).localeCompare(String(y), undefined, { numeric: true, sensitivity: 'base' });
+        return compareValues(x, y); // blanks last
     }
 
     get filtered() {
@@ -484,11 +455,6 @@ export default class EsServiceAssetPicker extends LightningModal {
     }
 
     formatDate(value) {
-        // value is yyyy-mm-dd
-        const [y, m, d] = String(value).split('-').map(Number);
-        if (!y) return String(value);
-        return new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'short', day: 'numeric' }).format(
-            new Date(y, m - 1, d)
-        );
+        return formatDate(value); // value is yyyy-mm-dd
     }
 }

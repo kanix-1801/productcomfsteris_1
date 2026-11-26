@@ -1,0 +1,35 @@
+<template>
+    <div class="preview">
+        <template lwc:if={hasGroup}>
+            <h3 class="preview-title">{heading}</h3>
+            <template lwc:if={error}>
+                <div class="preview-error" role="alert">{error}</div>
+            </template>
+            <template lwc:elseif={isEmpty}>
+                <p class="preview-empty">No devices in this group.</p>
+            </template>
+            <template lwc:else>
+                <div class="preview-table">
+                    <lightning-datatable
+                        key-field="id"
+                        data={rows}
+                        columns={columns}
+                        hide-checkbox-column
+                        enable-infinite-loading={canLoadMore}
+                        is-loading={loading}
+                        onloadmore={handleLoadMore}>
+                    </lightning-datatable>
+                </div>
+                <template lwc:if={capped}>
+                    <p class="preview-note">Showing the first 2,000 devices. Use Choose Assets to search the rest.</p>
+                </template>
+            </template>
+        </template>
+        <template lwc:else>
+            <div class="preview-placeholder">
+                <lightning-icon icon-name="utility:preview" size="small"></lightning-icon>
+                <p>Select Preview on a group to see its devices.</p>
+            </div>
+        </template>
+    </div>
+</template>

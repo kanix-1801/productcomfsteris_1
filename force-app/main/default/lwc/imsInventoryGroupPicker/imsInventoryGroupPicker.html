@@ -1,0 +1,68 @@
+<template>
+    <lightning-modal-body class="picker-body">
+        <header class="picker-header">
+            <lightning-icon icon-name="standard:asset_object" size="small"></lightning-icon>
+            <div class="picker-title">
+                <h2>Assign Inventory Group</h2>
+                <p>{subtitle} · step 1 of 2</p>
+            </div>
+        </header>
+
+        <template lwc:if={hasGroups}>
+            <div class="include-row">
+                <lightning-input type="toggle" label="Include the opportunity's devices" checked={include}
+                    message-toggle-active="" message-toggle-inactive="" onchange={handleInclude}
+                    data-id="include-toggle"></lightning-input>
+                <span class="summary">{chosenSummary}</span>
+            </div>
+
+            <div class="columns">
+                <div class="groups">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th class="check-col" scope="col"><span class="slds-assistive-text">Include</span></th>
+                                <th scope="col">Group</th>
+                                <th scope="col" class="num">Devices</th>
+                                <th scope="col">Uploaded</th>
+                                <th scope="col"><span class="slds-assistive-text">Preview</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template for:each={rows} for:item="g">
+                                <tr key={g.key} class={g.rowClass}>
+                                    <td class="check-col">
+                                        <input type="checkbox" data-name={g.name} checked={g.checked}
+                                            disabled={g.disabled} aria-label={g.name} onchange={handleCheck} />
+                                    </td>
+                                    <td title={g.name}>{g.name}</td>
+                                    <td class="num">{g.countLabel}</td>
+                                    <td>{g.uploadedLabel}</td>
+                                    <td>
+                                        <button type="button" class="link-button" data-name={g.name}
+                                            aria-label={g.previewLabel} onclick={handlePreview}>Preview</button>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="preview-col">
+                    <c-ims-inventory-group-preview opportunity-id={opportunityId} group-name={previewGroup}
+                        device-count={previewDeviceCount}></c-ims-inventory-group-preview>
+                </div>
+            </div>
+        </template>
+        <template lwc:else>
+            <div class="notice notice-info" role="status">
+                No inventory groups have been uploaded for this opportunity. Continue to pick assets individually.
+            </div>
+        </template>
+    </lightning-modal-body>
+
+    <lightning-modal-footer>
+        <lightning-button label="Cancel" onclick={handleCancel}></lightning-button>
+        <lightning-button variant="brand" label="Next - Asset Assignment" class="slds-m-left_x-small"
+            disabled={nextDisabled} onclick={handleNext}></lightning-button>
+    </lightning-modal-footer>
+</template>

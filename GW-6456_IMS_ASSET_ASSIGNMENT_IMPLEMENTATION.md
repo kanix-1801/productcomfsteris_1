@@ -5,12 +5,15 @@
 
 ---
 
-## Implementation status (2026-11-25): built in the repo, **object + fields deployed to cbmdev; Apex / LWC / flow not deployed**
+## Implementation status (2026-11-25): built in the repo, **object, fields, Apex and LWC deployed to cbmdev; flow not deployed**
 
 ### Deployment log
 | Date | Org | What | Deploy ID | Result |
 |---|---|---|---|---|
 | 2026-11-25 | cbmdev (`vinay_soni@steris.com.cbmdev`) | `CustomObject:OpportunityAsset__c`; `CustomField`: `OpportunityAsset__c.Opportunity__c`, `.Asset__c`, `.InventoryGroup__c`, `.UniqueKey__c`, `QuoteLineItem.ImsAssetSelection__c` | `0AfOu00000FfuIXKAZ` (validated first: `0AfOu00000FfuGvKAJ`) | ✅ Succeeded, 6/6 created |
+| 2026-11-25 | cbmdev (`vinay_soni@steris.com.cbmdev`) | `ApexClass`: `EsServiceAssetSelectionController` (changed), `OpportunityAssetSelector`, `ImsAssetAssignmentService`, `ImsAssetAssignmentController`, `ImsAssetAssignmentServiceTest`; `LightningComponentBundle`: `assetPickerUtils`, `imsInventoryGroupPreview`, `imsInventoryGroupPicker`, `imsAssetPicker`, `imsCoveredEquipment`, `esServiceAssetPicker` (changed). Flow **not** included. | `0AfOu00000Ffzq5KAB` | ✅ Succeeded, 11/11. RunSpecifiedTests `ImsAssetAssignmentServiceTest` + `EsServiceAssetSelectionControllerTest`: 18/18 pass. Coverage: Service 95.6%, Selector 89.3%, ES controller 88.6%, Controller 82.9% |
+
+Test fix made before deploying (first validation: 11 of 18 failed with "fields being inaccessible on OpportunityAsset__c"): in `ImsAssetAssignmentServiceTest`, test-data DML now uses `AccessLevel.SYSTEM_MODE`, the `groupAssetIds` helper query uses `WITH SYSTEM_MODE`, and every test method runs inside `System.runAs(testUser())` so the permission set assigned in `@TestSetup` takes effect. No production class was changed.
 
 No field permissions were deployed: the new fields are not visible to anyone until a permission set grants them (see "Still to do" #2).
 
@@ -33,7 +36,7 @@ No field permissions were deployed: the new fields are not visible to anyone unt
 
 ### Verified / not verified
 - ✅ Jest: 27 tests pass (`npx sfdx-lwc-jest -- assetPickerUtils imsAssetPicker imsCoveredEquipment imsInventoryGroup`). ESLint clean on the new components.
-- ❌ Apex has **not been compiled or run** (only the object + fields are in cbmdev). Run a check-only validation first:
+- ✅ Apex compiled and tested in cbmdev: 18/18 tests pass (deploy `0AfOu00000Ffzq5KAB`). Run a check-only validation first:
   `sf project deploy validate -x manifest/gw-6456-package.xml -o <alias> -l RunSpecifiedTests -t ImsAssetAssignmentServiceTest EsServiceAssetSelectionControllerTest`
 - ❌ The ES picker refactor has no Jest tests; check the ES configurator manually after deploying.
 

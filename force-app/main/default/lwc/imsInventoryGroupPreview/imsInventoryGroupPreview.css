@@ -1,0 +1,44 @@
+.preview {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.preview-title {
+    margin: 0 0 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+}
+
+.preview-table {
+    height: 24rem;
+    border: 1px solid #e5e5e5;
+    border-radius: 0.25rem;
+}
+
+.preview-error {
+    color: #ba0517;
+    font-size: 0.8125rem;
+}
+
+.preview-empty,
+.preview-note {
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    color: #5c5c5c;
+}
+
+.preview-placeholder {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 12rem;
+    border: 1px dashed #c9c9c9;
+    border-radius: 0.25rem;
+    color: #5c5c5c;
+    font-size: 0.8125rem;
+}

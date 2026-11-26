@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <!-- GW-6456 IMS Asset Assignment (Covered Equipment). 2026-11-25: CustomObject + CustomField deployed to cbmdev (0AfOu00000FfuIXKAZ).
-     Apex, LWC and Flow NOT deployed yet: validate first, see
+     Apex + LWC deployed to cbmdev (0AfOu00000Ffzq5KAB). Flow NOT deployed yet: validate first, see
      GW-6456_IMS_ASSET_ASSIGNMENT_IMPLEMENTATION.md "Implementation status". -->
 <Package xmlns="http://soap.sforce.com/2006/04/metadata">
     <types>

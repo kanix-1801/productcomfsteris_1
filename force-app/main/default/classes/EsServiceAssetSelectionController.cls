@@ -30,7 +30,19 @@ public with sharing class EsServiceAssetSelectionController {
 		@AuraEnabled public String manufacturer;
 		@AuraEnabled public String model;
 		@AuraEnabled public String pfcl;
+		// GW-6456 - IMS Covered Equipment only: 'Opportunity' (inventory group) or 'Account'. Null for ES.
+		@AuraEnabled public String source;
 	}
+
+	// Asset fields read for an AssetRow (see toRow)
+	private static final List<String> ASSET_ROW_FIELDS = new List<String>{
+		'Id', 'SerialNumber', 'Name', 'Status', 'AccountId',
+		'AssetAccountName_f__c', 'Street', 'City', 'State',
+		'PostalCode', 'Country', 'InstallDate',
+		'ProductLineCalculated__c', 'SubProductLineCalculated__c',
+		'ProductTypeCalculated__c', 'ManufacturerCalculated__c',
+		'ModelCalculated__c', 'PFCL__c', 'Product2.PFCL__r.Name'
+	};
 
 	public class AssetList {
 		@AuraEnabled public List<AssetRow> rows = new List<AssetRow>();
@@ -49,66 +61,95 @@ public with sharing class EsServiceAssetSelectionController {
 	 */
 	@AuraEnabled
 	public static AssetList getAssets(Id quoteId) {
-		AssetList result = new AssetList();
 		if (quoteId == null) {
-			return result;
+			return new AssetList();
 		}
-
 		try {
-			Quote quoteRecord = (Quote) new QuoteSelector()
-				.selectField('AccountId')
-				.whereEquals('Id', quoteId)
-				.first();
-			if (quoteRecord == null || quoteRecord.AccountId == null) {
-				return result;
-			}
-			Id quoteAccountId = quoteRecord.AccountId;
-			result.quoteAccountId = quoteAccountId;
-
-			Set<Id> accountIds = new Set<Id>{ quoteAccountId };
-			List<AccountAccountRelationship__c> relationshipList =
-				(List<AccountAccountRelationship__c>) new AccountAccountRelationshipSelector()
-					.selectField('ParentAccount__c')
-					.whereEquals('ChildAccount__c', quoteAccountId)
-					.whereField('ParentAccount__c', '!=', null)
-					.execute();
-			for (AccountAccountRelationship__c rel : relationshipList) {
-				accountIds.add(rel.ParentAccount__c);
-			}
-			result.relatedAccountCount = accountIds.size() - 1;
-
-			Integer queryLimit = MAX_ASSETS + 1;
-			// Must stay a List<Id> at runtime: binding a List<Object> to an Id column fails in SOQL.
-			List<Object> accountIdValues = new List<Id>(accountIds);
-			List<String> assetFields = new List<String>{
-				'Id', 'SerialNumber', 'Name', 'Status', 'AccountId',
-				'AssetAccountName_f__c', 'Street', 'City', 'State',
-				'PostalCode', 'Country', 'InstallDate',
-				'ProductLineCalculated__c', 'SubProductLineCalculated__c',
-				'ProductTypeCalculated__c', 'ManufacturerCalculated__c',
-				'ModelCalculated__c', 'PFCL__c', 'Product2.PFCL__r.Name'
-			};
-			List<Asset> assets = (List<Asset>) new AssetsSelector()
-				.selectFields(assetFields)
-				.whereField('AccountId', 'IN', accountIdValues)
-				.orderBy('SerialNumber', false, true)
-				.orderBy('Name')
-				.limitTo(queryLimit)
-				.execute();
-			if (assets.size() > MAX_ASSETS) {
-				result.truncated = true;
-				assets.remove(assets.size() - 1);
-			}
-			for (Asset a : assets) {
-				result.rows.add(toRow(a));
-			}
-			return result;
+			return loadAccountAssets(quoteId);
 		} catch (Exception e) {
 			throw toAuraException('getAssets: unable to load assets for the quote', quoteId, e,
 								  'Unable to load the assets for this quote.');
 		} finally {
 			Logger.saveLog();
 		}
+	}
+
+	/**
+	 * @description Body of getAssets without the Aura error handling, shared with the IMS Covered Equipment
+	 *              picker (GW-6456): assets on the quote's account and its parent accounts, up to MAX_ASSETS.
+	 * @param quoteId Quote Id
+	 * @return Asset rows, the quote's account, the number of related accounts and whether the list was cut off
+	 */
+	public static AssetList loadAccountAssets(Id quoteId) {
+		AssetList result = new AssetList();
+		if (quoteId == null) {
+			return result;
+		}
+		Quote quoteRecord = (Quote) new QuoteSelector()
+			.selectField('AccountId')
+			.whereEquals('Id', quoteId)
+			.first();
+		if (quoteRecord == null || quoteRecord.AccountId == null) {
+			return result;
+		}
+		Id quoteAccountId = quoteRecord.AccountId;
+		result.quoteAccountId = quoteAccountId;
+
+		Set<Id> accountIds = new Set<Id>{ quoteAccountId };
+		List<AccountAccountRelationship__c> relationshipList =
+			(List<AccountAccountRelationship__c>) new AccountAccountRelationshipSelector()
+				.selectField('ParentAccount__c')
+				.whereEquals('ChildAccount__c', quoteAccountId)
+				.whereField('ParentAccount__c', '!=', null)
+				.execute();
+		for (AccountAccountRelationship__c rel : relationshipList) {
+			accountIds.add(rel.ParentAccount__c);
+		}
+		result.relatedAccountCount = accountIds.size() - 1;
+
+		Integer queryLimit = MAX_ASSETS + 1;
+		// Must stay a List<Id> at runtime: binding a List<Object> to an Id column fails in SOQL.
+		List<Object> accountIdValues = new List<Id>(accountIds);
+		List<Asset> assets = (List<Asset>) new AssetsSelector()
+			.selectFields(ASSET_ROW_FIELDS)
+			.whereField('AccountId', 'IN', accountIdValues)
+			.orderBy('SerialNumber', false, true)
+			.orderBy('Name')
+			.limitTo(queryLimit)
+			.execute();
+		if (assets.size() > MAX_ASSETS) {
+			result.truncated = true;
+			assets.remove(assets.size() - 1);
+		}
+		for (Asset a : assets) {
+			result.rows.add(toRow(a));
+		}
+		return result;
+	}
+
+	/**
+	 * @description GW-6456 - Rows for the given Asset Ids on any account (IMS inventory group devices), ordered
+	 *              by serial number then name. No Aura error handling: callers handle and log errors.
+	 * @param assetIds Asset Ids
+	 * @return Asset rows
+	 */
+	public static List<AssetRow> loadRowsByIds(Set<Id> assetIds) {
+		List<AssetRow> rows = new List<AssetRow>();
+		if (assetIds == null || assetIds.isEmpty()) {
+			return rows;
+		}
+		// Must stay a List<Id> at runtime: binding a List<Object> to an Id column fails in SOQL.
+		List<Object> assetIdValues = new List<Id>(assetIds);
+		List<Asset> assetList = (List<Asset>) new AssetsSelector()
+			.selectFields(ASSET_ROW_FIELDS)
+			.whereField('Id', 'IN', assetIdValues)
+			.orderBy('SerialNumber', false, true)
+			.orderBy('Name')
+			.execute();
+		for (Asset a : assetList) {
+			rows.add(toRow(a));
+		}
+		return rows;
 	}
 
 	/**
@@ -123,24 +164,7 @@ public with sharing class EsServiceAssetSelectionController {
 			return rows;
 		}
 		try {
-			// Must stay a List<Id> at runtime: binding a List<Object> to an Id column fails in SOQL.
-			List<Object> assetIdValues = new List<Id>(assetIds);
-			List<String> assetFields = new List<String>{
-				'Id', 'SerialNumber', 'Name', 'Status', 'AccountId', 'AssetAccountName_f__c',
-				'Street', 'City', 'State', 'PostalCode', 'Country', 'InstallDate',
-				'ProductLineCalculated__c', 'SubProductLineCalculated__c', 'ProductTypeCalculated__c',
-				'ManufacturerCalculated__c', 'ModelCalculated__c', 'PFCL__c', 'Product2.PFCL__r.Name'
-			};
-			List<Asset> assetList = (List<Asset>) new AssetsSelector()
-				.selectFields(assetFields)
-				.whereField('Id', 'IN', assetIdValues)
-				.orderBy('SerialNumber', false, true)
-				.orderBy('Name')
-				.execute();
-			for (Asset a : assetList) {
-				rows.add(toRow(a));
-			}
-			return rows;
+			return loadRowsByIds(new Set<Id>(assetIds));
 		} catch (Exception e) {
 			throw toAuraException('getAssetsByIds: unable to load ' + assetIds.size() + ' assets', null, e,
 								  'Unable to load the selected assets.');

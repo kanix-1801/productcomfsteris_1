@@ -1,0 +1,53 @@
+<template>
+    <div lwc:if={isAllowedProduct} class="ce-card">
+        <div class="ce-card-head">
+            <div class="ce-head-left">
+                <span class="ce-icon">
+                    <lightning-icon icon-name="utility:package" size="x-small" variant="inverse"
+                        alternative-text="Covered equipment"></lightning-icon>
+                </span>
+                <div>
+                    <h3 class="ce-title">Covered Equipment</h3>
+                    <p class="ce-sub">{subtitle}</p>
+                </div>
+            </div>
+            <div class="ce-head-right">
+                <span lwc:if={isPendingSave} class="slds-badge slds-theme_warning">Saved with the configuration</span>
+                <button type="button" class="slds-button slds-button_neutral ce-pill-button" onclick={handleManage}
+                    disabled={manageDisabled} data-id="manage">Manage</button>
+            </div>
+        </div>
+
+        <div lwc:if={errorMessage} class="ce-error" role="alert">{errorMessage}</div>
+
+        <div lwc:if={isLoading} class="ce-loading">
+            <lightning-spinner size="small" alternative-text="Loading"></lightning-spinner>
+        </div>
+        <div lwc:else class="ce-body">
+            <div class="ce-toggle-row">
+                <lightning-input type="toggle" label="Include the opportunity's devices" checked={includeChecked}
+                    disabled={toggleDisabled} message-toggle-active="" message-toggle-inactive=""
+                    onchange={handleToggle} data-id="include-toggle"></lightning-input>
+            </div>
+            <p class="ce-help">{helpText}</p>
+
+            <div class="ce-tiles">
+                <div class="ce-tile">
+                    <span class="ce-tile-label">Opportunity Assets</span>
+                    <strong class="ce-tile-value" data-id="opportunity-count">{opportunityAssetsLabel}</strong>
+                    <span class="ce-tile-note">net of any removed</span>
+                </div>
+                <div class="ce-tile">
+                    <span class="ce-tile-label">Added Assets</span>
+                    <strong class="ce-tile-value" data-id="added-count">{addedAssetsLabel}</strong>
+                    <span class="ce-tile-note">picked with Manage</span>
+                </div>
+                <div class="ce-tile ce-tile-total">
+                    <span class="ce-tile-label">Total Assets</span>
+                    <strong class="ce-tile-value" data-id="total-count">{totalAssetsLabel}</strong>
+                    <span class="ce-tile-note">covered by this service</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>

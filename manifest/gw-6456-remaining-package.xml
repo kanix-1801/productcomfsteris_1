@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <!-- GW-6456 IMS Asset Assignment: what is still left to deploy.
+     2026-11-25: Apex + LWC in this file deployed to cbmdev (0AfOu00000Ffzq5KAB, 18/18 tests). Only the Flow is still pending.
      Already in cbmdev (2026-11-25, 0AfOu00000FfuIXKAZ): OpportunityAsset__c + its 4 fields, QuoteLineItem.ImsAssetSelection__c.
      Must already exist in the target org (not included): SoqlQueryBuilder, QuoteLineItemSelector, QuoteSelector,
      ContractLineItemSelector, AssetsSelector, AccountAccountRelationshipSelector, Logger,

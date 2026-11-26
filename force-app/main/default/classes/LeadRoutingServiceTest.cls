@@ -2,10 +2,9 @@
  * @description GC-2934 tests for Lead Submit routing.
  *
  *              Responsibilities:
- *              1. Verify one shared matrix queue is assigned.
- *              2. Verify one TAS rep is assigned when the matrix does not agree.
- *              3. Verify the country queue is used when TAS returns no rep.
- *              4. Verify a backend insert uses the same routing, unless the New Lead page skips it.
+ *              1. Verify one TAS rep is assigned.
+ *              2. Verify the country queue is used when TAS returns no rep.
+ *              3. Verify a backend insert uses the same routing, unless the New Lead page skips it.
  *
  *              Queue developer names are unique per run because the org already has
  *              Lead_Country_US. The ultimate queue is the existing Lead_Ultimate_Queue.
@@ -18,55 +17,12 @@
 private class LeadRoutingServiceTest {
 
     /**
-     * @description Confirms every matching Product assigns the same queue.
+     * @description Confirms one TAS rep owns the Lead.
      */
     @IsTest
-    static void matchingProductsAssignTheMatrixQueue() {
-        String queueName = uniqueDeveloperName('Lead_Rt_A');
-        Group teamQueue = insertQueue(queueName, 'Lead Team A');
+    static void tasRepAssignsTheLead() {
         Lead leadRecord = insertLeadWithProduct('Sterilizer', 'US');
         update new Lead(Id = leadRecord.Id, HubSpot_Lead__c = true);
-        LeadRoutingService.testMatrixRows = new List<Lead_Routing_Matrix__mdt>{
-            matrixRow('Sterilizer', queueName)
-        };
-
-        Test.startTest();
-        String message = LeadRoutingService.submit(leadRecord.Id);
-        Test.stopTest();
-
-        Assert.areEqual(
-            teamQueue.Id,
-            [SELECT OwnerId FROM Lead WHERE Id = :leadRecord.Id].OwnerId,
-            'The Lead should be owned by the shared matrix queue.'
-        );
-        Assert.isTrue(message.contains('Lead Team A'), 'The toast should name the matrix queue.');
-    }
-
-    /**
-     * @description Confirms one TAS rep owns the Lead when Products resolve to different queues.
-     */
-    @IsTest
-    static void differentQueuesAssignTheTasRep() {
-        String sterilizerQueue = uniqueDeveloperName('Lead_Rt_A');
-        String washerQueue = uniqueDeveloperName('Lead_Rt_B');
-        insertQueue(sterilizerQueue, 'Lead Team A');
-        insertQueue(washerQueue, 'Lead Team B');
-        Lead leadRecord = insertLeadWithProduct('Sterilizer', 'US');
-        update new Lead(Id = leadRecord.Id, HubSpot_Lead__c = true);
-        System.runAs(runningUser()) {
-            Product2 secondProduct = new Product2(Name = 'Washer', IsActive = true, BusinessUnit__c = 'IMS');
-            insert secondProduct;
-            insert new LeadProduct__c(
-                Lead__c = leadRecord.Id,
-                Product__c = secondProduct.Id,
-                ParentCategory__c = 'Infection Prevention',
-                ProductCategory__c = 'Capital'
-            );
-        }
-        LeadRoutingService.testMatrixRows = new List<Lead_Routing_Matrix__mdt>{
-            matrixRow('Sterilizer', sterilizerQueue),
-            matrixRow('Washer', washerQueue)
-        };
         LeadRoutingService.testTasOwnerId = UserInfo.getUserId();
 
         Test.startTest();
@@ -76,7 +32,7 @@ private class LeadRoutingServiceTest {
         Assert.areEqual(
             UserInfo.getUserId(),
             [SELECT OwnerId FROM Lead WHERE Id = :leadRecord.Id].OwnerId,
-            'Different matrix queues should assign the TAS rep.'
+            'The TAS rep should own the Lead.'
         );
         Assert.isTrue(
             message.contains([SELECT Name FROM User WHERE Id = :UserInfo.getUserId()].Name),
@@ -90,9 +46,6 @@ private class LeadRoutingServiceTest {
     @IsTest
     static void manualLeadSkipsRouting() {
         Lead leadRecord = insertLeadWithProduct('Sterilizer', 'US');
-        LeadRoutingService.testMatrixRows = new List<Lead_Routing_Matrix__mdt>{
-            matrixRow('Sterilizer', 'Lead_Rt_Unused')
-        };
         LeadRoutingService.testTasOwnerId = UserInfo.getUserId();
         LeadRoutingService.testCountryRows = new List<Lead_Country_Queue__mdt>{
             new Lead_Country_Queue__mdt(Country__c = 'US', QueueDeveloperName__c = 'Lead_Rt_Unused')
@@ -130,6 +83,61 @@ private class LeadRoutingServiceTest {
             countryQueue.Id,
             [SELECT OwnerId FROM Lead WHERE Id = :leadRecord.Id].OwnerId,
             'No TAS rep should fall through to the country queue.'
+        );
+    }
+
+    /**
+     * GC-3606 A Product with no family or class code skips TAS and uses the country queue.
+     */
+    @IsTest
+    static void productWithoutCodesSkipsTas() {
+        String queueName = uniqueDeveloperName('Lead_Rt_US');
+        Group countryQueue = insertQueue(queueName, 'Lead US Queue');
+        Lead leadRecord = insertLeadWithProduct('No Codes', 'US', null, null);
+        update new Lead(Id = leadRecord.Id, HubSpot_Lead__c = true);
+        LeadRoutingService.testTasOwnerId = UserInfo.getUserId();
+        LeadRoutingService.testCountryRows = new List<Lead_Country_Queue__mdt>{
+            new Lead_Country_Queue__mdt(Country__c = 'US', QueueDeveloperName__c = queueName)
+        };
+
+        Test.startTest();
+        LeadRoutingService.submit(leadRecord.Id);
+        Test.stopTest();
+
+        Assert.areEqual(
+            countryQueue.Id,
+            [SELECT OwnerId FROM Lead WHERE Id = :leadRecord.Id].OwnerId,
+            'A Product missing a code should skip TAS and use the country queue.'
+        );
+    }
+
+    /**
+     * GC-3606 A Lead with no Product skips TAS and uses the country queue.
+     */
+    @IsTest
+    static void leadWithNoProductSkipsTas() {
+        String queueName = uniqueDeveloperName('Lead_Rt_US');
+        Group countryQueue = insertQueue(queueName, 'Lead US Queue');
+        Lead leadRecord = newLead('NoProduct', 'US');
+        leadRecord.HubSpot_Lead__c = true;
+        LeadService.skipInsertTas = true;
+        System.runAs(runningUser()) {
+            insert leadRecord;
+        }
+        LeadService.skipInsertTas = false;
+        LeadRoutingService.testTasOwnerId = UserInfo.getUserId();
+        LeadRoutingService.testCountryRows = new List<Lead_Country_Queue__mdt>{
+            new Lead_Country_Queue__mdt(Country__c = 'US', QueueDeveloperName__c = queueName)
+        };
+
+        Test.startTest();
+        LeadRoutingService.submit(leadRecord.Id);
+        Test.stopTest();
+
+        Assert.areEqual(
+            countryQueue.Id,
+            [SELECT OwnerId FROM Lead WHERE Id = :leadRecord.Id].OwnerId,
+            'A Lead with no Product should skip TAS and use the country queue.'
         );
     }
 
@@ -261,17 +269,31 @@ private class LeadRoutingServiceTest {
 
     /**
      * @description Inserts a Lead and one Product as the running user.
-     * @param productName Product name used by the matrix row.
+     * @param productName Product name.
      * @param countryCode ISO country code stored on the Lead.
      * @return Inserted Lead.
      */
     private static Lead insertLeadWithProduct(String productName, String countryCode) {
+        return insertLeadWithProduct(productName, countryCode, '101', '1103');
+    }
+
+    /**
+     * @description Inserts a Lead and one Product with the given family and class codes as the running user.
+     * @param productName Product name.
+     * @param countryCode ISO country code stored on the Lead.
+     * @param familyCode Product family code. Blank leaves the Product without a code.
+     * @param classCode Product class code. Blank leaves the Product without a code.
+     * @return Inserted Lead.
+     */
+    private static Lead insertLeadWithProduct(String productName, String countryCode, String familyCode, String classCode) {
         Lead leadRecord = newLead('Submit', countryCode);
         System.runAs(runningUser()) {
             insert leadRecord;
             Product2 productRecord = new Product2(
                 Name = productName,
                 IsActive = true,
+                ItemFamily__c = familyCode,
+                ProductClassCode__c = classCode,
                 BusinessUnit__c = 'IMS'
             );
             insert productRecord;
@@ -301,23 +323,6 @@ private class LeadRoutingServiceTest {
             Email = lastName.toLowerCase() + '.' + token + '@example.com',
             LeadSource = 'Web',
             Status = 'New'
-        );
-    }
-
-    /**
-     * @description Builds a matrix row for the United States.
-     * @param productName Product name.
-     * @param queueDeveloperName Queue the row assigns.
-     * @return Unsaved matrix row used only in the test.
-     */
-    private static Lead_Routing_Matrix__mdt matrixRow(String productName, String queueDeveloperName) {
-        return new Lead_Routing_Matrix__mdt(
-            ProductName__c = productName,
-            ParentCategory__c = 'Infection Prevention',
-            ProductCategory__c = 'Capital',
-            BusinessUnit__c = 'IMS',
-            Country__c = 'US',
-            QueueDeveloperName__c = queueDeveloperName
         );
     }
 

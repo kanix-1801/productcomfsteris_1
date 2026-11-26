@@ -67,22 +67,59 @@ private class FieldServiceQuoteServiceTest {
 	}
 
 	@IsTest
-	static void selectPricebookEntries_returnsOnlyPricedProducts() {
+	static void getPricebookEntriesByProductId_returnsOnlyPricedProducts() {
 		FieldServiceQuoteTestData.Scenario scenario = FieldServiceQuoteTestData.createScenario();
 
 		Test.startTest();
-		Map<Id, PricebookEntry> entries = FieldServiceQuoteService.selectPricebookEntries(
+		Map<Id, PricebookEntry> entries = FieldServiceQuoteService.getPricebookEntriesByProductId(
 			Test.getStandardPricebookId(),
 			FieldServiceQuoteTestData.CURRENCY_CODE,
 			new Set<Id>{ scenario.part.Id, scenario.unpricedPart.Id }
 		);
-		Map<Id, PricebookEntry> none = FieldServiceQuoteService.selectPricebookEntries(null, 'USD', new Set<Id>());
+		Map<Id, PricebookEntry> none = FieldServiceQuoteService.getPricebookEntriesByProductId(
+			null,
+			'USD',
+			new Set<Id>()
+		);
 		Test.stopTest();
 
 		System.assert(entries.containsKey(scenario.part.Id));
 		System.assert(!entries.containsKey(scenario.unpricedPart.Id));
 		System.assertEquals(FieldServiceQuoteTestData.PART_PRICE, entries.get(scenario.part.Id).UnitPrice);
 		System.assert(none.isEmpty());
+	}
+
+	@IsTest
+	static void productCodeFor_returnsCodePerLineType() {
+		Test.startTest();
+		String labor = FieldServiceQuoteService.productCodeFor(FieldServiceQuoteService.LINE_TYPE_LABOR);
+		String travel = FieldServiceQuoteService.productCodeFor(FieldServiceQuoteService.LINE_TYPE_TRAVEL);
+		String expense = FieldServiceQuoteService.productCodeFor(FieldServiceQuoteService.LINE_TYPE_EXPENSE);
+		String parts = FieldServiceQuoteService.productCodeFor(FieldServiceQuoteService.LINE_TYPE_PARTS);
+		Test.stopTest();
+
+		System.assertEquals(FieldServiceQuoteTestData.LABOR_CODE, labor);
+		System.assertEquals(FieldServiceQuoteTestData.TRAVEL_CODE, travel);
+		System.assertEquals(FieldServiceQuoteTestData.EXPENSE_CODE, expense);
+		System.assertEquals(null, parts, 'Parts lines use the product the technician picks');
+	}
+
+	@IsTest
+	static void getQuote_unknownQuote_throwsReadableError() {
+		FieldServiceQuoteTestData.Scenario scenario = FieldServiceQuoteTestData.createScenario();
+		Id quoteId = FieldServiceQuoteTestData.createQuote(scenario);
+		delete new Quote(Id = quoteId);
+
+		Test.startTest();
+		Boolean failed = false;
+		try {
+			FieldServiceQuoteService.getQuote(quoteId);
+		} catch (FieldServiceQuoteService.FieldServiceQuoteException ex) {
+			failed = ex.getMessage().contains('not found');
+		}
+		Test.stopTest();
+
+		System.assert(failed, 'A missing quote should raise a readable error');
 	}
 
 	@IsTest

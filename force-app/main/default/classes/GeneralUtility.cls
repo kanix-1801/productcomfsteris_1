@@ -93,10 +93,6 @@ public without sharing class GeneralUtility {
      * Description          : get the current scenario
     *****************************************************************************/
     public static void loadCurrentBusinessLine() {
-        loadUserProfileName();
-        loadUserPermission();
-        loadCurrentAppName();
-
         //If the user is a Healthcare Sales user or a Healthcare Dealer user
         //or the app name is Healthcare Sales or the user permission is HC,
         //then the business line is HC.
@@ -109,7 +105,6 @@ public without sharing class GeneralUtility {
 
         } else if(userProfileName == LIFESCIENCES_SALES_PROFILE_NAME || appName == LIFESCIENCES_SALES_APP_NAME || userPermission == LS_STR) {
             currentBusinessLine = LS_STR;
-            system.debug(':::currentBusinessLine::'+currentBusinessLine);
         }
     }
 
@@ -122,8 +117,70 @@ public without sharing class GeneralUtility {
     *****************************************************************************/
     public static String getCurrentBusinessLine() {
         if(String.isBlank(currentBusinessLine)) {
+            loadUserProfileName();
+            loadUserPermission();
+            loadCurrentAppName();
             loadCurrentBusinessLine();
         }
         return currentBusinessLine;
     }
+
+    /*****************************************************************************
+     * Method Name       : getCurrentBusinessLineFromOpportunity
+     * Author           : Sarthak Pani
+     * Date of Dev      : 24th November 2026
+     * Last Modified Date   : 24th November 2026
+     * Description          : get the current business line from the opportunity record.
+    *****************************************************************************/
+    public static String getCurrentBusinessLineFromOpportunity(Id oppId) {
+        if(String.isBlank(currentBusinessLine)) {
+            Opportunity opportunityRecord = [SELECT Id, RecordType.DeveloperName FROM Opportunity WHERE Id = :oppId LIMIT 1];
+            if(opportunityRecord.RecordType.DeveloperName.startsWith(LS_STR)) {
+                currentBusinessLine = LS_STR;
+            } else {
+                currentBusinessLine = HC_STR;
+            }
+        }
+        return currentBusinessLine;
+    }
+
+    /*****************************************************************************
+     * Method Name       : getCurrentBusinessLineFromAccount
+     * Author           : Sarthak Pani
+     * Date of Dev      : 24th November 2026
+     * Last Modified Date   : 24th November 2026
+     * Description          : get the current business line from the account record.
+    *****************************************************************************/
+    public static String getCurrentBusinessLineFromAccount(Id accId) {
+        if(String.isBlank(currentBusinessLine)) {
+            Account accountRecord = [SELECT Id, RecordType.DeveloperName FROM Account WHERE Id = :accId LIMIT 1];
+            if(accountRecord.RecordType.DeveloperName.startsWith(LS_STR)) {
+                currentBusinessLine = LS_STR;
+            } else {
+                currentBusinessLine = HC_STR;
+            }
+        }
+        return currentBusinessLine;
+    }
+
+    /*****************************************************************************
+     * Method Name       : getCurrentBusinessLineFromQuote
+     * Author           : Sarthak Pani
+     * Date of Dev      : 24th November 2026
+     * Last Modified Date   : 24th November 2026
+     * Description          : get the current business line from the quote record.
+    *****************************************************************************/
+    public static String getCurrentBusinessLineFromQuote(Id quoteId) {
+        if(String.isBlank(currentBusinessLine)) {
+            Quote quoteRecord = [SELECT Id, RecordType.DeveloperName FROM Quote WHERE Id = :quoteId LIMIT 1];
+            if(quoteRecord.RecordType.DeveloperName.startsWith(LS_STR)) {
+                currentBusinessLine = LS_STR;
+            } else {
+                currentBusinessLine = HC_STR;
+            }
+        }
+        return currentBusinessLine;
+    }
+
+
 }

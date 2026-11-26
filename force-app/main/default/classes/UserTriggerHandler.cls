@@ -14,5 +14,10 @@ public inherited sharing class UserTriggerHandler extends TriggerHandler {
 			(List<User>) Trigger.new,
 			(Map<Id, User>) Trigger.oldMap
 		);
+		// GCL-74 - Life Sciences cleanup runs after the Healthcare path and never blocks it.
+		LSUserService.processInactiveLifeSciencesUsers(
+			(List<User>) Trigger.new,
+			(Map<Id, User>) Trigger.oldMap
+		);
 	}
 }

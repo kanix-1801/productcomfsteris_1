@@ -1,0 +1,189 @@
+<template>
+
+    <template lwc:if={isOffline}>
+        <div class="offline-banner">
+            <lightning-icon icon-name="utility:offline" size="x-small"></lightning-icon>
+            Offline — internet connection is required to save changes.
+        </div>
+    </template>
+
+    <template lwc:if={isSaving}>
+        <lightning-spinner alternative-text="Saving changes…" size="medium" variant="brand"></lightning-spinner>
+    </template>
+
+    <template lwc:if={isLoading}>
+        <div class="slds-align_absolute-center slds-p-around_large">
+            <lightning-spinner alternative-text="Loading work order…" size="medium"></lightning-spinner>
+        </div>
+    </template>
+
+    <template lwc:if={hasError}>
+        <div class="slds-box slds-box_x-small slds-theme_error slds-m-around_small">
+            <lightning-formatted-text value={errorMessage}></lightning-formatted-text>
+        </div>
+    </template>
+
+    <template lwc:if={_workOrder}>
+        <template lwc:if={isNotOwner}>
+            <div class="slds-box slds-box_x-small slds-theme_error slds-m-around_small">
+                <lightning-formatted-text value={notOwnerMessage}></lightning-formatted-text>
+            </div>
+        </template>
+        <template lwc:elseif={hasValidEquipment}>
+
+        <div class="wo-header">
+            <div class="header-fields">
+                <div class="header-field">
+                    <div class="field-label">WO #</div>
+                    <div class="field-value field-value_strong">{woNumber}</div>
+                </div>
+                <div class="header-field">
+                    <div class="field-label">Status</div>
+                    <span class="status-badge">{closureStatus}</span>
+                </div>
+                <div class="header-field">
+                    <div class="field-label">Account</div>
+                    <div class="field-value">{woAccountName}</div>
+                </div>
+                <div class="header-field">
+                    <div class="field-label">Asset</div>
+                    <div class="field-value">{woAssetName}</div>
+                </div>
+                <div class="header-field">
+                    <div class="field-label">Cycle Count</div>
+                    <lightning-input
+                        class="header-input"
+                        variant="label-hidden"
+                        type="text"
+                        value={woCycleCount}
+                        maxlength="10"
+                        onchange={handleCycleCountChange}>
+                    </lightning-input>
+                </div>
+                <div class="header-field">
+                    <div class="field-label">Cycle Count Date</div>
+                    <lightning-input
+                        class="header-input"
+                        variant="label-hidden"
+                        type="date"
+                        value={woCycleCountDate}
+                        onchange={handleCycleCountDateChange}>
+                    </lightning-input>
+                </div>
+                <div class="header-field">
+                    <div class="field-label">Contract Line Item</div>
+                    <div class="field-value">{woContractLineItem}</div>
+                </div>
+                <div class="header-field">
+                    <div class="field-label">Contract</div>
+                    <div class="field-value">{woContract}</div>
+                </div>
+                <div class="header-field">
+                    <div class="field-label">Asset Warranty</div>
+                    <div class="field-value">{woAssetWarranty}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-bar">
+            <template for:each={tabs} for:item="tab">
+                <button key={tab.key} class="tab-btn" data-tab={tab.key} onclick={handleTabSelect}>
+                    <span class="tab-label">{tab.label}</span>
+                    <template lwc:if={tab.isActive}><span class="tab-indicator"></span></template>
+                </button>
+            </template>
+        </div>
+
+        <div class="scrollable-content">
+
+            <div class="tab-panel slds-p-around_x-small">
+                <div class="tab-search slds-m-bottom_small">
+                    <lightning-input
+                        type="search"
+                        label="Search"
+                        variant="label-hidden"
+                        placeholder={activeTabSearchPlaceholder}
+                        value={activeTabSearchTerm}
+                        onchange={handleTabSearchChange}>
+                    </lightning-input>
+                </div>
+
+                <div class={timePanelClass}>
+                    <c-wo-closure-time-lines
+                        data-tab="Time"
+                        data-tab-lines
+                        record-id={recordId}
+                        work-order={_workOrder}
+                        lines={timeLines}
+                        search-term={tabSearchTerms.Time}
+                        current-user-resource={currentUserResource}
+                        work-order-assigned-resource-id={workOrderAssignedResourceId}
+                        onpendingchange={handlePendingChange}>
+                    </c-wo-closure-time-lines>
+                </div>
+                <div class={partsPanelClass}>
+                    <c-wo-closure-parts-lines
+                        data-tab="Parts"
+                        data-tab-lines
+                        record-id={recordId}
+                        work-order={_workOrder}
+                        lines={partsLines}
+                        search-term={tabSearchTerms.Parts}
+                        current-user-resource={currentUserResource}
+                        work-order-assigned-resource-id={workOrderAssignedResourceId}
+                        onpendingchange={handlePendingChange}>
+                    </c-wo-closure-parts-lines>
+                </div>
+                <div class={expensePanelClass}>
+                    <c-wo-closure-expense-lines
+                        data-tab="Expense"
+                        data-tab-lines
+                        record-id={recordId}
+                        work-order={_workOrder}
+                        lines={expenseRecords}
+                        search-term={tabSearchTerms.Expense}
+                        onpendingchange={handlePendingChange}>
+                    </c-wo-closure-expense-lines>
+                </div>
+                <div class={calibrationPanelClass}>
+                    <c-wo-closure-calibration-lines
+                        data-tab="Calibration"
+                        data-tab-lines
+                        record-id={recordId}
+                        work-order={_workOrder}
+                        lines={calibrationLines}
+                        search-term={tabSearchTerms.Calibration}
+                        current-user-resource={currentUserResource}
+                        work-order-assigned-resource-id={workOrderAssignedResourceId}
+                        onpendingchange={handlePendingChange}>
+                    </c-wo-closure-calibration-lines>
+                </div>
+            </div>
+
+        </div>
+
+        </template>
+        <template lwc:else>
+            <div class="slds-box slds-box_x-small slds-theme_error slds-m-around_small">
+                <lightning-formatted-text value={missingEquipmentMessage}></lightning-formatted-text>
+            </div>
+        </template>
+    </template>
+
+    <template lwc:if={showFooter}>
+        <div class="footer-bar">
+            <lightning-button
+                label="Cancel"
+                disabled={cancelDisabled}
+                onclick={handleDiscardAll}>
+            </lightning-button>
+            <lightning-button
+                label="Save All"
+                variant="brand"
+                disabled={saveAllDisabled}
+                onclick={handleSaveAll}>
+            </lightning-button>
+        </div>
+    </template>
+
+</template>

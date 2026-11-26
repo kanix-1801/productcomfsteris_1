@@ -10,6 +10,9 @@ public class FieldServiceQuoteTestData {
 	public static final Decimal PART_PRICE = 125;
 	public static final String STATUS_DRAFT = 'Draft';
 	public static final String PRICING_NOT_PRICED = 'Not Priced';
+	public static final String LABOR_CODE = FieldServiceQuoteService.LABOR_PRODUCT_CODE;
+	public static final String TRAVEL_CODE = FieldServiceQuoteService.TRAVEL_PRODUCT_CODE;
+	public static final String EXPENSE_CODE = FieldServiceQuoteService.EXPENSE_PRODUCT_CODE;
 	public static final Id QUOTE_RECORD_TYPE_ID = Schema.SObjectType.Quote.getRecordTypeInfosByDeveloperName()
 		.get('Field_Service')
 		.getRecordTypeId();
@@ -52,9 +55,9 @@ public class FieldServiceQuoteTestData {
 		List<Product2> products = new List<Product2>{
 			new Product2(Name = 'GW5892 Gasket', ProductCode = PART_CODE, IsActive = true),
 			new Product2(Name = 'GW5892 Unpriced', ProductCode = UNPRICED_PART_CODE, IsActive = true),
-			new Product2(Name = 'FS Labor', ProductCode = System.Label.FS_Quote_Labor_Product_Code, IsActive = true),
-			new Product2(Name = 'FS Travel', ProductCode = System.Label.FS_Quote_Travel_Product_Code, IsActive = true),
-			new Product2(Name = 'FS Expense', ProductCode = System.Label.FS_Quote_Expense_Product_Code, IsActive = true)
+			new Product2(Name = 'FS Labor', ProductCode = LABOR_CODE, IsActive = true),
+			new Product2(Name = 'FS Travel', ProductCode = TRAVEL_CODE, IsActive = true),
+			new Product2(Name = 'FS Expense', ProductCode = EXPENSE_CODE, IsActive = true)
 		};
 		insert products;
 		for (Product2 product : products) {

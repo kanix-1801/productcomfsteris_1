@@ -16,12 +16,10 @@
     <template if:true={showWizard}>
         <lightning-card title="New Lead" icon-name="standard:lead">
             <div class="slds-p-horizontal_medium slds-p-bottom_medium">
-                <template if:true={collectProducts}>
-                    <lightning-progress-indicator current-step={step} type="path" class="slds-m-bottom_medium">
-                        <lightning-progress-step label="Lead Details" value="lead"></lightning-progress-step>
-                        <lightning-progress-step label="Products" value="products"></lightning-progress-step>
-                    </lightning-progress-indicator>
-                </template>
+                <lightning-progress-indicator current-step={step} type="path" class="slds-m-bottom_medium">
+                    <lightning-progress-step label="Lead Details" value="lead"></lightning-progress-step>
+                    <lightning-progress-step label="Products" value="products"></lightning-progress-step>
+                </lightning-progress-indicator>
                 <div class={leadStepClass}>
                     <template if:true={showLeadForm}>
                     <lightning-record-edit-form
@@ -52,6 +50,7 @@
                                 </template>
                                 <lightning-input-field field-name="LeadSourceDetail__c"></lightning-input-field>
                                 <lightning-input-field field-name="Class_Code__c"></lightning-input-field>
+                                <lightning-input-field field-name="Auto_Assign_Lead__c" onchange={handleAutoAssignChange}></lightning-input-field>
                             </div>
                             <div class="lead-column">
                                 <lightning-input-field field-name="Company" required></lightning-input-field>
@@ -67,7 +66,7 @@
                                 class="slds-m-left_x-small"
                                 type="submit"
                                 variant="brand"
-                                label={leadActionLabel}
+                                label="Next"
                                 disabled={saving}>
                             </lightning-button>
                         </div>
@@ -75,62 +74,45 @@
                     </template>
                 </div>
 
-                <div class={productStepClass} if:true={collectProducts}>
-                    <div class="slds-grid slds-gutters_x-small slds-p-bottom_x-small slds-border_bottom slds-text-title_caps">
-                        <div class="slds-col slds-size_5-of-12"><abbr class="slds-required" title="required">*</abbr>Product</div>
-                        <div class="slds-col slds-size_3-of-12">Parent Category</div>
-                        <div class="slds-col slds-size_3-of-12">Product Category</div>
-                        <div class="slds-col slds-size_1-of-12"></div>
-                    </div>
-                    <template for:each={products} for:item="product">
-                        <lightning-record-edit-form key={product.key} object-api-name="LeadProduct__c">
-                        <div class="slds-grid slds-gutters_x-small slds-grid_vertical-align-center slds-p-vertical_x-small slds-border_bottom">
-                            <div class="slds-col slds-size_5-of-12">
-                                <lightning-input-field
-                                    field-name="Product__c"
-                                    variant="label-hidden"
-                                    value={product.productId}
-                                    data-key={product.key}
-                                    data-field="productId"
-                                    onchange={handleProductSelected}>
-                                </lightning-input-field>
-                            </div>
-                            <div class="slds-col slds-size_3-of-12">
-                                <lightning-input-field
-                                    field-name="ParentCategory__c"
-                                    variant="label-hidden"
-                                    value={product.parentCategory}
-                                    data-field="parentCategory">
-                                </lightning-input-field>
-                            </div>
-                            <div class="slds-col slds-size_3-of-12">
-                                <lightning-input-field
-                                    field-name="ProductCategory__c"
-                                    variant="label-hidden"
-                                    value={product.productCategory}
-                                    data-field="productCategory">
-                                </lightning-input-field>
-                            </div>
-                            <div class="slds-col slds-size_1-of-12 slds-text-align_center">
-                                <lightning-button-icon
-                                    icon-name="utility:delete"
-                                    variant="border-filled"
-                                    alternative-text="Remove Product"
-                                    title="Remove Product"
-                                    data-key={product.key}
-                                    disabled={canRemoveProduct}
-                                    onclick={handleRemoveProduct}>
-                                </lightning-button-icon>
-                            </div>
+                <div class={productStepClass}>
+                    <p class="slds-m-bottom_small">{productStepHeading}</p>
+                    <lightning-input
+                        type="search"
+                        label="Search products"
+                        placeholder="Search by product name, code, or family"
+                        value={searchTerm}
+                        onchange={handleSearchChange}>
+                    </lightning-input>
+                    <p class="slds-text-color_weak slds-m-vertical_x-small">{searchHint}</p>
+                    <template if:true={hasSearchResults}>
+                        <div class="product-table">
+                            <lightning-datatable
+                                key-field="id"
+                                data={searchResults}
+                                columns={productColumns}
+                                selected-rows={selectedRowIds}
+                                onrowselection={handleRowSelection}>
+                            </lightning-datatable>
                         </div>
-                        </lightning-record-edit-form>
                     </template>
-                    <div class="slds-m-top_small">
-                        <lightning-button label="Add Product" icon-name="utility:add" variant="base" onclick={handleAddProduct}></lightning-button>
-                    </div>
+                    <h3 class="slds-text-heading_small slds-m-top_medium slds-m-bottom_x-small">Selected products ({selectedProductCount})</h3>
+                    <template if:true={hasSelectedProducts}>
+                        <div class="product-table">
+                            <lightning-datatable
+                                key-field="id"
+                                data={selectedProducts}
+                                columns={selectedColumns}
+                                hide-checkbox-column
+                                onrowaction={handleSelectedRowAction}>
+                            </lightning-datatable>
+                        </div>
+                    </template>
+                    <template if:false={hasSelectedProducts}>
+                        <p class="slds-text-color_weak">No products selected.</p>
+                    </template>
                     <div class="slds-m-top_medium slds-text-align_right">
+                        <lightning-button class="slds-m-right_large" label="Cancel" onclick={handleCancel}></lightning-button>
                         <lightning-button label="Back" onclick={handleBack}></lightning-button>
-                        <lightning-button class="slds-m-left_x-small" label="Cancel" onclick={handleCancel}></lightning-button>
                         <lightning-button
                             class="slds-m-left_x-small"
                             variant="brand"

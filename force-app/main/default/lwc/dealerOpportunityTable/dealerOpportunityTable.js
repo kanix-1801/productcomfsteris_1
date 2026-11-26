@@ -25,7 +25,8 @@ const COLUMNS = {
         { field: 'Name', label: 'Opportunity Name', type: 'name' },
         { field: 'EndCustomerName__c', label: 'End Customer Name', type: 'text', value: 'endCustomerName' },
         { field: 'StageName', label: 'Opportunity Stage', type: 'stage' },
-        { field: 'Expected_Ship_Date__c', label: 'Expected Ship Date', type: 'text', value: 'shipLabel' },
+        { field: 'CloseDate', label: 'Close Date', type: 'text', value: 'closeLabel', dateKey: 'closeDate' },
+        { field: 'Expected_Ship_Date__c', label: 'Expected Ship Date', type: 'text', value: 'shipLabel', dateKey: 'expectedShipDate' },
         { field: 'Amount', label: 'Opportunity Amount', type: 'amount' }
     ],
     workspace: [
@@ -37,6 +38,8 @@ const COLUMNS = {
         { field: 'Amount', label: 'Amount', type: 'amount' }
     ]
 };
+
+COLUMNS.closing = COLUMNS.pastdue;
 
 export default class DealerOpportunityTable extends NavigationMixin(LightningElement) {
     @api records = [];
@@ -97,7 +100,7 @@ export default class DealerOpportunityTable extends NavigationMixin(LightningEle
             };
             return {
                 opportunityId: row.opportunityId,
-                cells: this.columnDefinitions.map((column) => buildCell(row.opportunityId, column, formatted))
+                cells: this.columnDefinitions.map((column) => buildCell(row, column, formatted))
             };
         });
     }
@@ -120,7 +123,8 @@ export default class DealerOpportunityTable extends NavigationMixin(LightningEle
     }
 }
 
-function buildCell(opportunityId, column, formatted) {
+function buildCell(row, column, formatted) {
+    const opportunityId = row.opportunityId;
     const isName = column.type === 'name';
     const isStage = column.type === 'stage';
     const isAmount = column.type === 'amount';
@@ -140,7 +144,7 @@ function buildCell(opportunityId, column, formatted) {
         isStage,
         isPlain: !isName && !isStage,
         stageClass: formatted.stageClass,
-        cellClass: isAmount ? 'amount-column' : ''
+        cellClass: isAmount ? 'amount-column' : (row[column.dateKey] < new Date().toLocaleDateString('en-CA') ? 'overdue-date' : '')
     };
 }
 

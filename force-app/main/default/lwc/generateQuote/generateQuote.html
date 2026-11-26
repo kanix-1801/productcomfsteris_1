@@ -27,12 +27,14 @@
                     Quotes ({quoteCount})
                 </h3>
 
-                <div class="header-actions" if:true={showHeaderActions}>
-                    <lightning-button
-                        label={generateActionLabel}
-                        onclick={handleGenerateQuote}
-                        disabled={isLoading}>
-                    </lightning-button>
+                <div class="header-actions" if:true={showHeaderBar}>
+                    <template if:true={showHeaderActions}>
+                        <lightning-button
+                            label={generateActionLabel}
+                            onclick={handleGenerateQuote}
+                            disabled={isLoading}>
+                        </lightning-button>
+                    </template>
 
                     <template if:true={showRefreshQuoteButton}>
                         <lightning-button

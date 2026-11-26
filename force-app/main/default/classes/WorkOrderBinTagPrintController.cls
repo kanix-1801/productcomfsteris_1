@@ -17,20 +17,28 @@ public with sharing class WorkOrderBinTagPrintController {
 	public static String printBinTag(Id workOrderId) {
 		try {
 			validatePrintableWorkOrder(workOrderId);
-			PrinterService.PrintLabelResult result = PrinterService.printBinTags(workOrderId);
-			return 'Bin tag sent to printer ' + resolvePrintedPrinterName(result) + '.';
+			PrinterService.PrintLabelResult result = PrinterService.printBinTags(
+				workOrderId
+			);
+			return 'Bin tag sent to printer ' +
+				resolvePrintedPrinterName(result) +
+				'.';
 		} catch (AuraHandledException e) {
 			throw e;
 		} catch (Exception e) {
 			throw PlatformUtilities.buildAuraException(
-				String.isBlank(e.getMessage()) ? 'Unable to print bin tag.' : e.getMessage()
+				String.isBlank(e.getMessage())
+					? 'Unable to print bin tag.'
+					: e.getMessage()
 			);
 		}
 	}
 
 	private static void validatePrintableWorkOrder(Id workOrderId) {
 		if (workOrderId == null) {
-			throw PlatformUtilities.buildAuraException('Work Order Id is required.');
+			throw PlatformUtilities.buildAuraException(
+				'Work Order Id is required.'
+			);
 		}
 
 		WorkOrder workOrder = (WorkOrder) new WorkOrdersSelector()
@@ -63,7 +71,9 @@ public with sharing class WorkOrderBinTagPrintController {
 		return info == null ? null : info.getName();
 	}
 
-	private static String resolvePrintedPrinterName(PrinterService.PrintLabelResult result) {
+	private static String resolvePrintedPrinterName(
+		PrinterService.PrintLabelResult result
+	) {
 		if (
 			result != null &&
 			result.request != null &&

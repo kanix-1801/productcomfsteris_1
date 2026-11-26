@@ -142,4 +142,29 @@ public with sharing class PricebookEntriesSelector extends SoqlQueryBuilder {
 			.limitTo(1)
 			.execute();
 	}
+
+	/**
+	 * @description GW-5892 - Active Price Book Entries with price and product name/code for Field Service quote lines.
+	 * @param pricebookId Price Book Id
+	 * @param productIds Product2 Ids
+	 * @param currencyIsoCode Quote currency
+	 * @return Matching PricebookEntry records
+	 */
+	public static List<PricebookEntry> selectActiveWithPriceByPricebookProductAndCurrency(
+		Id pricebookId,
+		Set<Id> productIds,
+		String currencyIsoCode
+	) {
+		if (pricebookId == null || productIds == null || productIds.isEmpty()) {
+			return new List<PricebookEntry>();
+		}
+		return [
+			SELECT Id, Product2Id, UnitPrice, Product2.ProductCode, Product2.Name
+			FROM PricebookEntry
+			WHERE Pricebook2Id = :pricebookId
+				AND CurrencyIsoCode = :currencyIsoCode
+				AND Product2Id IN :productIds
+				AND IsActive = TRUE
+		];
+	}
 }

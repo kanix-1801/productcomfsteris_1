@@ -273,6 +273,110 @@ private class OpportunitySelectorTest {
     }
 
     /**
+     * @description GW-6603 - Confirms the Field Service lookups return nothing for a null Id or record type.
+     */
+    @IsTest
+    static void selectFieldService_nullInputs_returnEmptyList() {
+        Id fieldServiceRecordTypeId = fieldServiceRecordTypeId();
+        Id anyOpportunityId = opportunityNamed(OPEN_EARLY_A).Id;
+
+        Assert.areEqual(0, OpportunitySelector.selectFieldServiceByWorkOrderId(null, fieldServiceRecordTypeId).size());
+        Assert.areEqual(0, OpportunitySelector.selectFieldServiceByWorkOrderId(fakeId(WorkOrder.SObjectType, 3), null).size());
+        Assert.areEqual(0, OpportunitySelector.selectFieldServiceWithoutWorkOrderById(null, fieldServiceRecordTypeId).size());
+        Assert.areEqual(0, OpportunitySelector.selectFieldServiceWithoutWorkOrderById(anyOpportunityId, null).size());
+    }
+
+    /**
+     * @description GW-6603 - Confirms the Field Service opportunity linked to a Work Order is found, and only for the
+     *              Field Service record type.
+     */
+    @IsTest
+    static void selectFieldServiceByWorkOrderId_linkedOpportunity_isReturned() {
+        FieldServiceQuoteTestData.Scenario scenario = FieldServiceQuoteTestData.createScenario();
+        Opportunity linked = insertFieldServiceOpportunity(scenario, scenario.workOrder.Id);
+        Id healthcareSalesRecordTypeId = opportunityRecordTypeId('Healthcare_Sales');
+
+        Test.startTest();
+        List<Opportunity> matches = OpportunitySelector.selectFieldServiceByWorkOrderId(
+            scenario.workOrder.Id,
+            fieldServiceRecordTypeId()
+        );
+        List<Opportunity> otherRecordType = OpportunitySelector.selectFieldServiceByWorkOrderId(
+            scenario.workOrder.Id,
+            healthcareSalesRecordTypeId
+        );
+        Test.stopTest();
+
+        Assert.areEqual(1, matches.size());
+        Assert.areEqual(linked.Id, matches[0].Id);
+        Assert.areEqual(0, otherRecordType.size());
+    }
+
+    /**
+     * @description GW-6603 - Confirms an account-only Field Service opportunity is found, and one already linked to a
+     *              Work Order is not.
+     */
+    @IsTest
+    static void selectFieldServiceWithoutWorkOrderById_onlyUnlinkedOpportunity_isReturned() {
+        FieldServiceQuoteTestData.Scenario scenario = FieldServiceQuoteTestData.createScenario();
+        Opportunity accountOnly = insertFieldServiceOpportunity(scenario, null);
+        Opportunity linked = insertFieldServiceOpportunity(scenario, scenario.workOrder.Id);
+
+        Test.startTest();
+        List<Opportunity> unlinked = OpportunitySelector.selectFieldServiceWithoutWorkOrderById(
+            accountOnly.Id,
+            fieldServiceRecordTypeId()
+        );
+        List<Opportunity> alreadyLinked = OpportunitySelector.selectFieldServiceWithoutWorkOrderById(
+            linked.Id,
+            fieldServiceRecordTypeId()
+        );
+        Test.stopTest();
+
+        Assert.areEqual(1, unlinked.size());
+        Assert.areEqual(accountOnly.Id, unlinked[0].Id);
+        Assert.areEqual(0, alreadyLinked.size());
+    }
+
+    /**
+     * @description Inserts a Field Service opportunity the way FieldServiceQuoteService creates one.
+     * @param scenario Field Service test scenario (account and Work Order).
+     * @param workOrderId Work Order to link, or null for an account-only opportunity.
+     * @return Inserted opportunity.
+     */
+    private static Opportunity insertFieldServiceOpportunity(FieldServiceQuoteTestData.Scenario scenario, Id workOrderId) {
+        Opportunity opportunityRecord = new Opportunity(
+            RecordTypeId = fieldServiceRecordTypeId(),
+            Name = 'GW6603 Field Service Opportunity',
+            AccountId = scenario.account.Id,
+            WorkOrder__c = workOrderId,
+            StageName = FieldServiceQuoteService.STAGE_OPEN,
+            CloseDate = Date.today().addDays(FieldServiceQuoteService.QUOTE_VALIDITY_DAYS),
+            CurrencyIsoCode = FieldServiceQuoteTestData.CURRENCY_CODE,
+            Pricebook2Id = Test.getStandardPricebookId()
+        );
+        insert opportunityRecord;
+        return opportunityRecord;
+    }
+
+    /**
+     * @description Field Service Quote opportunity record type Id.
+     * @return Record type Id.
+     */
+    private static Id fieldServiceRecordTypeId() {
+        return opportunityRecordTypeId(FieldServiceQuoteService.OPPORTUNITY_RECORD_TYPE);
+    }
+
+    /**
+     * @description Opportunity record type Id by developer name.
+     * @param developerName Record type developer name.
+     * @return Record type Id.
+     */
+    private static Id opportunityRecordTypeId(String developerName) {
+        return Schema.SObjectType.Opportunity.getRecordTypeInfosByDeveloperName().get(developerName).getRecordTypeId();
+    }
+
+    /**
      * @description Builds a Healthcare Sales opportunity with the given values.
      * @param name Opportunity name.
      * @param account Builder of the parent account.

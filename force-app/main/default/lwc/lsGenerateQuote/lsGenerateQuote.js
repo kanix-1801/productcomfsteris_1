@@ -1102,6 +1102,7 @@ export default class LsGenerateQuote extends LightningElement {
         }
 
         try {
+            debugger;
             const result = await getQuotes({
                 opportunityId: this.opportunityIdForQuoteOperations,
                 quoteTypeFilter: null,
@@ -1129,6 +1130,7 @@ export default class LsGenerateQuote extends LightningElement {
     }
 
     async loadModalQuotes() {
+        debugger;
         if (!this.opportunityIdForQuoteOperations) {
             this.modalQuotes = [];
             return;

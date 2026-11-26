@@ -119,6 +119,22 @@ public with sharing class WoDebriefPmiInspectionController {
         @AuraEnabled public Boolean hasFailure;
         /** @description True when every Device Standard has a value, or the product has none. */
         @AuraEnabled public Boolean checklistComplete;
+        /** @description Names of the readings that failed in this save. */
+        @AuraEnabled public List<String> failedNames;
+    }
+
+    /**
+     * @description Inspection state of one Product Serviced line, shown on its Inspection button.
+     */
+    public class LineStatus {
+        /** @description Product Serviced line Id. */
+        @AuraEnabled public Id lineId;
+        /** @description True when the product has no standards, or every standard has a value. */
+        @AuraEnabled public Boolean checklistComplete;
+        /** @description True when at least one PMI measurement is saved on the line. */
+        @AuraEnabled public Boolean hasMeasurements;
+        /** @description Number of saved readings with status Failed. */
+        @AuraEnabled public Integer failedCount;
     }
 
     /**
@@ -130,8 +146,25 @@ public with sharing class WoDebriefPmiInspectionController {
      */
     @AuraEnabled
     public static List<Id> listSatisfiedLineIds(Id workOrderId) {
+        List<Id> satisfied = new List<Id>();
+        for (LineStatus status : listInspectionStatuses(workOrderId)) {
+            if (status.checklistComplete == true) {
+                satisfied.add(status.lineId);
+            }
+        }
+        return satisfied;
+    }
+
+    /**
+     * @description Inspection state of every Product Serviced line that has an asset.
+     * @param workOrderId Work Order Id
+     * @return One status per line
+     */
+    @AuraEnabled
+    public static List<LineStatus> listInspectionStatuses(Id workOrderId) {
+        List<LineStatus> statuses = new List<LineStatus>();
         if (workOrderId == null) {
-            return new List<Id>();
+            return statuses;
         }
         List<WorkOrderLineItem> lines = [
             SELECT Id, Asset.Product2Id
@@ -142,7 +175,7 @@ public with sharing class WoDebriefPmiInspectionController {
             WITH USER_MODE
         ];
         if (lines.isEmpty()) {
-            return new List<Id>();
+            return statuses;
         }
 
         Set<Id> productIds = new Set<Id>();
@@ -155,22 +188,22 @@ public with sharing class WoDebriefPmiInspectionController {
         }
 
         Map<Id, List<DeviceStandard>> standardsByProduct = standardsByProduct(productIds);
-        Map<Id, Set<String>> measuredNamesByLine = measuredNamesByLine(lineIds);
-        List<Id> satisfied = new List<Id>();
+        Map<Id, LineMeasurements> measurementsByLine = measurementsByLine(lineIds);
         for (WorkOrderLineItem line : lines) {
-            List<DeviceStandard> standards = standardsByProduct.get(line.Asset.Product2Id);
-            if (standards == null || standards.isEmpty()) {
-                satisfied.add(line.Id);
-                continue;
-            }
-            Set<String> measuredNames = measuredNamesByLine.containsKey(line.Id)
-                ? measuredNamesByLine.get(line.Id)
-                : new Set<String>();
-            if (coversStandards(standards, measuredNames)) {
-                satisfied.add(line.Id);
-            }
+            LineMeasurements measured = measurementsByLine.containsKey(line.Id)
+                ? measurementsByLine.get(line.Id)
+                : new LineMeasurements();
+            LineStatus status = new LineStatus();
+            status.lineId = line.Id;
+            status.hasMeasurements = measured.total > 0;
+            status.failedCount = measured.failed;
+            status.checklistComplete = coversStandards(
+                standardsByProduct.get(line.Asset.Product2Id),
+                measured.namesWithValues
+            );
+            statuses.add(status);
         }
-        return satisfied;
+        return statuses;
     }
 
     /**
@@ -286,6 +319,7 @@ public with sharing class WoDebriefPmiInspectionController {
 
         List<Measurement__c> upserts = new List<Measurement__c>();
         Boolean hasFailure = false;
+        List<String> failedNames = new List<String>();
         for (PreparedRow row : prepared) {
             Measurement__c measurement = new Measurement__c(
                 Name = row.name,
@@ -311,6 +345,7 @@ public with sharing class WoDebriefPmiInspectionController {
             }
             if (row.status == STATUS_FAILED) {
                 hasFailure = true;
+                failedNames.add(row.name);
             }
             upserts.add(measurement);
         }
@@ -325,6 +360,7 @@ public with sharing class WoDebriefPmiInspectionController {
 
         SaveResult result = new SaveResult();
         result.hasFailure = hasFailure;
+        result.failedNames = failedNames;
         result.inspectionOutcome = line.InspectionOutcome__c;
         result.outcomeUpdated = false;
         result.checklistComplete = coversStandards(standards, namesWithValues(prepared));
@@ -559,28 +595,44 @@ public with sharing class WoDebriefPmiInspectionController {
     }
 
     /**
-     * @description PMI measurement names that already have a value, keyed by line.
-     * @param lineIds Product Serviced line Ids
-     * @return Names keyed by line Id
+     * @description Saved PMI readings for one line.
      */
-    private static Map<Id, Set<String>> measuredNamesByLine(Set<Id> lineIds) {
-        Map<Id, Set<String>> namesByLine = new Map<Id, Set<String>>();
+    private class LineMeasurements {
+        /** @description Names that have a value. */
+        public Set<String> namesWithValues = new Set<String>();
+        /** @description Saved readings. */
+        public Integer total = 0;
+        /** @description Saved readings with status Failed. */
+        public Integer failed = 0;
+    }
+
+    /**
+     * @description Saved PMI readings summarized per line.
+     * @param lineIds Product Serviced line Ids
+     * @return Summary keyed by line Id
+     */
+    private static Map<Id, LineMeasurements> measurementsByLine(Set<Id> lineIds) {
+        Map<Id, LineMeasurements> byLine = new Map<Id, LineMeasurements>();
         for (Measurement__c measurement : [
-            SELECT WorkOrderLineItem__c, Name, MeasurementValue__c
+            SELECT WorkOrderLineItem__c, Name, MeasurementValue__c, Status__c
             FROM Measurement__c
             WHERE WorkOrderLineItem__c IN :lineIds
                 AND MeasurementType__c = :MEASUREMENT_TYPE_PMI
             WITH USER_MODE
         ]) {
-            if (String.isBlank(measurement.MeasurementValue__c)) {
-                continue;
+            if (!byLine.containsKey(measurement.WorkOrderLineItem__c)) {
+                byLine.put(measurement.WorkOrderLineItem__c, new LineMeasurements());
             }
-            if (!namesByLine.containsKey(measurement.WorkOrderLineItem__c)) {
-                namesByLine.put(measurement.WorkOrderLineItem__c, new Set<String>());
+            LineMeasurements summary = byLine.get(measurement.WorkOrderLineItem__c);
+            summary.total++;
+            if (measurement.Status__c == STATUS_FAILED) {
+                summary.failed++;
             }
-            namesByLine.get(measurement.WorkOrderLineItem__c).add(measurement.Name);
+            if (String.isNotBlank(measurement.MeasurementValue__c)) {
+                summary.namesWithValues.add(measurement.Name);
+            }
         }
-        return namesByLine;
+        return byLine;
     }
 
     /**

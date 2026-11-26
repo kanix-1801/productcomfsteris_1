@@ -22,9 +22,7 @@ public with sharing class DealerOpportunityController {
 		@AuraEnabled public Decimal openPipelineValue;
 		@AuraEnabled public Integer closedWonCount;
 		@AuraEnabled public Decimal closedWonValue;
-		@AuraEnabled public Integer totalCount;
-		@AuraEnabled public List<StageMetric> stages;
-	}
+		@AuraEnabled public Integer totalCount;		@AuraEnabled public List<StageMetric> stages;	}
     
     /**
 * @description
@@ -72,6 +70,7 @@ public with sharing class DealerOpportunityController {
 		@AuraEnabled public Summary summary;
 		@AuraEnabled public List<OpportunityRow> recentOpportunities;
 		@AuraEnabled public List<OpportunityRow> pastDueOpportunities;
+		@AuraEnabled public List<OpportunityRow> closingSoonOpportunities;
 		@AuraEnabled public List<StageMetric> stageChart;
 		@AuraEnabled public List<ChartPoint> quarterChart;
 		@AuraEnabled public List<ChartPoint> businessUnitChart;

@@ -27,6 +27,7 @@ public with sharing class DealerOpportunityService {
         response.pastDueOpportunities = rows(
             DealerOpportunitySelector.selectPastDue(DealerOpportunitySelector.PAST_DUE_LIMIT)
         );
+        response.closingSoonOpportunities = rows(DealerOpportunitySelector.selectClosingNext90Days());
         response.quarterChart = new List<DealerOpportunityController.ChartPoint>();
         for (AggregateResult result : DealerOpportunitySelector.selectQuarterSummaries()) {
             Integer fiscalYear = Integer.valueOf(String.valueOf(result.get('fiscalYear')));
@@ -195,6 +196,9 @@ public with sharing class DealerOpportunityService {
             } catch (Exception exceptionValue) {
                 throw new DealerOpportunityException(dateLabels[index] + ' must be a valid date.');
             }
+        }
+        if (parsedDates[0] > parsedDates[1]) {
+            throw new DealerOpportunityException('Close Date cannot be after the Expected Ship Date.');
         }
         User currentUser = portalUser();
         Id dealerAccountId;

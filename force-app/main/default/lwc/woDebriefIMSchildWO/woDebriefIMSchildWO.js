@@ -159,6 +159,7 @@ const PRODUCT_BY_CODE_QUERY = gql`
 							Name { value }
 							Description { value }
 							IsReturnable__c { value }
+							BaseServiceCode__c { value }
 						}
 					}
 				}
@@ -188,6 +189,7 @@ const PRODUCT_BY_CODE_TYPE_QUERY = gql`
 							Name { value }
 							Description { value }
 							IsReturnable__c { value }
+							BaseServiceCode__c { value }
 						}
 					}
 				}
@@ -706,7 +708,17 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 	_productItemLookupId;
 	_product2LookupId;
 	_serviceCodeQueryProduct2Id;
+	_serviceCodeQueryVariables;
 	_pbeQueryProduct2Id;
+	_productByCodeQueryVars;
+	_productByCodeTypeQueryVars;
+	_productCodeScanPending = null;
+	_productScanCache = {};
+	_productCodeByIdQueryVars;
+	_productCodeByIdPending = null;
+	_partProductByCodeQueryVars;
+	_partProductCodeQueue = [];
+	_partProductCodeAttempted = new Set();
 	_pricebookEntryIdByProduct2Id = {};
 	_product2IdByProductItemId = {};
 	_isReturnableByProductItemId = {};
@@ -889,26 +901,22 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 	/**
 	 * @description Wire adapter: Service Codes whose Item Number matches the Device Type base.
 	 */
-	@wire(graphql, { query: SERVICE_CODES_QUERY, variables: '$serviceCodeQueryVariables' })
+	@wire(graphql, { query: SERVICE_CODES_QUERY, variables: '$_serviceCodeQueryVariables' })
 	wiredServiceCodesForDeviceType(result) {
 		const product2Id = this._serviceCodeQueryProduct2Id;
-		if (!product2Id) return;
+		if (!product2Id || !this._serviceCodeQueryVariables) return;
+		if (!this._repairCodeLoadingByProduct2Id[product2Id]) return;
+		if (!result?.data && !result?.errors) return;
+		const base = this._baseServiceCodeByProduct2Id[product2Id] || '';
+		this._serviceCodeQueryProduct2Id = null;
+		this._serviceCodeQueryVariables = undefined;
 		if (result?.errors) {
-			this._setRepairCodesForProduct(
-				product2Id,
-				this._baseServiceCodeByProduct2Id[product2Id] || '',
-				[]
-			);
+			this._setRepairCodesForProduct(product2Id, base, []);
 			return;
 		}
-		if (!result?.data) return;
 		const edges = result.data?.uiapi?.query?.Product2?.edges ?? [];
 		const options = this._cacheServiceCodeNodes(edges.map(edge => edge?.node));
-		this._setRepairCodesForProduct(
-			product2Id,
-			this._baseServiceCodeByProduct2Id[product2Id] || '',
-			options
-		);
+		this._setRepairCodesForProduct(product2Id, base, options);
 	}
 
 	/**
@@ -928,6 +936,73 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 			...this._pricebookEntryIdByProduct2Id,
 			[product2Id]: match.node.Id
 		};
+	}
+
+	/**
+	 * @description Wire adapter: Product2 lookup by Product Code for barcode scans.
+	 */
+	@wire(graphql, { query: PRODUCT_BY_CODE_QUERY, variables: '$_productByCodeQueryVars' })
+	wiredProductByCode(result) {
+		if (!this._productByCodeQueryVars) return;
+		if (!result?.data && !result?.errors) return;
+		this._handleProductScanWireResult(result, false);
+	}
+
+	/**
+	 * @description Wire adapter: Product2 lookup by Product Code and Product Type for barcode scans.
+	 */
+	@wire(graphql, { query: PRODUCT_BY_CODE_TYPE_QUERY, variables: '$_productByCodeTypeQueryVars' })
+	wiredProductByCodeType(result) {
+		if (!this._productByCodeTypeQueryVars) return;
+		if (!result?.data && !result?.errors) return;
+		this._handleProductScanWireResult(result, true);
+	}
+
+	/**
+	 * @description Wire adapter: Product2 ProductCode lookup by Id.
+	 */
+	@wire(graphql, { query: PRODUCT_CODE_BY_ID_QUERY, variables: '$_productCodeByIdQueryVars' })
+	wiredProductCodeById(result) {
+		if (!this._productCodeByIdQueryVars) return;
+		if (!result?.data && !result?.errors) return;
+		const pending = this._productCodeByIdPending;
+		if (!pending) return;
+		clearTimeout(pending.timer);
+		this._productCodeByIdPending = null;
+		this._productCodeByIdQueryVars = undefined;
+		if (result?.errors?.length) {
+			pending.resolve('');
+			return;
+		}
+		const code = result?.data?.uiapi?.query?.Product2?.edges?.[0]?.node?.ProductCode?.value ?? '';
+		if (code) {
+			this._productCodeByProduct2Id = { ...this._productCodeByProduct2Id, [pending.product2Id]: code };
+		}
+		pending.resolve(code);
+	}
+
+	/**
+	 * @description Wire adapter: Part Product2 lookup by ProductCode for Labor edit rehydration.
+	 */
+	@wire(graphql, { query: PART_PRODUCT_BY_CODE_QUERY, variables: '$_partProductByCodeQueryVars' })
+	wiredPartProductByCode(result) {
+		const code = this._partProductByCodeQueryVars?.productCode;
+		if (!code) return;
+		if (!result?.data && !result?.errors) return;
+		const node = result?.data?.uiapi?.query?.Product2?.edges?.[0]?.node;
+		if (node?.Id) {
+			const product2Id = node.Id;
+			const productCode = node.ProductCode?.value ?? code;
+			const description = node.Description?.value ?? '';
+			this._product2IdByPartProductCode = {
+				...this._product2IdByPartProductCode,
+				[code]: product2Id
+			};
+			this._cacheLaborPartDetails(product2Id, productCode, description);
+			this.repairCodeUiVersion += 1;
+		}
+		this._partProductByCodeQueryVars = undefined;
+		this._drainPartProductCodeQueue();
 	}
 
 	/**
@@ -1136,17 +1211,18 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 			...this._baseServiceCodeByProduct2Id,
 			[product2Id]: baseServiceCode
 		};
-		if (this._serviceCodeQueryProduct2Id === product2Id) {
-			const loadedForBase = this._repairCodeLoadingByProduct2Id[product2Id]
-				? this._loadedServiceCodesForBase(baseServiceCode)
-				: null;
+		if (this._serviceCodeQueryProduct2Id === product2Id && this._repairCodeLoadingByProduct2Id[product2Id]) {
+			const loadedForBase = this._loadedServiceCodesForBase(baseServiceCode);
 			if (!baseServiceCode) {
+				this._serviceCodeQueryProduct2Id = null;
+				this._serviceCodeQueryVariables = undefined;
 				this._setRepairCodesForProduct(product2Id, '', []);
 			} else if (loadedForBase) {
+				this._serviceCodeQueryProduct2Id = null;
+				this._serviceCodeQueryVariables = undefined;
 				this._setRepairCodesForProduct(product2Id, baseServiceCode, loadedForBase);
 			} else {
-				this._serviceCodeQueryProduct2Id = product2Id;
-				this.repairCodeUiVersion += 1;
+				this._startServiceCodeWire(product2Id, baseServiceCode);
 			}
 		}
 	}
@@ -1201,17 +1277,6 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 	 */
 	get queryVariables() {
 		return { workOrderId: this.recordId };
-	}
-
-	/**
-	 * @description GraphQL variables for Device Type Service Codes (ProductCode prefix match).
-	 */
-	get serviceCodeQueryVariables() {
-		void this.repairCodeUiVersion;
-		const product2Id = this._serviceCodeQueryProduct2Id;
-		const base = product2Id ? this._baseServiceCodeByProduct2Id[product2Id] : '';
-		if (!product2Id || !base) return undefined;
-		return this._serviceCodeLikePatterns(base);
 	}
 
 	/**
@@ -1807,37 +1872,31 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 	/**
 	 * @description Device Type picker shows the Product Name.
 	 */
-	get deviceTypePickerDisplayInfo() {
-		return { primaryField: 'Name' };
-	}
+	deviceTypePickerDisplayInfo = { primaryField: 'Name' };
 
 	/**
 	 * @description Device Type search matches Product Name, and Product Code as a secondary match.
 	 */
-	get deviceTypePickerMatchingInfo() {
-		return {
-			primaryField: { fieldPath: 'Name' },
-			additionalFields: [{ fieldPath: 'ProductCode' }]
-		};
-	}
+	deviceTypePickerMatchingInfo = {
+		primaryField: { fieldPath: 'Name' },
+		additionalFields: [{ fieldPath: 'ProductCode' }]
+	};
 
 	/**
 	 * @description Device Type picker: Service Asset products whose Item Number contains DT.
 	 */
-	get deviceTypePickerFilter() {
-		return {
-			criteria: [
-				{ fieldPath: 'IsActive', operator: 'eq', value: true },
-				{
-					fieldPath: PRODUCT2_PRODUCT_TYPE.fieldApiName,
-					operator: 'eq',
-					value: SERVICE_ASSET_PRODUCT_TYPE
-				},
-				{ fieldPath: 'ProductCode', operator: 'like', value: '%DT.%' }
-			],
-			filterLogic: '1 AND 2 AND 3'
-		};
-	}
+	deviceTypePickerFilter = {
+		criteria: [
+			{ fieldPath: 'IsActive', operator: 'eq', value: true },
+			{
+				fieldPath: PRODUCT2_PRODUCT_TYPE.fieldApiName,
+				operator: 'eq',
+				value: SERVICE_ASSET_PRODUCT_TYPE
+			},
+			{ fieldPath: 'ProductCode', operator: 'like', value: '%DT.%' }
+		],
+		filterLogic: '1 AND 2 AND 3'
+	};
 
 	/**
 	 * @description Calibration Asset Picker Filter.
@@ -2675,10 +2734,26 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 			}
 			const recordId = match.product2Id;
 			this._cacheProductMeta(recordId, { name: match.productName });
+			if (match.productName) {
+				this._productNameByProduct2Id = {
+					...this._productNameByProduct2Id,
+					[recordId]: match.productName
+				};
+			}
 			if (match.productCode) {
+				this._productCodeByProduct2Id = {
+					...this._productCodeByProduct2Id,
+					[recordId]: match.productCode
+				};
 				this._repairCodeProductCodeById = {
 					...this._repairCodeProductCodeById,
 					[recordId]: match.productCode
+				};
+			}
+			if (isDeviceType && match.baseServiceCode !== undefined) {
+				this._baseServiceCodeByProduct2Id = {
+					...this._baseServiceCodeByProduct2Id,
+					[recordId]: match.baseServiceCode
 				};
 			}
 			this._loadProductMeta(recordId);
@@ -6675,15 +6750,22 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 		const deviceTypeId = instrument?.deviceTypeId;
 		const known = instrument?.deviceType || this._productCodeByProduct2Id[deviceTypeId];
 		if (known || !deviceTypeId) return known || '';
-		const result = await graphql(this, {
-			query: PRODUCT_CODE_BY_ID_QUERY,
-			variables: { product2Id: deviceTypeId }
-		});
-		const code = result?.data?.uiapi?.query?.Product2?.edges?.[0]?.node?.ProductCode?.value ?? '';
-		if (code) {
-			this._productCodeByProduct2Id = { ...this._productCodeByProduct2Id, [deviceTypeId]: code };
+		if (this._productCodeByIdPending) {
+			clearTimeout(this._productCodeByIdPending.timer);
+			this._productCodeByIdPending.resolve('');
+			this._productCodeByIdPending = null;
 		}
-		return code;
+		return new Promise((resolve) => {
+			const timer = setTimeout(() => {
+				if (this._productCodeByIdPending?.product2Id === deviceTypeId) {
+					this._productCodeByIdPending = null;
+					this._productCodeByIdQueryVars = undefined;
+					resolve(this._productCodeByProduct2Id[deviceTypeId] || '');
+				}
+			}, 5000);
+			this._productCodeByIdPending = { product2Id: deviceTypeId, resolve, timer };
+			this._productCodeByIdQueryVars = { product2Id: deviceTypeId };
+		});
 	}
 
 	/**
@@ -6707,7 +6789,7 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 	}
 
 	/**
-	 * @description Product2 lookup by Product Code (optional Product Type) via GraphQL.
+	 * @description Product2 lookup by Product Code (optional Product Type) via GraphQL @wire.
 	 * @param {string} productCode Scanned or typed Product Code
 	 * @param {string} [productType] ProductType__c filter
 	 * @return {Promise<Object>} Match payload used by scan handlers
@@ -6715,21 +6797,80 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 	async _findProductByProductCode(productCode, productType) {
 		const code = (productCode ?? '').trim();
 		if (!code) return { product2Id: null, matchCount: 0 };
-		const result = await graphql(this, {
-			query: productType ? PRODUCT_BY_CODE_TYPE_QUERY : PRODUCT_BY_CODE_QUERY,
-			variables: productType ? { productCode: code, productType } : { productCode: code }
+		const type = productType || null;
+		const cacheKey = `${type || ''}|${code.toLowerCase()}`;
+		if (Object.prototype.hasOwnProperty.call(this._productScanCache, cacheKey)) {
+			return this._productScanCache[cacheKey];
+		}
+		if (this._productCodeScanPending) {
+			clearTimeout(this._productCodeScanPending.timer);
+			this._productCodeScanPending.resolve({ product2Id: null, matchCount: 0 });
+			this._productCodeScanPending = null;
+		}
+		return new Promise((resolve, reject) => {
+			const timer = setTimeout(() => {
+				if (this._productCodeScanPending?.cacheKey === cacheKey) {
+					this._productCodeScanPending = null;
+					this._productByCodeQueryVars = undefined;
+					this._productByCodeTypeQueryVars = undefined;
+					reject(new Error('Product lookup timed out.'));
+				}
+			}, 10000);
+			this._productCodeScanPending = {
+				code,
+				type,
+				cacheKey,
+				hasType: !!type,
+				resolve,
+				reject,
+				timer
+			};
+			if (type) {
+				this._productByCodeQueryVars = undefined;
+				this._productByCodeTypeQueryVars = { productCode: code, productType: type };
+			} else {
+				this._productByCodeTypeQueryVars = undefined;
+				this._productByCodeQueryVars = { productCode: code };
+			}
 		});
+	}
+
+	/**
+	 * @description Resolves the pending barcode scan lookup from the GraphQL @wire result.
+	 * @param {Object} result GraphQL wire result
+	 * @param {boolean} hasType Whether the Product Type filtered wire fired
+	 */
+	_handleProductScanWireResult(result, hasType) {
+		const pending = this._productCodeScanPending;
+		if (!pending || pending.hasType !== hasType) return;
+		clearTimeout(pending.timer);
+		this._productCodeScanPending = null;
+		if (hasType) {
+			this._productByCodeTypeQueryVars = undefined;
+		} else {
+			this._productByCodeQueryVars = undefined;
+		}
+		if (result?.errors?.length) {
+			pending.reject(result.errors[0]);
+			return;
+		}
 		const edges = result?.data?.uiapi?.query?.Product2?.edges ?? [];
 		const node = edges[0]?.node;
-		if (!node?.Id) return { product2Id: null, matchCount: 0 };
-		return {
+		if (!node?.Id) {
+			pending.resolve({ product2Id: null, matchCount: 0 });
+			return;
+		}
+		const match = {
 			product2Id: node.Id,
 			productName: node.Name?.value ?? '',
-			productCode: node.ProductCode?.value ?? code,
+			productCode: node.ProductCode?.value ?? pending.code,
 			description: node.Description?.value ?? '',
 			isReturnable: node.IsReturnable__c?.value,
+			baseServiceCode: (node.BaseServiceCode__c?.value ?? '').trim(),
 			matchCount: edges.length
 		};
+		this._productScanCache = { ...this._productScanCache, [pending.cacheKey]: match };
+		pending.resolve(match);
 	}
 
 	/**
@@ -7434,6 +7575,18 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 	}
 
 	/**
+	 * @description Starts the SERVICE_CODES_QUERY @wire once for the given Device Type and base code.
+	 * @param {string} product2Id Device Type Product2 Id
+	 * @param {string} base Base Service Code
+	 */
+	_startServiceCodeWire(product2Id, base) {
+		this._serviceCodeQueryProduct2Id = product2Id;
+		this._serviceCodeQueryVariables = product2Id && base
+			? this._serviceCodeLikePatterns(base)
+			: undefined;
+	}
+
+	/**
 	 * @description Starts GraphQL @wire load of Service Codes for a Device Type.
 	 * @param {string} product2Id Device Type Product2 Id
 	 */
@@ -7444,12 +7597,20 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 		this._repairCodeLoadingByProduct2Id = { ...this._repairCodeLoadingByProduct2Id, [product2Id]: true };
 		this.repairCodeUiVersion += 1;
 		this._pbeQueryProduct2Id = product2Id;
-		this._serviceCodeQueryProduct2Id = product2Id;
 		this._loadProductMeta(product2Id);
 		if (base === '') {
+			this._serviceCodeQueryProduct2Id = null;
+			this._serviceCodeQueryVariables = undefined;
 			this._setRepairCodesForProduct(product2Id, '', []);
 		} else if (loadedForBase) {
+			this._serviceCodeQueryProduct2Id = null;
+			this._serviceCodeQueryVariables = undefined;
 			this._setRepairCodesForProduct(product2Id, base, loadedForBase);
+		} else if (base) {
+			this._startServiceCodeWire(product2Id, base);
+		} else {
+			this._serviceCodeQueryProduct2Id = product2Id;
+			this._serviceCodeQueryVariables = undefined;
 		}
 	}
 
@@ -7553,32 +7714,31 @@ export default class WoDebriefIMSchildWO extends LightningElement {
 	}
 
 	/**
-	 * @description Internal helper: Ensure Product2Id For Part Code.
+	 * @description Internal helper: Ensure Product2Id For Part Code via GraphQL @wire queue.
 	 */
-	async _ensureProduct2IdForPartCode(partCode) {
+	_ensureProduct2IdForPartCode(partCode) {
 		const code = (partCode ?? '').trim();
-		if (!code || this._product2IdByPartProductCode[code]) return;
+		if (!code || this._product2IdByPartProductCode[code] || this._partProductCodeAttempted.has(code)) return;
+		if (this._partProductByCodeQueryVars?.productCode === code) return;
+		if (!this._partProductCodeQueue.includes(code)) {
+			this._partProductCodeQueue.push(code);
+		}
+		if (!this._partProductByCodeQueryVars) {
+			this._drainPartProductCodeQueue();
+		}
+	}
 
-		try {
-			const result = await graphql(this, {
-				query: PART_PRODUCT_BY_CODE_QUERY,
-				variables: { productCode: code }
-			});
-			const node = result?.data?.uiapi?.query?.Product2?.edges?.[0]?.node;
-			if (!node?.Id) return;
-
-			const product2Id = node.Id;
-			const productCode = node.ProductCode?.value ?? code;
-			const name = node.Name?.value ?? '';
-			const description = node.Description?.value ?? '';
-			this._product2IdByPartProductCode = {
-				...this._product2IdByPartProductCode,
-				[code]: product2Id
-			};
-			this._cacheLaborPartDetails(product2Id, productCode, description);
-			this.repairCodeUiVersion += 1;
-		} catch (e) {
-			/* lookup is best-effort for edit picker rehydration */
+	/**
+	 * @description Starts the next queued Part Product2 lookup by Product Code.
+	 */
+	_drainPartProductCodeQueue() {
+		while (this._partProductCodeQueue.length) {
+			const next = this._partProductCodeQueue.shift();
+			if (next && !this._product2IdByPartProductCode[next] && !this._partProductCodeAttempted.has(next)) {
+				this._partProductCodeAttempted.add(next);
+				this._partProductByCodeQueryVars = { productCode: next };
+				return;
+			}
 		}
 	}
 

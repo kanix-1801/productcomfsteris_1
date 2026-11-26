@@ -34,6 +34,14 @@
                   Sticky header does not scroll; only .workspace-panel / .workspace-nav do.
                 -->
                 <div class="evaluation-content">
+                <template lwc:if={showRequoteBanner}>
+                    <div
+                        class="slds-notify slds-notify_alert slds-alert_warning slds-m-bottom_small requote-banner"
+                        role="alert"
+                    >
+                        <h2 class="slds-text-heading_small">{requoteBannerMessage}</h2>
+                    </div>
+                </template>
                 <template lwc:if={workspaceError}>
                     <div
                         class="slds-notify slds-notify_alert slds-theme_error slds-m-bottom_small workspace-error-banner"
@@ -253,7 +261,6 @@
                                     <p class="slds-text-body_small slds-text-color_weak">
                                         Selected codes: {selectedCount}
                                     </p>
-                                    <!-- GW-3377 backed out: Current Repair Cost and Updated Repair Cost
                                     <template lwc:if={showRepairCostHeader}>
                                         <div class="repair-cost-header">
                                             <span class="repair-cost-header__label">Current Repair Cost</span>
@@ -262,7 +269,6 @@
                                             <span class="repair-cost-header__value">{updatedRepairCostDisplay}</span>
                                         </div>
                                     </template>
-                                    -->
                                     <template lwc:if={isEvaluationMode}>
                                         <lightning-button
                                             label="Next"

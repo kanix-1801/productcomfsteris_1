@@ -151,7 +151,7 @@ public with sharing class GenerateQuoteService {
 			}
 
             //GCL-353: START
-			List<Quote> quoteRecords = GeneralUtility.getCurrentBusinessLine() == GeneralUtility.HC_STR
+			List<Quote> quoteRecords = GeneralUtility.getCurrentBusinessLineFromOpportunity(opportunityId) == GeneralUtility.HC_STR
                 ? QuoteSelector.selectByOpportunityIdWithLineItems(   //HC
 				opportunityId,
 				quoteTypeFilter,
@@ -544,7 +544,7 @@ public with sharing class GenerateQuoteService {
 
 		if (!resolveCurrentUserHasEditAccess(opportunityId)) {
             //GCL-66: START
-			if(GeneralUtility.getCurrentBusinessLine() == GeneralUtility.HC_STR) {
+			if(GeneralUtility.getCurrentBusinessLineFromOpportunity(opportunityId) == GeneralUtility.HC_STR) {
 				throw new AuraHandledException(QUOTE_ACCESS_DENIED_MESSAGE);
 			} else {
 				throw new AuraHandledException(QUOTE_ACCESS_DENIED_MESSAGE_LS);
@@ -597,7 +597,7 @@ public with sharing class GenerateQuoteService {
 		}
 
         //GCL-66: START
-		if(GeneralUtility.getCurrentBusinessLine() == GeneralUtility.HC_STR) {
+		if(GeneralUtility.getCurrentBusinessLineFromOpportunity(opportunityRecord.Id) == GeneralUtility.HC_STR) {
 			newQuote.RecordTypeId = resolveQuoteRecordTypeId();
 		} else {
 			newQuote.RecordTypeId = resolveLSQuoteRecordTypeId();
@@ -835,9 +835,9 @@ public with sharing class GenerateQuoteService {
 			quoteWrapper.lastModifiedDate = resolveLastModifiedDate(quoteRecord);
             
             //GCL-353: START
-            if(GeneralUtility.getCurrentBusinessLine() == GeneralUtility.LS_STR) { //LS
+            if(GeneralUtility.getCurrentBusinessLineFromQuote(quoteRecord.Id) == GeneralUtility.LS_STR) { //LS
                 quoteWrapper.scDateCreated = quoteRecord.LSSCDateCreated__c;
-                quoteWrapper.scDateModified = quoteRecord.LSSCDateModified_f__c;
+                quoteWrapper.scDateModified = quoteRecord.LastModifiedDate__c;
                 quoteWrapper.totalRevenue = quoteRecord.LSTotalRevenue__c;
             }
             //GCL-353: END

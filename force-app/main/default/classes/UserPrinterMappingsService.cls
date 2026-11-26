@@ -20,7 +20,9 @@ public with sharing class UserPrinterMappingsService {
 	 * @return The matching Workstation Printer, or null
 	 * @throws UserPrinterMappingsServiceException when the query fails
 	 */
-	public static WorkstationPrinter__c getActivePrinterForCurrentUser(String printerType) {
+	public static WorkstationPrinter__c getActivePrinterForCurrentUser(
+		String printerType
+	) {
 		if (String.isBlank(printerType)) {
 			return null;
 		}
@@ -43,7 +45,9 @@ public with sharing class UserPrinterMappingsService {
 			);
 			Logger.saveLog();
 			throw new UserPrinterMappingsServiceException(
-				'Unable to resolve the active ' + printerType + ' Workstation Printer.',
+				'Unable to resolve the active ' +
+					printerType +
+					' Workstation Printer.',
 				queryError
 			);
 		}
@@ -55,7 +59,9 @@ public with sharing class UserPrinterMappingsService {
 	 * @throws UserPrinterMappingsServiceException when no mapping is available
 	 */
 	public static String getPrinterNameForCurrentUser() {
-		WorkstationPrinter__c printer = getActivePrinterForCurrentUser(PRINTER_TYPE_TRAVEL_TAG);
+		WorkstationPrinter__c printer = getActivePrinterForCurrentUser(
+			PRINTER_TYPE_TRAVEL_TAG
+		);
 		if (printer == null || String.isBlank(printer.Name)) {
 			throw new UserPrinterMappingsServiceException(
 				'No active TRAVEL_TAG Workstation Printer is mapped to the current user.'

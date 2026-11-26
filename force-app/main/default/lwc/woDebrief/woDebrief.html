@@ -370,7 +370,10 @@
 								<div class="woli-actions">
 									<template lwc:if={line.showInspectionButton}>
 										<lightning-button
-											label="Inspection"
+											label={line.inspectionLabel}
+											variant={line.inspectionVariant}
+											icon-name={line.inspectionIcon}
+											title={line.inspectionTitle}
 											data-id={line.Id}
 											onclick={handleOpenPmiInspection}>
 										</lightning-button>

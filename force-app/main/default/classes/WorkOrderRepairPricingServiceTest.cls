@@ -221,20 +221,24 @@ private class WorkOrderRepairPricingServiceTest {
     }
 
     @IsTest
-    static void testPriceAfterLineChanges_WhenNoNewPriceableLine_SkipsRequoteBlock() {
+    static void testPriceAfterLineChanges_WhenNoNewPriceableLine_StillAppliesRequoteGate() {
         WorkOrderRepairPricingService.testNetTotalQueue = new List<Decimal>{ 200 };
         WorkOrderRepairPricingService.PricingTotals totals =
             WorkOrderRepairPricingService.priceAfterLineChanges(
                 new WorkOrder(Id = fakeWorkOrderId(), Status = 'Repair'),
                 true,
                 10,
-                true,
+                false,
                 new List<Id>()
             );
         Assert.areEqual(200, totals.newNetTotal);
-        Assert.isNull(WorkOrderRepairPricingService.lastRequoteWarning);
+        Assert.areEqual(
+            WorkOrderRepairPricingService.REQUOTE_BLOCKED_MESSAGE,
+            WorkOrderRepairPricingService.lastRequoteWarning
+        );
         WorkOrderRepairPricingService.testNetTotalQueue = null;
         WorkOrderRepairPricingService.lastTotals = null;
+        WorkOrderRepairPricingService.lastRequoteWarning = null;
     }
 
     @IsTest

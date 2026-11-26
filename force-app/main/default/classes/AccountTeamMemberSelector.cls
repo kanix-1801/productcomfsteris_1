@@ -247,4 +247,57 @@
                 LIMIT 1
             ];
         }
+
+        /**
+         * @description GCL-74 - Account Team rows of deactivated Life Sciences users that carry one of the
+         *              given assignment types. Used by the inactive user cleanup (LSInactiveUserCleanupQueueable).
+         *              Reads in system mode and without sharing through the inner class, so the result does not
+         *              depend on the deactivating user's access (Standards 5.10.4, admin-level operation).
+         *              All other methods of this class are unchanged and stay with sharing and in user mode.
+         * @param userIdSet Deactivated user Ids.
+         * @param assignmentTypeSet AssignmentType__c values to remove.
+         * @param rowLimit Maximum rows returned. Must be 1 or more.
+         * @return Matching rows ordered by Id, or an empty list when an input is empty.
+         *
+         * @example
+         * AccountTeamMemberSelector.selectByUserIdsAndAssignmentTypes(userIdSet, assignmentTypeSet, 2000);
+         */
+        public static List<AccountTeamMember> selectByUserIdsAndAssignmentTypes(
+            Set<Id> userIdSet,
+            Set<String> assignmentTypeSet,
+            Integer rowLimit
+        ) {
+            if (userIdSet == null || userIdSet.isEmpty()
+                || assignmentTypeSet == null || assignmentTypeSet.isEmpty()
+                || rowLimit == null || rowLimit < 1) {
+                return new List<AccountTeamMember>();
+            }
+            return new SystemModeReader().selectByUserIdsAndAssignmentTypes(
+                userIdSet,
+                assignmentTypeSet,
+                rowLimit
+            );
+        }
+
+        /**
+         * @description GCL-74 - Runs the cleanup read without sharing. Sharing is declared per class in Apex,
+         *              so the with sharing outer class cannot do this itself.
+         */
+        private without sharing class SystemModeReader {
+            private List<AccountTeamMember> selectByUserIdsAndAssignmentTypes(
+                Set<Id> userIdSet,
+                Set<String> assignmentTypeSet,
+                Integer rowLimit
+            ) {
+                return [
+                    SELECT Id, AccountId, UserId, TeamMemberRole, AssignmentType__c
+                    FROM AccountTeamMember
+                    WHERE UserId IN :userIdSet
+                    AND AssignmentType__c IN :assignmentTypeSet
+                    WITH SYSTEM_MODE
+                    ORDER BY Id
+                    LIMIT :rowLimit
+                ];
+            }
+        }
     }

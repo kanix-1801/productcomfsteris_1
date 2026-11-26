@@ -48,6 +48,57 @@ private class LeadCreateControllerTest {
     }
 
     /**
+     * The product table finds active Products by name or code, and ignores a short term.
+     */
+    @IsTest
+    static void searchProductsFindsActiveProducts() {
+        insert new List<Product2>{
+            new Product2(Name = 'Zeta Sterilizer Search', ProductCode = 'ZSS-100', IsActive = true),
+            new Product2(Name = 'Zeta Washer Inactive', ProductCode = 'ZWI-200', IsActive = false)
+        };
+
+        List<LeadCreateController.ProductOption> byName = LeadCreateController.searchProducts('zeta ster');
+        List<LeadCreateController.ProductOption> byCode = LeadCreateController.searchProducts('ZSS-1');
+        List<LeadCreateController.ProductOption> inactive = LeadCreateController.searchProducts('Zeta Washer');
+
+        Assert.areEqual(1, byName.size());
+        Assert.areEqual('Zeta Sterilizer Search', byName[0].name);
+        Assert.areEqual('ZSS-100', byName[0].productCode);
+        Assert.areEqual(1, byCode.size());
+        Assert.areEqual(0, inactive.size());
+        Assert.areEqual(0, LeadCreateController.searchProducts('z').size());
+    }
+
+    /**
+     * With no search text the product table lists the Products most used on Leads first.
+     */
+    @IsTest
+    static void searchProductsListsPopularProductsFirst() {
+        Product2 popular = new Product2(Name = 'Zeta Popular Pick', ProductCode = 'ZPP-1', IsActive = true);
+        Product2 other = new Product2(Name = 'Aaa Rarely Picked', ProductCode = 'ARP-1', IsActive = true);
+        insert new List<Product2>{ popular, other };
+        Lead leadRecord = new Lead(
+            FirstName = 'Ada',
+            LastName = 'Popular',
+            Company = 'Steris',
+            CountryCode = 'US',
+            Email = 'ada.popular.products@example.com',
+            LeadSource = 'Web',
+            Status = 'New'
+        );
+        insert leadRecord;
+        insert new List<LeadProduct__c>{
+            new LeadProduct__c(Lead__c = leadRecord.Id, Product__c = popular.Id)
+        };
+
+        List<LeadCreateController.ProductOption> options = LeadCreateController.searchProducts(null);
+
+        Assert.isFalse(options.isEmpty());
+        Assert.areEqual(popular.Id, options[0].id);
+        Assert.areEqual(options.size(), LeadCreateController.searchProducts('').size());
+    }
+
+    /**
      * @description Confirms a Lead saves with no Products and stays with the user.
      */
     @IsTest

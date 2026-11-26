@@ -40,6 +40,17 @@
             </template>
         </section>
 
+        <article class="panel">
+            <header class="panel-header">
+                <h2>Closing in Next 90 Days</h2>
+            </header>
+            <c-dealer-opportunity-table
+                records={closingSoonOpportunities}
+                variant="closing"
+                empty-message="No opportunities closing in the next 90 days.">
+            </c-dealer-opportunity-table>
+        </article>
+
         <section class="insight-grid">
             <article class="panel">
                 <header class="panel-header">

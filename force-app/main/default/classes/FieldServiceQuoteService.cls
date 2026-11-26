@@ -19,10 +19,43 @@ public inherited sharing class FieldServiceQuoteService {
 	/** @description Days a new quote stays valid; also drives the opportunity Close Date. */
 	public static final Integer QUOTE_VALIDITY_DAYS = 30;
 
+	/** @description Product codes used for the non-Parts line types. */
+	public static final String LABOR_PRODUCT_CODE = 'FSLABOR';
+	public static final String TRAVEL_PRODUCT_CODE = 'FSTRAVEL';
+	public static final String EXPENSE_PRODUCT_CODE = 'FSEXPPRT';
+
+	private static final Map<String, String> PRODUCT_CODE_BY_LINE_TYPE = new Map<String, String>{
+		LINE_TYPE_LABOR => LABOR_PRODUCT_CODE,
+		LINE_TYPE_TRAVEL => TRAVEL_PRODUCT_CODE,
+		LINE_TYPE_EXPENSE => EXPENSE_PRODUCT_CODE
+	};
+
 	private static final Integer OPPORTUNITY_NAME_MAX = 120;
 	private static final Id OPPORTUNITY_RECORD_TYPE_ID = Schema.SObjectType.Opportunity.getRecordTypeInfosByDeveloperName()
 		.get(OPPORTUNITY_RECORD_TYPE)
 		.getRecordTypeId();
+
+	/**
+	 * @description Loads a Field Service quote, or throws a FieldServiceQuoteException the user can read.
+	 * @param quoteId Quote Id
+	 * @return Quote
+	 */
+	public static Quote getQuote(Id quoteId) {
+		List<Quote> quotes = QuoteSelector.selectFieldServiceQuoteById(quoteId);
+		if (quotes.isEmpty()) {
+			throw new FieldServiceQuoteException('The quote was not found or you do not have access to it.');
+		}
+		return quotes[0];
+	}
+
+	/**
+	 * @description Product code used for a Labor, Travel or Expense line.
+	 * @param lineType Quote line type
+	 * @return Product code, or null for Parts and unknown line types
+	 */
+	public static String productCodeFor(String lineType) {
+		return PRODUCT_CODE_BY_LINE_TYPE.get(lineType);
+	}
 
 	/**
 	 * @description Makes sure a Field Service quote has its parent opportunity (GW-6603), and links an
@@ -30,12 +63,7 @@ public inherited sharing class FieldServiceQuoteService {
 	 * @param quoteId Quote Id
 	 */
 	public static void ensureOpportunity(Id quoteId) {
-		Quote quoteRecord = [
-			SELECT Id, OpportunityId, OwnerId, CurrencyIsoCode, Pricebook2Id, ExpirationDate, WorkOrder__c,
-				WorkOrder__r.WorkOrderNumber, ShipToAccount__c, QuoteAccountId, Name
-			FROM Quote
-			WHERE Id = :quoteId
-		];
+		Quote quoteRecord = getQuote(quoteId);
 		if (quoteRecord.OpportunityId != null) {
 			new OpportunityGateway().linkWorkOrder(quoteRecord.OpportunityId, quoteRecord.WorkOrder__c);
 			return;
@@ -58,23 +86,17 @@ public inherited sharing class FieldServiceQuoteService {
 	 * @param productIds Product Ids
 	 * @return Map of Product Id to entry
 	 */
-	public static Map<Id, PricebookEntry> selectPricebookEntries(
+	public static Map<Id, PricebookEntry> getPricebookEntriesByProductId(
 		Id pricebookId,
 		String currencyIsoCode,
 		Set<Id> productIds
 	) {
 		Map<Id, PricebookEntry> entryByProductId = new Map<Id, PricebookEntry>();
-		if (pricebookId == null || productIds.isEmpty()) {
-			return entryByProductId;
-		}
-		for (PricebookEntry entry : [
-			SELECT Id, Product2Id, UnitPrice, Product2.ProductCode, Product2.Name
-			FROM PricebookEntry
-			WHERE Pricebook2Id = :pricebookId
-				AND CurrencyIsoCode = :currencyIsoCode
-				AND Product2Id IN :productIds
-				AND IsActive = TRUE
-		]) {
+		for (PricebookEntry entry : PricebookEntriesSelector.selectActiveWithPriceByPricebookProductAndCurrency(
+				pricebookId,
+				productIds,
+				currencyIsoCode
+			)) {
 			entryByProductId.put(entry.Product2Id, entry);
 		}
 		return entryByProductId;
@@ -90,22 +112,17 @@ public inherited sharing class FieldServiceQuoteService {
 		 *              Quotes without a Work Order get a new account-only opportunity.
 		 */
 		public Id findOrCreate(Quote quoteRecord, Id workOrderId, Id accountId, String reference) {
-			if (workOrderId != null) {
-				List<Opportunity> existing = [
-					SELECT Id
-					FROM Opportunity
-					WHERE WorkOrder__c = :workOrderId AND RecordTypeId = :OPPORTUNITY_RECORD_TYPE_ID
-					ORDER BY CreatedDate ASC
-					LIMIT 1
-				];
-				if (!existing.isEmpty()) {
-					return existing[0].Id;
-				}
+			List<Opportunity> existing = OpportunitySelector.selectFieldServiceByWorkOrderId(
+				workOrderId,
+				OPPORTUNITY_RECORD_TYPE_ID
+			);
+			if (!existing.isEmpty()) {
+				return existing[0].Id;
 			}
 
 			String accountName = '';
 			if (accountId != null) {
-				List<Account> accounts = [SELECT Name FROM Account WHERE Id = :accountId];
+				List<Account> accounts = AccountSelector.selectByIds(new Set<Id>{ accountId });
 				accountName = accounts.isEmpty() ? '' : accounts[0].Name;
 			}
 			String name = 'FS Quote - ' + (String.isBlank(reference) ? '' : reference) +
@@ -137,11 +154,10 @@ public inherited sharing class FieldServiceQuoteService {
 			if (workOrderId == null) {
 				return;
 			}
-			List<Opportunity> opportunities = [
-				SELECT Id
-				FROM Opportunity
-				WHERE Id = :opportunityId AND RecordTypeId = :OPPORTUNITY_RECORD_TYPE_ID AND WorkOrder__c = NULL
-			];
+			List<Opportunity> opportunities = OpportunitySelector.selectFieldServiceWithoutWorkOrderById(
+				opportunityId,
+				OPPORTUNITY_RECORD_TYPE_ID
+			);
 			if (!opportunities.isEmpty()) {
 				update new Opportunity(Id = opportunityId, WorkOrder__c = workOrderId);
 			}

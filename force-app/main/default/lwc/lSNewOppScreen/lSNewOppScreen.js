@@ -27,12 +27,13 @@ export default class LSNewOppScreen extends NavigationMixin(LightningElement) {
     navigationLocation;
     uid;
     backgroundContext;
+    defaultFieldValues;
 
     hasNavigated = false;
-    isLifeScienceSalesApp = false;
     objectInfo ;
 
     oppNameValue = '';
+    isLsDefaultValues = false;
 
     @wire(CurrentPageReference)
     getStateParameters(currentPageReference) {
@@ -48,6 +49,7 @@ export default class LSNewOppScreen extends NavigationMixin(LightningElement) {
         this.navigationLocation = state.navigationLocation;
         this.uid = state.uid;
         this.backgroundContext = state.backgroundContext;
+        this.defaultFieldValues = state.defaultFieldValues;
         
         // This navigation is already done by the standard New page.
         if (state.nooverride === '1' || !this.recordTypeId) {
@@ -64,8 +66,10 @@ export default class LSNewOppScreen extends NavigationMixin(LightningElement) {
             if (this.objectInfo && this.objectInfo.recordTypeInfos && this.recordTypeId) {
                 const rtInfo = this.objectInfo.recordTypeInfos[this.recordTypeId];
                 if(rtInfo.name === 'LS - Equipment & Service' || rtInfo.name === 'LS - Consumables') {
+                    this.isLsDefaultValues = true;
                     this.oppNameValue = LSOpportunityNameValue;
                 }  else {
+                    this.isLsDefaultValues = false;
                     this.oppNameValue = '';
                 }
             }
@@ -81,7 +85,7 @@ export default class LSNewOppScreen extends NavigationMixin(LightningElement) {
     navigateToNewOpptyScreen() {
         debugger;
         // 1. Encode your default values (using exact API names)
-        const defaultValues = encodeDefaultFieldValues({
+        const lsDefaultValues = encodeDefaultFieldValues({
             Name: this.oppNameValue
         });
 
@@ -100,7 +104,7 @@ export default class LSNewOppScreen extends NavigationMixin(LightningElement) {
                 navigationLocation: this.navigationLocation ? this.navigationLocation : 'LIST_VIEW',
                 uid: this.uid,
                 backgroundContext: this.backgroundContext ? this.backgroundContext : '/lightning/o/Opportunity/list?filterName=__Recent',
-                defaultFieldValues: defaultValues
+                defaultFieldValues: this.oppNameValue ? lsDefaultValues : this.defaultFieldValues
             }
         });
     }

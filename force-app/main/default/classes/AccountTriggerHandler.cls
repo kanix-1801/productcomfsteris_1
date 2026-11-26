@@ -12,7 +12,6 @@
  */
 public with sharing class AccountTriggerHandler extends TriggerHandler { 
 	
-    public static string customerClassCode;
     /**
      * @description Handles Account after insert trigger events and delegates
      *              Prospect and Customer Account TAS processing to AccountService.
@@ -27,7 +26,7 @@ public with sharing class AccountTriggerHandler extends TriggerHandler {
 		List<Account> newAccounts = (List<Account>) Trigger.new;
         // GC-3617 - IsPartner is not createable, so enable after the Account exists.
 		AccountService.enableDealerAccounts(newAccounts);
-		if(!newAccounts.isEmpty() && isTasClassCode(newAccounts[0])) {
+		if(!newAccounts.isEmpty() && (AccountService.isHealthcareAccount(newAccounts[0]) || LSAccountService.isLifeSciencesAccount(newAccounts[0]))) {
                 AccountService.assignTAStoProspect(newAccounts);   // GCL-4: Life Sciences Prospect Account real-time TAS validation. Class code Life Science = SC.
 				AccountService.assignTAStoCustomer(newAccounts);  //GCL- 83 Life science Prospect/Customer Tas Integration
 		}
@@ -50,7 +49,7 @@ public with sharing class AccountTriggerHandler extends TriggerHandler {
 		Map<Id, Account> oldAccountMap = (Map<Id, Account>) Trigger.oldMap;
         // GC-3617 - covers Boomi updates that arrive as Customer + Type Dealer.
 		AccountService.enableDealerAccounts(updatedAccounts);
-        if (!updatedAccounts.isEmpty() && isTasClassCode(updatedAccounts[0])) {
+        if (!updatedAccounts.isEmpty() && (AccountService.isHealthcareAccount(updatedAccounts[0]) || LSAccountService.isLifeSciencesAccount(updatedAccounts[0]))) {
             AccountService.assignTAStoCustomerUpdate(updatedAccounts, oldAccountMap);
          }
         // GC-3441 - Prospect Account real-time sync to Sales Connection via Boomi.
@@ -71,9 +70,5 @@ public with sharing class AccountTriggerHandler extends TriggerHandler {
 		List<Account> newAccounts = (List<Account>) Trigger.new;
 		AccountService.populateOrgIdOnNewProspect(newAccounts);
 	}
-    
-     /** GCL-4 / GCL-83 - TAS runs for Healthcare (HC) and Life Sciences (SC) only. */
-	private static Boolean isTasClassCode(Account acc) {
-		return AccountService.isHealthcareAccount(acc) || LSAccountService.isLifeSciencesAccount(acc);
-	}
+
 }

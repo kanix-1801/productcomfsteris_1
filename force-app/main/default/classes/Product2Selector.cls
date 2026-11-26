@@ -219,4 +219,20 @@ public with sharing class Product2Selector extends SoqlQueryBuilder {
 
         return searchKey.trim().replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_');
     }
+
+    /**
+     * @description GW-5892 - Active products by product code (Field Service quote Labor / Travel / Expense products).
+     * @param productCodes Product codes to resolve
+     * @return Matching active Product2 rows
+     */
+    public static List<Product2> selectActiveIdsByProductCodes(Set<String> productCodes) {
+        if (productCodes == null || productCodes.isEmpty()) {
+            return new List<Product2>();
+        }
+        return [
+            SELECT Id, ProductCode
+            FROM Product2
+            WHERE ProductCode IN :productCodes AND IsActive = TRUE
+        ];
+    }
 }

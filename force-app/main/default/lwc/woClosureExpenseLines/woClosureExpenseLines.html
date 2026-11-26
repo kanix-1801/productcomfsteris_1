@@ -1,0 +1,166 @@
+<template>
+    <template lwc:if={hasNoSearchResults}>
+        <p class="no-search-results">No lines match your search.</p>
+    </template>
+
+    <template for:each={lineModels} for:item="line">
+        <div key={line.Id} class="slds-m-bottom_x-small">
+
+            <div class="woli-card">
+                <div class="woli-info" data-id={line.Id} onclick={handleEditToggle}>
+                    <div class="woli-description">{line.title}</div>
+                    <div class="woli-meta">{line.metaLine}</div>
+                    <template lwc:if={line.isDirty}>
+                        <span class="dirty-badge">Modified</span>
+                    </template>
+                </div>
+                <div class="woli-actions">
+                    <lightning-button-icon
+                        icon-name="utility:edit"
+                        alternative-text="Edit"
+                        title="Edit"
+                        variant="border-filled"
+                        size="medium"
+                        data-id={line.Id}
+                        onclick={handleEditToggle}>
+                    </lightning-button-icon>
+                </div>
+            </div>
+
+            <template lwc:if={line.isEditing}>
+                <div class="edit-form">
+
+                    <div class="field-grid">
+                        <div class="field-full">
+                            <lightning-combobox
+                                label="Expense Type"
+                                placeholder="Select an expense type…"
+                                value={line.editExpenseType}
+                                options={expenseTypeOptions}
+                                data-id={line.Id}
+                                data-field="expenseType"
+                                onchange={handleEditFieldChange}>
+                            </lightning-combobox>
+                        </div>
+                        <div class="field-full">
+                            <lightning-input
+                                label="Transaction Date"
+                                type="date"
+                                value={line.editTransactionDate}
+                                data-id={line.Id}
+                                data-field="transactionDate"
+                                onchange={handleEditFieldChange}>
+                            </lightning-input>
+                        </div>
+                        <div class="field-full">
+                            <lightning-input
+                                label="Description"
+                                value={line.editDescription}
+                                data-id={line.Id}
+                                data-field="description"
+                                onchange={handleEditFieldChange}>
+                            </lightning-input>
+                        </div>
+                        <lightning-input
+                            label="Quantity"
+                            type="number"
+                            value={line.editQuantity}
+                            min="0.01"
+                            step="0.01"
+                            data-id={line.Id}
+                            data-field="quantity"
+                            onchange={handleEditFieldChange}>
+                        </lightning-input>
+                        <lightning-input
+                            label="Unit Price"
+                            type="number"
+                            value={line.editUnitPrice}
+                            min="0"
+                            step="0.01"
+                            data-id={line.Id}
+                            data-field="unitPrice"
+                            onchange={handleEditFieldChange}>
+                        </lightning-input>
+                        <div class="field-full read-only-field">
+                            <div class="read-only-label">Total Price</div>
+                            <div class="read-only-value">${line.editTotalPrice}</div>
+                        </div>
+                        <div class="field-full expense-billable-divider"></div>
+                        <template lwc:if={line.isBillableAmountReadOnly}>
+                            <div class="field-full read-only-field">
+                                <div class="read-only-label">Billable Amount</div>
+                                <div class="read-only-value billable-locked-value">
+                                    <span>${line.editBillableAmountDisplay}</span>
+                                    <lightning-icon
+                                        icon-name="utility:lock"
+                                        size="x-small"
+                                        alternative-text="Locked">
+                                    </lightning-icon>
+                                </div>
+                                <div class="picker-helper">Auto-set from Amount</div>
+                            </div>
+                        </template>
+                        <template lwc:else>
+                            <div class="field-full">
+                                <lightning-input
+                                    label="Billable Amount"
+                                    type="number"
+                                    value={line.editBillableAmount}
+                                    min="0"
+                                    step="0.01"
+                                    formatter="currency"
+                                    data-id={line.Id}
+                                    data-field="billableAmount"
+                                    onchange={handleEditFieldChange}>
+                                </lightning-input>
+                            </div>
+                        </template>
+                        <div class="field-full">
+                            <lightning-input
+                                type="toggle"
+                                label="Override Billable Amount"
+                                checked={line.editOverrideBillableAmount}
+                                message-toggle-active="On"
+                                message-toggle-inactive="Off"
+                                data-id={line.Id}
+                                data-field="overrideBillableAmount"
+                                onchange={handleEditFieldChange}>
+                            </lightning-input>
+                        </div>
+                        <div class="field-full">
+                            <lightning-combobox
+                                label="Override Code"
+                                placeholder="Select an override code…"
+                                value={line.editOverrideCode}
+                                options={overrideCodeOptions}
+                                required={line.isOverrideCodeRequired}
+                                data-id={line.Id}
+                                data-field="overrideCode"
+                                onchange={handleEditFieldChange}>
+                            </lightning-combobox>
+                        </div>
+                    </div>
+
+                    <template lwc:if={line.editError}>
+                        <p class="error-text">{line.editError}</p>
+                    </template>
+                    <div class="form-actions">
+                        <template lwc:if={line.isDirty}>
+                            <lightning-button
+                                label="Cancel Changes"
+                                data-id={line.Id}
+                                onclick={handleRevertLine}>
+                            </lightning-button>
+                        </template>
+                        <lightning-button
+                            label="Close"
+                            data-id={line.Id}
+                            onclick={handleEditClose}>
+                        </lightning-button>
+                    </div>
+                </div>
+            </template>
+
+        </div>
+    </template>
+</template>

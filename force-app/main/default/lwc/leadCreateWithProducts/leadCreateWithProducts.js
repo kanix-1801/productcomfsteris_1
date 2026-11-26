@@ -6,6 +6,7 @@ import LEAD_OBJECT from '@salesforce/schema/Lead';
 import hasLeadCreateWithProducts from '@salesforce/customPermission/Lead_Create_With_Products';
 import createLeadWithProducts from '@salesforce/apex/LeadCreateController.createLeadWithProducts';
 import previewLeadDuplicate from '@salesforce/apex/LeadCreateController.previewLeadDuplicate';
+import searchProducts from '@salesforce/apex/LeadCreateController.searchProducts';
 import fieldRequiredMessage from '@salesforce/label/c.LeadCreateFieldRequiredMessage';
 import emailOrPhoneMessage from '@salesforce/label/c.LeadCreateEmailOrPhoneMessage';
 import sourceDetailMessage from '@salesforce/label/c.LeadCreateSourceDetailMessage';
@@ -14,20 +15,24 @@ import unqualifiedReasonMessage from '@salesforce/label/c.LeadCreateUnqualifiedR
 import unqualifiedDetailsMessage from '@salesforce/label/c.LeadCreateUnqualifiedDetailsMessage';
 import nurtureReasonMessage from '@salesforce/label/c.LeadCreateNurtureReasonMessage';
 import nurtureDetailMessage from '@salesforce/label/c.LeadCreateNurtureDetailMessage';
-import productRequiredMessage from '@salesforce/label/c.LeadCreateProductRequiredMessage';
+import autoAssignProductMessage from '@salesforce/label/c.LeadAutoAssignNoProductMessage';
 import savedMessage from '@salesforce/label/c.LeadCreateSavedMessage';
+import savedNoRoutingMessage from '@salesforce/label/c.LeadCreateSavedNoRoutingMessage';
 import failedMessage from '@salesforce/label/c.LeadCreateFailedMessage';
 
 export default class LeadCreateWithProducts extends NavigationMixin(LightningElement) {
     @api recordTypeId;
 
-    collectProducts = false;
+    autoAssign = false;
     step = 'lead';
     saving = false;
     leadRecord;
-    products = [];
-    selectedProductIds = {};
-    rowKey = 0;
+    searchTerm = '';
+    searchResults = [];
+    selectedProducts = [];
+    searching = false;
+    searchToken = 0;
+    searchTimer;
     picklistRecordTypeId;
     showDuplicateWarning = false;
     duplicateMessage;
@@ -46,10 +51,35 @@ export default class LeadCreateWithProducts extends NavigationMixin(LightningEle
     unqualifiedReason;
     nurtureReason;
 
+    productColumns = [
+        { label: 'Product', fieldName: 'name', wrapText: true },
+        { label: 'Product Code', fieldName: 'productCode', initialWidth: 140 },
+        { label: 'Product Family', fieldName: 'productFamily' },
+        { label: 'Class Code', fieldName: 'productClassCode', initialWidth: 110 }
+    ];
+
+    selectedColumns = [
+        ...this.productColumns,
+        {
+            type: 'button-icon',
+            initialWidth: 60,
+            typeAttributes: {
+                iconName: 'utility:delete',
+                name: 'remove',
+                title: 'Remove Product',
+                alternativeText: 'Remove Product',
+                variant: 'border-filled'
+            }
+        }
+    ];
+
     connectedCallback() {
-        this.products = [this.createProductRow()];
         this.picklistRecordTypeId = this.recordTypeId || undefined;
         this.resetLeadForm();
+    }
+
+    disconnectedCallback() {
+        window.clearTimeout(this.searchTimer);
     }
 
     @wire(CurrentPageReference)
@@ -89,11 +119,14 @@ export default class LeadCreateWithProducts extends NavigationMixin(LightningEle
         this.duplicateReason = null;
         this.duplicateMatches = [];
         this.duplicateUseLayout = false;
-        this.products = [this.createProductRow()];
-        this.selectedProductIds = {};
+        this.searchTerm = '';
+        this.searchResults = [];
+        this.selectedProducts = [];
+        this.searching = false;
         this.leadStatus = null;
         this.unqualifiedReason = null;
         this.nurtureReason = null;
+        this.autoAssign = false;
         this.formToken += 1;
         this.pendingFieldReset = true;
         this.showLeadForm = false;
@@ -125,12 +158,48 @@ export default class LeadCreateWithProducts extends NavigationMixin(LightningEle
         return this.step === 'products' ? '' : 'slds-hide';
     }
 
-    get canRemoveProduct() {
-        return this.products.length < 2;
+    get hasSearchResults() {
+        return this.searchResults.length > 0;
     }
 
-    get leadActionLabel() {
-        return this.collectProducts ? 'Next' : 'Save';
+    get hasSelectedProducts() {
+        return this.selectedProducts.length > 0;
+    }
+
+    get selectedProductCount() {
+        return this.selectedProducts.length;
+    }
+
+    get selectedRowIds() {
+        return this.selectedProducts.map((product) => product.id);
+    }
+
+    get searchHint() {
+        if (this.searching) {
+            return 'Searching...';
+        }
+        const length = this.searchTerm.trim().length;
+        if (length === 0) {
+            return this.hasSearchResults
+                ? 'Showing the products most used on Leads. Type to search all products by name, code, or family.'
+                : 'Type at least 2 characters of the product name, code, or family.';
+        }
+        if (length === 1) {
+            return 'Type at least 2 characters of the product name, code, or family.';
+        }
+        return this.hasSearchResults
+            ? 'Showing the first 50 matches. Refine the search to narrow the list.'
+            : 'No products match this search.';
+    }
+
+    get productStepHeading() {
+        return this.autoAssign
+            ? 'Select at least one product so Auto Assign Lead can route this Lead.'
+            : 'Select the products this Lead is interested in. You can also save without products.';
+    }
+
+    handleAutoAssignChange(event) {
+        this.autoAssign = event.detail.value === true;
     }
 
     handleLeadNext(event) {
@@ -166,6 +235,7 @@ export default class LeadCreateWithProducts extends NavigationMixin(LightningEle
             CountryCode: fields.CountryCode,
             Org_ID__c: fields.Org_ID__c,
             Class_Code__c: fields.Class_Code__c,
+            Auto_Assign_Lead__c: this.autoAssign,
             Consent_Provided__c: fields.Status === 'Working' ? fields.Consent_Provided__c === true : false,
             UnqualifiedReason__c: fields.Status === 'Unqualified' ? fields.UnqualifiedReason__c : null,
             UnqualifiedDetails__c: this.requiresUnqualifiedDetails(fields) ? fields.UnqualifiedDetails__c : null,
@@ -176,77 +246,78 @@ export default class LeadCreateWithProducts extends NavigationMixin(LightningEle
         if (this.recordTypeId) {
             this.leadRecord.RecordTypeId = this.recordTypeId;
         }
-        if (this.collectProducts) {
-            this.step = 'products';
-            return;
+        this.step = 'products';
+        if (!this.searchResults.length) {
+            this.runSearch();
         }
-        this.persist([]);
     }
 
     handleBack() {
         this.step = 'lead';
     }
 
-    handleAddProduct() {
-        this.products = [...this.readProductRows(), this.createProductRow()];
+    handleSearchChange(event) {
+        this.searchTerm = event.target.value || '';
+        window.clearTimeout(this.searchTimer);
+        this.searchTimer = window.setTimeout(() => this.runSearch(), 300);
     }
 
-    handleRemoveProduct(event) {
-        const key = event.currentTarget.dataset.key;
-        const remaining = this.readProductRows().filter((row) => row.key !== key);
-        this.products = remaining.length ? remaining : [this.createProductRow()];
-    }
-
-    handleProductSelected(event) {
-        const key = event.currentTarget.dataset.key;
-        if (!key) {
+    async runSearch() {
+        const term = this.searchTerm.trim();
+        this.searchToken += 1;
+        const token = this.searchToken;
+        if (term.length === 1) {
+            this.searchResults = [];
+            this.searching = false;
             return;
         }
-        this.selectedProductIds = {
-            ...this.selectedProductIds,
-            [key]: this.toId(event.detail ? event.detail.value : null)
-        };
-    }
-
-    readProductRows() {
-        const productFields = [...this.template.querySelectorAll('lightning-input-field[data-field="productId"]')];
-        const parents = [...this.template.querySelectorAll('lightning-input-field[data-field="parentCategory"]')];
-        const categories = [...this.template.querySelectorAll('lightning-input-field[data-field="productCategory"]')];
-        return this.products.map((row, index) => ({
-            key: row.key,
-            productId: (productFields[index] && this.toId(productFields[index].value))
-                || this.selectedProductIds[row.key]
-                || row.productId
-                || null,
-            parentCategory: parents[index] ? parents[index].value : row.parentCategory,
-            productCategory: categories[index] ? categories[index].value : row.productCategory
-        }));
-    }
-
-    toId(value) {
-        if (Array.isArray(value)) {
-            return value.length ? value[0] : null;
+        this.searching = true;
+        try {
+            const results = await searchProducts({ searchTerm: term });
+            if (token === this.searchToken) {
+                this.searchResults = results || [];
+            }
+        } catch (error) {
+            if (token === this.searchToken) {
+                this.searchResults = [];
+                this.toast(this.errorMessage(error), 'error');
+            }
+        } finally {
+            if (token === this.searchToken) {
+                this.searching = false;
+            }
         }
-        return value || null;
     }
 
+    // Keeps products picked in earlier searches and applies the ticks and un-ticks in the current results.
+    handleRowSelection(event) {
+        const pickedIds = new Set(event.detail.selectedRows.map((row) => row.id));
+        const shownIds = new Set(this.searchResults.map((row) => row.id));
+        const kept = this.selectedProducts.filter((product) => !shownIds.has(product.id) || pickedIds.has(product.id));
+        const keptIds = new Set(kept.map((product) => product.id));
+        const added = event.detail.selectedRows.filter((row) => !keptIds.has(row.id));
+        this.selectedProducts = [...kept, ...added];
+    }
+
+    handleSelectedRowAction(event) {
+        if (event.detail.action.name === 'remove') {
+            const removedId = event.detail.row.id;
+            this.selectedProducts = this.selectedProducts.filter((product) => product.id !== removedId);
+        }
+    }
+
+    // Products are optional, except that Auto Assign Lead needs at least one so TAS can route the Lead.
     handleSave() {
-        const rows = this.readProductRows();
-        const products = rows
-            .filter((row) => row.productId)
-            .map((row) => ({
-                productId: row.productId,
-                parentCategory: row.parentCategory,
-                productCategory: row.productCategory
-            }));
-        if (!products.length) {
-            this.toast(productRequiredMessage, 'error');
+        if (this.autoAssign && !this.selectedProducts.length) {
+            this.toast(autoAssignProductMessage, 'error');
             return;
         }
-
-        this.persist(products);
+        this.persist(this.selectedProducts.map((product) => ({ productId: product.id })));
     }
 
+    errorMessage(error) {
+        return error && error.body && error.body.message ? error.body.message : failedMessage;
+    }
     get duplicateHeading() {
         return this.duplicateCanContinue ? 'Possible duplicate' : 'Duplicate found';
     }
@@ -338,7 +409,9 @@ export default class LeadCreateWithProducts extends NavigationMixin(LightningEle
                 duplicateConfirmed: this.duplicateConfirmed === true
             });
             this.duplicateConfirmed = false;
-            this.toast(savedMessage, 'success');
+            // Routing only starts when Auto Assign Lead is ticked, so only then say so.
+            const routingStarted = this.leadRecord.Auto_Assign_Lead__c === true;
+            this.toast(routingStarted ? savedMessage : savedNoRoutingMessage, 'success');
             this.resetLeadForm();
             this[NavigationMixin.Navigate]({
                 type: 'standard__recordPage',
@@ -349,10 +422,7 @@ export default class LeadCreateWithProducts extends NavigationMixin(LightningEle
                 }
             });
         } catch (error) {
-            const message = error && error.body && error.body.message
-                ? error.body.message
-                : failedMessage;
-            this.showDuplicateDialog(message, false, null);
+            this.showDuplicateDialog(this.errorMessage(error), false, null);
         } finally {
             this.saving = false;
         }
@@ -486,16 +556,6 @@ export default class LeadCreateWithProducts extends NavigationMixin(LightningEle
 
     requiresNurtureDetail(fields) {
         return fields.Status === 'Nurturing' && fields.NurtureReason__c === 'Other';
-    }
-
-    createProductRow() {
-        this.rowKey += 1;
-        return {
-            key: String(this.rowKey),
-            productId: null,
-            parentCategory: '',
-            productCategory: ''
-        };
     }
 
     toast(title, variant, mode) {

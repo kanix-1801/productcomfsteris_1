@@ -1,4 +1,4 @@
-<!--
+﻿<!--
   @description       : 
   @author            : 
   @group             : 
@@ -87,6 +87,33 @@
 							<span class="field-label">Pricing</span>
 							<span class={pricingBadgeClass}>{pricingLabel}</span>
 						</div>
+						<!-- GW-5898: PO follow-up -->
+						<div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-6 field">
+							<lightning-input
+								type="toggle"
+								label="Awaiting PO"
+								checked={poHeader.awaitingPO}
+								message-toggle-active="Yes"
+								message-toggle-inactive="No"
+								onchange={handleAwaitingPoChange}
+							></lightning-input>
+						</div>
+						<div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-6 field">
+							<lightning-input
+								type="text"
+								label="Purchase Order"
+								value={poHeader.purchaseOrder}
+								max-length="255"
+								field-level-help="Entering the PO number accepts the quote and stops the PO follow-up."
+								onchange={handlePurchaseOrderChange}
+							></lightning-input>
+						</div>
+						<template lwc:if={poFollowUpLabel}>
+							<div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-6 field">
+								<span class="field-label">PO Follow-Up</span>
+								<span class="field-value"><lightning-formatted-date-time value={poFollowUpLabel} time-zone="UTC"></lightning-formatted-date-time></span>
+							</div>
+						</template>
 						<div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-6 field">
 							<span class="field-label">Quote Total</span>
 							<span class="field-value">{quoteTotalLabel}</span>
@@ -579,20 +606,22 @@
 
 		<div class="slds-modal__footer footer">
 			<lightning-button label="Cancel" onclick={handleCancel} class="footer-left"></lightning-button>
-			<span class="slds-text-color_weak footer-count">{unsavedChangesLabel}</span>
-			<lightning-button
-				label="Calculate Pricing"
-				title={calculateTitle}
-				onclick={handleCalculatePricing}
-				disabled={calculateDisabled}
-				class="slds-m-right_x-small"
-			></lightning-button>
-			<lightning-button
-				variant="brand"
-				label="Save All"
-				onclick={handleSaveAll}
-				disabled={saveDisabled}
-			></lightning-button>
+			<template lwc:if={view}>
+				<span class="slds-text-color_weak footer-count">{unsavedChangesLabel}</span>
+				<lightning-button
+					label="Calculate Pricing"
+					title={calculateTitle}
+					onclick={handleCalculatePricing}
+					disabled={calculateDisabled}
+					class="slds-m-right_x-small"
+				></lightning-button>
+				<lightning-button
+					variant="brand"
+					label="Save All"
+					onclick={handleSaveAll}
+					disabled={saveDisabled}
+				></lightning-button>
+			</template>
 		</div>
 		<template lwc:if={isSaving}>
 			<lightning-spinner alternative-text="Saving" size="medium"></lightning-spinner>

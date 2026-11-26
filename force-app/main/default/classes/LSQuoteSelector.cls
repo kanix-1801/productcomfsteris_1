@@ -47,7 +47,7 @@ public with sharing class LSQuoteSelector extends SoqlQueryBuilder {
             'LastModifiedDate, LastModifiedDate__c, IsForecastIneligible__c, Forecast_Eligible__c, ' +
             'QuoteForecastConfidence__c, RecordTypeId, QuoteType__c, Trial__c, Sample__c, IsSyncing, ' +
             'SalesConnectionQuoteID__c, SalesConnectionCreateQuoteURL__c, Source_System_ID__c, ' +
-            'LSSCDateCreated__c, LSSCDateModified_f__c, LSTotalRevenue__c, ' +
+            'LSSCDateCreated__c, LSTotalRevenue__c, ' +
             '(SELECT Id, Description, Quantity, UnitPrice, LS_ExtendedPrice__c, ProductCode__c, ' +
             'LS_Status__c, LS_ExpectedOrderDate__c, LS_ExpectedShipDate__c, TotalPrice, ' +
             'Product_FAM_Code__c, Product_Subgroup_Detail_Name__c, SalesCategory__c, TerritoryID__c, ' +

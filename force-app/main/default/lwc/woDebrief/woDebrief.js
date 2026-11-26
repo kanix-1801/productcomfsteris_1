@@ -37,7 +37,7 @@ import updateMobileDevicePictureComment from '@salesforce/apex/WoDebriefIMSchild
 import resolveMobilePictureRecordId from '@salesforce/apex/WoDebriefIMSchildWOController.resolveMobilePictureRecordId';
 import findLatestProductServicedLineId from '@salesforce/apex/WoDebriefIMSchildWOController.findLatestProductServicedLineId';
 import checkWorkOrderReview from '@salesforce/apex/WoDebriefCrssReviewController.checkWorkOrderReview';
-import listSatisfiedLineIds from '@salesforce/apex/WoDebriefPmiInspectionController.listSatisfiedLineIds';
+import listInspectionStatuses from '@salesforce/apex/WoDebriefPmiInspectionController.listInspectionStatuses';
 import WO_REVIEW_DONE from '@salesforce/schema/WorkOrder.WorkOrderReviewDone__c';
 import WO_STATUS from '@salesforce/schema/WorkOrder.Status';
 import SA_STATUS from '@salesforce/schema/ServiceAppointment.Status';
@@ -542,8 +542,8 @@ export default class WoDebrief extends LightningElement {
 	_resolveMissingPicturesPrompt = null;
 	_workOrder      = null;
 	_serverLines    = [];
-	/** @description GW-259 - Product Serviced line ids whose PMI checklist is satisfied. */
-	_pmiSatisfiedLineIds = new Set();
+	/** @description GW-259 - Inspection state keyed by Product Serviced line id: { complete, hasMeasurements, failedCount }. */
+	_pmiStatusByLineId = {};
 	/** @description GW-259 - True after the checklist status call returns. */
 	_pmiChecklistLoaded = false;
 	/** @description GW-259 - Ignores a checklist status response that started before a newer load or save. */
@@ -2418,6 +2418,7 @@ export default class WoDebrief extends LightningElement {
 			isExpenseSchema: false,
 			isProductServicedSchema: true,
 			showInspectionButton: Boolean(assetId),
+			...this._inspectionButtonModel(l.Id),
 			isAssetTimeSchema: false,
 			title,
 			metaLine: this._fmtProductServicedMeta(inspectionOutcome, assignedResName),
@@ -2503,6 +2504,7 @@ export default class WoDebrief extends LightningElement {
 			isExpenseSchema: false,
 			isProductServicedSchema: true,
 			showInspectionButton: Boolean(assetId),
+			...this._inspectionButtonModel(a._tempId),
 			isAssetTimeSchema: false,
 			title: assetSerial || assetName || 'Product Serviced',
 			metaLine: (a._bulkAssetLink && assetSerial && assetName)
@@ -5521,7 +5523,49 @@ export default class WoDebrief extends LightningElement {
 		if (!this._isSavedLineId(lineId)) {
 			return false;
 		}
-		return this._pmiSatisfiedLineIds.has(lineId);
+		return this._pmiStatusByLineId[lineId]?.complete === true;
+	}
+
+	/**
+	 * @description GW-259 - Inspection button label, color, and icon for a line.
+	 *              Neutral before any reading is saved, green when every reading passed, red when any failed.
+	 * @param {string} lineId Product Serviced line id
+	 * @return {{inspectionLabel: string, inspectionVariant: string, inspectionIcon: string, inspectionTitle: string}}
+	 */
+	_inspectionButtonModel(lineId) {
+		this.pmiChecklistEpoch;
+		const status = this._pmiStatusByLineId[lineId];
+		if (!status?.hasMeasurements) {
+			return {
+				inspectionLabel: 'Inspection',
+				inspectionVariant: 'neutral',
+				inspectionIcon: '',
+				inspectionTitle: 'Record the inspection readings'
+			};
+		}
+		if (status.failedCount > 0) {
+			const count = status.failedCount;
+			return {
+				inspectionLabel: `Inspection: ${count} Failed`,
+				inspectionVariant: 'destructive',
+				inspectionIcon: 'utility:warning',
+				inspectionTitle: `${count} reading${count === 1 ? '' : 's'} did not meet the standard. Open to review or correct.`
+			};
+		}
+		if (!status.complete) {
+			return {
+				inspectionLabel: 'Inspection Incomplete',
+				inspectionVariant: 'brand-outline',
+				inspectionIcon: 'utility:info',
+				inspectionTitle: 'Some Device Standard readings are still missing'
+			};
+		}
+		return {
+			inspectionLabel: 'Inspection Done',
+			inspectionVariant: 'success',
+			inspectionIcon: 'utility:success',
+			inspectionTitle: 'All readings passed. Open to review or change.'
+		};
 	}
 
 	/**
@@ -5545,11 +5589,19 @@ export default class WoDebrief extends LightningElement {
 		}
 		const request = ++this._pmiChecklistRequest;
 		try {
-			const ids = await listSatisfiedLineIds({ workOrderId: this.recordId });
+			const statuses = await listInspectionStatuses({ workOrderId: this.recordId });
 			if (request !== this._pmiChecklistRequest) {
 				return;
 			}
-			this._pmiSatisfiedLineIds = new Set(ids || []);
+			const byLineId = {};
+			(statuses || []).forEach((status) => {
+				byLineId[status.lineId] = {
+					complete: status.checklistComplete === true,
+					hasMeasurements: status.hasMeasurements === true,
+					failedCount: status.failedCount || 0
+				};
+			});
+			this._pmiStatusByLineId = byLineId;
 			this._pmiChecklistLoaded = true;
 			this.pmiChecklistEpoch += 1;
 		} catch (error) {
@@ -5593,11 +5645,14 @@ export default class WoDebrief extends LightningElement {
 		if (detail.inspectionOutcome) {
 			this._applyPmiInspectionOutcome(lineId, detail.inspectionOutcome);
 		}
-		if (detail.checklistComplete) {
-			this._pmiSatisfiedLineIds.add(lineId);
-		} else {
-			this._pmiSatisfiedLineIds.delete(lineId);
-		}
+		this._pmiStatusByLineId = {
+			...this._pmiStatusByLineId,
+			[lineId]: {
+				complete: detail.checklistComplete === true,
+				hasMeasurements: true,
+				failedCount: detail.failedCount || 0
+			}
+		};
 		this._pmiChecklistRequest += 1;
 		this._pmiChecklistLoaded = true;
 		this.pmiChecklistEpoch += 1;

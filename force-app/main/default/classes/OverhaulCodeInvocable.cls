@@ -42,7 +42,9 @@ public with sharing class OverhaulCodeInvocable {
 				quoteIds.add(request == null ? null : request.recordId);
 			}
 
-			List<String> overhaulProductCodes = OverhaulCodeService.applyOverhaulCodes(quoteIds);
+			List<String> overhaulProductCodes = OverhaulCodeService.applyOverhaulCodes(
+				quoteIds
+			);
 			for (String overhaulProductCode : overhaulProductCodes) {
 				Response response = new Response();
 				response.overhaulProductCode = overhaulProductCode;

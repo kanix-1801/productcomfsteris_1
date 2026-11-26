@@ -599,7 +599,8 @@ public with sharing class DeviceEvaluationController {
 		Boolean applyCompletion,
 		List<Id> restoreProductIds,
 		String subStatus,
-		List<Id> newPriceableLineItemIds
+		List<Id> newPriceableLineItemIds,
+		Boolean priceOnNext
 	) {
 		try {
 			if (workOrderId == null) {
@@ -612,7 +613,8 @@ public with sharing class DeviceEvaluationController {
 					applyCompletion == true,
 					restoreProductIds,
 					subStatus,
-					newPriceableLineItemIds
+					newPriceableLineItemIds,
+					priceOnNext == true
 				)
 			);
 		} catch (Exception e) {

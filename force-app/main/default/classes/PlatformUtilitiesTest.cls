@@ -360,4 +360,83 @@ private class PlatformUtilitiesTest {
 		Assert.areEqual(startDay, dayBefore, 'The day before the start: the start of this year is next');
 		Assert.areEqual(startDay.addYears(1), onStartDay, 'On the start day: the start of next year is next');
 	}
+
+	/**
+	 * @description GW-4378 - Aura exceptions pass through, DML uses the row message, and a blank message uses the fallback.
+	 */
+	@IsTest
+	static void testToAuraExceptionUsesDmlMessageAndFallback() {
+		AuraHandledException existing = PlatformUtilities.buildAuraException('Already handled');
+
+		Test.startTest();
+		AuraHandledException passedThrough = PlatformUtilities.toAuraException(existing, 'fallback');
+		AuraHandledException fromMessage = PlatformUtilities.toAuraException(
+			new PlatformUtilitiesTestException('Shown to the user'),
+			'fallback'
+		);
+		AuraHandledException fromBlank = PlatformUtilities.toAuraException(null, 'Fallback message');
+		Test.stopTest();
+
+		Assert.areEqual('Already handled', passedThrough.getMessage());
+		Assert.areEqual('Shown to the user', fromMessage.getMessage());
+		Assert.areEqual('Fallback message', fromBlank.getMessage());
+
+		try {
+			insert new Account();
+			Assert.fail('An Account without a name should fail.');
+		} catch (DmlException dmlError) {
+			Assert.areEqual(
+				dmlError.getDmlMessage(0),
+				PlatformUtilities.toAuraException(dmlError, 'fallback').getMessage()
+			);
+		}
+	}
+
+	private class PlatformUtilitiesTestException extends Exception {}
+
+    /**
+     * @description GW-5892 - DML failures surface the row message; other exceptions keep their message.
+     */
+    @IsTest
+    static void testBuildAuraExceptionFromException() {
+        DmlException dmlFailure;
+        try {
+            insert new Account();
+        } catch (DmlException e) {
+            dmlFailure = e;
+        }
+
+        Test.startTest();
+        AuraHandledException fromDml = PlatformUtilities.buildAuraException(dmlFailure);
+        AuraHandledException fromOther = PlatformUtilities.buildAuraException(new IllegalArgumentException('Bad input'));
+        Test.stopTest();
+
+        Assert.areEqual(dmlFailure.getDmlMessage(0), fromDml.getMessage(), 'DML failures should show the row message');
+        Assert.areEqual('Bad input', fromOther.getMessage(), 'Other exceptions should keep their message');
+    }
+
+    /**
+     * @description GW-5892 - runFlow rejects a blank name and surfaces an unknown flow as an exception.
+     */
+    @IsTest
+    static void testRunFlowRejectsBlankAndUnknownFlows() {
+        Boolean blankRejected = false;
+        Boolean unknownRejected = false;
+
+        Test.startTest();
+        try {
+            PlatformUtilities.runFlow(' ', null, null);
+        } catch (IllegalArgumentException e) {
+            blankRejected = true;
+        }
+        try {
+            PlatformUtilities.runFlow('GW5892_Flow_That_Does_Not_Exist', null, 'anyOutput');
+        } catch (Exception e) {
+            unknownRejected = true;
+        }
+        Test.stopTest();
+
+        Assert.isTrue(blankRejected, 'A blank flow name should be rejected');
+        Assert.isTrue(unknownRejected, 'An unknown flow should raise an exception');
+    }
 }

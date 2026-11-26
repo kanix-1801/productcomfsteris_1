@@ -8,6 +8,8 @@
 public with sharing class FieldServiceQuotePricingService {
     @TestVisible
     private static final String FLOW_NAME = 'Quote_AL_CalculatePricing';
+    private static final String FLOW_INPUT_RECORD = 'recordId';
+    private static final String FLOW_OUTPUT_MESSAGE = 'OUT_TXT_Message';
     private static final String STATUS_PRICED = 'Priced';
     private static final String SUCCESS_MESSAGE = 'Pricing calculated.';
     private static final String FAILED_MESSAGE = 'Pricing could not be completed.';
@@ -31,38 +33,26 @@ public with sharing class FieldServiceQuotePricingService {
     @AuraEnabled
     public static PricingResult calculatePricing(Id quoteId) {
         if (quoteId == null) {
-            throw aura('A quote is required to calculate pricing.');
+            throw PlatformUtilities.buildAuraException('A quote is required to calculate pricing.');
         }
         try {
-            return toResult(quoteId, runFlow(quoteId));
-        } catch (AuraHandledException ex) {
-            throw ex;
+            String flowMessage = bypassFlow
+                ? testFlowMessage
+                : (String) PlatformUtilities.runFlow(
+                      FLOW_NAME,
+                      new Map<String, Object>{ FLOW_INPUT_RECORD => new Quote(Id = quoteId) },
+                      FLOW_OUTPUT_MESSAGE
+                  );
+            return toResult(quoteId, flowMessage);
         } catch (Exception ex) {
-            throw aura(ex.getMessage());
+            throw PlatformUtilities.buildAuraException(PlatformUtilities.firstNonBlank(ex.getMessage(), FAILED_MESSAGE));
         }
-    }
-
-    private static String runFlow(Id quoteId) {
-        if (bypassFlow) {
-            return testFlowMessage;
-        }
-        Flow.Interview interview = Flow.Interview.createInterview(
-            FLOW_NAME,
-            new Map<String, Object>{ 'recordId' => new Quote(Id = quoteId) }
-        );
-        interview.start();
-        return (String) interview.getVariableValue('OUT_TXT_Message');
     }
 
     private static PricingResult toResult(Id quoteId, String flowMessage) {
-        List<Quote> quotes = [
-            SELECT PricingStatus__c, PricingMessage__c
-            FROM Quote
-            WHERE Id = :quoteId
-            LIMIT 1
-        ];
+        List<Quote> quotes = QuoteSelector.selectFieldServiceQuoteById(quoteId);
         if (quotes.isEmpty()) {
-            throw aura('Quote was not found.');
+            throw new FieldServiceQuoteService.FieldServiceQuoteException('Quote was not found.');
         }
         PricingResult result = new PricingResult();
         result.status = quotes[0].PricingStatus__c;
@@ -71,12 +61,5 @@ public with sharing class FieldServiceQuotePricingService {
             result.message = result.status == STATUS_PRICED ? SUCCESS_MESSAGE : FAILED_MESSAGE;
         }
         return result;
-    }
-
-    private static AuraHandledException aura(String message) {
-        String text = String.isBlank(message) ? FAILED_MESSAGE : message;
-        AuraHandledException ex = new AuraHandledException(text);
-        ex.setMessage(text);
-        return ex;
     }
 }

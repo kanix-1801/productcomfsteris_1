@@ -47,6 +47,35 @@ public inherited sharing class PlatformUtilities {
 		ex.setMessage(message);
 		return ex;
 	}
+	/**
+	 * @description GW-5892 - Builds an AuraHandledException from a caught exception. DML failures show the first
+	 *              row's message (the validation rule or required-field text) instead of the full DML error string.
+	 * @param e Caught exception
+	 * @return AuraHandledException
+	 */
+	public static AuraHandledException buildAuraException(Exception e) {
+		return buildAuraException(e instanceof DmlException ? ((DmlException) e).getDmlMessage(0) : e.getMessage());
+	}
+
+	/**
+	 * @description GW-5892 - Starts an autolaunched flow and returns one of its output variables.
+	 * @param flowName Flow API name
+	 * @param inputs Flow input variables by name
+	 * @param outputVariable Output variable to return; blank returns null
+	 * @return Output variable value, or null
+	 */
+	public static Object runFlow(String flowName, Map<String, Object> inputs, String outputVariable) {
+		if (String.isBlank(flowName)) {
+			throw new IllegalArgumentException('A flow name is required.');
+		}
+		Flow.Interview interview = Flow.Interview.createInterview(
+			flowName,
+			inputs == null ? new Map<String, Object>() : inputs
+		);
+		interview.start();
+		return String.isBlank(outputVariable) ? null : interview.getVariableValue(outputVariable);
+	}
+
 
 	/**
 	 * @description Resolves a readable exception message, preferring the cause when present.
@@ -79,6 +108,28 @@ public inherited sharing class PlatformUtilities {
 		return e instanceof AuraHandledException
 			? (AuraHandledException) e
 			: buildAuraException(resolveExceptionMessage(e));
+	}
+
+	/**
+	 * @description GW-4378 - Exception to throw from an @AuraEnabled method.
+	 *              An AuraHandledException is returned as it is. A DML exception uses its first
+	 *              row message. A blank message uses the fallback.
+	 * @param e Exception caught in the @AuraEnabled method
+	 * @param fallback Message used when the exception has no readable message
+	 * @return AuraHandledException
+	 */
+	public static AuraHandledException toAuraException(Exception e, String fallback) {
+		if (e instanceof AuraHandledException) {
+			return (AuraHandledException) e;
+		}
+		String message = e == null ? null : e.getMessage();
+		if (e instanceof DmlException && ((DmlException) e).getNumDml() > 0) {
+			message = ((DmlException) e).getDmlMessage(0);
+		}
+		if (String.isBlank(message)) {
+			message = fallback;
+		}
+		return buildAuraException(message);
 	}
 
 	/**

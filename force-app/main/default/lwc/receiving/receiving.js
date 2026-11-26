@@ -2775,16 +2775,42 @@ export default class Receiving extends NavigationMixin(LightningElement) {
             let message = 'Item received successfully.';
             if (result?.isRedirected) {
                 message = `Redirected to ${result.redirectReturnOrderNumber || 'new Return Order'}.`;
-            } else if (returnToReturnOrder && workOrderCreated) {
+            } else if (workOrderCreated) {
                 message = 'Work Order created.';
+            }
+            let toastVariant = 'success';
+            let toastMode = 'dismissible';
+            // Print in a separate Apex request — Finish DML cannot share a transaction with callouts.
+            if (
+                !result?.isRedirected &&
+                result?.shouldPrintTravelTag === true &&
+                result?.workOrderId
+            ) {
+                try {
+                    const printMessage = await reprintWorkOrderTravelTag({
+                        workOrderId: result.workOrderId
+                    });
+                    message = `${message} ${printMessage || 'Bin tag printed.'}`.trim();
+                } catch (printError) {
+                    message =
+                        `${message} Travel Tag print failed. Use Re-print Travel Tag to try again.` +
+                        ` (${this.normalizeError(printError)})`;
+                    toastVariant = 'warning';
+                    toastMode = 'sticky';
+                }
             }
             this.dispatchEvent(
                 new ShowToastEvent({
                     title: 'Finish Receiving',
                     message,
-                    variant: 'success'
+                    variant: toastVariant,
+                    mode: toastMode
                 })
             );
+            // Sticky print warnings vanish if we navigate/reload immediately — hold the screen.
+            if (toastMode === 'sticky') {
+                return;
+            }
             const returnToScanPage = !openedFromReturnOrder && allItemsFinished;
             if (returnToReturnOrder) {
                 // Let the success toast paint before the screen action closes and the record reloads.
@@ -2806,7 +2832,8 @@ export default class Receiving extends NavigationMixin(LightningElement) {
                 new ShowToastEvent({
                     title: 'Finish Receiving',
                     message: this.normalizeError(error),
-                    variant: 'error'
+                    variant: 'error',
+                    mode: 'sticky'
                 })
             );
         } finally {

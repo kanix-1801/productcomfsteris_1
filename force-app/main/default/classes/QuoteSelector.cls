@@ -1373,4 +1373,25 @@ public with sharing class QuoteSelector extends SoqlQueryBuilder {
             WITH SYSTEM_MODE
         ];
     }
+
+    /**
+     * @description GW-5892 - Field Service quote for the Edit Quote editor, Save All, opportunity linking and
+     *              Calculate Pricing.
+     * @param quoteId Quote Id
+     * @return Matching Quote (empty when not found or not visible)
+     */
+    public static List<Quote> selectFieldServiceQuoteById(Id quoteId) {
+        if (quoteId == null) {
+            return new List<Quote>();
+        }
+        return [
+            SELECT Id, Name, QuoteNumber, Status, OpportunityId, OwnerId, ExpirationDate, WorkOrder__c,
+                WorkOrder__r.WorkOrderNumber, AccountId, Account.Name, QuoteAccountId, QuoteAccount.Name, Asset__c,
+                Asset__r.Name, ContactId, ShipToAccount__c, RateList__c, RateList__r.Name, CurrencyIsoCode,
+                Pricebook2Id, PricingStatus__c, PricingMessage__c, GrandTotal
+            FROM Quote
+            WHERE Id = :quoteId
+            LIMIT 1
+        ];
+    }
 }

@@ -182,4 +182,45 @@ private class RepairCoordinatorActionsControllerTest {
 
         Assert.areEqual(3, auraErrorCount, 'All validation errors should be Aura handled');
     }
+
+    /**
+     * @description GW-5310 - Signature actions translate a missing Work Order into AuraHandledException.
+     */
+    @IsTest
+    static void testSignatureActionsMissingWorkOrderThrowAuraHandledExceptions() {
+        Integer auraErrorCount = 0;
+
+        Test.startTest();
+        try {
+            RepairCoordinatorActionsController.loadSignatureOverride(null);
+            Assert.fail('A blank scan should throw');
+        } catch (AuraHandledException e) {
+            auraErrorCount++;
+        }
+        try {
+            RepairCoordinatorActionsController.addRepairSignature(null, null, null);
+            Assert.fail('A missing Work Order should throw when adding a signature');
+        } catch (AuraHandledException e) {
+            auraErrorCount++;
+        }
+        try {
+            RepairCoordinatorActionsController.removeRepairSignature(null, null);
+            Assert.fail('A missing Work Order should throw when removing a signature');
+        } catch (AuraHandledException e) {
+            auraErrorCount++;
+        }
+        try {
+            RepairCoordinatorActionsController.searchSignatureTechnicians(null, null);
+            Assert.fail('A missing Work Order should throw when searching technicians');
+        } catch (AuraHandledException e) {
+            auraErrorCount++;
+        }
+        Test.stopTest();
+
+        Assert.areEqual(
+            4,
+            auraErrorCount,
+            'Signature validation errors should be Aura handled'
+        );
+    }
 }

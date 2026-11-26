@@ -1,0 +1,176 @@
+/* ── Host flex layout — keeps footer pinned at bottom regardless of content height */
+:host {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+    /* anchors the Save All spinner over the whole screen */
+    position: relative;
+}
+
+.scrollable-content {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.offline-banner {
+    background-color: #fff3cd;
+    color: #856404;
+    font-size: 0.8125rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 0.4rem 0.75rem;
+    border-bottom: 1px solid #ffc107;
+    gap: 0.4rem;
+}
+
+/* ── WO Header (static — does not shrink, never scrolled away) ─────── */
+.wo-header {
+    flex-shrink: 0;
+    background: #ffffff;
+    border-radius: 0.25rem;
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+    border: none;
+    margin: 0.5rem;
+}
+
+.header-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+}
+
+.header-field {
+    flex: 1 1 25%;
+    min-width: 7rem;
+    padding: 0.5rem 0.75rem;
+    border-right: 1px solid #f0f0f0;
+}
+
+.header-field:last-child {
+    border-right: none;
+}
+
+.field-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #747474;
+    margin-bottom: 0.2rem;
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem 0.55rem;
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    background-color: #d4f0d4;
+    color: #2e7d32;
+    border: none;
+    letter-spacing: 0.02em;
+}
+
+.field-value {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #181818;
+}
+
+.field-value_strong {
+    font-weight: 700;
+}
+
+.header-input {
+    --slds-c-input-spacing-horizontal-start: 0;
+    --slds-c-input-spacing-horizontal-end: 0;
+}
+
+.header-input input {
+    font-size: 0.875rem;
+    font-weight: 500;
+    padding-left: 0;
+    padding-right: 0;
+}
+
+/* ── Custom Tab Bar — single fixed row, no horizontal scroll/drag ───── */
+.tab-bar {
+    flex-shrink: 0;
+    display: flex;
+    flex-wrap: nowrap;
+    border-bottom: 2px solid #e5e5e5;
+    background: #ffffff;
+    margin: 0 0.5rem;
+    overflow: hidden;
+    overscroll-behavior-x: none;
+    touch-action: pan-y;
+}
+
+.tab-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    position: relative;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.875rem 0.2rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    min-height: 52px;
+}
+
+.tab-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #5a5a5a;
+    letter-spacing: 0;
+    white-space: nowrap;
+    text-align: center;
+    line-height: 1.2;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tab-indicator {
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: #0176d3;
+    border-radius: 2px 2px 0 0;
+}
+
+.tab-btn:has(.tab-indicator) .tab-label {
+    color: #0176d3;
+}
+
+.tab-panel {
+    min-height: 3rem;
+}
+
+/* ── Footer bar — pinned by flex layout on :host, not position:sticky */
+.footer-bar {
+    flex-shrink: 0;
+    background: #ffffff;
+    border-top: 1px solid #e5e5e5;
+    box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.08);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.6rem 1rem;
+    gap: 0.5rem;
+}

@@ -1,7 +1,8 @@
 /**
  * @description GW-5892 / GW-6600: Backend for the fieldServiceQuoteEditor LWC (Quote "Edit Quote" action).
  *              Loads the quote header, lines and Rate List, and saves all changes in one transaction (Save All).
- *              Line validation runs in the LWC (validateLines) before Save All.
+ *              Line validation runs in the LWC (validateLines) before Save All; the Parts product price is read
+ *              by the LWC through GraphQL.
  * @group Field Service Quote
  * @see fieldServiceQuoteEditor
  * @see FieldServiceQuoteService
@@ -29,6 +30,7 @@ public with sharing class FieldServiceQuoteController {
 		@AuraEnabled public Id shipToId;
 		@AuraEnabled public Id ownerId;
 		@AuraEnabled public String rateListName;
+		@AuraEnabled public Id pricebookId;
 		@AuraEnabled public String currencyIsoCode;
 		@AuraEnabled public String pricingStatus;
 		@AuraEnabled public String pricingMessage;
@@ -55,7 +57,7 @@ public with sharing class FieldServiceQuoteController {
 		@AuraEnabled public String pricingMessage { get; set; }
 	}
 
-	/** @description Product picked on a Parts line. */
+	/** @description The expense product and its price in the quote's price book. */
 	public class ProductView {
 		@AuraEnabled public Id product2Id;
 		@AuraEnabled public String productName;
@@ -92,34 +94,7 @@ public with sharing class FieldServiceQuoteController {
 		try {
 			return buildView(quoteId);
 		} catch (Exception ex) {
-			throw toAuraException(ex);
-		}
-	}
-
-	/**
-	 * @description Product details for a Parts line: code and list price from the quote's price book.
-	 * @param quoteId Quote Id
-	 * @param productId Product Id
-	 * @return Product view
-	 */
-	@AuraEnabled
-	public static ProductView getProductInfo(Id quoteId, Id productId) {
-		try {
-			Quote quoteRecord = selectQuote(quoteId);
-			PricebookEntry entry = FieldServiceQuoteService.selectPricebookEntries(
-					quoteRecord.Pricebook2Id,
-					quoteRecord.CurrencyIsoCode,
-					new Set<Id>{ productId }
-				)
-				.get(productId);
-			if (entry == null) {
-				throw new FieldServiceQuoteService.FieldServiceQuoteException(
-					'This product has no active price in the quote price book (' + quoteRecord.CurrencyIsoCode + ').'
-				);
-			}
-			return toProductView(entry);
-		} catch (Exception ex) {
-			throw toAuraException(ex);
+			throw PlatformUtilities.buildAuraException(ex);
 		}
 	}
 
@@ -135,10 +110,12 @@ public with sharing class FieldServiceQuoteController {
 		Savepoint savepoint = Database.setSavepoint();
 		try {
 			SavePayload payload = (SavePayload) JSON.deserialize(payloadJson, SavePayload.class);
-			Quote quoteRecord = selectQuote(quoteId);
+			Quote quoteRecord = FieldServiceQuoteService.getQuote(quoteId);
 			Boolean canOverridePrice = FeatureManagement.checkPermission(PRICE_OVERRIDE_PERMISSION);
 
-			Map<Id, QuoteLineItem> existingById = new Map<Id, QuoteLineItem>(selectLines(quoteId));
+			Map<Id, QuoteLineItem> existingById = new Map<Id, QuoteLineItem>(
+				QuoteLineItemSelector.selectForFieldServiceEditorByQuoteId(quoteId)
+			);
 			List<QuoteLineItem> toInsert = new List<QuoteLineItem>();
 			List<QuoteLineItem> toUpdate = new List<QuoteLineItem>();
 			Map<String, PricebookEntry> entryByKey = resolveEntries(quoteRecord, payload.lines);
@@ -168,7 +145,7 @@ public with sharing class FieldServiceQuoteController {
 			return buildView(quoteId);
 		} catch (Exception ex) {
 			Database.rollback(savepoint);
-			throw toAuraException(ex);
+			throw PlatformUtilities.buildAuraException(ex);
 		}
 	}
 
@@ -254,7 +231,7 @@ public with sharing class FieldServiceQuoteController {
 
 	/**
 	 * @description Resolves price book entries for new lines: the chosen product for Parts, the configured
-	 *              product (Custom Labels) for Labor / Travel / Expense.
+	 *              product (FieldServiceQuoteService product codes) for Labor / Travel / Expense.
 	 */
 	private static Map<String, PricebookEntry> resolveEntries(Quote quoteRecord, List<LineView> lines) {
 		Set<Id> productIds = new Set<Id>();
@@ -267,22 +244,16 @@ public with sharing class FieldServiceQuoteController {
 				if (line.product2Id != null) {
 					productIds.add(line.product2Id);
 				}
-			} else if (configuredProductCode(line.lineType) != null) {
-				productCodes.add(configuredProductCode(line.lineType));
+			} else if (FieldServiceQuoteService.productCodeFor(line.lineType) != null) {
+				productCodes.add(FieldServiceQuoteService.productCodeFor(line.lineType));
 			}
 		}
-		if (!productCodes.isEmpty()) {
-			for (Product2 product : [
-				SELECT Id
-				FROM Product2
-				WHERE ProductCode IN :productCodes AND IsActive = TRUE
-			]) {
-				productIds.add(product.Id);
-			}
+		for (Product2 product : Product2Selector.selectActiveIdsByProductCodes(productCodes)) {
+			productIds.add(product.Id);
 		}
 
 		Map<String, PricebookEntry> entryByKey = new Map<String, PricebookEntry>();
-		for (PricebookEntry entry : FieldServiceQuoteService.selectPricebookEntries(
+		for (PricebookEntry entry : FieldServiceQuoteService.getPricebookEntriesByProductId(
 				quoteRecord.Pricebook2Id,
 				quoteRecord.CurrencyIsoCode,
 				productIds
@@ -297,27 +268,14 @@ public with sharing class FieldServiceQuoteController {
 	private static String entryKey(LineView line) {
 		return line.lineType == FieldServiceQuoteService.LINE_TYPE_PARTS
 			? (String) line.product2Id
-			: configuredProductCode(line.lineType);
-	}
-
-	private static String configuredProductCode(String lineType) {
-		if (lineType == FieldServiceQuoteService.LINE_TYPE_LABOR) {
-			return System.Label.FS_Quote_Labor_Product_Code;
-		}
-		if (lineType == FieldServiceQuoteService.LINE_TYPE_TRAVEL) {
-			return System.Label.FS_Quote_Travel_Product_Code;
-		}
-		if (lineType == FieldServiceQuoteService.LINE_TYPE_EXPENSE) {
-			return System.Label.FS_Quote_Expense_Product_Code;
-		}
-		return null;
+			: FieldServiceQuoteService.productCodeFor(line.lineType);
 	}
 
 	private static QuoteView buildView(Id quoteId) {
-		Quote quoteRecord = selectQuote(quoteId);
+		Quote quoteRecord = FieldServiceQuoteService.getQuote(quoteId);
 		QuoteView view = new QuoteView();
 		view.header = toHeaderView(quoteRecord);
-		for (QuoteLineItem record : selectLines(quoteId)) {
+		for (QuoteLineItem record : QuoteLineItemSelector.selectForFieldServiceEditorByQuoteId(quoteId)) {
 			if (EDITOR_LINE_TYPES.contains(record.LineType__c)) {
 				view.lines.add(toLineView(record));
 			}
@@ -329,12 +287,15 @@ public with sharing class FieldServiceQuoteController {
 	}
 
 	private static ProductView selectExpenseProduct(Quote quoteRecord) {
-		String code = System.Label.FS_Quote_Expense_Product_Code;
-		List<Product2> products = [SELECT Id FROM Product2 WHERE ProductCode = :code AND IsActive = TRUE LIMIT 1];
+		String code = FieldServiceQuoteService.productCodeFor(FieldServiceQuoteService.LINE_TYPE_EXPENSE);
+		if (String.isBlank(code)) {
+			return null;
+		}
+		List<Product2> products = Product2Selector.selectActiveIdsByProductCodes(new Set<String>{ code });
 		if (products.isEmpty()) {
 			return null;
 		}
-		PricebookEntry entry = FieldServiceQuoteService.selectPricebookEntries(
+		PricebookEntry entry = FieldServiceQuoteService.getPricebookEntriesByProductId(
 				quoteRecord.Pricebook2Id,
 				quoteRecord.CurrencyIsoCode,
 				new Set<Id>{ products[0].Id }
@@ -364,34 +325,6 @@ public with sharing class FieldServiceQuoteController {
 		return dto;
 	}
 
-	private static Quote selectQuote(Id quoteId) {
-		List<Quote> quotes = [
-			SELECT Id, QuoteNumber, Status, WorkOrder__c, WorkOrder__r.WorkOrderNumber, AccountId, Account.Name,
-				QuoteAccountId, QuoteAccount.Name, Asset__c, Asset__r.Name, ContactId, ShipToAccount__c, OwnerId,
-				RateList__c, RateList__r.Name, CurrencyIsoCode, Pricebook2Id, PricingStatus__c, PricingMessage__c,
-				GrandTotal
-			FROM Quote
-			WHERE Id = :quoteId
-		];
-		if (quotes.isEmpty()) {
-			throw new FieldServiceQuoteService.FieldServiceQuoteException(
-				'The quote was not found or you do not have access to it.'
-			);
-		}
-		return quotes[0];
-	}
-
-	private static List<QuoteLineItem> selectLines(Id quoteId) {
-		return [
-			SELECT Id, LineType__c, Product2Id, Product2.Name, Product2.ProductCode, Quantity, Rate__c, TravelType__c,
-				ExpenseType__c, ListPrice, UnitPrice, Discount, TotalPrice, Description, IsManualPrice__c,
-				PricingMessage__c
-			FROM QuoteLineItem
-			WHERE QuoteId = :quoteId
-			ORDER BY SortOrder ASC NULLS LAST, CreatedDate ASC
-		];
-	}
-
 	private static HeaderView toHeaderView(Quote quoteRecord) {
 		HeaderView header = new HeaderView();
 		header.quoteNumber = quoteRecord.QuoteNumber;
@@ -404,6 +337,7 @@ public with sharing class FieldServiceQuoteController {
 		header.shipToId = quoteRecord.ShipToAccount__c;
 		header.ownerId = quoteRecord.OwnerId;
 		header.rateListName = quoteRecord.RateList__r?.Name;
+		header.pricebookId = quoteRecord.Pricebook2Id;
 		header.currencyIsoCode = quoteRecord.CurrencyIsoCode;
 		header.pricingStatus = quoteRecord.PricingStatus__c;
 		header.pricingMessage = quoteRecord.PricingMessage__c;
@@ -439,11 +373,5 @@ public with sharing class FieldServiceQuoteController {
 		product.productCode = entry.Product2.ProductCode;
 		product.listPrice = entry.UnitPrice;
 		return product;
-	}
-
-	private static AuraHandledException toAuraException(Exception ex) {
-		return PlatformUtilities.buildAuraException(
-			ex instanceof DmlException ? ((DmlException) ex).getDmlMessage(0) : ex.getMessage()
-		);
 	}
 }

@@ -2,20 +2,28 @@
  * @description GW-5892 / GW-6600: Field Service quote editor (Quote "Edit Quote" action).
  *              Header strip + Time (Labor/Travel), Parts and Expenses tabs. Changes stay local until Save All;
  *              lines show New / Modified badges as in the debrief.
+ *              The quote is loaded through GraphQL, so the Field Service mobile app reads it from its offline
+ *              store: a quote created on the device opens before it has synced. Save All and Calculate Pricing
+ *              run in Apex and need the quote to be on the server.
  * @see FieldServiceQuoteController
  */
 import { LightningElement, api, wire } from 'lwc';
 import { CloseActionScreenEvent } from 'lightning/actions';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
-import { getRecord, notifyRecordUpdateAvailable } from 'lightning/uiRecordApi';
+import { getRecord, getFieldValue, notifyRecordUpdateAvailable, updateRecord } from 'lightning/uiRecordApi';
 import { getPicklistValues } from 'lightning/uiObjectInfoApi';
+import { gql, graphql, refreshGraphQL } from 'lightning/uiGraphQLApi';
 import FORM_FACTOR from '@salesforce/client/formFactor';
+import HAS_PRICE_OVERRIDE from '@salesforce/customPermission/FS_Quote_Price_Override';
 import QUOTE_RECORD_TYPE_FIELD from '@salesforce/schema/Quote.RecordTypeId';
 import QUOTE_STATUS_FIELD from '@salesforce/schema/Quote.Status';
+import QUOTE_ID_FIELD from '@salesforce/schema/Quote.Id';
+import AWAITING_PO_FIELD from '@salesforce/schema/Quote.AwaitingPO__c';
+import PURCHASE_ORDER_FIELD from '@salesforce/schema/Quote.PurchaseOrder__c';
+import PO_FOLLOW_UP_DATE_FIELD from '@salesforce/schema/Quote.POFollowUpDate__c';
 import EXPENSE_TYPE_FIELD from '@salesforce/schema/QuoteLineItem.ExpenseType__c';
 import getQuote from '@salesforce/apex/FieldServiceQuoteController.getQuote';
 import saveQuote from '@salesforce/apex/FieldServiceQuoteController.saveQuote';
-import getProductInfo from '@salesforce/apex/FieldServiceQuoteController.getProductInfo';
 import calculatePricing from '@salesforce/apex/FieldServiceQuotePricingService.calculatePricing';
 import {
 	RATE_OPTIONS,
@@ -41,28 +49,277 @@ const PRICING_BADGE_CLASS = {
 	'Repricing Required': 'slds-badge slds-theme_warning',
 	'Pricing Error': 'slds-badge slds-theme_error'
 };
+// Same as FieldServiceQuoteService.EXPENSE_PRODUCT_CODE.
+const EXPENSE_PRODUCT_CODE = 'FSEXPPRT';
+const QUOTE_NOT_FOUND = 'The quote was not found or you do not have access to it.';
+// Field Service mobile fails an Apex call without a message when the quote is not on the server yet.
+const NOT_SYNCED_MESSAGE =
+	'The quote has not finished syncing to Salesforce. Your changes are kept. Wait a moment and try again.';
+
+// Quote header, Rate List and editor lines in one query (same fields as FieldServiceQuoteController).
+const QUOTE_EDITOR_QUERY = gql`
+	query fieldServiceQuoteEditor($quoteId: ID) {
+		uiapi {
+			query {
+				Quote(where: { Id: { eq: $quoteId } }, first: 1) {
+					edges {
+						node {
+							Id
+							QuoteNumber {
+								value
+							}
+							Status {
+								value
+							}
+							AccountId {
+								value
+							}
+							Account {
+								Name {
+									value
+								}
+							}
+							QuoteAccountId {
+								value
+							}
+							QuoteAccount {
+								Name {
+									value
+								}
+							}
+							Asset__r {
+								Name {
+									value
+								}
+							}
+							WorkOrder__r {
+								WorkOrderNumber {
+									value
+								}
+							}
+							ContactId {
+								value
+							}
+							ShipToAccount__c {
+								value
+							}
+							OwnerId {
+								value
+							}
+							Pricebook2Id {
+								value
+							}
+							CurrencyIsoCode {
+								value
+							}
+							PricingStatus__c {
+								value
+							}
+							PricingMessage__c {
+								value
+							}
+							GrandTotal {
+								value
+							}
+							RateList__r {
+								Id
+								Name {
+									value
+								}
+								LaborHour__c {
+									value
+								}
+								TravelHour__c {
+									value
+								}
+								PremiumRateHour__c {
+									value
+								}
+								ExtendedOvertimeRatePerHour__c {
+									value
+								}
+								TravelZone1__c {
+									value
+								}
+								TravelZone2__c {
+									value
+								}
+								TravelZone3__c {
+									value
+								}
+								TravelZone4__c {
+									value
+								}
+							}
+						}
+					}
+				}
+				QuoteLineItem(
+					where: {
+						and: [
+							{ QuoteId: { eq: $quoteId } }
+							{ LineType__c: { in: ["Parts", "Labor", "Travel", "Expense"] } }
+						]
+					}
+					orderBy: { SortOrder: { order: ASC, nulls: LAST }, CreatedDate: { order: ASC } }
+					first: 2000
+				) {
+					edges {
+						node {
+							Id
+							LineType__c {
+								value
+							}
+							Product2Id {
+								value
+							}
+							Product2 {
+								Name {
+									value
+								}
+								ProductCode {
+									value
+								}
+							}
+							Quantity {
+								value
+							}
+							Rate__c {
+								value
+							}
+							TravelType__c {
+								value
+							}
+							ExpenseType__c {
+								value
+							}
+							ListPrice {
+								value
+							}
+							UnitPrice {
+								value
+							}
+							Discount {
+								value
+							}
+							TotalPrice {
+								value
+							}
+							Description {
+								value
+							}
+							IsManualPrice__c {
+								value
+							}
+							PricingMessage__c {
+								value
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+`;
+
+// The expense product and its price in the quote's price book and currency.
+const EXPENSE_PRODUCT_QUERY = gql`
+	query fieldServiceQuoteExpenseProduct($pricebookId: ID, $currencyIsoCode: Picklist, $productCode: String) {
+		uiapi {
+			query {
+				PricebookEntry(
+					where: {
+						and: [
+							{ Pricebook2Id: { eq: $pricebookId } }
+							{ CurrencyIsoCode: { eq: $currencyIsoCode } }
+							{ IsActive: { eq: true } }
+							{ Product2: { ProductCode: { eq: $productCode } } }
+							{ Product2: { IsActive: { eq: true } } }
+						]
+					}
+					first: 1
+				) {
+					edges {
+						node {
+							Id
+							UnitPrice {
+								value
+							}
+							Product2Id {
+								value
+							}
+							Product2 {
+								Name {
+									value
+								}
+								ProductCode {
+									value
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+`;
+
+// Price of the Parts product picked on a line, from the quote's price book and currency (no Apex).
+const PRODUCT_PRICE_QUERY = gql`
+	query fieldServiceQuoteProductPrice($pricebookId: ID, $productId: ID, $currencyIsoCode: Picklist) {
+		uiapi {
+			query {
+				PricebookEntry(
+					where: {
+						and: [
+							{ Pricebook2Id: { eq: $pricebookId } }
+							{ Product2Id: { eq: $productId } }
+							{ CurrencyIsoCode: { eq: $currencyIsoCode } }
+							{ IsActive: { eq: true } }
+						]
+					}
+					first: 1
+				) {
+					edges {
+						node {
+							Id
+							UnitPrice {
+								value
+							}
+							Product2Id {
+								value
+							}
+							Product2 {
+								Name {
+									value
+								}
+								ProductCode {
+									value
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+`;
 
 let keySequence = 0;
 const nextKey = () => `new-${++keySequence}`;
 
-export default class FieldServiceQuoteEditor extends LightningElement {
-	_recordId;
-	_loadedRecordId;
+const valueOf = (field) => field?.value ?? null;
 
-	/**
-	 * @description Screen quick actions set recordId after connectedCallback, so load when it arrives.
-	 */
-	@api
-	get recordId() {
-		return this._recordId;
-	}
-	set recordId(value) {
-		this._recordId = value;
-		if (value && value !== this._loadedRecordId) {
-			this._loadedRecordId = value;
-			this.load();
-		}
-	}
+export default class FieldServiceQuoteEditor extends LightningElement {
+	@api recordId;
+
+	// Quote Id from GraphQL: the server Id once a quote created on the device has synced.
+	quoteNodeId;
+	quoteResult;
+	expenseProduct;
+	// Set once Apex returned the quote (Save All, Calculate Pricing). From then on the server view is shown:
+	// on Field Service mobile the GraphQL cache keeps the old lines until the app syncs.
+	hasServerView = false;
 
 	isLoading = true;
 	isSaving = false;
@@ -82,16 +339,147 @@ export default class FieldServiceQuoteEditor extends LightningElement {
 
 	// ---------------------------------------------------------------- data
 
-	async load() {
-		this.isLoading = true;
-		this.errorMessage = undefined;
-		try {
-			this.applyView(await getQuote({ quoteId: this.recordId }));
-		} catch (error) {
-			this.errorMessage = this.reduceError(error);
-		} finally {
-			this.isLoading = false;
+	get quoteVariables() {
+		return this.recordId ? { quoteId: this.recordId } : undefined;
+	}
+
+	/**
+	 * @description Loads the quote from LDS (the device's offline store on Field Service mobile). A refresh
+	 *              while the user has unsaved changes keeps their changes and only takes the new quote Id.
+	 */
+	@wire(graphql, { query: QUOTE_EDITOR_QUERY, variables: '$quoteVariables' })
+	wiredQuote(result) {
+		this.quoteResult = result;
+		const { data, errors } = result;
+		if (!data && !errors) {
+			return;
 		}
+		const node = data?.uiapi?.query?.Quote?.edges?.[0]?.node;
+		if (!node) {
+			this.errorMessage = errors ? this.reduceError({ body: errors }) : QUOTE_NOT_FOUND;
+			this.isLoading = false;
+			return;
+		}
+		this.errorMessage = undefined;
+		this.quoteNodeId = node.Id;
+		if (!this.view || (!this.hasServerView && this.quoteChangeCount === 0)) {
+			this.applyView(this.toView(node, data.uiapi.query.QuoteLineItem?.edges || []));
+		}
+		this.isLoading = false;
+	}
+
+	toView(node, lineEdges) {
+		const rateList = node.RateList__r;
+		return {
+			header: {
+				quoteNumber: valueOf(node.QuoteNumber),
+				status: valueOf(node.Status),
+				workOrderNumber: valueOf(node.WorkOrder__r?.WorkOrderNumber),
+				accountId: valueOf(node.AccountId) || valueOf(node.QuoteAccountId),
+				accountName: valueOf(node.AccountId)
+					? valueOf(node.Account?.Name)
+					: valueOf(node.QuoteAccount?.Name),
+				assetName: valueOf(node.Asset__r?.Name),
+				contactId: valueOf(node.ContactId),
+				shipToId: valueOf(node.ShipToAccount__c),
+				ownerId: valueOf(node.OwnerId),
+				rateListName: valueOf(rateList?.Name),
+				pricebookId: valueOf(node.Pricebook2Id),
+				currencyIsoCode: valueOf(node.CurrencyIsoCode),
+				pricingStatus: valueOf(node.PricingStatus__c),
+				pricingMessage: valueOf(node.PricingMessage__c),
+				totalPrice: valueOf(node.GrandTotal)
+			},
+			lines: lineEdges.map(({ node: line }) => ({
+				id: line.Id,
+				lineType: valueOf(line.LineType__c),
+				product2Id: valueOf(line.Product2Id),
+				productName: valueOf(line.Product2?.Name),
+				productCode: valueOf(line.Product2?.ProductCode),
+				quantity: valueOf(line.Quantity),
+				rate: valueOf(line.Rate__c),
+				travelType: valueOf(line.TravelType__c),
+				expenseType: valueOf(line.ExpenseType__c),
+				listPrice: valueOf(line.ListPrice),
+				unitPrice: valueOf(line.UnitPrice),
+				discount: valueOf(line.Discount),
+				totalPrice: valueOf(line.TotalPrice),
+				description: valueOf(line.Description),
+				isManualPrice: valueOf(line.IsManualPrice__c),
+				pricingMessage: valueOf(line.PricingMessage__c)
+			})),
+			rateList: rateList?.Id
+				? {
+						rateListId: rateList.Id,
+						name: valueOf(rateList.Name),
+						laborHour: valueOf(rateList.LaborHour__c),
+						travelHour: valueOf(rateList.TravelHour__c),
+						premiumRateHour: valueOf(rateList.PremiumRateHour__c),
+						extendedOvertimeRatePerHour: valueOf(rateList.ExtendedOvertimeRatePerHour__c),
+						travelZone1: valueOf(rateList.TravelZone1__c),
+						travelZone2: valueOf(rateList.TravelZone2__c),
+						travelZone3: valueOf(rateList.TravelZone3__c),
+						travelZone4: valueOf(rateList.TravelZone4__c)
+					}
+				: null,
+			canOverridePrice: HAS_PRICE_OVERRIDE === true
+		};
+	}
+
+	get expenseProductVariables() {
+		if (!this.h.pricebookId || !this.h.currencyIsoCode) {
+			return undefined;
+		}
+		return {
+			pricebookId: this.h.pricebookId,
+			currencyIsoCode: this.h.currencyIsoCode,
+			productCode: EXPENSE_PRODUCT_CODE
+		};
+	}
+
+	@wire(graphql, { query: EXPENSE_PRODUCT_QUERY, variables: '$expenseProductVariables' })
+	wiredExpenseProduct({ data }) {
+		const node = data?.uiapi?.query?.PricebookEntry?.edges?.[0]?.node;
+		if (data) {
+			this.expenseProduct = node
+				? {
+						product2Id: valueOf(node.Product2Id),
+						productName: valueOf(node.Product2?.Name),
+						productCode: valueOf(node.Product2?.ProductCode),
+						listPrice: valueOf(node.UnitPrice)
+					}
+				: null;
+		}
+	}
+
+	/** @description Quote Id for Apex: the synced server Id when GraphQL has it. */
+	get quoteId() {
+		return this.quoteNodeId || this.recordId;
+	}
+
+	/** @description Shows the quote as Apex returned it; later GraphQL results no longer replace it. */
+	applyServerView(view) {
+		this.applyView(view);
+		this.hasServerView = true;
+	}
+
+	/** @description Reads the quote from the server after Calculate Pricing or a PO save changed it. */
+	async reloadFromServer() {
+		this.applyServerView(await getQuote({ quoteId: this.quoteId }));
+		await this.refreshQuote();
+	}
+
+	/**
+	 * @description Tells LDS (the offline store on Field Service mobile) that Apex changed the quote, so the
+	 *              editor opens with current data next time. The editor keeps showing the Apex result.
+	 */
+	async refreshQuote() {
+		try {
+			await refreshGraphQL(this.quoteResult);
+		} catch (e) {
+			// The view already shows the Apex result; a failed cache refresh is not shown to the user.
+		}
+		notifyRecordUpdateAvailable([{ recordId: this.quoteId }]);
 	}
 
 	applyView(view) {
@@ -115,8 +503,32 @@ export default class FieldServiceQuoteEditor extends LightningElement {
 	}
 
 	// Picklist options come from LDS (no Apex); Status follows the quote's record type.
-	@wire(getRecord, { recordId: '$recordId', fields: [QUOTE_RECORD_TYPE_FIELD] })
+	// GW-5898: the PO fields are read and saved through LDS too (works offline in the Field Service app).
 	quoteRecord;
+	poHeader = { awaitingPO: false, purchaseOrder: null };
+	originalPoHeader = { awaitingPO: false, purchaseOrder: null };
+	poFollowUpDate;
+
+	// The PO fields are optional so a user without access to them still gets the record type (Status picklist).
+	@wire(getRecord, {
+		recordId: '$recordId',
+		fields: [QUOTE_RECORD_TYPE_FIELD],
+		optionalFields: [AWAITING_PO_FIELD, PURCHASE_ORDER_FIELD, PO_FOLLOW_UP_DATE_FIELD]
+	})
+	wiredQuoteRecord(result) {
+		this.quoteRecord = result;
+		if (result.data) {
+			this.poFollowUpDate = getFieldValue(result.data, PO_FOLLOW_UP_DATE_FIELD);
+			// Keep the technician's unsaved PO edits when the record refreshes.
+			if (!this.poChangeCount) {
+				this.poHeader = {
+					awaitingPO: getFieldValue(result.data, AWAITING_PO_FIELD) === true,
+					purchaseOrder: getFieldValue(result.data, PURCHASE_ORDER_FIELD) || null
+				};
+				this.originalPoHeader = { ...this.poHeader };
+			}
+		}
+	}
 
 	@wire(getPicklistValues, { recordTypeId: '$quoteRecord.data.recordTypeId', fieldApiName: QUOTE_STATUS_FIELD })
 	statusPicklist;
@@ -166,6 +578,26 @@ export default class FieldServiceQuoteEditor extends LightningElement {
 		const field = event.target.dataset.field;
 		const value = event.detail.recordId !== undefined ? event.detail.recordId : event.detail.value;
 		this.header = { ...this.header, [field]: value || null };
+	}
+
+	// ---------------------------------------------------------------- PO follow-up (GW-5898)
+
+	handleAwaitingPoChange(event) {
+		this.poHeader = { ...this.poHeader, awaitingPO: event.target.checked };
+	}
+
+	handlePurchaseOrderChange(event) {
+		const value = (event.detail.value || '').trim();
+		this.poHeader = { ...this.poHeader, purchaseOrder: value || null };
+	}
+
+	get poFollowUpLabel() {
+		return this.originalPoHeader.awaitingPO && this.poFollowUpDate ? this.poFollowUpDate : null;
+	}
+
+	get poChangeCount() {
+		return Object.keys(this.poHeader).filter((field) => this.poHeader[field] !== this.originalPoHeader[field])
+			.length;
 	}
 
 	// ---------------------------------------------------------------- tabs & lines
@@ -320,7 +752,7 @@ export default class FieldServiceQuoteEditor extends LightningElement {
 	}
 
 	handleAddExpense() {
-		const product = this.view?.expenseProduct;
+		const product = this.expenseProduct;
 		if (!product) {
 			this.toast('Expense part missing', 'The expense part has no price in this quote price book.', 'error');
 			return;
@@ -421,7 +853,59 @@ export default class FieldServiceQuoteEditor extends LightningElement {
 		});
 	}
 
-	async handleProductChange(event) {
+	// Parts product lookups: results are cached per product; lines wait by key while a lookup runs.
+	pendingProductId;
+	productCache = new Map();
+	linesWaitingForProduct = new Map();
+
+	get productPriceVariables() {
+		if (!this.pendingProductId || !this.h.pricebookId || !this.h.currencyIsoCode) {
+			return undefined;
+		}
+		return {
+			pricebookId: this.h.pricebookId,
+			productId: this.pendingProductId,
+			currencyIsoCode: this.h.currencyIsoCode
+		};
+	}
+
+	@wire(graphql, { query: PRODUCT_PRICE_QUERY, variables: '$productPriceVariables' })
+	wiredProductPrice({ data, errors }) {
+		const productId = this.pendingProductId;
+		if (!productId || (!data && !errors)) {
+			return;
+		}
+		if (errors) {
+			this.linesWaitingForProduct.delete(productId);
+			this.toast('Product not available', this.reduceError({ body: errors }), 'error');
+			this.lookUpNextWaitingProduct();
+			return;
+		}
+		const node = data?.uiapi?.query?.PricebookEntry?.edges?.[0]?.node;
+		const product = node
+			? {
+					product2Id: node.Product2Id?.value,
+					productName: node.Product2?.Name?.value,
+					productCode: node.Product2?.ProductCode?.value,
+					listPrice: node.UnitPrice?.value
+				}
+			: null;
+		this.productCache.set(productId, product);
+		const keys = this.linesWaitingForProduct.get(productId) || new Set();
+		this.linesWaitingForProduct.delete(productId);
+		keys.forEach((key) => this.applyProduct(key, product));
+		this.lookUpNextWaitingProduct();
+	}
+
+	// A product picked while another lookup was running is looked up once that lookup finishes.
+	lookUpNextWaitingProduct() {
+		const nextProductId = this.linesWaitingForProduct.keys().next().value;
+		if (nextProductId) {
+			this.pendingProductId = nextProductId;
+		}
+	}
+
+	handleProductChange(event) {
 		const key = event.target.dataset.key;
 		const productId = event.detail.recordId;
 		if (!productId) {
@@ -435,19 +919,33 @@ export default class FieldServiceQuoteEditor extends LightningElement {
 			}));
 			return;
 		}
-		try {
-			const product = await getProductInfo({ quoteId: this.recordId, productId });
-			this.updateLine(key, (line) => ({
-				...line,
-				product2Id: product.product2Id,
-				productName: product.productName,
-				productCode: product.productCode,
-				listPrice: product.listPrice,
-				unitPrice: product.listPrice
-			}));
-		} catch (error) {
-			this.toast('Product not available', this.reduceError(error), 'error');
+		if (this.productCache.has(productId)) {
+			this.applyProduct(key, this.productCache.get(productId));
+			return;
 		}
+		const keys = this.linesWaitingForProduct.get(productId) || new Set();
+		keys.add(key);
+		this.linesWaitingForProduct.set(productId, keys);
+		this.pendingProductId = productId;
+	}
+
+	applyProduct(key, product) {
+		if (!product) {
+			this.toast(
+				'Product not available',
+				`This product has no active price in the quote price book (${this.h.currencyIsoCode}).`,
+				'error'
+			);
+			return;
+		}
+		this.updateLine(key, (line) => ({
+			...line,
+			product2Id: product.product2Id,
+			productName: product.productName,
+			productCode: product.productCode,
+			listPrice: product.listPrice,
+			unitPrice: product.listPrice
+		}));
 	}
 
 	updateLine(key, updater) {
@@ -469,9 +967,13 @@ export default class FieldServiceQuoteEditor extends LightningElement {
 		return Object.keys(this.header).filter((field) => this.header[field] !== this.originalHeader[field]).length;
 	}
 
-	get unsavedChangeCount() {
+	get quoteChangeCount() {
 		const lineChanges = this.lines.filter((line) => line.state !== STATE.SAVED).length;
 		return lineChanges + this.deletedLineIds.length + this.headerChangeCount;
+	}
+
+	get unsavedChangeCount() {
+		return this.quoteChangeCount + this.poChangeCount;
 	}
 
 	get unsavedChangesLabel() {
@@ -483,11 +985,11 @@ export default class FieldServiceQuoteEditor extends LightningElement {
 	}
 
 	get saveDisabled() {
-		return this.isSaving || this.isLoading || this.unsavedChangeCount === 0;
+		return !this.view || this.isSaving || this.isLoading || this.unsavedChangeCount === 0;
 	}
 
 	get calculateDisabled() {
-		return this.isSaving || this.isLoading || this.unsavedChangeCount > 0;
+		return !this.view || this.isSaving || this.isLoading || this.unsavedChangeCount > 0;
 	}
 
 	get calculateTitle() {
@@ -504,7 +1006,7 @@ export default class FieldServiceQuoteEditor extends LightningElement {
 				name: 'recordId',
 				type: 'SObject',
 				value: {
-					Id: this.recordId
+					Id: this.quoteId
 				}
 			}
 		];
@@ -545,13 +1047,12 @@ export default class FieldServiceQuoteEditor extends LightningElement {
 		}
 		this.pricingRunning = true;
 		try {
-			const result = await calculatePricing({ quoteId: this.recordId });
-			await this.load();
-			notifyRecordUpdateAvailable([{ recordId: this.recordId }]);
+			const result = await calculatePricing({ quoteId: this.quoteId });
+			await this.reloadFromServer();
 			this.pricingResultMessage = result?.message;
 			this.pricingResultIsError = result?.status !== 'Priced';
 		} catch (error) {
-			this.pricingResultMessage = this.reduceError(error);
+			this.pricingResultMessage = this.reduceError(error, NOT_SYNCED_MESSAGE);
 			this.pricingResultIsError = true;
 		} finally {
 			this.pricingRunning = false;
@@ -567,8 +1068,11 @@ export default class FieldServiceQuoteEditor extends LightningElement {
 	async handlePricingFlowStatus(event) {
 		if (event.detail.status === 'FINISHED' || event.detail.status === 'FINISHED_SCREEN') {
 			this.showPricingFlow = false;
-			await this.load();
-			notifyRecordUpdateAvailable([{ recordId: this.recordId }]);
+			try {
+				await this.reloadFromServer();
+			} catch (error) {
+				this.toast('Quote not refreshed', this.reduceError(error, NOT_SYNCED_MESSAGE), 'error');
+			}
 		}
 	}
 
@@ -580,34 +1084,62 @@ export default class FieldServiceQuoteEditor extends LightningElement {
 		}
 		this.isSaving = true;
 		try {
-			const payload = {
-				...this.header,
-				lines: this.lines
-					.filter((line) => line.state !== STATE.SAVED)
-					.map((line) => ({
-						id: line.id,
-						lineType: line.lineType,
-						product2Id: line.product2Id,
-						quantity: line.quantity,
-						rate: line.rate,
-						travelType: line.travelType,
-						expenseType: line.expenseType,
-						unitPrice: line.unitPrice,
-						discount: line.discount,
-						description: line.description,
-						isManualPrice: line.isManualPrice
-					})),
-				deletedLineIds: this.deletedLineIds
-			};
-			const view = await saveQuote({ quoteId: this.recordId, payloadJson: JSON.stringify(payload) });
-			this.applyView(view);
-			notifyRecordUpdateAvailable([{ recordId: this.recordId }]);
+			if (this.quoteChangeCount > 0) {
+				const payload = {
+					...this.header,
+					lines: this.lines
+						.filter((line) => line.state !== STATE.SAVED)
+						.map((line) => ({
+							id: line.id,
+							lineType: line.lineType,
+							product2Id: line.product2Id,
+							quantity: line.quantity,
+							rate: line.rate,
+							travelType: line.travelType,
+							expenseType: line.expenseType,
+							unitPrice: line.unitPrice,
+							discount: line.discount,
+							description: line.description,
+							isManualPrice: line.isManualPrice
+						})),
+					deletedLineIds: this.deletedLineIds
+				};
+				const view = await saveQuote({ quoteId: this.quoteId, payloadJson: JSON.stringify(payload) });
+				this.applyServerView(view);
+			}
+			if (this.poChangeCount > 0) {
+				await this.savePoFields();
+				// The PO flows may change the quote (Status): read it back from the server when it is reachable.
+				try {
+					await this.reloadFromServer();
+				} catch (e) {
+					await this.refreshQuote();
+				}
+			} else {
+				await this.refreshQuote();
+			}
 			this.toast('Quote saved', 'All changes were saved.', 'success');
 		} catch (error) {
-			this.toast('Quote not saved', this.reduceError(error), 'error');
+			this.toast('Quote not saved', this.reduceError(error, NOT_SYNCED_MESSAGE), 'error');
 		} finally {
 			this.isSaving = false;
 		}
+	}
+
+	/**
+	 * @description GW-5898: saves Awaiting PO and Purchase Order through LDS. The quote flows then set the
+	 *              follow-up date, or accept the quote when a PO is entered, so Save All reloads the quote
+	 *              (refreshQuote) afterwards.
+	 */
+	async savePoFields() {
+		await updateRecord({
+			fields: {
+				[QUOTE_ID_FIELD.fieldApiName]: this.recordId,
+				[AWAITING_PO_FIELD.fieldApiName]: this.poHeader.awaitingPO,
+				[PURCHASE_ORDER_FIELD.fieldApiName]: this.poHeader.purchaseOrder
+			}
+		});
+		this.originalPoHeader = { ...this.poHeader };
 	}
 
 	/**
@@ -662,10 +1194,16 @@ export default class FieldServiceQuoteEditor extends LightningElement {
 		this.dispatchEvent(new ShowToastEvent({ title, message, variant }));
 	}
 
-	reduceError(error) {
+	/**
+	 * @param {*} error Apex, LDS or GraphQL error
+	 * @param {string} fallback Message when the error has none (Field Service mobile, quote not synced)
+	 * @return {string} Message to show
+	 */
+	reduceError(error, fallback = 'Something went wrong. Close the editor and try again.') {
 		if (Array.isArray(error?.body)) {
-			return error.body.map((e) => e.message).join(', ');
+			const messages = error.body.map((e) => e?.message).filter(Boolean);
+			return messages.length ? messages.join(', ') : fallback;
 		}
-		return error?.body?.message || error?.message || 'Unknown error';
+		return error?.body?.message || error?.message || fallback;
 	}
 }

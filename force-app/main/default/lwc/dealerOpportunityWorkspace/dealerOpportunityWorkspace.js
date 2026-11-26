@@ -15,6 +15,8 @@ const STAGE_TABS = [
     'Closed Lost'
 ];
 
+const OPEN_STAGES = ['Evaluation', 'Proposal', 'Commit'];
+
 export default class DealerOpportunityWorkspace extends NavigationMixin(LightningElement) {
     opportunityIconUrl = OPPORTUNITY_ICON;
     pipelineIconUrl = PIPELINE_ICON;
@@ -78,12 +80,21 @@ export default class DealerOpportunityWorkspace extends NavigationMixin(Lightnin
         return this.workspace?.opportunities || [];
     }
 
+    get openTotals() {
+        if (this.selectedStage === 'All') {
+            return { count: this.summary.openCount, amount: this.summary.openPipelineValue };
+        }
+        const stage = OPEN_STAGES.includes(this.selectedStage)
+            && (this.summary.stages || []).find((item) => item.stageName === this.selectedStage);
+        return { count: stage?.recordCount, amount: stage?.amount };
+    }
+
     get openPipelineLabel() {
-        return compactCurrency(this.summary.openPipelineValue);
+        return compactCurrency(this.openTotals.amount);
     }
 
     get openCountLabel() {
-        return String(this.summary.openCount || 0);
+        return String(this.openTotals.count || 0);
     }
 
     get closedWonLabel() {

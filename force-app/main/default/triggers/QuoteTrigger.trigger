@@ -18,5 +18,10 @@ trigger QuoteTrigger on Quote (
         return;
     }
 
+    // GW-4378 - Optional evaluation photos attach when the Quote is created.
+    if (Trigger.isAfter && Trigger.isInsert) {
+        EvaluationPhotosService.attachOptionalPhotosToQuotes((List<Quote>) Trigger.new);
+    }
+
     new QuoteTriggerHandler().run();
 }

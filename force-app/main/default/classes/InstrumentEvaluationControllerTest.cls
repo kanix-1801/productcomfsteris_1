@@ -935,7 +935,8 @@ private class InstrumentEvaluationControllerTest {
                 null,
                 null,
                 false,
-                null
+                null,
+                false
             );
         } catch (AuraHandledException e) {
             threw = true;
@@ -963,7 +964,8 @@ private class InstrumentEvaluationControllerTest {
                 workOrder.Id,
                 10,
                 false,
-                null
+                null,
+                false
             );
         Boolean missingWorkOrderThrew = false;
         try {
@@ -971,7 +973,8 @@ private class InstrumentEvaluationControllerTest {
                 UserInfo.getUserId(),
                 null,
                 false,
-                null
+                null,
+                false
             );
         } catch (AuraHandledException e) {
             missingWorkOrderThrew = e.getMessage() != null;

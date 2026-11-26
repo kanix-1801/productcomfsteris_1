@@ -25,6 +25,7 @@ import getQuoteForecastConfidenceOptions from '@salesforce/apex/QuoteForecastCon
 import QUOTE_NUMBER_HELP_TEXT from '@salesforce/label/c.Quote_Number_Helptext';
 import QUOTE_FORECAST_INELIGIBLE_HELP_TEXT from '@salesforce/label/c.QuoteForecastIneligibleHelptext';
 import REFRESH_QUOTE_SUCCESS_MESSAGE from '@salesforce/label/c.RefreshQuoteSuccessMessage';
+import canRefreshDealerQuote from '@salesforce/customPermission/Refresh_Dealer_Quote';
 import { FlowNavigationFinishEvent } from 'lightning/flowSupport'; //GC-3609
 import {
     clearPendingNavigationTab,
@@ -545,13 +546,29 @@ export default class GenerateQuote extends NavigationMixin(LightningElement) {
         return this.allQuotes.length > 0;
     }
 
+    /**
+     * #GC-3665 Refresh Quote stays on the dealer portal only for users with Refresh Dealer Quote.
+     * Internal pages keep the existing quote-count rule. Generate Quote stays off the portal.
+     */
     get showRefreshQuoteButton() {
         if (!this.wiredOpportunity?.data) {
             return false;
         }
 
         const quoteCount = getFieldValue(this.wiredOpportunity.data, OPPORTUNITY_QUOTE_COUNT);
-        return Number(quoteCount || 0) > 0;
+        if (Number(quoteCount || 0) <= 0) {
+            return false;
+        }
+
+        if (this.isDealerPortal === true) {
+            return canRefreshDealerQuote === true;
+        }
+
+        return true;
+    }
+
+    get showHeaderBar() {
+        return this.showHeaderActions || this.showRefreshQuoteButton;
     }
 
     get totalPages() {

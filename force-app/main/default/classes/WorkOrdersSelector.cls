@@ -1377,37 +1377,6 @@ public with sharing class WorkOrdersSelector extends SoqlQueryBuilder {
 	}
 
 	/**
-	 * @description GW-4378 - Work Order Id and parent for optional evaluation photos.
-	 * @param workOrderId Work Order Id
-	 * @return Matching Work Order, or an empty list
-	 */
-	public static List<WorkOrder> selectParentForEvaluationPhotos(Id workOrderId) {
-		if (workOrderId == null) {
-			return new List<WorkOrder>();
-		}
-		return (List<WorkOrder>) SoqlQueryBuilder.fromObject('WorkOrder')
-			.selectFields(new List<String>{ 'Id', 'ParentWorkOrderId' })
-			.whereEquals('Id', workOrderId)
-			.limitTo(1)
-			.execute();
-	}
-
-	/**
-	 * @description GW-4378 - Child Work Orders whose optional photos belong on the parent quote.
-	 * @param parentWorkOrderIds Parent Work Order Ids
-	 * @return Child Work Orders with their parent Id
-	 */
-	public static List<WorkOrder> selectChildIdsByParentIds(Set<Id> parentWorkOrderIds) {
-		if (parentWorkOrderIds == null || parentWorkOrderIds.isEmpty()) {
-			return new List<WorkOrder>();
-		}
-		return (List<WorkOrder>) SoqlQueryBuilder.fromObject('WorkOrder')
-			.selectFields(new List<String>{ 'Id', 'ParentWorkOrderId' })
-			.whereIn('ParentWorkOrderId', new List<Id>(parentWorkOrderIds))
-			.execute();
-	}
-
-	/**
 	 * @description GW-5310 - Work Order by Id or Number for signature override.
 	 *              Includes record type, parent, and Repair Center.
 	 * @param workOrderInput Work Order Id or Work Order Number

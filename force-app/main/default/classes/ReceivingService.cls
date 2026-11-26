@@ -3647,6 +3647,11 @@ public with sharing class ReceivingService {
 		@AuraEnabled public Id redirectReturnOrderId;
 		@AuraEnabled public String redirectReturnOrderNumber;
 		@AuraEnabled public Boolean returnOrderFullyReceived;
+		/**
+		 * GW-5492 - True when LWC should print Travel Tag in a separate request after Finish
+		 * (Devices / Instruments). Callout cannot run in the Finish DML transaction.
+		 */
+		@AuraEnabled public Boolean shouldPrintTravelTag;
 	}
 
 	/**

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>67.0</apiVersion>
+    <description>GW-6407: Work Order closure screen (ES) opened by the Close Work Order action. Only the Work Order owner can use it.</description>
+    <isExposed>true</isExposed>
+    <masterLabel>Work Order Closure ES</masterLabel>
+    <targets>
+        <target>lightning__RecordAction</target>
+    </targets>
+
+    <targetConfigs>
+        <targetConfig targets="lightning__RecordAction">
+            <actionType>ScreenAction</actionType>
+        </targetConfig>
+    </targetConfigs>
+
+</LightningComponentBundle>

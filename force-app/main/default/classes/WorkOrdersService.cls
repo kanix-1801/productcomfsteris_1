@@ -989,21 +989,13 @@ public with sharing class WorkOrdersService {
 			applyCompletion,
 			restoreProductIds,
 			subStatus,
-			null
+			null,
+			false
 		);
 	}
 
 	/**
-	 * @description GW-3377 - Runs Execute Pricing after WOLI DML has committed.
-	 *              When newPriceableLineItemIds is set and the Repair requote gate applies,
-	 *              only those Service Code, Category Code, and Special Pricing lines are priced.
-	 * @param workOrderId Device Evaluation Work Order Id
-	 * @param originalTotal Repair Code net total from before the latest line save
-	 * @param applyCompletion True to apply Complete Status / Sub Status after pricing
-	 * @param restoreProductIds Repair Code Product Ids to restore when requote is blocked
-	 * @param subStatus Sub Status from the LWC (Outside Vendor complete is blocked)
-	 * @param newPriceableLineItemIds New priceable lines from the preceding save. Null prices every line.
-	 * @return Device Evaluation context after pricing
+	 * @description GW-3377 - Callers that do not pass priceOnNext keep Complete-time pricing off.
 	 */
 	public static DeviceEvaluationContext finalizeDeviceEvaluationAfterPricing(
 		Id workOrderId,
@@ -1012,6 +1004,38 @@ public with sharing class WorkOrdersService {
 		List<Id> restoreProductIds,
 		String subStatus,
 		List<Id> newPriceableLineItemIds
+	) {
+		return finalizeDeviceEvaluationAfterPricing(
+			workOrderId,
+			originalTotal,
+			applyCompletion,
+			restoreProductIds,
+			subStatus,
+			newPriceableLineItemIds,
+			false
+		);
+	}
+
+	/**
+	 * @description GW-3377 - Runs Execute Pricing after WOLI DML has committed.
+	 *              priceOnNext moves the Complete Execute Pricing call to Next.
+	 * @param workOrderId Device Evaluation Work Order Id
+	 * @param originalTotal Repair Code net total from before the latest line save
+	 * @param applyCompletion True to apply Complete Status / Sub Status after pricing
+	 * @param restoreProductIds Repair Code Product Ids to restore when requote is blocked
+	 * @param subStatus Sub Status from the LWC (Outside Vendor complete is blocked)
+	 * @param newPriceableLineItemIds New priceable lines from the preceding save. Null prices every line.
+	 * @param priceOnNext True when Next should Execute Pricing before the user can Complete
+	 * @return Device Evaluation context after pricing
+	 */
+	public static DeviceEvaluationContext finalizeDeviceEvaluationAfterPricing(
+		Id workOrderId,
+		Decimal originalTotal,
+		Boolean applyCompletion,
+		List<Id> restoreProductIds,
+		String subStatus,
+		List<Id> newPriceableLineItemIds,
+		Boolean priceOnNext
 	) {
 		if (workOrderId == null) {
 			throw new WorkOrdersServiceException('Work Order is required.');
@@ -1040,10 +1064,13 @@ public with sharing class WorkOrdersService {
 				workOrder.Asset.Product2Id
 			);
 		Boolean requoteGate = WorkOrderRepairPricingService.requiresRequoteGate(workOrder);
-		Boolean shouldPrice =
-			requoteGate ||
-			(applyCompletion == true &&
-			WorkOrderRepairPricingService.shouldPriceBeforeStatusChange(workOrder));
+		Boolean shouldPrice = shouldExecuteRepairPricing(
+			workOrder,
+			requoteGate,
+			applyCompletion,
+			priceOnNext,
+			newPriceableLineItemIds
+		);
 		evaluationPersistSteps = new List<String>();
 		if (shouldPrice) {
 			evaluationPersistSteps.add('pricing');
@@ -1053,13 +1080,20 @@ public with sharing class WorkOrdersService {
 						workOrder,
 						requoteGate,
 						originalTotal,
-						applyCompletion == true,
-						requoteGate == true ? newPriceableLineItemIds : null
+						false,
+						priceLinesForRequest(requoteGate, applyCompletion, newPriceableLineItemIds)
 					);
 			} catch (Exception e) {
 				restoreDeviceEvaluationRepairCodes(workOrder, catalog, restoreProductIds);
 				throw e;
 			}
+		}
+		if (applyCompletion == true && requoteGate) {
+			WorkOrderRepairPricingService.assertRequoteAllowed(
+				workOrder,
+				originalTotal,
+				WorkOrderRepairPricingService.sumRepairCodeNetTotal(workOrder)
+			);
 		}
 
 		String priorStatus = workOrder.Status;
@@ -1100,7 +1134,26 @@ public with sharing class WorkOrdersService {
 			workOrderId,
 			originalTotal,
 			applyCompletion,
-			null
+			null,
+			false
+		);
+	}
+
+	/**
+	 * @description GW-3377 - Existing callers price on Complete. Next passes priceOnNext.
+	 */
+	public static void finalizeInstrumentEvaluationAfterPricing(
+		Id workOrderId,
+		Decimal originalTotal,
+		Boolean applyCompletion,
+		List<Id> newPriceableLineItemIds
+	) {
+		finalizeInstrumentEvaluationAfterPricing(
+			workOrderId,
+			originalTotal,
+			applyCompletion,
+			newPriceableLineItemIds,
+			false
 		);
 	}
 
@@ -1112,22 +1165,27 @@ public with sharing class WorkOrdersService {
 	 * @param originalTotal Repair Code net total from before the latest line save
 	 * @param applyCompletion True to apply Complete Status / Sub Status after pricing
 	 * @param newPriceableLineItemIds New priceable lines from the preceding save. Null prices every line.
+	 * @param priceOnNext True when Next should Execute Pricing before the user can Complete
 	 */
 	public static void finalizeInstrumentEvaluationAfterPricing(
 		Id workOrderId,
 		Decimal originalTotal,
 		Boolean applyCompletion,
-		List<Id> newPriceableLineItemIds
+		List<Id> newPriceableLineItemIds,
+		Boolean priceOnNext
 	) {
 		if (workOrderId == null) {
 			throw new WorkOrdersServiceException('Work Order is required.');
 		}
 		WorkOrder workOrder = requireInstrumentEvaluationWorkOrder(workOrderId);
 		Boolean requoteGate = WorkOrderRepairPricingService.requiresRequoteGate(workOrder);
-		Boolean shouldPrice =
-			requoteGate ||
-			(applyCompletion == true &&
-			WorkOrderRepairPricingService.shouldPriceBeforeStatusChange(workOrder));
+		Boolean shouldPrice = shouldExecuteRepairPricing(
+			workOrder,
+			requoteGate,
+			applyCompletion,
+			priceOnNext,
+			newPriceableLineItemIds
+		);
 		evaluationPersistSteps = new List<String>();
 		if (shouldPrice) {
 			evaluationPersistSteps.add('pricing');
@@ -1136,9 +1194,16 @@ public with sharing class WorkOrdersService {
 					workOrder,
 					requoteGate,
 					originalTotal,
-					applyCompletion == true,
-					requoteGate == true ? newPriceableLineItemIds : null
+					false,
+					priceLinesForRequest(requoteGate, applyCompletion, newPriceableLineItemIds)
 				);
+		}
+		if (applyCompletion == true && requoteGate) {
+			WorkOrderRepairPricingService.assertRequoteAllowed(
+				workOrder,
+				originalTotal,
+				WorkOrderRepairPricingService.sumRepairCodeNetTotal(workOrder)
+			);
 		}
 		if (applyCompletion == true) {
 			List<WorkOrderLineItem> existingLines =
@@ -1166,6 +1231,43 @@ public with sharing class WorkOrdersService {
 				);
 			}
 		}
+	}
+
+	/**
+	 * @description GW-3377 - Execute Pricing on Repair saves and on Next.
+	 *              Complete prices only lines inserted after Next, then checks the requote gate
+	 *              without another Oracle call when nothing new was inserted.
+	 */
+	private static Boolean shouldExecuteRepairPricing(
+		WorkOrder workOrder,
+		Boolean requoteGate,
+		Boolean applyCompletion,
+		Boolean priceOnNext,
+		List<Id> newPriceableLineItemIds
+	) {
+		Boolean hasNewLines = newPriceableLineItemIds != null && !newPriceableLineItemIds.isEmpty();
+		Boolean priceBeforeStatus = WorkOrderRepairPricingService.shouldPriceBeforeStatusChange(
+			workOrder
+		);
+		if (applyCompletion == true) {
+			return hasNewLines && (requoteGate == true || priceBeforeStatus);
+		}
+		return requoteGate == true || (priceOnNext == true && priceBeforeStatus);
+	}
+
+	/**
+	 * @description Null prices every line. A list prices only those new lines.
+	 *              Repair requote and Complete price the new lines. Next on Evaluate prices the order.
+	 */
+	private static List<Id> priceLinesForRequest(
+		Boolean requoteGate,
+		Boolean applyCompletion,
+		List<Id> newPriceableLineItemIds
+	) {
+		if (requoteGate == true || applyCompletion == true) {
+			return newPriceableLineItemIds;
+		}
+		return null;
 	}
 
 	/**

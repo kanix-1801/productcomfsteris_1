@@ -391,7 +391,30 @@ public with sharing class ReceivingFinishService {
 		result.workOrderId = woResult.navigationWorkOrderId;
 		result.parentWorkOrderId = woResult.parentWorkOrderId;
 		result.returnOrderFullyReceived = fullyReceived;
+		result.shouldPrintTravelTag = isTravelTagPrintEligible(woResult.navigationWorkOrderId);
 		return result;
+	}
+
+	/**
+	 * @description GW-5492 - Devices / Instruments WOs print Travel Tag from the LWC after
+	 *              Finish commits (callout cannot share the Finish DML transaction).
+	 * @param workOrderId Navigation / child Work Order Id
+	 * @return True when the LWC should invoke reprintWorkOrderTravelTag
+	 */
+	private static Boolean isTravelTagPrintEligible(Id workOrderId) {
+		if (workOrderId == null) {
+			return false;
+		}
+		WorkOrder workOrder = (WorkOrder) new WorkOrdersSelector()
+			.selectFields(new List<String>{ 'Id', 'RecordType.DeveloperName' })
+			.whereEquals('Id', workOrderId)
+			.first();
+		if (workOrder == null || workOrder.RecordType == null) {
+			return false;
+		}
+		String recordTypeDeveloperName = workOrder.RecordType.DeveloperName;
+		return recordTypeDeveloperName == RT_DEVICES
+			|| recordTypeDeveloperName == RT_INSTRUMENTS;
 	}
 
 	private static WorkOrdersService.ReceivingWorkOrderCreateResult createSerializedReceive(

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>67.0</apiVersion>
+    <description>GW-6407: Time tab (Travel and Labor lines) of the Work Order closure screen.</description>
+    <isExposed>false</isExposed>
+</LightningComponentBundle>

@@ -1,0 +1,183 @@
+<template>
+    <template lwc:if={hasNoSearchResults}>
+        <p class="no-search-results">No lines match your search.</p>
+    </template>
+
+    <template for:each={lineModels} for:item="line">
+        <div key={line.Id} class="slds-m-bottom_x-small">
+
+            <div class="woli-card">
+                <div class="woli-info" data-id={line.Id} onclick={handleEditToggle}>
+                    <div class="woli-description">{line.title}</div>
+                    <div class="woli-meta">{line.metaLine}</div>
+                    <template lwc:if={line.isDirty}>
+                        <span class="dirty-badge">Modified</span>
+                    </template>
+                </div>
+                <div class="woli-actions">
+                    <lightning-button-icon
+                        icon-name="utility:edit"
+                        alternative-text="Edit"
+                        title="Edit"
+                        variant="border-filled"
+                        size="medium"
+                        data-id={line.Id}
+                        onclick={handleEditToggle}>
+                    </lightning-button-icon>
+                </div>
+            </div>
+
+            <template lwc:if={line.isEditing}>
+                <div class="edit-form">
+
+                    <div class="field-grid">
+                        <div class="field-full">
+                            <lightning-combobox
+                                label="Line Type"
+                                value={line.editLineType}
+                                options={timeLineTypeOptions}
+                                required
+                                data-id={line.Id}
+                                data-field="lineType"
+                                onchange={handleEditFieldChange}>
+                            </lightning-combobox>
+                        </div>
+                        <div class="field-full">
+                            <lightning-record-picker
+                                label="Work Type"
+                                placeholder="Search work types…"
+                                object-api-name="WorkType"
+                                value={line.editWorkTypeId}
+                                data-id={line.Id}
+                                data-field="workTypeId"
+                                onchange={handleLookupChange}>
+                            </lightning-record-picker>
+                        </div>
+                        <div class="field-full">
+                            <lightning-record-picker
+                                label="Resource"
+                                placeholder="Search active resources…"
+                                object-api-name="ServiceResource"
+                                value={line.editAssignedResId}
+                                filter={resourcePickerFilter}
+                                display-info={resourcePickerDisplayInfo}
+                                matching-info={resourcePickerMatchingInfo}
+                                data-id={line.Id}
+                                data-field="assignedResourceId"
+                                onchange={handleLookupChange}>
+                            </lightning-record-picker>
+                        </div>
+                        <div class="field-full">
+                            <lightning-input
+                                label="Start Time"
+                                type="datetime"
+                                value={line.editStartDate}
+                                required
+                                data-id={line.Id}
+                                data-field="startDate"
+                                onchange={handleEditFieldChange}>
+                            </lightning-input>
+                        </div>
+                        <div class="field-full">
+                            <lightning-input
+                                label="Duration (Hours)"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={line.editDurationHours}
+                                required
+                                data-id={line.Id}
+                                data-field="durationHours"
+                                onchange={handleEditFieldChange}>
+                            </lightning-input>
+                        </div>
+                        <div class="field-full">
+                            <lightning-input
+                                label="End Time"
+                                type="datetime"
+                                value={line.editEndDate}
+                                required
+                                data-id={line.Id}
+                                data-field="endDate"
+                                onchange={handleEditFieldChange}>
+                            </lightning-input>
+                        </div>
+                        <template lwc:if={line.isTravelLine}>
+                            <div class="field-full">
+                                <lightning-combobox
+                                    label="Travel Type"
+                                    value={line.editTravelType}
+                                    options={travelTypeOptions}
+                                    required
+                                    data-id={line.Id}
+                                    data-field="travelType"
+                                    onchange={handleEditFieldChange}>
+                                </lightning-combobox>
+                            </div>
+                        </template>
+                        <template lwc:if={line.showRateField}>
+                            <div class="field-full">
+                                <lightning-combobox
+                                    label="Rate"
+                                    value={line.editRate}
+                                    options={line.editRateOptions}
+                                    required={line.isRateRequired}
+                                    data-id={line.Id}
+                                    data-field="rate"
+                                    onchange={handleEditFieldChange}>
+                                </lightning-combobox>
+                            </div>
+                        </template>
+                        <template lwc:if={line.isTravelLine}>
+                            <div class="field-full read-only-field">
+                                <div class="read-only-label">List Price</div>
+                                <div class="read-only-value">{line.editListPriceLabel}</div>
+                            </div>
+                            <div class="field-full read-only-field">
+                                <div class="read-only-label">Unit Price</div>
+                                <div class="read-only-value">{line.editUnitPriceLabel}</div>
+                            </div>
+                            <div class="field-full read-only-field">
+                                <div class="read-only-label">Total Price</div>
+                                <div class="read-only-value">{line.editTotalPriceLabel}</div>
+                            </div>
+                        </template>
+                        <template lwc:if={line.isLaborLine}>
+                            <div class="field-full read-only-field">
+                                <div class="read-only-label">List Price</div>
+                                <div class="read-only-value">{line.editListPriceLabel}</div>
+                            </div>
+                            <div class="field-full read-only-field">
+                                <div class="read-only-label">Unit Price</div>
+                                <div class="read-only-value">{line.editUnitPriceLabel}</div>
+                            </div>
+                            <div class="field-full read-only-field">
+                                <div class="read-only-label">Total Price</div>
+                                <div class="read-only-value">{line.editTotalPriceLabel}</div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <template lwc:if={line.editError}>
+                        <p class="error-text">{line.editError}</p>
+                    </template>
+                    <div class="form-actions">
+                        <template lwc:if={line.isDirty}>
+                            <lightning-button
+                                label="Cancel Changes"
+                                data-id={line.Id}
+                                onclick={handleRevertLine}>
+                            </lightning-button>
+                        </template>
+                        <lightning-button
+                            label="Close"
+                            data-id={line.Id}
+                            onclick={handleEditClose}>
+                        </lightning-button>
+                    </div>
+                </div>
+            </template>
+
+        </div>
+    </template>
+</template>

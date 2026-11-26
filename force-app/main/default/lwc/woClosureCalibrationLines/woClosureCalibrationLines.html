@@ -1,0 +1,86 @@
+<template>
+    <template lwc:if={hasNoSearchResults}>
+        <p class="no-search-results">No lines match your search.</p>
+    </template>
+
+    <template for:each={lineModels} for:item="line">
+        <div key={line.Id} class="slds-m-bottom_x-small">
+
+            <div class="woli-card">
+                <div class="woli-info" data-id={line.Id} onclick={handleEditToggle}>
+                    <div class="woli-description">{line.title}</div>
+                    <div class="woli-meta">{line.metaLine}</div>
+                    <template lwc:if={line.isDirty}>
+                        <span class="dirty-badge">Modified</span>
+                    </template>
+                </div>
+                <div class="woli-actions">
+                    <lightning-button-icon
+                        icon-name="utility:edit"
+                        alternative-text="Edit"
+                        title="Edit"
+                        variant="border-filled"
+                        size="medium"
+                        data-id={line.Id}
+                        onclick={handleEditToggle}>
+                    </lightning-button-icon>
+                </div>
+            </div>
+
+            <template lwc:if={line.isEditing}>
+                <div class="edit-form">
+
+                    <div class="field-grid">
+                        <div class="field-full">
+                            <lightning-record-picker
+                                label="Resource"
+                                placeholder="Search active resources…"
+                                object-api-name="ServiceResource"
+                                value={line.editAssignedResId}
+                                filter={resourcePickerFilter}
+                                display-info={resourcePickerDisplayInfo}
+                                matching-info={resourcePickerMatchingInfo}
+                                data-id={line.Id}
+                                data-field="assignedResourceId"
+                                onchange={handleLookupChange}>
+                            </lightning-record-picker>
+                        </div>
+                        <div class="field-full">
+                            <lightning-record-picker
+                                label="Asset"
+                                placeholder="Search by serial number or name…"
+                                object-api-name="Asset"
+                                value={line.editAssetId}
+                                filter={calibrationAssetPickerFilter}
+                                display-info={assetPickerDisplayInfo}
+                                matching-info={assetPickerMatchingInfo}
+                                data-id={line.Id}
+                                data-field="assetId"
+                                onchange={handleLookupChange}>
+                            </lightning-record-picker>
+                        </div>
+                    </div>
+
+                    <template lwc:if={line.editError}>
+                        <p class="error-text">{line.editError}</p>
+                    </template>
+                    <div class="form-actions">
+                        <template lwc:if={line.isDirty}>
+                            <lightning-button
+                                label="Cancel Changes"
+                                data-id={line.Id}
+                                onclick={handleRevertLine}>
+                            </lightning-button>
+                        </template>
+                        <lightning-button
+                            label="Close"
+                            data-id={line.Id}
+                            onclick={handleEditClose}>
+                        </lightning-button>
+                    </div>
+                </div>
+            </template>
+
+        </div>
+    </template>
+</template>

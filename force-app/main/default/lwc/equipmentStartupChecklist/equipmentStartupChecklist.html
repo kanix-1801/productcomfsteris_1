@@ -1,0 +1,96 @@
+<template>
+  <div class="checklist">
+    <header class="checklist-header">
+      <h1 class="checklist-title">{title}</h1>
+    </header>
+
+    <template for:each={sections} for:item="section">
+      <section key={section.key} class="section">
+        <template lwc:if={section.hasTitle}>
+          <h2 class="section-title">{section.title}</h2>
+        </template>
+
+        <template for:each={section.items} for:item="item">
+          <div key={item.key} class={item.cardClass} data-card={item.id}>
+            <template lwc:if={item.isInfo}>
+              <p class="info-title">{item.title}</p>
+              <template for:each={item.lines} for:item="line">
+                <p key={line.key} class="info-line">{line.text}</p>
+              </template>
+            </template>
+
+            <template lwc:elseif={item.isNotice}>
+              <p class="notice-title">{item.title}</p>
+              <template for:each={item.lines} for:item="line">
+                <p key={line.key} class="notice-line">{line.text}</p>
+              </template>
+            </template>
+
+            <template lwc:elseif={item.isRadio}>
+              <p class="question-label" id={item.id}>
+                {item.label}<template lwc:if={item.required}
+                  ><abbr class="required" title="required">*</abbr></template
+                >
+              </p>
+              <div class="options" role="radiogroup" aria-labelledby={item.id}>
+                <template for:each={item.options} for:item="option">
+                  <button
+                    key={option.key}
+                    type="button"
+                    class={option.cssClass}
+                    role="radio"
+                    aria-checked={option.checked}
+                    data-id={item.id}
+                    data-value={option.value}
+                    onclick={handleOptionSelect}
+                  >
+                    <span class="option-circle"></span>
+                    <span class="option-label">{option.value}</span>
+                  </button>
+                </template>
+              </div>
+            </template>
+
+            <template lwc:elseif={item.isNumber}>
+              <label class="question-label" for={item.inputId}>
+                {item.label}<template lwc:if={item.required}
+                  ><abbr class="required" title="required">*</abbr></template
+                >
+              </label>
+              <input
+                id={item.inputId}
+                class={item.inputClass}
+                type="number"
+                inputmode="decimal"
+                step="any"
+                value={item.value}
+                data-id={item.id}
+                onchange={handleNumberChange}
+              />
+              <template lwc:if={item.outOfSpec}>
+                <p class="out-of-spec">
+                  Out of spec (expected {item.rangeText}). Select a disposition
+                  below.
+                </p>
+              </template>
+            </template>
+
+            <template lwc:if={item.hasError}>
+              <p class="error-text">This answer is required.</p>
+            </template>
+          </div>
+        </template>
+      </section>
+    </template>
+
+    <footer class="checklist-footer">
+      <button
+        type="button"
+        class="footer-button footer-button_primary"
+        onclick={handleSubmit}
+      >
+        Submit
+      </button>
+    </footer>
+  </div>
+</template>

@@ -13,6 +13,11 @@ private class DealerOpportunityControllerTest {
     @TestSetup
     static void setupData() {
         TestDataFactory.bypassDealerOpportunityTrigger();
+        // GC-3666. Most fixtures use a ship date before the close date, so the new rule is off here and tested separately.
+        insert new Automation_Setting_Validation_Rule__c(
+            SetupOwnerId = UserInfo.getOrganizationId(),
+            OPP_093_CloseNotAfterShipDateDealer__c = true
+        );
 
         Account dealerAccount = TestDataFactory.insertDealerAccount('Authorized Dealer Midwest');
         User dealerManager = TestDataFactory.insertDealerUser('Dana', 'Manager', 'dmgr');
@@ -38,9 +43,53 @@ private class DealerOpportunityControllerTest {
         Assert.areEqual(3, response.summary.openCount, 'Evaluation, Proposal, and Commit are open.');
         Assert.areEqual(58950, response.summary.openPipelineValue.intValue(), 'Open value should be converted USD.');
         Assert.areEqual(1, response.summary.closedWonCount, 'Closed Won should be counted separately.');
-        Assert.areEqual(2, response.pastDueOpportunities.size(), 'Only open opportunities with a ship date before today are past due.');
+        Assert.areEqual(2, response.pastDueOpportunities.size(), 'Only open opportunities with a Close Date or ship date before today are past due.');
         Assert.isFalse(response.recentOpportunities.isEmpty(), 'Recent opportunities should be returned.');
         Assert.areEqual(0, discoveryCount(response.summary), 'Discovery is not a dealer stage metric.');
+    }
+
+    @IsTest
+    static void getHomeCountsOpportunitiesClosingInNext90Days() {
+        Account dealerAccount = [SELECT Id FROM Account WHERE Name = 'Authorized Dealer Midwest' LIMIT 1];
+        TestDataFactory.insertDealerOpportunities(new List<Opportunity>{
+            TestDataFactory.buildDealerOpportunity(dealerAccount.Id, 'Closing Soon', 'Evaluation', 1000, Date.today().addDays(89), Date.today().addDays(100)),
+            TestDataFactory.buildDealerOpportunity(dealerAccount.Id, 'Closing Later', 'Evaluation', 1000, Date.today().addDays(120), Date.today().addDays(130))
+        });
+
+        Test.startTest();
+        DealerOpportunityController.HomeResponse response = DealerOpportunityController.getHome();
+        Test.stopTest();
+
+        Assert.areEqual(4, response.closingSoonOpportunities.size(), 'Three open setup opportunities and Closing Soon close within 90 days; Closing Later and the Closed Won one do not.');
+        Assert.areEqual('Recent Hospital Project', response.closingSoonOpportunities[0].name, 'The soonest Close Date is listed first.');
+    }
+
+    @IsTest
+    static void pastDueUsesCloseDateOrShipDate() {
+        Automation_Setting_Validation_Rule__c ruleSettings = Automation_Setting_Validation_Rule__c.getOrgDefaults();
+        ruleSettings.Opportunity_Close_Date_Must_Be_Future__c = true;
+        update ruleSettings;
+        Account dealerAccount = [SELECT Id FROM Account WHERE Name = 'Authorized Dealer Midwest' LIMIT 1];
+        Opportunity closeOnly = TestDataFactory.buildDealerOpportunity(dealerAccount.Id, 'Close Only', 'Evaluation', 1000, Date.today().addDays(-2), Date.today().addDays(10));
+        Opportunity shipOnly = TestDataFactory.buildDealerOpportunity(dealerAccount.Id, 'Ship Only', 'Evaluation', 1000, Date.today().addDays(10), Date.today().addDays(-2));
+        Opportunity both = TestDataFactory.buildDealerOpportunity(dealerAccount.Id, 'Both', 'Evaluation', 1000, Date.today().addDays(-3), Date.today().addDays(-1));
+        Opportunity neither = TestDataFactory.buildDealerOpportunity(dealerAccount.Id, 'Neither', 'Evaluation', 1000, Date.today().addDays(10), Date.today().addDays(20));
+        Opportunity noShipDate = TestDataFactory.buildDealerOpportunity(dealerAccount.Id, 'No Ship Date', 'Evaluation', 1000, Date.today().addDays(10), null);
+        TestDataFactory.insertDealerOpportunities(new List<Opportunity>{ closeOnly, shipOnly, both, neither, noShipDate });
+        DealerOpportunitySelector.OpportunityFilter pastDueFilter = new DealerOpportunitySelector.OpportunityFilter();
+        pastDueFilter.pastDueOnly = true;
+
+        Test.startTest();
+        Map<Id, Opportunity> pastDue = new Map<Id, Opportunity>(DealerOpportunitySelector.selectPastDue(50));
+        Integer filteredCount = DealerOpportunitySelector.countByFilter(pastDueFilter);
+        Test.stopTest();
+
+        Assert.isTrue(pastDue.containsKey(closeOnly.Id), 'A past Close Date alone makes the opportunity past due.');
+        Assert.isTrue(pastDue.containsKey(shipOnly.Id), 'A past ship date alone makes the opportunity past due.');
+        Assert.isTrue(pastDue.containsKey(both.Id), 'Both dates in the past is past due once.');
+        Assert.isFalse(pastDue.containsKey(neither.Id), 'Two future dates are not past due.');
+        Assert.isFalse(pastDue.containsKey(noShipDate.Id), 'A blank ship date with a future Close Date is not past due.');
+        Assert.areEqual(pastDue.size(), filteredCount, 'The workspace filter and the home list should agree.');
     }
 
     @IsTest
@@ -283,7 +332,7 @@ private class DealerOpportunityControllerTest {
         Assert.areEqual(1, matched.totalCount, 'The combined filter should return the commit opportunity.');
         Assert.areEqual('Future Ship Project', matched.opportunities[0].name, 'The commit opportunity should be returned.');
         Assert.areEqual(50, matched.pageSize, 'Page size should be capped at the maximum.');
-        Assert.areEqual(2, pastDue.totalCount, 'Past due should return the two open opportunities with an earlier ship date.');
+        Assert.areEqual(2, pastDue.totalCount, 'Past due should return the two open opportunities with an earlier Close Date or ship date.');
         Assert.areEqual(0, ignoredDates.opportunities.size(), 'An unusable search on a far page returns no rows.');
     }
 
@@ -333,6 +382,7 @@ private class DealerOpportunityControllerTest {
         assertCreateRejected(validRequest.replace('"Proposal"', '"Discovery"'), 'Select a stage');
         assertCreateRejected(validRequest.replace('"amount":18000', '"amount":-1'), 'Amount is required.');
         assertCreateRejected(validRequest.replace('"closeDate":"' + String.valueOf(Date.today().addDays(30)) + '"', '"closeDate":"not-a-date"'), 'Close Date');
+        assertCreateRejected(validRequest.replace('"closeDate":"' + String.valueOf(Date.today().addDays(30)) + '"', '"closeDate":"' + String.valueOf(Date.today().addDays(50)) + '"'), 'cannot be after the Expected Ship Date');
         assertCreateRejected(createRequest(activeBusinessUnit(), 'USD', null), 'Select a dealer account.');
         assertCreateRejected(createRequest(activeBusinessUnit(), 'USD', 'not-an-id'), 'Select a valid dealer account.');
         assertCreateRejected(createRequest(activeBusinessUnit(), 'USD', '001000000000000AAA'), 'Select a valid dealer account.');
@@ -349,6 +399,23 @@ private class DealerOpportunityControllerTest {
         ];
         Assert.areEqual('USD', createdOpportunity.CurrencyIsoCode, 'A blank currency should default to USD.');
         Assert.areEqual(activeBusinessUnit(), createdOpportunity.HCBusinessUnit__c, 'Duplicate business units should be stored once.');
+    }
+
+    @IsTest
+    static void validationRuleBlocksCloseDateAfterShipDate() {
+        Automation_Setting_Validation_Rule__c ruleSettings = Automation_Setting_Validation_Rule__c.getOrgDefaults();
+        ruleSettings.OPP_093_CloseNotAfterShipDateDealer__c = false;
+        update ruleSettings;
+        Account dealerAccount = [SELECT Id FROM Account WHERE Name = 'Authorized Dealer Midwest' LIMIT 1];
+        Opportunity lateClose = TestDataFactory.buildDealerOpportunity(dealerAccount.Id, 'Late Close', 'Evaluation', 1000, Date.today().addDays(20), Date.today().addDays(10));
+        Opportunity validDates = TestDataFactory.buildDealerOpportunity(dealerAccount.Id, 'Valid Dates', 'Evaluation', 1000, Date.today().addDays(10), Date.today().addDays(20));
+
+        Database.SaveResult lateResult = Database.insert(lateClose, false);
+        Database.SaveResult validResult = Database.insert(validDates, false);
+
+        Assert.isFalse(lateResult.isSuccess(), 'A Close Date after the Expected Ship Date should be blocked.');
+        Assert.isTrue(lateResult.getErrors()[0].getMessage().contains('cannot be after the Expected Ship Date'), 'The rule message should explain the problem.');
+        Assert.isTrue(validResult.isSuccess(), 'A Close Date before the Expected Ship Date should save.');
     }
 
     @IsTest

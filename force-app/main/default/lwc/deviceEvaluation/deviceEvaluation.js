@@ -11,15 +11,13 @@ import saveEvaluation from '@salesforce/apex/DeviceEvaluationController.saveEval
 import getModifierWorkspace from '@salesforce/apex/ModifierCodesController.getWorkspace';
 import saveModifier from '@salesforce/apex/ModifierCodesController.saveModifier';
 import removeModifier from '@salesforce/apex/ModifierCodesController.removeModifier';
-import completeEvaluation from '@salesforce/apex/DeviceEvaluationController.completeEvaluation';
+import finalizeDeviceEvaluationAfterPricing from '@salesforce/apex/DeviceEvaluationController.finalizeDeviceEvaluationAfterPricing';
 import getEvaluationPhotos from '@salesforce/apex/EvaluationPhotosController.getPhotos';
 import getCioEvaluations from '@salesforce/apex/CIOEvaluationsController.getEvaluations';
 import returnToEvaluation from '@salesforce/apex/DeviceEvaluationController.returnToEvaluation';
 import addRepairSignature from '@salesforce/apex/DeviceEvaluationController.addRepairSignature';
 import signAllRepairCodes from '@salesforce/apex/DeviceEvaluationController.signAllRepairCodes';
 import removeRepairSignature from '@salesforce/apex/DeviceEvaluationController.removeRepairSignature';
-// GW-3377 backed out: Execute Pricing and the requote warning stay off.
-// import finalizeDeviceEvaluationAfterPricing from '@salesforce/apex/DeviceEvaluationController.finalizeDeviceEvaluationAfterPricing';
 
 const MODE_SCAN = 'scan';
 const MODE_EVALUATION = 'evaluation';
@@ -104,6 +102,8 @@ export default class DeviceEvaluation extends LightningElement {
     isLoading = false;
     errorMessage = '';
     workspaceError = '';
+    /** GW-3377 - Stays visible while the updated repair cost is above the approved price. */
+    requoteBannerMessage = '';
     activeTab = TAB_WO_DETAILS;
     fileAccept = FILE_ACCEPT;
 
@@ -200,10 +200,14 @@ export default class DeviceEvaluation extends LightningElement {
     }
 
     /**
-     * GW-3377 backed out. Current / Updated Repair Cost stay hidden.
+     * GW-3377 - Current / Updated Repair Cost while Status is Repair.
      */
     get showRepairCostHeader() {
-        return false;
+        return this.isWorkspaceMode && this.isRepairStatus;
+    }
+
+    get showRequoteBanner() {
+        return !!this.requoteBannerMessage;
     }
 
     get currentRepairCostDisplay() {
@@ -1136,24 +1140,55 @@ export default class DeviceEvaluation extends LightningElement {
     }
 
     /**
-     * GW-3377 backed out. Requote gate is not evaluated on save.
+     * GW-3377 - Repair requote pricing runs after a committed line save.
      */
     get needsRepairPricing() {
-        return false;
+        return (
+            this.isRepairStatus &&
+            (this.evaluation?.estimateRequired === ESTIMATE_REQUIRED ||
+                this.evaluation?.customerPORequired === true)
+        );
     }
 
-    async persistThenPrice({ applyCompletion }) {
-        // GW-3377 backed out: do not Execute Pricing or show the requote warning.
-        // Complete still applies Status / Sub Status through completeEvaluation.
-        if (applyCompletion === true) {
-            await completeEvaluation({
-                ...this.buildEvaluationPayload(),
-                contaminationJson: JSON.stringify(this.buildContaminationPayload())
+    async persistThenPrice({ applyCompletion, priceOnNext = false }) {
+        try {
+            const workspace = await this.persistEvaluationDraft();
+            const shouldFinalize =
+                applyCompletion === true || priceOnNext === true || this.needsRepairPricing;
+            if (!shouldFinalize) {
+                this.applyRequoteBanner(workspace);
+                return workspace;
+            }
+            const priced = await finalizeDeviceEvaluationAfterPricing({
+                workOrderId: this.evaluation.workOrderId,
+                originalNetTotal: workspace?.originalNetTotalPrice,
+                applyCompletion: applyCompletion === true,
+                restoreProductIds: this.lastPersistedProductIds,
+                subStatus: this.evaluation?.subStatus,
+                newPriceableLineItemIds: workspace?.newPriceableLineItemIds || [],
+                priceOnNext: priceOnNext === true
             });
-            await this.applyStagedModifierChoices();
+            this.applyWorkspace(priced, true);
+            this.applyRequoteBanner(priced);
+            return priced;
+        } catch (error) {
+            this.rememberRequoteFailure(error);
+            throw error;
+        }
+    }
+
+    applyRequoteBanner(result) {
+        if (!result || !Object.prototype.hasOwnProperty.call(result, 'requoteWarning')) {
             return;
         }
-        await this.persistEvaluationDraft();
+        this.requoteBannerMessage = result.requoteWarning || '';
+    }
+
+    rememberRequoteFailure(error) {
+        const message = this.resolveErrorMessage(error, '');
+        if (message && message.includes('cost of repair has increased')) {
+            this.requoteBannerMessage = message;
+        }
     }
 
     async handleQuickSave() {
@@ -1271,8 +1306,23 @@ export default class DeviceEvaluation extends LightningElement {
         if (!cioOk) {
             return;
         }
-        this.mode = MODE_SUMMARY;
-        this.handleClosePhotoModal();
+        this.isSaving = true;
+        this.workspaceError = '';
+        try {
+            await this.persistThenPrice({ applyCompletion: false, priceOnNext: true });
+            if (this.requoteBannerMessage) {
+                return;
+            }
+            this.mode = MODE_SUMMARY;
+            this.handleClosePhotoModal();
+        } catch (error) {
+            this.workspaceError = this.resolveErrorMessage(
+                error,
+                'Unable to save evaluation progress.'
+            );
+        } finally {
+            this.isSaving = false;
+        }
     }
 
     handleContinueEvaluation() {
@@ -1307,6 +1357,11 @@ export default class DeviceEvaluation extends LightningElement {
 
     async handleComplete() {
         if (this.isActionBusy || !this.evaluation?.workOrderId) {
+            return;
+        }
+        if (this.requoteBannerMessage) {
+            this.workspaceError = this.requoteBannerMessage;
+            this.mode = MODE_EVALUATION;
             return;
         }
 
@@ -1364,6 +1419,9 @@ export default class DeviceEvaluation extends LightningElement {
                 error,
                 this.getCompleteFailureMessage()
             );
+            if (this.requoteBannerMessage) {
+                this.mode = MODE_EVALUATION;
+            }
         } finally {
             this.isCompleting = false;
         }
@@ -1379,6 +1437,7 @@ export default class DeviceEvaluation extends LightningElement {
         this.deletingDocumentIds = new Set();
         this.thumbnailFallbackIds = new Set();
         this.workspaceError = '';
+        this.requoteBannerMessage = '';
         this.errorMessage = '';
         this.workOrderNumber = '';
         this.activeTab = TAB_WO_DETAILS;

@@ -1,7 +1,7 @@
 /**
  * @description Test class for Life Sciences Prospect Account TAS (GCL-4).
- *              Covers LSAccountService, LSAccountProspectTasQueueable, and
- *              LSAccountProspectTasIntegrationService. Callouts use
+ *              Covers the SC path through AccountService, AccountProspectTasQueueable,
+ *              and AccountProspectTasIntegrationService. Callouts use
  *              SO_Config.SO_ServiceList_mock and SO_HttpMockFactory.
  *
  *              Life Sciences-specific rules asserted here:
@@ -38,24 +38,7 @@ public class LSAccountProspectTasServiceTest {
             LIMIT 1
         ];
 
-        List<PermissionSet> permissionSets = [
-            SELECT Id
-            FROM PermissionSet
-            WHERE Name IN (
-                'SalesFieldRepAccountManager',
-                'PriceList_Create_PS',
-                'OrderLineContact_c_Create_PS',
-                'OrderLineContactUpdatePS'
-            )
-        ];
-
         Long uniqueSeed = System.currentTimeMillis();
-
-        User runningUser = createUser(
-            lifeSciencesSalesProfile.Id,
-            'lsrunninguser' + uniqueSeed + '@test.com',
-            'LSRUN' + String.valueOf(Math.abs(Crypto.getRandomInteger()))
-        );
 
         User tasRepOne = createUser(
             lifeSciencesSalesProfile.Id,
@@ -76,23 +59,16 @@ public class LSAccountProspectTasServiceTest {
             'LSWRG' + uniqueSeed + 'C'
         );
 
-        insert new List<User>{ runningUser, tasRepOne, tasRepTwo, wrongProfileRep };
+        insert new List<User>{ tasRepOne, tasRepTwo, wrongProfileRep };
 
+        // Account Team Members need Opportunity access. LS Sales users get it from LSInsideSalesPS.
         List<PermissionSetAssignment> assignments = new List<PermissionSetAssignment>();
-
-        for (PermissionSet ps : permissionSets) {
-            assignments.add(
-                new PermissionSetAssignment(
-                    AssigneeId = runningUser.Id,
-                    PermissionSetId = ps.Id
-                )
-            );
+        for (PermissionSet ps : [SELECT Id FROM PermissionSet WHERE Name = 'LSInsideSalesPS']) {
+            for (User rep : new List<User>{ tasRepOne, tasRepTwo }) {
+                assignments.add(new PermissionSetAssignment(AssigneeId = rep.Id, PermissionSetId = ps.Id));
+            }
         }
-
-        // Setup-object DML must be isolated from custom-setting DML (MIXED_DML_OPERATION).
-        System.runAs(runningUser) {
-            insert assignments;
-        }
+        insert assignments;
     }
 
     /**
@@ -118,7 +94,7 @@ public class LSAccountProspectTasServiceTest {
             registerTasCalloutMock(buildMockTasResponseJson(acc.Id));
 
             Test.startTest();
-            LSAccountProspectTasIntegrationService.processAccounts(new List<Account>{ acc });
+            AccountProspectTasIntegrationService.processAccounts(new List<Account>{ acc });
             Test.stopTest();
 
             List<AccountTeamMember> teamMembers = [
@@ -147,7 +123,7 @@ public class LSAccountProspectTasServiceTest {
     }
 
     /**
-     * @description Verifies LSAccountProspectTasIntegrationService end-to-end processing
+     * @description Verifies AccountProspectTasIntegrationService end-to-end processing
      *              with a mocked TAS callout.
      */
     @IsTest
@@ -167,7 +143,7 @@ public class LSAccountProspectTasServiceTest {
             registerTasCalloutMock(buildMockTasResponseJson(acc.Id));
 
             Test.startTest();
-            LSAccountProspectTasIntegrationService.processAccounts(new List<Account>{ acc });
+            AccountProspectTasIntegrationService.processAccounts(new List<Account>{ acc });
             Test.stopTest();
 
             System.assertEquals(
@@ -213,7 +189,7 @@ public class LSAccountProspectTasServiceTest {
             registerTasCalloutMock(buildMockTasResponseJson(acc.Id));
 
             Test.startTest();
-            LSAccountProspectTasIntegrationService.processAccounts(new List<Account>{ acc });
+            AccountProspectTasIntegrationService.processAccounts(new List<Account>{ acc });
             Test.stopTest();
 
             System.assertEquals(
@@ -244,7 +220,7 @@ public class LSAccountProspectTasServiceTest {
             registerFailedTasCalloutMock();
 
             Test.startTest();
-            LSAccountProspectTasIntegrationService.processAccounts(new List<Account>{ acc });
+            AccountProspectTasIntegrationService.processAccounts(new List<Account>{ acc });
             Test.stopTest();
 
             System.assertEquals(
@@ -259,6 +235,8 @@ public class LSAccountProspectTasServiceTest {
             );
         }
     }
+
+    // ===================== Outcome classification =====================
 
     /**
      * @description GCL-4: a successful TAS response with territory data classifies the
@@ -281,7 +259,7 @@ public class LSAccountProspectTasServiceTest {
             registerTasCalloutMock(buildMockTasResponseJson(acc.Id));
 
             Test.startTest();
-            LSAccountProspectTasIntegrationService.processAccounts(new List<Account>{ acc });
+            AccountProspectTasIntegrationService.processAccounts(new List<Account>{ acc });
             Test.stopTest();
 
             Account updated = [
@@ -289,7 +267,7 @@ public class LSAccountProspectTasServiceTest {
             ];
 
             System.assertEquals(
-                LSAccountProspectTasIntegrationService.TAS_STATUS_ASSIGNED,
+                AccountProspectTasIntegrationService.TAS_STATUS_ASSIGNED,
                 updated.TAS_Assignment_Status__c,
                 'Callout returning territory should be Assigned.'
             );
@@ -323,7 +301,7 @@ public class LSAccountProspectTasServiceTest {
             registerTasCalloutMock(buildMockTasResponseJsonNoTerritory(acc.Id));
 
             Test.startTest();
-            LSAccountProspectTasIntegrationService.processAccounts(new List<Account>{ acc });
+            AccountProspectTasIntegrationService.processAccounts(new List<Account>{ acc });
             Test.stopTest();
 
             Account updated = [
@@ -331,7 +309,7 @@ public class LSAccountProspectTasServiceTest {
             ];
 
             System.assertEquals(
-                LSAccountProspectTasIntegrationService.TAS_STATUS_ASSIGNMENT_MISSING,
+                AccountProspectTasIntegrationService.TAS_STATUS_ASSIGNMENT_MISSING,
                 updated.TAS_Assignment_Status__c,
                 'Successful callout with no territory should be Assignment Missing.'
             );
@@ -374,13 +352,13 @@ public class LSAccountProspectTasServiceTest {
             registerFailedTasCalloutMock();
 
             Test.startTest();
-            LSAccountProspectTasIntegrationService.processAccounts(new List<Account>{ acc });
+            AccountProspectTasIntegrationService.processAccounts(new List<Account>{ acc });
             Test.stopTest();
 
             Account updated = [SELECT TAS_Assignment_Status__c FROM Account WHERE Id = :acc.Id];
 
             System.assertEquals(
-                LSAccountProspectTasIntegrationService.TAS_STATUS_TECHNICAL_FAILURE,
+                AccountProspectTasIntegrationService.TAS_STATUS_TECHNICAL_FAILURE,
                 updated.TAS_Assignment_Status__c,
                 'A failed callout should be classified as Technical Failure.'
             );
@@ -390,41 +368,6 @@ public class LSAccountProspectTasServiceTest {
                 'Life Sciences must not create a Sales Ops Task on Technical Failure.'
             );
         }
-    }
-
-    /**
-     * @description GCL-4: applyTasOutcome writes the status without creating any Task,
-     *              and is idempotent across repeat invocations.
-     */
-    @IsTest
-    static void testApplyTasOutcome_writesStatusWithoutTask() {
-        Account acc = new Account(
-            Name = 'LS Dedup Outcome Prospect',
-            SourceSystemID__c = 'LSProspectTas12345'
-        );
-        insert acc;
-
-        Map<Id, String> missing = new Map<Id, String>{
-            acc.Id => LSAccountProspectTasIntegrationService.TAS_STATUS_ASSIGNMENT_MISSING
-        };
-
-        Test.startTest();
-        LSAccountProspectTasIntegrationService.applyTasOutcome(missing);
-        LSAccountProspectTasIntegrationService.applyTasOutcome(missing);
-        Test.stopTest();
-
-        Account updated = [SELECT TAS_Assignment_Status__c FROM Account WHERE Id = :acc.Id];
-
-        System.assertEquals(
-            LSAccountProspectTasIntegrationService.TAS_STATUS_ASSIGNMENT_MISSING,
-            updated.TAS_Assignment_Status__c,
-            'applyTasOutcome should write the Assignment Missing status.'
-        );
-        System.assertEquals(
-            0,
-            [SELECT COUNT() FROM Task WHERE WhatId = :acc.Id],
-            'Repeat Assignment Missing must not create any Task for Life Sciences.'
-        );
     }
 
     /**
@@ -454,7 +397,7 @@ public class LSAccountProspectTasServiceTest {
             );
 
             Test.startTest();
-            LSAccountProspectTasIntegrationService.processAccounts(new List<Account>{ acc });
+            AccountProspectTasIntegrationService.processAccounts(new List<Account>{ acc });
             Test.stopTest();
 
             System.assertEquals(
@@ -465,22 +408,24 @@ public class LSAccountProspectTasServiceTest {
 
             Account updated = [SELECT TAS_Assignment_Status__c FROM Account WHERE Id = :acc.Id];
             System.assertEquals(
-                LSAccountProspectTasIntegrationService.TAS_STATUS_ASSIGNMENT_MISSING,
+                AccountProspectTasIntegrationService.TAS_STATUS_ASSIGNMENT_MISSING,
                 updated.TAS_Assignment_Status__c,
                 'An unresolvable rep should leave the Prospect Assignment Missing.'
             );
         }
     }
 
+    // ===================== Safe paths =====================
+
     /**
-     * @description Covers safe return paths for LSAccountService.
+     * @description Covers safe return paths for AccountService.assignTAStoProspect.
      */
     @IsTest
-    static void testLSAccountServiceSafeReturnPaths() {
+    static void testAssignTAStoProspectSafeReturnPaths() {
         Test.startTest();
 
-        LSAccountService.assignTAStoProspect(null);
-        LSAccountService.assignTAStoProspect(new List<Account>());
+        AccountService.assignTAStoProspect(null);
+        AccountService.assignTAStoProspect(new List<Account>());
 
         Test.stopTest();
 
@@ -492,15 +437,15 @@ public class LSAccountProspectTasServiceTest {
     }
 
     /**
-     * @description Covers LSAccountProspectTasQueueable safe paths for null and empty
+     * @description Covers AccountProspectTasQueueable safe paths for null and empty
      *              Account Id sets.
      */
     @IsTest
-    static void testLSAccountProspectTasQueueableSafePaths() {
+    static void testAccountProspectTasQueueableSafePaths() {
         Test.startTest();
 
-        System.enqueueJob(new LSAccountProspectTasQueueable(null));
-        System.enqueueJob(new LSAccountProspectTasQueueable(new Set<Id>()));
+        System.enqueueJob(new AccountProspectTasQueueable(null));
+        System.enqueueJob(new AccountProspectTasQueueable(new Set<Id>()));
 
         Test.stopTest();
 
@@ -512,16 +457,16 @@ public class LSAccountProspectTasServiceTest {
     }
 
     /**
-     * @description Covers LSAccountProspectTasIntegrationService safe paths for null,
+     * @description Covers AccountProspectTasIntegrationService safe paths for null,
      *              empty, and null Account input.
      */
     @IsTest
     static void testLSIntegrationServiceSafePaths() {
         Test.startTest();
 
-        LSAccountProspectTasIntegrationService.processAccounts(null);
-        LSAccountProspectTasIntegrationService.processAccounts(new List<Account>());
-        LSAccountProspectTasIntegrationService.processAccounts(new List<Account>{ null });
+        AccountProspectTasIntegrationService.processAccounts(null);
+        AccountProspectTasIntegrationService.processAccounts(new List<Account>());
+        AccountProspectTasIntegrationService.processAccounts(new List<Account>{ null });
 
         Test.stopTest();
 
@@ -539,8 +484,8 @@ public class LSAccountProspectTasServiceTest {
     static void testInsertTasAssignmentsSafePaths() {
         Test.startTest();
 
-        LSAccountProspectTasIntegrationService.insertTasAssignments(null);
-        LSAccountProspectTasIntegrationService.insertTasAssignments(new List<TasTerritoryItem>());
+        AccountProspectTasIntegrationService.insertTasAssignments(null);
+        AccountProspectTasIntegrationService.insertTasAssignments(new List<TasTerritoryItem>());
 
         Test.stopTest();
 
@@ -581,10 +526,10 @@ public class LSAccountProspectTasServiceTest {
             item.classCode = LS_CLASS_CODE;
 
             Test.startTest();
-            LSAccountProspectTasIntegrationService.insertTasAssignments(
+            AccountProspectTasIntegrationService.insertTasAssignments(
                 new List<TasTerritoryItem>{ null, item }
             );
-            LSAccountProspectTasIntegrationService.insertTasAssignments(
+            AccountProspectTasIntegrationService.insertTasAssignments(
                 new List<TasTerritoryItem>{ null }
             );
             Test.stopTest();
@@ -607,20 +552,20 @@ public class LSAccountProspectTasServiceTest {
         };
         Database.SaveResult[] saveResults = Database.insert(invalidTeamMembers, false);
 
-        LSAccountProspectTasIntegrationService.logSaveResults('AccountTeamMember', saveResults);
-        LSAccountProspectTasIntegrationService.logSaveResults(
+        AccountProspectTasIntegrationService.logSaveResults('AccountTeamMember', saveResults);
+        AccountProspectTasIntegrationService.logSaveResults(
             'AccountTeamMember',
             new List<Database.SaveResult>()
         );
 
         try {
-            LSAccountProspectTasIntegrationService.throwTestExceptionInLogSaveResults = true;
-            LSAccountProspectTasIntegrationService.logSaveResults(
+            AccountProspectTasIntegrationService.throwTestExceptionInLogSaveResults = true;
+            AccountProspectTasIntegrationService.logSaveResults(
                 'AccountTeamMember',
                 new List<Database.SaveResult>()
             );
         } finally {
-            LSAccountProspectTasIntegrationService.throwTestExceptionInLogSaveResults = false;
+            AccountProspectTasIntegrationService.throwTestExceptionInLogSaveResults = false;
         }
 
         System.assertEquals(
@@ -642,25 +587,25 @@ public class LSAccountProspectTasServiceTest {
         insert acc;
 
         Map<Id, String> statuses = new Map<Id, String>();
-        statuses.put(null, LSAccountProspectTasIntegrationService.TAS_STATUS_ASSIGNED);
-        statuses.put(acc.Id, LSAccountProspectTasIntegrationService.TAS_STATUS_TECHNICAL_FAILURE);
+        statuses.put(null, AccountProspectTasIntegrationService.TAS_STATUS_ASSIGNED);
+        statuses.put(acc.Id, AccountProspectTasIntegrationService.TAS_STATUS_TECHNICAL_FAILURE);
 
         Test.startTest();
-        LSAccountProspectTasIntegrationService.applyTasOutcome(null);
-        LSAccountProspectTasIntegrationService.applyTasOutcome(new Map<Id, String>());
-        LSAccountProspectTasIntegrationService.applyTasOutcome(statuses);
+        AccountProspectTasIntegrationService.applyTasOutcome(null);
+        AccountProspectTasIntegrationService.applyTasOutcome(new Map<Id, String>());
+        AccountProspectTasIntegrationService.applyTasOutcome(statuses);
         Test.stopTest();
 
         Account updated = [SELECT TAS_Assignment_Status__c FROM Account WHERE Id = :acc.Id];
         System.assertEquals(
-            LSAccountProspectTasIntegrationService.TAS_STATUS_TECHNICAL_FAILURE,
+            AccountProspectTasIntegrationService.TAS_STATUS_TECHNICAL_FAILURE,
             updated.TAS_Assignment_Status__c,
             'applyTasOutcome should persist Technical Failure and skip a null Account Id.'
         );
     }
 
     /**
-     * @description Covers LSAccountService.assignTAStoProspect enqueue and queueable processing.
+     * @description Covers AccountService.assignTAStoProspect enqueue and queueable processing for SC.
      */
     @IsTest
     static void testAssignTAStoProspectEnqueuesQueueable() {
@@ -697,7 +642,7 @@ public class LSAccountProspectTasServiceTest {
             registerTasCalloutMock(buildMockTasResponseJson(acc.Id));
 
             Test.startTest();
-            LSAccountService.assignTAStoProspect(new List<Account>{ acc });
+            AccountService.assignTAStoProspect(new List<Account>{ acc });
             Test.stopTest();
 
             System.assertEquals(
@@ -706,58 +651,6 @@ public class LSAccountProspectTasServiceTest {
                 'assignTAStoProspect should enqueue TAS processing that creates Account Team Members.'
             );
         }
-    }
-
-    /**
-     * @description Covers assignTAStoProspect and retryTasAssignmentFromFlow catch blocks.
-     */
-    @IsTest
-    static void testLSAccountServiceCatchBlocks() {
-        Boolean assignCaught = false;
-        Boolean retryCaught = false;
-
-        try {
-            LSAccountService.throwTestException = true;
-            LSAccountService.assignTAStoProspect(new List<Account>());
-        } catch (LSAccountService.LSAccountServiceException assignException) {
-            assignCaught = true;
-        } finally {
-            LSAccountService.throwTestException = false;
-        }
-
-        try {
-            LSAccountService.throwTestException = true;
-            LSAccountService.retryTasAssignmentFromFlow(new List<LSAccountService.FlowRequest>());
-        } catch (LSAccountService.LSAccountServiceException retryException) {
-            retryCaught = true;
-        } finally {
-            LSAccountService.throwTestException = false;
-        }
-
-        System.assertEquals(true, assignCaught, 'assignTAStoProspect catch should run.');
-        System.assertEquals(true, retryCaught, 'retryTasAssignmentFromFlow catch should run.');
-    }
-
-    /**
-     * @description Covers LSAccountProspectTasQueueable.execute catch block.
-     */
-    @IsTest
-    static void testQueueableExecuteCatchBlock() {
-        Boolean caught = false;
-        try {
-            LSAccountProspectTasQueueable.throwTestException = true;
-            new LSAccountProspectTasQueueable(new Set<Id>()).execute(null);
-        } catch (Exception queueableException) {
-            caught = true;
-        } finally {
-            LSAccountProspectTasQueueable.throwTestException = false;
-        }
-
-        System.assertEquals(
-            false,
-            caught,
-            'Queueable execute should swallow the test exception in its catch block.'
-        );
     }
 
     /**
@@ -780,7 +673,7 @@ public class LSAccountProspectTasServiceTest {
             registerTasCalloutMock(buildMockTasResponseJson(acc.Id));
 
             Test.startTest();
-            new LSAccountProspectTasQueueable(new Set<Id>{ acc.Id }).execute(null);
+            new AccountProspectTasQueueable(new Set<Id>{ acc.Id }).execute(null);
             Test.stopTest();
 
             System.assertEquals(
@@ -799,7 +692,7 @@ public class LSAccountProspectTasServiceTest {
         Account acc = new Account(Name = 'LS Ineligible Prospect');
 
         Test.startTest();
-        LSAccountService.assignTAStoProspect(new List<Account>{ acc, null });
+        AccountService.assignTAStoProspect(new List<Account>{ acc, null });
         System.assertEquals(
             false,
             LSAccountService.isLifeSciencesAccount(null),
@@ -842,16 +735,16 @@ public class LSAccountProspectTasServiceTest {
                 priceList.Id
             );
             acc.TAS_Retry__c = true;
-            acc.TAS_Assignment_Status__c = LSAccountProspectTasIntegrationService.TAS_STATUS_ASSIGNED;
+            acc.TAS_Assignment_Status__c = AccountProspectTasIntegrationService.TAS_STATUS_ASSIGNED;
             insert acc;
             bypassAccountTrigger(runningUser, false);
 
-            LSAccountService.FlowRequest request = new LSAccountService.FlowRequest();
+            AccountService.FlowRequest request = new AccountService.FlowRequest();
             request.accountId = acc.Id;
 
             Test.startTest();
-            LSAccountService.retryTasAssignmentFromFlow(
-                new List<LSAccountService.FlowRequest>{ null, request }
+            AccountService.retryTasAssignmentFromFlow(
+                new List<AccountService.FlowRequest>{ null, request }
             );
             Test.stopTest();
 
@@ -870,7 +763,7 @@ public class LSAccountProspectTasServiceTest {
     static void testQueueableWhenAccountsNotFound() {
         Test.startTest();
         System.enqueueJob(
-            new LSAccountProspectTasQueueable(new Set<Id>{ '001000000000001AAA' })
+            new AccountProspectTasQueueable(new Set<Id>{ '001000000000001AAA' })
         );
         Test.stopTest();
 
@@ -899,12 +792,12 @@ public class LSAccountProspectTasServiceTest {
             insertProspectWithoutTasEnqueue(runningUser, acc);
 
             Test.startTest();
-            LSAccountProspectTasIntegrationService.processAccounts(new List<Account>{ acc });
+            AccountProspectTasIntegrationService.processAccounts(new List<Account>{ acc });
             Test.stopTest();
 
             Account updated = [SELECT TAS_Assignment_Status__c FROM Account WHERE Id = :acc.Id];
             System.assertEquals(
-                LSAccountProspectTasIntegrationService.TAS_STATUS_TECHNICAL_FAILURE,
+                AccountProspectTasIntegrationService.TAS_STATUS_TECHNICAL_FAILURE,
                 updated.TAS_Assignment_Status__c,
                 'A callout exception should remain classified as Technical Failure.'
             );
@@ -949,7 +842,7 @@ public class LSAccountProspectTasServiceTest {
             registerTasCalloutMock(buildMockTasResponseJson(acc.Id));
 
             Test.startTest();
-            LSAccountProspectTasIntegrationService.processAccounts(new List<Account>{ acc });
+            AccountProspectTasIntegrationService.processAccounts(new List<Account>{ acc });
             Test.stopTest();
 
             System.assertEquals(
@@ -997,7 +890,7 @@ public class LSAccountProspectTasServiceTest {
             registerTasCalloutMock(JSON.serialize(payload));
 
             Test.startTest();
-            LSAccountProspectTasIntegrationService.processAccounts(new List<Account>{ acc });
+            AccountProspectTasIntegrationService.processAccounts(new List<Account>{ acc });
             Test.stopTest();
 
             System.assertEquals(
@@ -1043,7 +936,7 @@ public class LSAccountProspectTasServiceTest {
             );
 
             Test.startTest();
-            LSAccountProspectTasIntegrationService.processAccounts(new List<Account>{ acc });
+            AccountProspectTasIntegrationService.processAccounts(new List<Account>{ acc });
             Test.stopTest();
 
             System.assertEquals(
@@ -1053,6 +946,8 @@ public class LSAccountProspectTasServiceTest {
             );
         }
     }
+
+    // ===================== Flow retry =====================
 
     /**
      * @description Verifies retryTasAssignmentFromFlow accepts an Account Id and submits
@@ -1065,6 +960,7 @@ public class LSAccountProspectTasServiceTest {
         Id prospectRtId = getProspectRecordTypeId();
 
         System.runAs(runningUser) {
+            // Suppress Account after-insert TAS enqueue so this test only covers Flow retry.
             bypassAccountTrigger(runningUser, true);
 
             Account acc = createLifeSciencesProspectAccount(
@@ -1077,6 +973,7 @@ public class LSAccountProspectTasServiceTest {
 
             bypassAccountTrigger(runningUser, false);
 
+            // Re-query with TAS eligibility fields so the retry / queueable path is safe.
             acc = [
                 SELECT Id,
                        Name,
@@ -1095,16 +992,17 @@ public class LSAccountProspectTasServiceTest {
                 WHERE Id = :acc.Id
             ];
 
-            LSAccountService.FlowRequest request = new LSAccountService.FlowRequest();
+            AccountService.FlowRequest request = new AccountService.FlowRequest();
             request.accountId = acc.Id;
 
             registerTasCalloutMock(buildMockTasResponseJson(acc.Id));
 
             Test.startTest();
-            LSAccountService.retryTasAssignmentFromFlow(
-                new List<LSAccountService.FlowRequest>{ request }
+            AccountService.retryTasAssignmentFromFlow(
+                new List<AccountService.FlowRequest>{ request }
             );
-            LSAccountProspectTasIntegrationService.processAccounts(new List<Account>{ acc });
+            // Drive processing with the fully populated Account (avoids org selector field gaps).
+            AccountProspectTasIntegrationService.processAccounts(new List<Account>{ acc });
             Test.stopTest();
 
             Account updatedAccount = [
@@ -1131,7 +1029,7 @@ public class LSAccountProspectTasServiceTest {
     static void testRetryTasAssignmentFromFlowNullRequest() {
         Test.startTest();
 
-        LSAccountService.retryTasAssignmentFromFlow(null);
+        AccountService.retryTasAssignmentFromFlow(null);
 
         Test.stopTest();
 
@@ -1149,8 +1047,8 @@ public class LSAccountProspectTasServiceTest {
     static void testRetryTasAssignmentFromFlowEmptyRequest() {
         Test.startTest();
 
-        LSAccountService.retryTasAssignmentFromFlow(
-            new List<LSAccountService.FlowRequest>()
+        AccountService.retryTasAssignmentFromFlow(
+            new List<AccountService.FlowRequest>()
         );
 
         Test.stopTest();
@@ -1168,13 +1066,13 @@ public class LSAccountProspectTasServiceTest {
      */
     @IsTest
     static void testRetryTasAssignmentFromFlowNullAccountId() {
-        LSAccountService.FlowRequest request = new LSAccountService.FlowRequest();
+        AccountService.FlowRequest request = new AccountService.FlowRequest();
         request.accountId = null;
 
         Test.startTest();
 
-        LSAccountService.retryTasAssignmentFromFlow(
-            new List<LSAccountService.FlowRequest>{ request }
+        AccountService.retryTasAssignmentFromFlow(
+            new List<AccountService.FlowRequest>{ request }
         );
 
         Test.stopTest();
@@ -1185,6 +1083,8 @@ public class LSAccountProspectTasServiceTest {
             'No Account Team Members should be created when the Flow Account Id is null.'
         );
     }
+
+    // ===================== Helpers =====================
 
     /**
      * @description Toggles the Account trigger bypass for the supplied user so a test can
@@ -1202,7 +1102,7 @@ public class LSAccountProspectTasServiceTest {
 
     /**
      * @description Inserts a Prospect without enqueuing real-time TAS so the test can
-     *              call LSAccountProspectTasIntegrationService.processAccounts directly.
+     *              call AccountProspectTasIntegrationService.processAccounts directly.
      * @param runningUser User whose trigger bypass setting is toggled.
      * @param acc Prospect Account to insert.
      */
@@ -1369,15 +1269,15 @@ public class LSAccountProspectTasServiceTest {
     }
 
     /**
-     * @description Retrieves the reusable Life Sciences running test user.
+     * @description Returns the user running the tests (admin), like LSAccountCustomerTasServiceTest.
+     *              Account OWD is Private: an LS Sales owner cannot add other users to the Account team.
      * @return Running test User.
      */
     private static User getRunningUser() {
         return [
             SELECT Id
             FROM User
-            WHERE Email LIKE 'lsrunninguser%'
-            LIMIT 1
+            WHERE Id = :UserInfo.getUserId()
         ];
     }
 

@@ -768,7 +768,8 @@ private class DeviceEvaluationControllerTest {
                 false,
                 null,
                 null,
-                null
+                null,
+                false
             );
         } catch (AuraHandledException e) {
             threw = true;

@@ -13,9 +13,7 @@ import getEvalCategories from '@salesforce/apex/InstrumentEvaluationController.g
 import getProductsForEvalCategory from '@salesforce/apex/InstrumentEvaluationController.getProductsForEvalCategory';
 import getRepairCodesForProduct from '@salesforce/apex/InstrumentEvaluationController.getRepairCodesForProduct';
 import saveDraftItems from '@salesforce/apex/InstrumentEvaluationController.saveDraftItems';
-import completeDraftItems from '@salesforce/apex/InstrumentEvaluationController.completeDraftItems';
-// GW-3377 backed out: Execute Pricing and the requote warning stay off.
-// import finalizeInstrumentEvaluationAfterPricing from '@salesforce/apex/InstrumentEvaluationController.finalizeInstrumentEvaluationAfterPricing';
+import finalizeInstrumentEvaluationAfterPricing from '@salesforce/apex/InstrumentEvaluationController.finalizeInstrumentEvaluationAfterPricing';
 import returnToEvaluation from '@salesforce/apex/InstrumentEvaluationController.returnToEvaluation';
 import getEvaluationItems from '@salesforce/apex/InstrumentEvaluationController.getEvaluationItems';
 import getReturnOrderLineAssignment from '@salesforce/apex/InstrumentEvaluationController.getReturnOrderLineAssignment';
@@ -119,6 +117,8 @@ export default class InstrumentEvaluation extends LightningElement {
     isLoading = false;
     errorMessage = '';
     workspaceError = '';
+    /** GW-3377 - Stays visible while the updated repair cost is above the approved price. */
+    requoteBannerMessage = '';
     selectedTab = TAB_WO_DETAILS;
     turnTimeInputValue = '';
     quantityReceivedInputValue = '';
@@ -427,10 +427,14 @@ export default class InstrumentEvaluation extends LightningElement {
     }
 
     /**
-     * GW-3377 backed out. Current / Updated Repair Cost stay hidden.
+     * GW-3377 - Current / Updated Repair Cost while Status is Repair.
      */
     get showRepairCostHeader() {
-        return false;
+        return this.isRepairStatus;
+    }
+
+    get showRequoteBanner() {
+        return !!this.requoteBannerMessage;
     }
 
     get currentRepairCostDisplay() {
@@ -579,22 +583,53 @@ export default class InstrumentEvaluation extends LightningElement {
     }
 
     /**
-     * GW-3377 backed out. Requote gate is not evaluated on save.
+     * GW-3377 - Repair requote pricing runs after a committed line save.
      */
     get needsRepairPricing() {
-        return false;
+        return (
+            this.isRepairStatus &&
+            (this.workspace?.estimateRequired === ESTIMATE_REQUIRED ||
+                this.workspace?.customerPoRequired === true)
+        );
     }
 
-    async priceCommittedInstrumentLines({ applyCompletion }) {
-        // GW-3377 backed out: do not Execute Pricing or show the requote warning.
-        // Complete still applies Status / Sub Status through completeDraftItems.
-        if (applyCompletion !== true) {
+    async priceCommittedInstrumentLines({
+        applyCompletion,
+        priceOnNext = false,
+        originalNetTotal
+    }) {
+        if (applyCompletion !== true && priceOnNext !== true && !this.needsRepairPricing) {
             return;
         }
-        await completeDraftItems({
-            workOrderId: this.workspace.workOrderId,
-            draftItems: []
-        });
+        try {
+            const result = await finalizeInstrumentEvaluationAfterPricing({
+                workOrderId: this.workspace.workOrderId,
+                originalNetTotal,
+                applyCompletion: applyCompletion === true,
+                newPriceableLineItemIds: this.pendingPriceableLineItemIds || [],
+                priceOnNext: priceOnNext === true
+            });
+            this.pendingPriceableLineItemIds = [];
+            this.applyDraftSaveResult(result);
+            this.applyRequoteBanner(result);
+        } catch (error) {
+            this.rememberRequoteFailure(error);
+            throw error;
+        }
+    }
+
+    applyRequoteBanner(result) {
+        if (!result || !Object.prototype.hasOwnProperty.call(result, 'requoteWarning')) {
+            return;
+        }
+        this.requoteBannerMessage = result.requoteWarning || '';
+    }
+
+    rememberRequoteFailure(error) {
+        const message = this.resolveErrorMessage(error, '');
+        if (message && message.includes('cost of repair has increased')) {
+            this.requoteBannerMessage = message;
+        }
     }
 
     /**
@@ -1885,6 +1920,13 @@ export default class InstrumentEvaluation extends LightningElement {
         if (!cioOk) {
             return;
         }
+        const saved = await this.persistEvaluationProgress({
+            closeAfter: false,
+            priceOnNext: true
+        });
+        if (!saved || this.requoteBannerMessage) {
+            return;
+        }
         this.mode = MODE_SUMMARY;
     }
 
@@ -1926,6 +1968,11 @@ export default class InstrumentEvaluation extends LightningElement {
      */
     async handleComplete() {
         this.workspaceError = '';
+        if (this.requoteBannerMessage) {
+            this.workspaceError = this.requoteBannerMessage;
+            this.mode = MODE_WORKSPACE;
+            return;
+        }
         const headerSaved = await this.persistWorkOrderFields({
             suppressToast: true,
             manageLoading: false
@@ -2015,6 +2062,9 @@ export default class InstrumentEvaluation extends LightningElement {
                 error,
                 this.getCompleteFailureMessage()
             );
+            if (this.requoteBannerMessage) {
+                this.mode = MODE_WORKSPACE;
+            }
         } finally {
             this.isLoading = false;
         }
@@ -2023,10 +2073,10 @@ export default class InstrumentEvaluation extends LightningElement {
     /**
      * Quick Save / Save & Close: header fields + unsaved WOLIs + staged signatures.
      * Does not change Status / Sub Status.
-     * @param {{closeAfter: boolean}} options Whether to return to scan after save
+     * @param {{closeAfter: boolean, priceOnNext?: boolean}} options Whether to return to scan after save
      * @returns {Promise<boolean>} True when save succeeded
      */
-    async persistEvaluationProgress({ closeAfter }) {
+    async persistEvaluationProgress({ closeAfter, priceOnNext = false }) {
         if (!this.workspace?.workOrderId || this.isBusy) {
             return false;
         }
@@ -2052,6 +2102,7 @@ export default class InstrumentEvaluation extends LightningElement {
             );
             await this.priceCommittedInstrumentLines({
                 applyCompletion: false,
+                priceOnNext,
                 originalNetTotal
             });
             await this.persistStagedSignaturesAfterComplete(
@@ -2067,6 +2118,7 @@ export default class InstrumentEvaluation extends LightningElement {
             }
             return true;
         } catch (error) {
+            this.rememberRequoteFailure(error);
             this.workspaceError = this.resolveErrorMessage(
                 error,
                 'Unable to save Instrument Evaluation progress.'
@@ -4193,6 +4245,7 @@ export default class InstrumentEvaluation extends LightningElement {
         this.mode = MODE_SCAN;
         this.workspace = undefined;
         this.workspaceError = '';
+        this.requoteBannerMessage = '';
         this.errorMessage = '';
         this.selectedTab = TAB_WO_DETAILS;
         this.turnTimeInputValue = '';
@@ -4205,6 +4258,7 @@ export default class InstrumentEvaluation extends LightningElement {
         this.wreModalAllowMultiple = false;
         this.wreModalMaxCount = 1;
         this.draftsCommitted = false;
+        this.pendingPriceableLineItemIds = [];
         this.repairSignatures = [];
         this.stagedRepairSignatures = [];
         this.resetAddItemsDrillDown(false);

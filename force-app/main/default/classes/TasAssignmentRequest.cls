@@ -145,13 +145,13 @@ public class TasAssignmentRequest {
 	private List<Map<String, String>> leadProducts() {
 		List<Map<String, String>> products = new List<Map<String, String>>();
 		for (LeadProduct__c row : [
-			SELECT ProductFamily__c, ProductClassCode__c
+			SELECT Product_Family_Code__c, Product_Class_Code__c
 			FROM LeadProduct__c
 			WHERE Lead__c = :leadId
 		]) {
 			products.add(new Map<String, String>{
-				'productFamilyCode' => row.ProductFamily__c,
-				'productClassCode' => row.ProductClassCode__c
+				'productFamilyCode' => row.Product_Family_Code__c,
+				'productClassCode' => row.Product_Class_Code__c
 			});
 		}
 		return products;

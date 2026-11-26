@@ -1,9 +1,9 @@
 import { LightningElement } from 'lwc';
 import { NavigationMixin } from 'lightning/navigation';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
-import getTemplateDownloadUrl from '@salesforce/apex/TechDistrictAlignmentController.getTemplateDownloadUrl';
-import getErrorFileDownloadUrl from '@salesforce/apex/TechDistrictAlignmentController.getErrorFileDownloadUrl';
-import processUpload from '@salesforce/apex/TechDistrictAlignmentController.processUpload';
+import getTemplateDownloadUrl from '@salesforce/apex/DistrictZoneAlignmentController.getTemplateDownloadUrl';
+import getErrorFileDownloadUrl from '@salesforce/apex/DistrictZoneAlignmentController.getErrorFileDownloadUrl';
+import processUpload from '@salesforce/apex/DistrictZoneAlignmentController.processUpload';
 import cardTitle from '@salesforce/label/c.TDA_CardTitle';
 import instructionsProcess from '@salesforce/label/c.TDA_InstructionsProcess';
 import instructionsColumns from '@salesforce/label/c.TDA_InstructionsColumns';

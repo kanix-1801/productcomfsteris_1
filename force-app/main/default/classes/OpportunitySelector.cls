@@ -292,4 +292,56 @@ public with sharing class OpportunitySelector {
 		}
 		return parentRoleIdByRoleId;
 	}
+
+    /**
+     * @description GW-6603 - Oldest Field Service opportunity of a record type for a Work Order. Runs without sharing
+     *              so the existing opportunity is reused even when the technician cannot see it (opportunities are
+     *              private).
+     * @param workOrderId Work Order Id
+     * @param recordTypeId Opportunity record type Id
+     * @return Matching opportunity (at most one)
+     */
+    public static List<Opportunity> selectFieldServiceByWorkOrderId(Id workOrderId, Id recordTypeId) {
+        if (workOrderId == null || recordTypeId == null) {
+            return new List<Opportunity>();
+        }
+        return new FieldServiceQuoteAccess().selectByWorkOrderId(workOrderId, recordTypeId);
+    }
+
+    /**
+     * @description GW-6603 - The opportunity when it is of the record type and not yet linked to a Work Order.
+     *              Runs without sharing for the same reason as selectFieldServiceByWorkOrderId.
+     * @param opportunityId Opportunity Id
+     * @param recordTypeId Opportunity record type Id
+     * @return Matching opportunity (empty when already linked, another record type or not found)
+     */
+    public static List<Opportunity> selectFieldServiceWithoutWorkOrderById(Id opportunityId, Id recordTypeId) {
+        if (opportunityId == null || recordTypeId == null) {
+            return new List<Opportunity>();
+        }
+        return new FieldServiceQuoteAccess().selectWithoutWorkOrderById(opportunityId, recordTypeId);
+    }
+
+    /**
+     * @description GW-6603 - Field Service quote opportunity lookups that must ignore record sharing.
+     */
+    private without sharing class FieldServiceQuoteAccess {
+        List<Opportunity> selectByWorkOrderId(Id workOrderId, Id recordTypeId) {
+            return [
+                SELECT Id
+                FROM Opportunity
+                WHERE WorkOrder__c = :workOrderId AND RecordTypeId = :recordTypeId
+                ORDER BY CreatedDate ASC
+                LIMIT 1
+            ];
+        }
+
+        List<Opportunity> selectWithoutWorkOrderById(Id opportunityId, Id recordTypeId) {
+            return [
+                SELECT Id
+                FROM Opportunity
+                WHERE Id = :opportunityId AND RecordTypeId = :recordTypeId AND WorkOrder__c = NULL
+            ];
+        }
+    }
 }

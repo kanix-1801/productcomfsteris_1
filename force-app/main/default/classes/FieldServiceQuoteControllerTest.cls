@@ -81,7 +81,7 @@ private class FieldServiceQuoteControllerTest {
 		]) {
 			lineByType.put(record.LineType__c, record);
 		}
-		System.assertEquals(System.Label.FS_Quote_Labor_Product_Code, lineByType.get('Labor').Product2.ProductCode);
+		System.assertEquals(FieldServiceQuoteTestData.LABOR_CODE, lineByType.get('Labor').Product2.ProductCode);
 		System.assertEquals('Standard', lineByType.get('Labor').Rate__c);
 		System.assertEquals(3, lineByType.get('Labor').Quantity);
 		System.assertEquals(1, lineByType.get('Travel').Quantity, 'Zone travel is a flat amount');
@@ -140,25 +140,33 @@ private class FieldServiceQuoteControllerTest {
 	}
 
 	@IsTest
-	static void getProductInfo_pricedAndUnpricedProducts() {
+	static void getQuote_returnsPriceBookForTheEditor() {
 		FieldServiceQuoteTestData.Scenario scenario = FieldServiceQuoteTestData.createScenario();
 		Id quoteId = createQuote(scenario);
 
 		Test.startTest();
-		FieldServiceQuoteController.ProductView product = FieldServiceQuoteController.getProductInfo(
-			quoteId,
-			scenario.part.Id
-		);
-		Boolean unpricedFailed = false;
+		FieldServiceQuoteController.QuoteView view = FieldServiceQuoteController.getQuote(quoteId);
+		Test.stopTest();
+
+		System.assertEquals(Test.getStandardPricebookId(), view.header.pricebookId, 'The LWC prices Parts from it');
+		System.assertEquals(FieldServiceQuoteTestData.CURRENCY_CODE, view.header.currencyIsoCode);
+	}
+
+	@IsTest
+	static void getQuote_unknownQuote_throwsAuraException() {
+		FieldServiceQuoteTestData.Scenario scenario = FieldServiceQuoteTestData.createScenario();
+		Id quoteId = createQuote(scenario);
+		delete new Quote(Id = quoteId);
+
+		Test.startTest();
+		Boolean failed = false;
 		try {
-			FieldServiceQuoteController.getProductInfo(quoteId, scenario.unpricedPart.Id);
+			FieldServiceQuoteController.getQuote(quoteId);
 		} catch (AuraHandledException ex) {
-			unpricedFailed = true;
+			failed = ex.getMessage().contains('not found');
 		}
 		Test.stopTest();
 
-		System.assertEquals(FieldServiceQuoteTestData.PART_CODE, product.productCode);
-		System.assertEquals(FieldServiceQuoteTestData.PART_PRICE, product.listPrice);
-		System.assert(unpricedFailed);
+		System.assert(failed, 'A missing quote should be reported to the editor');
 	}
 }

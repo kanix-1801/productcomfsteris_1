@@ -13,8 +13,7 @@ public with sharing class DealerOpportunitySelector {
     public static final String RECORD_TYPE_NAME = 'HCSalesDealer';
     public static final String CLOSED_WON_STAGE = 'Closed Won';
     public static final Integer RECENT_LIMIT = 10;
-    public static final Integer PAST_DUE_LIMIT = 5;
-    public static final Integer DEFAULT_PAGE_SIZE = 25;
+    public static final Integer PAST_DUE_LIMIT = 5;    public static final Integer DEFAULT_PAGE_SIZE = 25;
     public static final Integer MAX_PAGE_SIZE = 50;
     
     public static final List<String> OPEN_STAGES = new List<String>{ 'Evaluation', 'Proposal', 'Commit' };
@@ -42,6 +41,9 @@ public with sharing class DealerOpportunitySelector {
     private static final String RECORD_TYPE_FILTER = 'RecordType.DeveloperName = :recordTypeName';
     private static final String OPEN_STAGE_FILTER =
         RECORD_TYPE_FILTER + ' AND IsClosed = false AND StageName IN :openStages';
+    /** GC-3666. Past due when the Close Date or the Expected Ship Date is before today. A blank ship date never matches. */
+    private static final String PAST_DUE_FILTER =
+        'IsClosed = false AND (CloseDate < TODAY OR Expected_Ship_Date__c < TODAY)';
     
     /** @description GC-3603 Dealer Portal R1 - Filter accepted by the My Opportunities workspace. */
     public class OpportunityFilter {
@@ -71,13 +73,13 @@ public with sharing class DealerOpportunitySelector {
         );
     }
     
-    /** @description GC-3603 Dealer Portal R1 - Returns open Dealer opportunities whose Expected Ship Date is before today. */
+    /** @description GC-3603 Dealer Portal R1 - Returns open Dealer opportunities whose Close Date or Expected Ship Date is before today, oldest Close Date first. */
     public static List<Opportunity> selectPastDue(Integer rowLimit) {
         Integer appliedLimit = rowLimit == null || rowLimit < 1 ? PAST_DUE_LIMIT : Math.min(rowLimit, MAX_PAGE_SIZE);
         return Database.queryWithBinds(
             'SELECT ' + FIELD_LIST + ' FROM Opportunity WHERE ' + RECORD_TYPE_FILTER +
-            ' AND IsClosed = false AND Expected_Ship_Date__c != null AND Expected_Ship_Date__c < TODAY' +
-            ' ORDER BY Expected_Ship_Date__c ASC LIMIT ' + appliedLimit,
+            ' AND ' + PAST_DUE_FILTER +
+            ' ORDER BY CloseDate ASC, Expected_Ship_Date__c ASC LIMIT ' + appliedLimit,
             new Map<String, Object>{ 'recordTypeName' => RECORD_TYPE_NAME },
             AccessLevel.USER_MODE
         );
@@ -117,6 +119,16 @@ public with sharing class DealerOpportunitySelector {
         );
     }
     
+    /** @description GC-3666 - Returns the open Dealer opportunities closing within 90 days, soonest Close Date first. */
+    public static List<Opportunity> selectClosingNext90Days() {
+        return Database.queryWithBinds(
+            'SELECT ' + FIELD_LIST + ' FROM Opportunity WHERE ' + OPEN_STAGE_FILTER +
+            ' AND CloseDate = NEXT_N_DAYS:90 ORDER BY CloseDate ASC LIMIT ' + PAST_DUE_LIMIT,
+            new Map<String, Object>{ 'recordTypeName' => RECORD_TYPE_NAME, 'openStages' => OPEN_STAGES },
+            AccessLevel.USER_MODE
+        );
+    }
+    
     /** @description GC-3603 Dealer Portal R1 - Open dealer opportunities used to total pipeline by Business Unit. */
     public static List<Opportunity> selectOpenPipeline() {
         return Database.queryWithBinds(
@@ -133,7 +145,7 @@ public with sharing class DealerOpportunitySelector {
         binds.put('recordTypeName', RECORD_TYPE_NAME);
         List<String> conditions = new List<String>{ RECORD_TYPE_FILTER };
             if (filter.pastDueOnly == true) {
-                conditions.add('IsClosed = false AND Expected_Ship_Date__c != null AND Expected_Ship_Date__c < TODAY');
+                conditions.add(PAST_DUE_FILTER);
             }
         if (String.isNotBlank(filter.stageName)) {
             conditions.add('StageName = :stageName');

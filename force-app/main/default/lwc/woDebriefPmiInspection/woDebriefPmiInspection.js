@@ -256,27 +256,48 @@ export default class WoDebriefPmiInspection extends LightningElement {
 					comments: row.comments
 				}))
 			});
+			const failedNames = result?.failedNames || [];
 			this.dispatchEvent(new CustomEvent('inspectionsaved', {
 				detail: {
 					workOrderLineItemId: this.workOrderLineItemId,
 					inspectionOutcome: result?.inspectionOutcome || '',
 					outcomeUpdated: result?.outcomeUpdated === true,
-					checklistComplete: result?.checklistComplete === true
+					checklistComplete: result?.checklistComplete === true,
+					failedCount: failedNames.length
 				}
 			}));
-			this.dispatchEvent(new ShowToastEvent({
-				title: 'Inspection saved',
-				message: result?.hasFailure
-					? 'A reading failed. Inspection Outcome is Performance Standard Not Met (P1).'
-					: 'Inspection measurements were saved.',
-				variant: result?.hasFailure ? 'warning' : 'success'
-			}));
+			this.dispatchEvent(this._savedToast(result, failedNames));
 			this.isOpen = false;
 		} catch (error) {
 			this.errorMessage = this._errorMessage(error);
 		} finally {
 			this.isSaving = false;
 		}
+	}
+
+	/**
+	 * @description Toast shown after a save. Names the readings that did not meet the standard.
+	 * @param {Object} result Apex save result
+	 * @param {string[]} failedNames Readings that failed in this save
+	 * @return {ShowToastEvent}
+	 */
+	_savedToast(result, failedNames) {
+		if (!failedNames.length) {
+			return new ShowToastEvent({
+				title: 'Inspection saved',
+				message: 'All readings met the standard.',
+				variant: 'success'
+			});
+		}
+		const count = failedNames.length;
+		const readings = count === 1 ? 'reading' : 'readings';
+		return new ShowToastEvent({
+			title: `Inspection saved: ${count} ${readings} did not meet the standard`,
+			message: `${failedNames.join(', ')}. This line is now marked Performance Standard Not Met (P1). `
+				+ 'If a value was entered by mistake, open Inspection, correct it, and save again.',
+			variant: 'warning',
+			mode: 'sticky'
+		});
 	}
 
 	/**

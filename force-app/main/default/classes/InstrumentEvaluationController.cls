@@ -902,7 +902,8 @@ public with sharing class InstrumentEvaluationController {
 		Id workOrderId,
 		Decimal originalNetTotal,
 		Boolean applyCompletion,
-		List<Id> newPriceableLineItemIds
+		List<Id> newPriceableLineItemIds,
+		Boolean priceOnNext
 	) {
 		try {
 			if (workOrderId == null) {
@@ -912,7 +913,8 @@ public with sharing class InstrumentEvaluationController {
 				workOrderId,
 				originalNetTotal,
 				applyCompletion == true,
-				newPriceableLineItemIds
+				newPriceableLineItemIds,
+				priceOnNext == true
 			);
 			return toDraftSaveResult(new List<Id>());
 		} catch (Exception e) {

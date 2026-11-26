@@ -115,6 +115,12 @@ private class WoDebriefPmiInspectionControllerTest {
         Test.stopTest();
 
         System.assertEquals(true, result.hasFailure);
+        System.assertEquals(new List<String>{ 'Field of View' }, result.failedNames);
+        List<WoDebriefPmiInspectionController.LineStatus> statuses =
+            WoDebriefPmiInspectionController.listInspectionStatuses(context.workOrderId);
+        System.assertEquals(1, statuses.size());
+        System.assertEquals(true, statuses[0].hasMeasurements);
+        System.assertEquals(1, statuses[0].failedCount);
         System.assertEquals(WoDebriefPmiInspectionController.OUTCOME_P1, result.inspectionOutcome);
         System.assertEquals(true, result.outcomeUpdated);
         System.assertEquals(true, result.checklistComplete);

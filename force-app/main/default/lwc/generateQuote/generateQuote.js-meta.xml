@@ -3,7 +3,7 @@
     <apiVersion>65.0</apiVersion>
     <isExposed>true</isExposed>
     <masterLabel>Generate Quote</masterLabel>
-    <description>GCL-66: Opportunity, Trial, and Sample quote list, generation, and refresh.</description>
+    <description>GCL-66: Opportunity, Trial, and Sample quote list, generation, and refresh. #GC-3665 On the dealer portal, Refresh Quote shows only for users with Refresh Dealer Quote. Generate Quote stays off the portal.</description>
     <targets>
         <target>lightning__RecordPage</target>
         <target>lightning__AppPage</target>

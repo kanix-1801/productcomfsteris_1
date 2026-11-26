@@ -167,13 +167,14 @@ public with sharing class WorkOrderRepairPricingService {
 		List<Id> priceableLineIds
 	) {
 		lastRequoteWarning = null;
+		PricingTotals totals;
 		if (priceableLineIds != null && normalizeLineIds(priceableLineIds).isEmpty()) {
-			PricingTotals skipped = buildPricingTotals(workOrder, originalTotal);
-			lastTotals = skipped;
-			return skipped;
+			// Quantity, discount, and delete changes still use the Repair Code roll-up.
+			totals = buildPricingTotals(workOrder, originalTotal);
+		} else {
+			executeRepairCenterPricing(workOrder, priceableLineIds);
+			totals = buildPricingTotals(workOrder, originalTotal);
 		}
-		executeRepairCenterPricing(workOrder, priceableLineIds);
-		PricingTotals totals = buildPricingTotals(workOrder, originalTotal);
 		if (requoteGate == true && repairCostExceedsApproval(workOrder, totals.newNetTotal)) {
 			if (blockWhenExceeded == true) {
 				throw new WorkOrdersService.WorkOrdersServiceException(REQUOTE_BLOCKED_MESSAGE);

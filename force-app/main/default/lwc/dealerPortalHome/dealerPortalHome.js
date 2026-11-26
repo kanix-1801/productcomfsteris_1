@@ -82,6 +82,10 @@ export default class DealerPortalHome extends NavigationMixin(LightningElement) 
         return this.home?.pastDueOpportunities || [];
     }
 
+    get closingSoonOpportunities() {
+        return this.home?.closingSoonOpportunities || [];
+    }
+
     get hasStageChart() {
         return this.stageFunnel.length > 0;
     }
